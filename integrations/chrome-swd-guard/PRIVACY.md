@@ -1,6 +1,6 @@
 # SWD Guard — Privacy policy
 
-_Last updated: 2026-11-07_
+_Last updated: 2026-11-08_ · Public URL: https://swd-zetaphy.sawasdeecoin.com/swd-guard#privacy
 
 SWD Guard is a browser extension published by SWD (SAWASDEE COIN). It is built to collect as little as possible.
 

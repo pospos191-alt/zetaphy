@@ -3,7 +3,7 @@
 A Manifest V3 Chrome extension from SWD (SAWASDEE COIN) that warns people **before** they touch a risky token or a
 phishing site. Plain JavaScript, no build step, no dependencies, no remote code.
 
-ภาษาไทย: [README.th.md](README.th.md) · Store checklist (Thai): [STORE_CHECKLIST.th.md](STORE_CHECKLIST.th.md) · [PRIVACY.md](PRIVACY.md)
+ภาษาไทย: [README.th.md](README.th.md) · Store checklist (Thai): [STORE_CHECKLIST.th.md](STORE_CHECKLIST.th.md) · [PRIVACY.md](PRIVACY.md) (public: https://swd-zetaphy.sawasdeecoin.com/swd-guard#privacy) · Store listing & images: [store/](store/listing.md)
 
 ## What it does
 
@@ -53,6 +53,8 @@ scripts/sync-manifest.mjs    copies the bundled list into the manifest's matches
 scripts/zip.sh           builds dist/swd-guard-<version>.zip for the Chrome Web Store
 test/common.test.mjs     unit tests (node:test)
 test/e2e.playwright.mjs  optional: loads the extension in Chromium with every request mocked
+store/                   Chrome Web Store listing text (8 languages), privacy-tab answers, screenshots, promo tiles
+store/make-assets.mjs    rebuilds the store images from the real UI (Playwright, network mocked)
 ```
 
 ## Develop
@@ -79,7 +81,8 @@ before the first release.
 ## Release
 
 ```bash
-sh scripts/zip.sh    # → dist/swd-guard-0.1.0.zip (only manifest, _locales, icons, src, data)
+sh scripts/zip.sh    # → dist/swd-guard-0.1.0.zip (only manifest, _locales, icons, src, data; no tests, store/, scripts, docs)
+node store/make-assets.mjs   # optional: rebuild store/screenshots and store/promo
 ```
 
 Bump `version` in `manifest.json` (and `package.json`) for each upload. Then follow

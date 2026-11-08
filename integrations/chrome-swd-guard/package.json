@@ -8,7 +8,8 @@
     "test": "node --test test/common.test.mjs && node scripts/check.mjs",
     "check": "node scripts/check.mjs",
     "sync": "node scripts/sync-manifest.mjs",
-    "zip": "sh scripts/zip.sh"
+    "zip": "sh scripts/zip.sh",
+    "assets": "node store/make-assets.mjs"
   },
   "engines": { "node": ">=18" }
 }
