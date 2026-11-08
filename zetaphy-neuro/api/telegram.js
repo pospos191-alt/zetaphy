@@ -7,14 +7,14 @@
 //     TELEGRAM_BOT_USERNAME (default awasdeebot), AIRDROP_MAX (10000), AIRDROP_AMOUNT (100),
 //     TELEGRAM_BOT_LANG (en by default; auto = each user's Telegram language),
 //     AIRDROP_EARLY + EARLY_TOKEN (ZETAPHY Early per wallet and its address: /claim then mentions it).
-// After a deploy, open https://neuro.sawasdeecoin.com/api/telegram?setup=1 once: it points Telegram at
+// After a deploy, open https://neuro-api.sawasdeecoin.com/api/telegram?setup=1 once: it points Telegram at
 // this function (with a secret derived from the token, checked on every call) and sets the command menu.
 import { timingSafeEqual } from 'node:crypto';
 import { storeFromEnv } from '../server/store.js';
 import { botConfig, handleUpdate, setupBot, telegramApi, webhookSecret } from '../server/telegram.js';
 
 const store = storeFromEnv(process.env);
-const HOSTS = new Set(['neuro.sawasdeecoin.com', 'swd-amm-zetaphy-neuro.vercel.app']);
+const HOSTS = new Set(['neuro-api.sawasdeecoin.com', 'neuro.sawasdeecoin.com', 'swd-amm-zetaphy-neuro.vercel.app']);
 
 const same = (a, b) => {
   const x = Buffer.from(String(a ?? '')), y = Buffer.from(String(b ?? ''));

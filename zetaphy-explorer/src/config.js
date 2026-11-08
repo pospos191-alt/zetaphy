@@ -29,7 +29,7 @@ export const DEFAULTS = Object.freeze({
   // Neuro web report of a contract; {address} and {chainId} are filled in. Empty: no link.
   neuroReportUrl: '',
   // Chain activity counts (Neuro's /api/chain-stats, any origin may read it). Empty: not shown.
-  chainStatsUrl: 'https://neuro.sawasdeecoin.com/api/chain-stats',
+  chainStatsUrl: 'https://neuro-api.sawasdeecoin.com/api/chain-stats',
   // Where the quantum-exposure advice sends people to move to an ML-DSA-44 account or set a quantum lock.
   hubWalletUrl: 'https://app.sawasdeecoin.com/?tab=wallet',
   // Public IPFS gateway for NFT metadata and images (ipfs:// URIs). Only https://ipfs.io is in the

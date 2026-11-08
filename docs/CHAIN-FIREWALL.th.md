@@ -141,9 +141,23 @@ df -h / && free -m                                                      # [อ�
 ```bash
 # [เปลี่ยนไฟล์] เก็บไบนารีที่รันอยู่ไว้สำหรับ rollback
 sudo cp -a /usr/local/bin/zetaphyd /usr/local/bin/zetaphyd.pre-firewall
-# [เปลี่ยนคลาวด์] snapshot ดิสก์ (จากเครื่องคุณ / Cloud Shell; เสียค่าพื้นที่เล็กน้อย)
+```
+
+ทางเลือก (ไม่บังคับ) เลือกได้มากสุดหนึ่งอย่าง ใช้เฉพาะกรณีที่เกิดยาก คือ "ไบนารีใหม่เองพังหลังความสูงที่ upgrade"
+(ถ้าพังก่อนถึงความสูงนั้น สำเนาไบนารีด้านบนพอแล้ว):
+
+```bash
+# ฟรี [เปลี่ยนไฟล์] สำเนาข้อมูลเชนไว้บนดิสก์เดิม (หยุดโหนดครู่เดียว ดู `df -h /` ก่อน
+# ต้องมีที่ว่างเท่ากับขนาด /home/zetaphy/.zetaphy/data)
+sudo systemctl stop zetaphyd
+sudo -u zetaphy cp -a /home/zetaphy/.zetaphy/data /home/zetaphy/.zetaphy/data.pre-firewall
+sudo systemctl start zetaphyd
+# เสียเงิน [เปลี่ยนคลาวด์] snapshot ดิสก์ (Cloud Shell; คิดเงินตาม GB ต่อเดือนจนกว่าจะลบ
+# ลบทิ้งเมื่อ upgrade ผ่านแล้ว: gcloud compute snapshots delete <ชื่อ>)
 gcloud compute disks snapshot zetaphy-node-0 --zone <ZONE> --snapshot-names zetaphy-pre-firewall-$(date +%Y%m%d)
 ```
+
+โครงการนี้ตกลงกันว่าไม่เสียค่าใช้จ่าย จึงข้าม snapshot เป็นค่าเริ่มต้น
 
 ### 3. Build ไบนารีใหม่บน VM **[เปลี่ยนไฟล์]**
 
@@ -267,8 +281,9 @@ curl -s "localhost:26657/block_results?height=$h" | jq '[.result.finalize_block_
   ถ้าข้อเสนอ upgrade ผ่านไปแล้ว ไบนารีเก่าจะหยุดที่ H ด้วย `UPGRADE "zetaphy-firewall" NEEDED` ให้ยกเลิกแผนก่อนด้วยข้อเสนอ
   governance `MsgCancelUpgrade` หรือใส่ไบนารีใหม่กลับก่อนถึง H
 - **หลัง H**: ไบนารีเก่ารันเชนไม่ได้อีกแล้ว (ไม่มี handler ของ upgrade ที่ทำไปแล้ว) ให้ใช้ไบนารีใหม่ต่อและปิดไฟร์วอลล์
-  ตามข้างบน เฉพาะกรณีที่ไบนารีใหม่เองมีปัญหา (crash, app-hash error) ให้หยุด `zetaphyd` กู้ snapshot ดิสก์จากขั้นที่ 2
-  และไบนารีเก่า บล็อกที่สร้างหลัง snapshot จะหายไป (testnet ที่มี validator ตัวเดียว)
+  ตามข้างบน เฉพาะกรณีที่ไบนารีใหม่เองมีปัญหา (crash, app-hash error) ให้หยุด `zetaphyd` แล้วใส่สำเนาข้อมูล (หรือ snapshot)
+  จากขั้นที่ 2 กับไบนารีเก่ากลับ บล็อกที่สร้างหลังสำเนาจะหายไป (testnet ที่มี validator ตัวเดียว) ถ้าไม่มีทั้งสองอย่าง
+  ทางออกคือไปข้างหน้า: ไบนารีที่แก้แล้ว
 - เก็บกวาดเมื่อเสร็จ **[เปลี่ยนไฟล์]**: `sudo -u zetaphy rm -rf /home/zetaphy/src/evm-firewall /home/zetaphy/setup-node-firewall.sh`
 
 ## ข้อจำกัด

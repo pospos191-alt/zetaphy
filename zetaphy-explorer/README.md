@@ -73,7 +73,7 @@ The page always states the scanned range. Older transactions can be opened by ha
 
 The home page shows this month's transactions by kind (transfers, staking, cross-chain, EVM and contracts, governance)
 and the total since genesis, from Neuro's daily counts (`chainStatsUrl`, default
-`https://neuro.sawasdeecoin.com/api/chain-stats`; empty turns it off). Read once per visit, not from the node.
+`https://neuro-api.sawasdeecoin.com/api/chain-stats`; empty turns it off). Read once per visit, not from the node.
 
 ### Quantum-resistant certificate (ML-DSA-44)
 

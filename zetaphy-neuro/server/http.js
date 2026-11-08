@@ -5,7 +5,8 @@
 // that rewrite every visitor would arrive from Vercel's proxy address and share one
 // rate-limit and visitor bucket. So the hub's origins may read the answers here.
 
-export const DEFAULT_HUB_HOSTS = 'app.sawasdeecoin.com,zetaphy-hub.vercel.app';
+// 2026-11-08: + Neuro's own pages, now on Cloudflare Pages while the API stays at neuro-api.sawasdeecoin.com.
+export const DEFAULT_HUB_HOSTS = 'app.sawasdeecoin.com,zetaphy-hub.vercel.app,neuro.sawasdeecoin.com';
 
 export function hubHosts(env = process.env) {
   return String(env.NEURO_ALLOWED_ORIGIN_HOSTS ?? DEFAULT_HUB_HOSTS).split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);

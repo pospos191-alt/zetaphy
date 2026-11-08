@@ -104,7 +104,7 @@ Set it up (once):
 2. Optional: `TELEGRAM_ADMIN_IDS` (your numeric Telegram id; **@userinfobot** tells it), `TELEGRAM_CHANNEL`
    (`@name`; make the bot an admin of the channel), `AIRDROP_MAX` (10000), `AIRDROP_AMOUNT` (100).
 3. The list needs the store of the user counter (D1 or Upstash, above).
-4. Redeploy, then open `https://neuro.sawasdeecoin.com/api/telegram?setup=1` once: it points Telegram at the
+4. Redeploy, then open `https://neuro-api.sawasdeecoin.com/api/telegram?setup=1` once: it points Telegram at the
    webhook (with a secret derived from the token, checked on every call) and sets the command menu.
 
 To send: `/export` in the bot, copy `airdrop.txt` to the genesis node, `gov.sh airdrop airdrop.txt 100`

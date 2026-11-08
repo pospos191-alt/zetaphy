@@ -39,14 +39,18 @@ English: [CLOUDFLARE-PAGES.md](CLOUDFLARE-PAGES.md)
 
 ## สิ่งที่ไม่ได้ย้าย
 
-- **`/api` ของ Neuro** (ตัวนับผู้ใช้, early warning, บอท Telegram) เป็นฟังก์ชัน ย้ายแบบไฟล์ static ไม่ได้
-  - ระหว่างที่ Vercel ถูกหยุด ส่วนนี้ปิดอยู่แล้ว หน้าเว็บยังใช้ได้โดยไม่มีมัน
-  - เมื่อชี้ neuro.sawasdeecoin.com ไป Cloudflare แล้ว `/api` บนโดเมนนั้นจะตอบ 404
-  - ถ้าจะเปิดใช้อีก ต้องให้ API มีที่อยู่ของตัวเอง เช่น subdomain แยกสำหรับ API บน Vercel หลัง 2026-12-06 หรือย้ายไป Cloudflare Pages Functions ซึ่งเป็นงานแยก
+- **`/api` ของ Neuro** (ตัวนับผู้ใช้, early warning, บอท Telegram) เป็นฟังก์ชัน จึงยังอยู่บนโปรเจกต์ Vercel `swd-amm-zetaphy-neuro` โดยมีที่อยู่ของตัวเองคือ **neuro-api.sawasdeecoin.com**
+  - หน้าเว็บ (ทั้งเว็บ Neuro เองและสำเนาใน hub) และ explorer เรียกที่อยู่นี้โดยตรง
+  - ระหว่างที่ Vercel ถูกหยุด (ถึง 2026-12-06) API ปิดอยู่ แต่หน้าเว็บยังใช้ได้โดยไม่มีมัน
+  - ตั้งค่าครั้งเดียว (เจ้าของทำ ไม่เสียเงิน):
+    1. ใน Vercel เปิดโปรเจกต์ `swd-amm-zetaphy-neuro` → Settings → Domains → เพิ่ม `neuro-api.sawasdeecoin.com`
+    2. ใน Cloudflare DNS เพิ่ม record `CNAME`: name `neuro-api`, target `cname.vercel-dns.com` และตั้ง proxy เป็น **DNS only** (เมฆสีเทา) เพื่อให้ Vercel ออกใบรับรองได้
+    3. ถ้าโปรเจกต์บน Vercel มี variable `NEURO_ALLOWED_ORIGIN_HOSTS` ให้เพิ่ม `neuro.sawasdeecoin.com` เข้าไป ถ้าไม่มี variable นี้ ค่าเริ่มต้นรวมไว้แล้ว
+    4. หลัง Vercel เปิดคืน ให้เปิด `https://neuro-api.sawasdeecoin.com/api/telegram?setup=1` หนึ่งครั้ง เพื่อย้าย webhook ของบอท Telegram ไปที่อยู่ใหม่
 - **swd-claim-site** (swd-zetaphy.sawasdeecoin.com, Next.js) และ **test-ui** ยังอยู่บน Vercel
 
 ## จุดที่ต่างจาก Vercel (จัดการให้แล้ว)
 
 - **Cloudflare เสิร์ฟ `/x.html` ที่ `/x`:** กฎ header ของไฟล์ `.html` จึงตั้งให้ที่อยู่แบบสั้นด้วย
 - **path ที่ไม่มีอยู่:** ถ้าไม่มี `404.html` Cloudflare จะตอบทุก path ที่ไม่รู้จักด้วย `index.html` ตอน stage จึงใส่ `404.html` เล็ก ๆ ให้ ผลคือ path ที่ไม่มีจะได้ 404 เหมือนบน Vercel
-- **rewrite `/api/*` ของ hub:** กลายเป็น redirect แบบ 307 ไปที่เว็บ Neuro ซึ่งปกติหน้าเว็บเรียก Neuro ตรงอยู่แล้ว (`zetaphy-neuro/web/api.js`)
+- **rewrite `/api/*` ของ hub:** กลายเป็น redirect แบบ 307 ไปที่อยู่ API ของ Neuro (neuro-api.sawasdeecoin.com) ซึ่งปกติหน้าเว็บเรียกที่อยู่นี้ตรงอยู่แล้ว (`zetaphy-neuro/web/api.js`)

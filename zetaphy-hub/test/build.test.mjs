@@ -36,7 +36,7 @@ test('headers: frames only from this site; scripts only from this site; Neuro AP
   assert.match(csp, /frame-src 'self'/);
   assert.match(csp, /script-src 'self';/);
   assert.doesNotMatch(csp, /unsafe-(inline|eval)/);
-  assert.deepEqual(v.rewrites, [{ source: '/api/:path*', destination: 'https://neuro.sawasdeecoin.com/api/:path*' }]);
+  assert.deepEqual(v.rewrites, [{ source: '/api/:path*', destination: 'https://neuro-api.sawasdeecoin.com/api/:path*' }]);
 });
 
 test('validator guide: shipped, no inline script or style (the hub CSP stays strict), no third-party requests', () => {

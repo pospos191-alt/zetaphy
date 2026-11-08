@@ -37,14 +37,18 @@ Thai: [CLOUDFLARE-PAGES.th.md](CLOUDFLARE-PAGES.th.md)
 
 ## What does not move
 
-- **Neuro's `/api`** (usage counter, early warning, Telegram bot): these are functions.
-  - While Vercel is paused they are off anyway. The pages work without them.
-  - Once neuro.sawasdeecoin.com points to Cloudflare, its `/api` answers 404.
-  - To bring the API back, it needs its own address (for example a separate API subdomain on Vercel after 2026-12-06), or a port to Cloudflare Pages Functions. That is a separate change.
+- **Neuro's `/api`** (usage counter, early warning, Telegram bot): these are functions, so they stay on the Vercel project `swd-amm-zetaphy-neuro` at their own address, **neuro-api.sawasdeecoin.com**.
+  - The pages (Neuro's own site and the hub's copy) and the explorer call that address directly.
+  - While Vercel is paused (until 2026-12-06) the API is off. The pages work without it.
+  - One-time setup (owner, free):
+    1. In Vercel, open the project `swd-amm-zetaphy-neuro` → Settings → Domains → Add `neuro-api.sawasdeecoin.com`.
+    2. In Cloudflare DNS, add a `CNAME` record: name `neuro-api`, target `cname.vercel-dns.com`, proxy status **DNS only** (grey cloud), so Vercel can issue its certificate.
+    3. If the Vercel project has the variable `NEURO_ALLOWED_ORIGIN_HOSTS`, add `neuro.sawasdeecoin.com` to it. Without that variable, the default already includes it.
+    4. After Vercel unpauses, open `https://neuro-api.sawasdeecoin.com/api/telegram?setup=1` once, so the Telegram bot's webhook moves to the new address.
 - **swd-claim-site** (swd-zetaphy.sawasdeecoin.com, Next.js) and **test-ui** stay on Vercel.
 
 ## Differences from Vercel, handled
 
 - **`/x.html` is served at `/x`.** Every header rule for an `.html` file also names the short address.
 - **Unknown paths.** Without a `404.html`, Cloudflare answers every unknown path with `index.html`. Staging adds a small `404.html`, so unknown paths are 404, as on Vercel.
-- **The hub's `/api/*` rewrite.** It becomes a 307 redirect to Neuro's site. The pages call Neuro directly anyway (`zetaphy-neuro/web/api.js`).
+- **The hub's `/api/*` rewrite.** It becomes a 307 redirect to Neuro's API address (neuro-api.sawasdeecoin.com). The pages call it directly anyway (`zetaphy-neuro/web/api.js`).

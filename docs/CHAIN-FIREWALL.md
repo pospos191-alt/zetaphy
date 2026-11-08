@@ -148,9 +148,23 @@ df -h / && free -m                                                      # [read]
 ```bash
 # [CHANGES FILES] keep the running binary for the rollback
 sudo cp -a /usr/local/bin/zetaphyd /usr/local/bin/zetaphyd.pre-firewall
-# [CHANGES CLOUD] a disk snapshot (from your computer / Cloud Shell; it costs a little storage)
+```
+
+Optional, pick at most one (both are only for the rare case "the new binary itself fails after the upgrade height";
+the binary copy above already covers a failure before it):
+
+```bash
+# FREE [CHANGES FILES] a copy of the chain data on the same disk (stops the node for a moment; check `df -h /` first,
+# it needs as much free space as /home/zetaphy/.zetaphy/data uses)
+sudo systemctl stop zetaphyd
+sudo -u zetaphy cp -a /home/zetaphy/.zetaphy/data /home/zetaphy/.zetaphy/data.pre-firewall
+sudo systemctl start zetaphyd
+# PAID [CHANGES CLOUD] a disk snapshot (Cloud Shell; billed per GB per month until you delete it,
+# so delete it once the upgrade has run fine: gcloud compute snapshots delete <name>)
 gcloud compute disks snapshot zetaphy-node-0 --zone <ZONE> --snapshot-names zetaphy-pre-firewall-$(date +%Y%m%d)
 ```
+
+The project's rule is no spending, so the snapshot is skipped by default.
 
 ### 3. Build the new binary on the VM **[CHANGES FILES]**
 
@@ -281,8 +295,8 @@ error (`raw_log` / `eth_getTransactionReceipt` status 0).
   cancel the plan first by a governance `MsgCancelUpgrade` proposal, or put the new binary back before H.
 - **After H**: the old binary cannot run the chain any more (the applied upgrade's handler is missing from it).
   Keep the new binary and turn the firewall off as above. Only if the new binary itself fails (crash, app-hash
-  error), stop `zetaphyd`, restore the disk snapshot from step 2 and the old binary; blocks made after the snapshot
-  are lost (single-validator testnet).
+  error), stop `zetaphyd`, put back the data copy (or the disk snapshot) from step 2 and the old binary; blocks made
+  after the copy are lost (single-validator testnet). With neither, the way out is forward: a fixed binary.
 - Clean up when done **[CHANGES FILES]**: `sudo -u zetaphy rm -rf /home/zetaphy/src/evm-firewall /home/zetaphy/setup-node-firewall.sh`.
 
 ## Limits
