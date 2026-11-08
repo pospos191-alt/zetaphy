@@ -11,7 +11,7 @@
 set -euo pipefail
 cmd="${1:-}"
 LIB=swd_amm
-REPO_URL="https://github.com/pospos191-alt/swd-amm"
+REPO_URL="${REPO_URL:-https://github.com/pospos191-alt/zetaphy}"
 case "$cmd" in
   build)
     solana-verify build --library-name "$LIB" -- --features mainnet
@@ -27,9 +27,14 @@ case "$cmd" in
   upload)
     : "${2:?program id}" "${3:?rpc url}"
     COMMIT=$(git rev-parse HEAD)
-    # writes the verify PDA (signed by the upgrade authority) and submits a remote job to OtterSec's verify API
-    solana-verify verify-from-repo -u "$3" --program-id "$2" --library-name "$LIB" --commit-hash "$COMMIT" \
-      --mount-path . --remote "$REPO_URL" -- --features mainnet
+    # writes the verify PDA (signed by the upgrade authority; KEYPAIR=<path>, default the solana CLI keypair),
+    # then queues OtterSec's remote job. solana-verify 0.5.x removed `--remote` from verify-from-repo.
+    # Once the authority is the Squads vault: `solana-verify export-pda-tx ...` -> Squads proposal, then submit-job
+    # with UPLOADER=<vault>.
+    solana-verify -u "$3" verify-from-repo --program-id "$2" --library-name "$LIB" --commit-hash "$COMMIT" \
+      --mount-path . ${KEYPAIR:+--keypair "$KEYPAIR"} "$REPO_URL" -- --features mainnet
+    UPLOADER="${UPLOADER:-$(solana-keygen pubkey ${KEYPAIR:-})}"
+    solana-verify -u "$3" remote submit-job --program-id "$2" --uploader "$UPLOADER"
     ;;
   *)
     echo "usage: $0 build | verify <PROGRAM_ID> <RPC> | upload <PROGRAM_ID> <RPC>" >&2
