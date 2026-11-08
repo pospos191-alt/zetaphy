@@ -60,7 +60,7 @@ try {
   // hub: /api goes to Neuro's site
   r = await head(8788, '/api/usage');
   assert.equal(r.status, 307);
-  assert.equal(r.headers.get('location'), 'https://neuro.sawasdeecoin.com/api/usage');
+  assert.equal(r.headers.get('location'), 'https://neuro-api.sawasdeecoin.com/api/usage');
 
   // neuro: / -> /web/, and the function sources are not uploaded
   r = await head(8790, '/');

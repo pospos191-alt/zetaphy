@@ -101,7 +101,7 @@ npm run web                       # เปิดหน้าเว็บที�
 2. ใส่เพิ่มได้: `TELEGRAM_ADMIN_IDS` (เลข id Telegram ของคุณ ถาม **@userinfobot**), `TELEGRAM_CHANNEL`
    (`@ชื่อช่อง` และตั้งบอทเป็นแอดมินของช่อง), `AIRDROP_MAX` (10000), `AIRDROP_AMOUNT` (100)
 3. รายชื่อใช้ที่เก็บข้อมูลเดียวกับตัวนับผู้ใช้ (D1 หรือ Upstash ด้านบน)
-4. Redeploy แล้วเปิด `https://neuro.sawasdeecoin.com/api/telegram?setup=1` ครั้งเดียว ระบบจะผูกบอทกับ webhook
+4. Redeploy แล้วเปิด `https://neuro-api.sawasdeecoin.com/api/telegram?setup=1` ครั้งเดียว ระบบจะผูกบอทกับ webhook
    (มีรหัสลับที่สร้างจาก token ตรวจทุกครั้ง) และตั้งเมนูคำสั่ง
 
 ตอนแจก: พิมพ์ `/export` ในบอท คัดลอก `airdrop.txt` ไปเครื่องโหนดแรก แล้วรัน `gov.sh airdrop airdrop.txt 100`

@@ -12,7 +12,7 @@ test('client IP: Vercel header first, first address only, bounded', () => {
 
 test('CORS: only the hub\'s https origins; preflight answered', () => {
   const hosts = hubHosts({});
-  assert.deepEqual(hosts, ['app.sawasdeecoin.com', 'zetaphy-hub.vercel.app']);
+  assert.deepEqual(hosts, ['app.sawasdeecoin.com', 'zetaphy-hub.vercel.app', 'neuro.sawasdeecoin.com']);
   assert.deepEqual(cors({ method: 'GET', headers: { origin: 'https://app.sawasdeecoin.com' } }, hosts).headers, { 'access-control-allow-origin': 'https://app.sawasdeecoin.com', vary: 'Origin' });
   for (const origin of ['https://evil.example', 'http://app.sawasdeecoin.com', 'https://app.sawasdeecoin.com.evil.example', 'null', '']) {
     assert.deepEqual(cors({ method: 'POST', headers: { origin } }, hosts).headers, { vary: 'Origin' }, origin);

@@ -72,7 +72,7 @@ test('a specific rule that repeats a catch-all header replaces it instead of joi
 
 test('redirects and rewrites', () => {
   assert.equal(toRedirects(vercelOf('neuro')), '/ /web/ 307\n');
-  assert.equal(toRedirects(vercelOf('hub')), '/api/* https://neuro.sawasdeecoin.com/api/:splat 307\n');
+  assert.equal(toRedirects(vercelOf('hub')), '/api/* https://neuro-api.sawasdeecoin.com/api/:splat 307\n');
   assert.equal(toRedirects({ redirects: [{ source: '/z/:path*', destination: 'https://s.example/:path*', permanent: true }] }), '/z/* https://s.example/:splat 308\n');
   assert.equal(toRedirects(vercelOf('wallet')), '');
   assert.throws(() => toRedirects({ rewrites: [{ source: '/a', destination: '/b' }] }));
