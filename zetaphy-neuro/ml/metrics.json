@@ -1,95 +1,98 @@
 {
- "modelId": "nml-3ab3cd303911",
- "bytes": 75509,
+ "modelId": "nml-311685099571",
+ "bytes": 96156,
  "trees": 160,
  "features": 158,
- "seconds": 12,
+ "seconds": 10,
  "data": {
-  "rows": 1867,
-  "positives": 979,
+  "rows": 2267,
+  "positives": 1180,
   "sources": {
    "synthetic-sol": 1200,
    "tests-10k": 600,
-   "redteam": 67
+   "public:ethereum-lists-tokens": 199,
+   "public:forta-malicious": 196,
+   "redteam": 72
   },
   "files": [
    "ml/data/out/corpus.jsonl",
-   "ml/data/redteam/evasions.jsonl"
+   "ml/data/redteam/evasions.jsonl",
+   "ml/data/out/public.jsonl"
   ]
  },
  "split": {
-  "train": 1197,
-  "calib": 280,
-  "test": 390
+  "train": 1450,
+  "calib": 341,
+  "test": 476
  },
  "thresholds": {
   "low": 0.5,
   "medium": 0.8,
-  "high": 0.95
+  "high": 0.971887
  },
  "calib": {
-  "a": 0.642174,
-  "b": 0.04799963
+  "a": 0.6674338,
+  "b": -0.161188
  },
  "heldOut": {
   "model": {
-   "n": 390,
-   "positives": 201,
-   "negatives": 189,
-   "auc": 1,
-   "recallAt1Fpr": 1,
-   "thresholdAt1Fpr": 0.0789,
-   "recallAt5Fpr": 1,
-   "thresholdAt5Fpr": 0.0177,
-   "brier": 0.0022,
-   "logloss": 0.0135,
-   "ece": 0.0101
+   "n": 476,
+   "positives": 244,
+   "negatives": 232,
+   "auc": 0.9933,
+   "recallAt1Fpr": 0.9631,
+   "thresholdAt1Fpr": 0.2479,
+   "recallAt5Fpr": 0.9795,
+   "thresholdAt5Fpr": 0.0803,
+   "brier": 0.0208,
+   "logloss": 0.0865,
+   "ece": 0.0235
   },
   "codeOnly": {
-   "n": 390,
-   "positives": 201,
-   "negatives": 189,
-   "auc": 1,
-   "recallAt1Fpr": 1,
-   "thresholdAt1Fpr": 0.1452,
-   "recallAt5Fpr": 1,
-   "thresholdAt5Fpr": 0.0227,
-   "brier": 0.0023,
-   "logloss": 0.0142,
-   "ece": 0.0099
+   "n": 476,
+   "positives": 244,
+   "negatives": 232,
+   "auc": 0.9925,
+   "recallAt1Fpr": 0.959,
+   "thresholdAt1Fpr": 0.2742,
+   "recallAt5Fpr": 0.9795,
+   "thresholdAt5Fpr": 0.0812,
+   "brier": 0.021,
+   "logloss": 0.0884,
+   "ece": 0.0227
   },
   "solidityOnly": {
-   "n": 274,
-   "positives": 130,
+   "n": 275,
+   "positives": 131,
    "negatives": 144,
-   "auc": 1,
-   "recallAt1Fpr": 1,
-   "thresholdAt1Fpr": 0.0789,
-   "recallAt5Fpr": 1,
-   "thresholdAt5Fpr": 0.0227,
-   "brier": 0.0031,
-   "logloss": 0.0172,
-   "ece": 0.0124
+   "auc": 0.9994,
+   "recallAt1Fpr": 0.9924,
+   "thresholdAt1Fpr": 0.2479,
+   "recallAt5Fpr": 0.9924,
+   "thresholdAt5Fpr": 0.0595,
+   "brier": 0.0074,
+   "logloss": 0.0401,
+   "ece": 0.022
   },
   "rulesOnly": {
-   "auc": 0.7966
+   "auc": 0.7811
   },
   "alarm": {
    "rules": {
-    "recall": 0.7114,
-    "fpr": 0.2275
+    "recall": 0.6885,
+    "fpr": 0.2414
    },
    "combined": {
-    "recall": 0.995,
-    "fpr": 0.2275
+    "recall": 0.9508,
+    "fpr": 0.2543
    },
    "combinedCodeOnly": {
-    "recall": 0.995,
-    "fpr": 0.2275
+    "recall": 0.9467,
+    "fpr": 0.2543
    },
    "combinedNoChecks": {
-    "recall": 0.99,
-    "fpr": 0.2275
+    "recall": 0.9426,
+    "fpr": 0.2414
    }
   },
   "loweredByModel": 0,
@@ -214,6 +217,18 @@
     "flaggedRules": 0,
     "flaggedCombined": 0
    },
+   "public:ethereum-lists-tokens": {
+    "n": 43,
+    "label": 0,
+    "flaggedRules": 13,
+    "flaggedCombined": 16
+   },
+   "public:forta-malicious": {
+    "n": 42,
+    "label": 1,
+    "flaggedRules": 25,
+    "flaggedCombined": 33
+   },
    "rewards": {
     "n": 10,
     "label": 0,
@@ -224,10 +239,10 @@
     "n": 3,
     "label": 1,
     "flaggedRules": 0,
-    "flaggedCombined": 2
+    "flaggedCombined": 1
    },
    "seize": {
-    "n": 14,
+    "n": 15,
     "label": 1,
     "flaggedRules": 0,
     "flaggedCombined": 14
@@ -253,66 +268,66 @@
   }
  },
  "current": {
-  "modelId": "nml-b4c35477f7b1",
+  "modelId": "nml-3ab3cd303911",
   "heldOut": {
    "model": {
-    "n": 390,
-    "positives": 201,
-    "negatives": 189,
-    "auc": 0.9975,
-    "recallAt1Fpr": 0.9502,
-    "thresholdAt1Fpr": 0.7878,
-    "recallAt5Fpr": 0.9851,
-    "thresholdAt5Fpr": 0.3652,
-    "brier": 0.0202,
-    "logloss": 0.0726,
-    "ece": 0.0263
+    "n": 476,
+    "positives": 244,
+    "negatives": 232,
+    "auc": 0.9629,
+    "recallAt1Fpr": 0.3484,
+    "thresholdAt1Fpr": 0.9962,
+    "recallAt5Fpr": 0.8074,
+    "thresholdAt5Fpr": 0.9825,
+    "brier": 0.0745,
+    "logloss": 0.302,
+    "ece": 0.0635
    },
    "codeOnly": {
-    "n": 390,
-    "positives": 201,
-    "negatives": 189,
-    "auc": 0.9963,
-    "recallAt1Fpr": 0.9502,
-    "thresholdAt1Fpr": 0.7878,
-    "recallAt5Fpr": 0.9751,
-    "thresholdAt5Fpr": 0.5116,
-    "brier": 0.026,
-    "logloss": 0.0922,
-    "ece": 0.0371
+    "n": 476,
+    "positives": 244,
+    "negatives": 232,
+    "auc": 0.9625,
+    "recallAt1Fpr": 0.3484,
+    "thresholdAt1Fpr": 0.9962,
+    "recallAt5Fpr": 0.8033,
+    "thresholdAt5Fpr": 0.9825,
+    "brier": 0.0746,
+    "logloss": 0.3026,
+    "ece": 0.0629
    },
    "solidityOnly": {
-    "n": 274,
-    "positives": 130,
+    "n": 275,
+    "positives": 131,
     "negatives": 144,
-    "auc": 0.9949,
-    "recallAt1Fpr": 0.9231,
-    "thresholdAt1Fpr": 0.7878,
-    "recallAt5Fpr": 0.9769,
-    "thresholdAt5Fpr": 0.3773,
-    "brier": 0.0287,
-    "logloss": 0.1011,
-    "ece": 0.0352
+    "auc": 0.999,
+    "recallAt1Fpr": 0.9924,
+    "thresholdAt1Fpr": 0.0789,
+    "recallAt5Fpr": 0.9924,
+    "thresholdAt5Fpr": 0.0227,
+    "brier": 0.0067,
+    "logloss": 0.0332,
+    "ece": 0.0088
    },
    "rulesOnly": {
-    "auc": 0.7966
+    "auc": 0.7811
    },
    "alarm": {
     "rules": {
-     "recall": 0.7114,
-     "fpr": 0.2275
+     "recall": 0.6885,
+     "fpr": 0.2414
     },
     "combined": {
-     "recall": 0.9851,
-     "fpr": 0.2275
+     "recall": 0.9467,
+     "fpr": 0.2974
     },
     "combinedCodeOnly": {
-     "recall": 0.9851,
-     "fpr": 0.2328
+     "recall": 0.9467,
+     "fpr": 0.2974
     },
     "combinedNoChecks": {
-     "recall": 0.9502,
-     "fpr": 0.2275
+     "recall": 0.9385,
+     "fpr": 0.2974
     }
    },
    "loweredByModel": 0,
@@ -437,6 +452,18 @@
      "flaggedRules": 0,
      "flaggedCombined": 0
     },
+    "public:ethereum-lists-tokens": {
+     "n": 43,
+     "label": 0,
+     "flaggedRules": 13,
+     "flaggedCombined": 26
+    },
+    "public:forta-malicious": {
+     "n": 42,
+     "label": 1,
+     "flaggedRules": 25,
+     "flaggedCombined": 31
+    },
     "rewards": {
      "n": 10,
      "label": 0,
@@ -447,10 +474,10 @@
      "n": 3,
      "label": 1,
      "flaggedRules": 0,
-     "flaggedCombined": 0
+     "flaggedCombined": 2
     },
     "seize": {
-     "n": 14,
+     "n": 15,
      "label": 1,
      "flaggedRules": 0,
      "flaggedCombined": 14
@@ -478,18 +505,18 @@
  },
  "decision": {
   "better": true,
-  "why": "AUC 0.9975 -> 1 (+0.0025), recall@1%FPR 0.9502 -> 1 (+0.0498)"
+  "why": "AUC 0.9629 -> 0.9933 (+0.0304), recall@1%FPR 0.3484 -> 0.9631 (+0.6147)"
  },
  "leaveFamilyOut": {
   "blacklist-trap": {
    "n": 66,
-   "recallAt1Fpr": 0.985,
+   "recallAt1Fpr": 0.515,
    "rulesAlarm": 0.379,
-   "combinedAlarm": 0.712
+   "combinedAlarm": 0.697
   },
   "dormant-fee": {
    "n": 71,
-   "recallAt1Fpr": 0.662,
+   "recallAt1Fpr": 0.479,
    "rulesAlarm": 0.394,
    "combinedAlarm": 1
   },
@@ -530,10 +557,10 @@
    "combinedAlarm": 1
   },
   "seize": {
-   "n": 72,
-   "recallAt1Fpr": 1,
+   "n": 73,
+   "recallAt1Fpr": 0.986,
    "rulesAlarm": 0,
-   "combinedAlarm": 1
+   "combinedAlarm": 0.986
   }
  },
  "caveat": "Held-out rows come from the same synthetic generators as the training rows (and synthetic market facts), so these numbers are optimistic for real contracts. See leaveFamilyOut and codeOnly for harder estimates."
