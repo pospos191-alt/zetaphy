@@ -43,6 +43,10 @@
 #                 full `anchor test` localnet
 #                 suite (the same `yarn test` you run in WSL). First run ~20-30 min (compiling), later runs
 #                 are faster thanks to the caches.
+#                 (cargo test / mainnet-flag check / anchor test also cover
+#                 programs/swd_quantum, docs/SWD_QUANTUM.md).
+#   swd-quantum-ts when integrations/swd-quantum-ts or its golden vectors
+#                 change — the LM-OTS library's node:test suite. ~1 min.
 #   audit         every push / PR — cargo audit against the RustSec database.
 #   deploy-devnet ONLY when started by hand (Actions → CI → Run workflow →
 #                 tick "deploy to Devnet") AND both jobs above passed. Needs
@@ -115,6 +119,7 @@ jobs:
       hub: ${{ steps.f.outputs.hub }}
       launch: ${{ steps.f.outputs.launch }}
       dlmm: ${{ steps.f.outputs.dlmm }}
+      quantumts: ${{ steps.f.outputs.quantumts }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -158,6 +163,7 @@ jobs:
           out nft '^(zetaphy-nft/|zetaphy-network/(src/vaccine\.js|artifacts/ThreatRegistry\.json)$)'
           out hub '^(zetaphy-hub/|zetaphy-wallet/|zetaphy-dex/web/|zetaphy-nft/web/|zetaphy-explorer/|zetaphy-neuro/(web|src)/|zetaphy-network/src/(immune|qsafe)/|zetaphy-network/artifacts/(ProvenVerdicts|QuantumRescue)\.json$|zetaphy-network/test/fixtures/(neuroscore-zk|audit-report)\.json$|zetaphy-chain/hyperlane/(saphan-(chains|routes)|immune-network)\.json$)'
           out snap '^(zetaphy-snap/|zetaphy-network/src/pqtx\.js$)'
+          out quantumts '^(integrations/swd-quantum-ts/|programs/swd_quantum/src/golden_vectors\.txt$)'
           out launch '^(zetaphy-launch/|zetaphy-(dex|nft)/web/deployments\.json$|zetaphy-explorer/config\.json$|zetaphy-wallet/index\.html$|zetaphy-snap/snap\.config\.js$)'
           # the DLMM devnet test (in the zetaphy-chain job, which builds zetaphyd): when the DLMM contracts, their CLI or test change
           out dlmm '^(zetaphy-dex/(contracts/dlmm/|artifacts/(ZetaphyDlmm|DlmmMath)[A-Za-z]*\.json$|dlmm-cli\.js$|cli\.js$|test/devnet\.dlmm\.integration\.js$|package(-lock)?\.json$)|zetaphy-network/(scripts/devnet\.sh|artifacts/ThreatRegistry\.json)$)'
@@ -823,6 +829,13 @@ jobs:
           grep -q "declare_id!(\"${pid}\")" programs/swd_amm/src/lib.rs || { echo "::error::could not rewrite declare_id!"; exit 1; }
           grep -n "declare_id" programs/swd_amm/src/lib.rs
           grep -n "^swd_amm = " Anchor.toml
+          # swd_quantum (quantum-safe vaults, docs/SWD_QUANTUM.md): same treatment.
+          solana-keygen new --no-bip39-passphrase --silent --force --outfile target/deploy/swd_quantum-keypair.json
+          qid=$(solana-keygen pubkey target/deploy/swd_quantum-keypair.json)
+          sed -i -E "s/declare_id!\(\"[1-9A-HJ-NP-Za-km-z]+\"\)/declare_id!(\"${qid}\")/" programs/swd_quantum/src/lib.rs
+          sed -i -E "s/^swd_quantum = \"[1-9A-HJ-NP-Za-km-z]+\"/swd_quantum = \"${qid}\"/" Anchor.toml
+          grep -q "declare_id!(\"${qid}\")" programs/swd_quantum/src/lib.rs || { echo "::error::could not rewrite swd_quantum declare_id!"; exit 1; }
+          grep -n "^swd_quantum = " Anchor.toml
 
       - name: Use private RPC for the Squads clone (if MAINNET_RPC_URL secret is set)
         env:
@@ -840,6 +853,12 @@ jobs:
 
       - name: mainnet build flags compile (24h-48h timelock)
         run: cargo check -p swd_amm --features mainnet
+
+      - name: cargo test swd_quantum (LM-OTS golden vectors, guards; no validator)
+        run: cargo test -p swd_quantum
+
+      - name: swd_quantum mainnet build flags compile (7-day commitment delay)
+        run: cargo check -p swd_quantum --features mainnet
 
       - name: anchor build (SBF program + IDL)
         run: anchor build
@@ -871,6 +890,29 @@ jobs:
             .anchor/test-ledger/validator.log
           if-no-files-found: ignore
           retention-days: 7
+
+  swd-quantum-ts:
+    name: swd-quantum-ts (LM-OTS library, golden vectors)
+    needs: changes
+    if: needs.changes.outputs.quantumts == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: npm ci + npm test (node:test; vectors shared with cargo test -p swd_quantum)
+        working-directory: integrations/swd-quantum-ts
+        run: |
+          npm ci --no-audit --no-fund
+          npm test
 
   audit:
     name: cargo audit (RustSec advisories)
@@ -990,7 +1032,9 @@ jobs:
 
       - name: Deploy / upgrade on Devnet
         run: |
-          anchor deploy --provider.cluster devnet --provider.wallet ~/.config/solana/devnet-deployer.json
+          # -p swd_amm: the workspace also holds swd_quantum, which has no
+          # devnet key here and is deployed on its own (docs/SWD_QUANTUM.md).
+          anchor deploy -p swd_amm --provider.cluster devnet --provider.wallet ~/.config/solana/devnet-deployer.json
           # `solana program show` still loads a default signer, and this runner
           # has no ~/.config/solana/id.json, so point it at the deployer key.
           solana program show "$(solana-keygen pubkey target/deploy/swd_amm-keypair.json)" --url devnet \
