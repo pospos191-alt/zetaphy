@@ -16,6 +16,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Polls a page function with page.evaluate. page.waitForFunction re-runs its predicate through eval() on older
+// Playwright (CI pins 1.49), which the page's CSP (no 'unsafe-eval') refuses — so it only ever passed when the
+// first check was already true.
+async function waitForPage(page, fn, arg, { timeout = 5000, interval = 100 } = {}) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    const v = await page.evaluate(fn, arg);
+    if (v) return v;
+    if (Date.now() > end) throw new Error(`waitForPage: timed out after ${timeout} ms`);
+    await new Promise((r) => setTimeout(r, interval));
+  }
+}
+
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const stub = (name) => fs.readFileSync(path.join(here, "stubs", name));
@@ -82,7 +96,7 @@ async function run(lang, width, auditMode) {
   page.on("pageerror", (e) => errors.push(`${tag}: ${e.message}`));
   page.on("console", (m) => { if (/Content Security Policy|Refused to/.test(m.text()) && !/esm\.sh|klinecharts|fonts|swd-logo/.test(m.text())) errors.push(`${tag} CSP: ${m.text()}`); });
   await page.goto(`${origin}/index.html`);
-  const ready = await page.waitForFunction(() => document.documentElement.dataset.appReady === "1", null, { timeout: 20000 }).then(() => true, () => false);
+  const ready = await waitForPage(page, () => document.documentElement.dataset.appReady === "1", null, { timeout: 20000 }).then(() => true, () => false);
   check(ready, `${tag}: startup never finished`);
   if (!ready) { failures.push(...errors); await ctx.close(); return; }
 
@@ -140,30 +154,30 @@ async function run(lang, width, auditMode) {
 
   // Token safety chip under the swap form (mocked API: A high, B low; or the API down).
   await page.evaluate(() => document.querySelector('.tab-nav-btn[data-tab="tools"]').click());
-  const chip = await page.waitForFunction((mode) => {
+  const chip = await waitForPage(page, (mode) => {
     const host = [...document.querySelectorAll('[data-risk-for^="swap-mint"]')].find((h) => !h.hidden && h.offsetParent);
     if (!host) return null;
     const want = mode === "down" ? ".risk-unavailable" : ".risk-high";
     return host.querySelector(want) ? host.textContent : null;
-  }, auditMode, { timeout: 8000 }).then((h) => h.jsonValue(), () => null);
+  }, auditMode, { timeout: 8000 }).then((v) => v, () => null);
   check(!!chip, `${tag}: token safety chip (${auditMode}) not shown under the swap form`);
   check(auditCalls >= 1, `${tag}: SWD Audit API never called`);
 
   // Pre-sign summary for a swap: pay, estimate, fee, price impact, min received, network, token safety.
   await page.click("#connect-btn");
   await page.click('#wallet-modal-list .wallet-option:has-text("Phantom")');
-  await page.waitForFunction(() => document.getElementById("wallet-status").classList.contains("connected"), null, { timeout: 10000 }).catch(() => failures.push(`${tag}: stand-in wallet did not connect`));
+  await waitForPage(page, () => document.getElementById("wallet-status").classList.contains("connected"), null, { timeout: 10000 }).catch(() => failures.push(`${tag}: stand-in wallet did not connect`));
   await page.evaluate(() => { globalThis.__smokePoolAccount = { reserveA: "5000000000", reserveB: "5000000000", feeBps: 30 }; });
   await page.evaluate(() => document.querySelector('.tab-nav-btn[data-tab="tools"]').click());
   await page.evaluate(() => document.querySelector('.dock-tab[data-dock-tool="swap"]')?.click());
   await page.fill("#swap-amount-in-ui", "1.5").catch(() => {});
-  await page.waitForFunction(() => /\d/.test(document.getElementById("swap-min-out")?.value || ""), null, { timeout: 5000 }).catch(() => failures.push(`${tag}: no min received computed`));
+  await waitForPage(page, () => /\d/.test(document.getElementById("swap-min-out")?.value || ""), null, { timeout: 5000 }).catch(() => failures.push(`${tag}: no min received computed`));
   await page.waitForTimeout(600); // the docked form settles (pair sync re-renders it)
   await page.evaluate(() => document.getElementById("swap-btn").click());
-  const summary = await page.waitForFunction(() => {
+  const summary = await waitForPage(page, () => {
     const ov = document.getElementById("confirm-modal-overlay");
     return ov && !ov.hidden ? document.getElementById("confirm-modal-kv").innerText : null;
-  }, null, { timeout: 8000 }).then((h) => h.jsonValue(), () => null);
+  }, null, { timeout: 8000 }).then((v) => v, () => null);
   check(!!summary, `${tag}: swap summary did not open: ${await page.evaluate(() => [document.getElementById("log")?.innerText.slice(0, 400), document.getElementById("swap-min-out")?.value, document.getElementById("swap-amount-in")?.value]).then(JSON.stringify)}`);
   if (summary) {
     const { STRINGS, loadLang } = await import("../i18n.js");
@@ -185,10 +199,10 @@ async function run(lang, width, auditMode) {
   // header shield (hidden below 380 px) or the banner's "Check this app" link
   await page.click(width < 380 ? "#net-banner-trust" : "#trust-btn");
   let trustWaitError = "";
-  const trust = await page.waitForFunction(() => {
+  const trust = await waitForPage(page, () => {
     const b = document.getElementById("trust-body");
     return b && b.querySelector(".tr-list") ? { text: b.innerText, bad: b.querySelectorAll(".tr-bad").length } : null;
-  }, null, { timeout: 60000 }).then((h) => h.jsonValue(), (e) => { trustWaitError = String(e?.message || e).slice(0, 400); return null; });
+  }, null, { timeout: 20000 }).then((v) => v, (e) => { trustWaitError = String(e?.message || e).slice(0, 400); return null; });
   const trustDiag = trust ? "" : await page.evaluate(() => JSON.stringify({
     open: !!document.getElementById("trust-body"),
     body: (document.getElementById("trust-body")?.innerText || "").slice(0, 600),
