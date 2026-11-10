@@ -159,7 +159,9 @@ describe("security review 2026-11-10 (attack tests)", () => {
   // ------------------------------------------------------------------
   // F-5 CP swap slippage vs. an outbound transfer fee
   // ------------------------------------------------------------------
-  it("F-5: CP swap min_amount_out is checked against what the trader receives, not the pre-fee amount", async () => {
+  // CP pools are not compiled into a `--features v2-only` build.
+  const HAS_CP = program.idl.instructions.some((ix: any) => ix.name === "initializePool" || ix.name === "initialize_pool");
+  (HAS_CP ? it : it.skip)("F-5: CP swap min_amount_out is checked against what the trader receives, not the pre-fee amount", async () => {
     const FEE_BPS_T22 = 100; // 1% Token-2022 transfer fee on mint A
     const aKp = Keypair.generate();
     await createToken2022Mint(aKp, [ExtensionType.TransferFeeConfig], (m) => [

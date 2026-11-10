@@ -163,6 +163,7 @@ pub mod swd_amm {
         governance::set_pool_creation_paused(ctx, paused)
     }
 
+    #[cfg(not(feature = "v2-only"))]
     pub fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool) -> Result<()> {
         governance::set_allowed_mint(ctx, enabled)
     }

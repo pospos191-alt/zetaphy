@@ -142,6 +142,7 @@ use anchor_spl::token_interface::Mint as Token2022Mint;
 use crate::{DlmmPool, Pool, DLMM_POOL_SEED, POOL_SEED};
 
 pub const GLOBAL_CONFIG_SEED: &[u8] = b"global-config";
+#[cfg(not(feature = "v2-only"))]
 pub const ALLOWED_MINT_SEED: &[u8] = b"allowed-mint";
 /// Per-mint Pyth feed registry (2026-10-08) — see `set_mint_feed`.
 pub const MINT_FEED_SEED: &[u8] = b"mint-feed";
@@ -304,6 +305,7 @@ pub(crate) fn set_pool_creation_paused(ctx: Context<GovernanceOnly>, paused: boo
 /// enabled mint (enabled = false) also does not touch any pool already
 /// created while it was enabled; those pools keep operating exactly as
 /// before (see the module doc comment).
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool) -> Result<()> {
     let allowed = &mut ctx.accounts.allowed_mint;
     allowed.mint = ctx.accounts.mint.key();
@@ -586,6 +588,7 @@ pub struct GovernanceOnly<'info> {
     pub governance_authority: Signer<'info>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct SetAllowedMint<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -754,6 +757,7 @@ impl GlobalConfig {
     pub const SIZE: usize = 32 + 32 + 1 + 1;
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[account]
 pub struct AllowedMint {
     pub mint: Pubkey,
@@ -761,6 +765,7 @@ pub struct AllowedMint {
     pub bump: u8,
 }
 
+#[cfg(not(feature = "v2-only"))]
 impl AllowedMint {
     pub const SIZE: usize = 32 + 1 + 1;
 }
@@ -800,6 +805,7 @@ pub struct PoolCreationPausedSet {
     pub paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct AllowedMintUpdated {
     pub mint: Pubkey,
