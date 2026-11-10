@@ -6,7 +6,7 @@ export class BN { constructor(v,base){ this.v = typeof v==="bigint"?v: (v&&v.v!=
   toString(b){return this.v.toString(b||10);} toNumber(){return Number(this.v);} add(o){return new BN(this.v+new BN(o).v);} sub(o){return new BN(this.v-new BN(o).v);} mul(o){return new BN(this.v*new BN(o).v);} div(o){return new BN(this.v/new BN(o).v);}
   cmp(o){const x=new BN(o).v;return this.v<x?-1:this.v>x?1:0;} lt(o){return this.cmp(o)<0;} gt(o){return this.cmp(o)>0;} lte(o){return this.cmp(o)<=0;} gte(o){return this.cmp(o)>=0;} eq(o){return this.cmp(o)===0;} isZero(){return this.v===0n;} isNeg(){return this.v<0n;}
   toArrayLike(T,e,len){return new Uint8Array(len||8);} toTwos(){return this;} fromTwos(){return this;} abs(){return new BN(this.v<0n?-this.v:this.v);} }
-const acct = () => ({ all: async()=>[], fetch: async()=>{throw new Error("Account does not exist");}, fetchNullable: async()=>null, fetchMultiple: async(k)=>k.map(()=>null) });
+const acct = () => ({ all: async()=>[], fetch: async()=>{ if (globalThis.__smokePoolAccount) return globalThis.__smokePoolAccount; throw new Error("Account does not exist");}, fetchNullable: async()=>null, fetchMultiple: async(k)=>k.map(()=>null) });
 export class AnchorProvider { constructor(c,w,o){this.connection=c;this.wallet=w;this.opts=o;} static defaultOptions(){return {};} }
 export function setProvider(){} export function getProvider(){return null;}
 export class BorshCoder { constructor(){ this.events={decode:()=>null}; this.accounts={decode:()=>null}; this.instruction={decode:()=>null}; } }

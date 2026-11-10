@@ -148,7 +148,7 @@ jobs:
           }
           out program '^(programs/|tests/|security/|scripts/|Anchor\.toml$|Cargo\.(toml|lock)$|package\.json$|yarn\.lock$|tsconfig\.json$)'
           out audit '^(programs/|security/|Cargo\.(toml|lock)$)'
-          out ui '^test-ui/'
+          out ui '^(test-ui/|programs/swd_amm/src/)'
           out neuro '^zetaphy-neuro/'
           out verify '^(zetaphy-verify/|zetaphy-neuro/src/)'
           out network '^(zetaphy-network/|zetaphy-neuro/src/|zetaphy-chain/horcrux/|zetaphy-chain/join-validator\.sh$)'
@@ -184,6 +184,12 @@ jobs:
       - name: Syntax check (node --check on every inline script)
         run: node test-ui/tests/check-syntax.mjs
 
+      - name: Unit tests (8 languages complete, trust panel parsers, token check, program errors up to date)
+        working-directory: test-ui/tests
+        run: |
+          node --test i18n.test.mjs trust.test.mjs
+          node gen-program-errors.mjs --check
+
       - name: Install Playwright + Chromium
         working-directory: test-ui/tests
         run: |
@@ -193,6 +199,10 @@ jobs:
       - name: Page smoke test (page must finish starting up with no errors)
         working-directory: test-ui/tests
         run: node smoke.mjs
+
+      - name: Layout + launch checks (th/ru at 360 and 1366 px, network badge, trust panel, token check)
+        working-directory: test-ui/tests
+        run: LAYOUT_ALL=1 node layout.mjs
 
       - name: Wallet safety (hardware help, balance banner, idle disconnect, summary before signing)
         working-directory: test-ui/tests
