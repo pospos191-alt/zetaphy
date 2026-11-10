@@ -11,9 +11,15 @@
     if (sessionStorage.getItem(KEY) === "1") return;
   } catch {}
 
+  let dismissed = false;
+  let mo = null;
+  const HOST_STYLE = [["all", "initial"], ["position", "fixed"], ["inset", "0"], ["z-index", "2147483647"], ["display", "block"], ["visibility", "visible"], ["opacity", "1"]];
+  const pin = (el) => { for (const [k, v] of HOST_STYLE) el.style.setProperty(k, v, "important"); };
   function show() {
     const el = document.createElement("swd-guard-warning");
-    el.style.cssText = "all: initial; position: fixed; inset: 0; z-index: 2147483647;";
+    // !important inline styles: a phishing page's own stylesheet (swd-guard-warning { display: none !important })
+    // cannot hide the warning; only an inline !important beats an author !important.
+    pin(el);
     const root = el.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = `
@@ -57,6 +63,8 @@
       try {
         sessionStorage.setItem(KEY, "1");
       } catch {}
+      dismissed = true;
+      if (mo) mo.disconnect();
       el.remove();
     });
     btns.append(leave, stay);
@@ -65,6 +73,15 @@
     root.append(style, bg);
     document.documentElement.append(el);
     leave.focus();
+    const pinned = el.style.cssText; // as the browser serializes it (compared, not rebuilt: no observer loop)
+    // A page script that removes the warning (or rewrites its style) gets it put back, until "Continue anyway".
+    mo = new MutationObserver(() => {
+      if (dismissed) return;
+      if (!el.isConnected) document.documentElement.append(el);
+      if (el.style.cssText !== pinned) pin(el);
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: false });
+    mo.observe(el, { attributes: true, attributeFilter: ["style", "hidden"] });
   }
   if (document.documentElement) show();
   else document.addEventListener("DOMContentLoaded", show, { once: true });

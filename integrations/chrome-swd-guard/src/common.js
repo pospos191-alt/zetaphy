@@ -155,6 +155,20 @@
     return out;
   }
 
+  /**
+   * The downloaded (updated) list, made safe to use: cleanDomainList, minus any entry that is an official
+   * domain, a subdomain of one, or a parent of one (a bad or tampered list could otherwise put the
+   * phishing warning on SWD's own sites, or on a whole public suffix such as "co.uk" / "vercel.app"),
+   * and minus bare two-label public suffixes. `official` comes from the bundled list only.
+   */
+  const SHARED_SUFFIXES = ["co.uk", "com.au", "co.jp", "co.th", "in.th", "or.th", "ac.th", "go.th", "com.br", "com.cn", "vercel.app", "github.io", "pages.dev", "netlify.app", "web.app", "firebaseapp.com", "herokuapp.com", "workers.dev", "blogspot.com", "appspot.com"];
+  function cleanUpdatedList(json, official, max = 2000) {
+    const off = cleanDomainList({ domains: official || [] });
+    return cleanDomainList(json, max).filter(
+      (d) => !SHARED_SUFFIXES.includes(d) && !off.some((o) => o === d || o.endsWith("." + d) || d.endsWith("." + o)),
+    );
+  }
+
   /** match patterns for content scripts: the domain and its subdomains */
   const matchPatterns = (domains) => domains.flatMap((d) => [`*://${d}/*`, `*://*.${d}/*`]);
 
@@ -164,7 +178,7 @@
     permalink: (chain, address) => `${API_BASE}/audit/${encodeURIComponent(chain)}/${encodeURIComponent(address)}`,
   };
 
-  const api = { API_BASE, LANGS, LEVELS, apiLang, chainOf, validAddress, detectToken, dexscreenerChain, tokenFromExplorerLink, classifyInput, normalizeHost, validDomain, listedDomain, lookalike, cleanDomainList, matchPatterns, API };
+  const api = { API_BASE, LANGS, LEVELS, apiLang, chainOf, validAddress, detectToken, dexscreenerChain, tokenFromExplorerLink, classifyInput, normalizeHost, validDomain, listedDomain, lookalike, cleanDomainList, cleanUpdatedList, matchPatterns, API };
   root.SWDG = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);
