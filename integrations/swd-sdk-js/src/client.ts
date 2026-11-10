@@ -10,6 +10,7 @@
 //   POST /api/mcp                                 MCP tools/call (token info, swap quote, SWD info)
 import type { ActionGetResponse, AuditResult, BuySwdTransaction, KeyList, Supply, SwdLang, TxCheckResult } from "./types";
 import { fromB64 } from "./attest";
+import { decodeTransaction, inspectTransaction, type InspectPolicy } from "./inspect";
 
 export const DEFAULT_BASE_URL = "https://swd-zetaphy.sawasdeecoin.com";
 export const SWD_MINT = "Cmh2tu6bt5z2a8NKsx6G5WfVmaeQ9f2fcX5VnQbVaGLL";
@@ -151,7 +152,25 @@ export function createSwdClient(opts: SwdClientOptions = {}) {
      * site's Buy SWD Action (Jupiter route + the site's fee). Hand `bytes` to the buyer's wallet to sign and send; the
      * SDK never signs anything. Simulate it in your app before asking the user to sign, as any wallet does.
      */
-    async buySwdTransaction(o: { account: string; amountSol: number | string; slippageBps?: number; lang?: SwdLang }): Promise<BuySwdTransaction> {
+    /*
+     * Every transaction the server sends is decoded and checked before it is returned (see inspect.ts): the buyer
+     * must be the fee payer and the only signer, nothing may arrive pre-signed, only known programs may be called
+     * at the top level (System, Compute Budget, SPL Token / Token-2022, Associated Token, Memo, Jupiter v6, plus
+     * `allowPrograms`), no instruction may hand the buyer's account or tokens to anyone (System Assign, SPL
+     * Approve / SetAuthority / transfer / burn / close-to-someone-else), and the SOL leaving the buyer's account
+     * may not exceed the amount asked for plus `maxExtraSolBps` (default 10 %) and 0.01 SOL. Anything else throws
+     * SwdApiError code "unsafe_transaction", so a compromised or impersonated server cannot slip an extra
+     * instruction past the caller. `unsafeSkipChecks: true` turns this off (not recommended).
+     */
+    async buySwdTransaction(o: {
+      account: string;
+      amountSol: number | string;
+      slippageBps?: number;
+      lang?: SwdLang;
+      allowPrograms?: string[];
+      maxExtraSolBps?: number;
+      unsafeSkipChecks?: boolean;
+    }): Promise<BuySwdTransaction> {
       if (typeof o.account !== "string" || !BASE58_ADDRESS.test(o.account)) throw new SwdApiError("account must be a Solana address", "bad_input");
       const amount = solAmountString(o.amountSol);
       if (o.slippageBps !== undefined && !(Number.isInteger(o.slippageBps) && o.slippageBps >= 10 && o.slippageBps <= 300))
@@ -171,7 +190,21 @@ export function createSwdClient(opts: SwdClientOptions = {}) {
       } catch {
         throw new SwdApiError("transaction is not base64", "bad_response", r.status);
       }
-      return { transaction: body.transaction, bytes, message: body.message };
+      if (o.unsafeSkipChecks) return { transaction: body.transaction, bytes, message: typeof body.message === "string" ? body.message : undefined };
+      let decoded;
+      try {
+        decoded = decodeTransaction(bytes);
+      } catch (e) {
+        throw new SwdApiError(`not a Solana transaction: ${(e as Error).message}`, "bad_response", r.status);
+      }
+      const extraBps = o.maxExtraSolBps ?? 1000;
+      if (!Number.isInteger(extraBps) || extraBps < 0 || extraBps > 10_000) throw new SwdApiError("maxExtraSolBps must be an integer from 0 to 10000", "bad_input");
+      const [whole, frac = ""] = amount.split(".");
+      const asked = BigInt(whole) * 1_000_000_000n + BigInt((frac + "000000000").slice(0, 9));
+      const policy: InspectPolicy = { allowPrograms: o.allowPrograms, maxSolOutLamports: asked + (asked * BigInt(extraBps)) / 10_000n + 10_000_000n };
+      const inspection = inspectTransaction(decoded, o.account, policy);
+      if (inspection.problems.length) throw new SwdApiError(`refusing the server's transaction: ${inspection.problems.join("; ")}`, "unsafe_transaction", r.status);
+      return { transaction: body.transaction, bytes, message: typeof body.message === "string" ? body.message : undefined, inspection };
     },
 
     /** MCP tools (same server Claude / Cursor use) */
