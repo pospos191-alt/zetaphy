@@ -260,7 +260,11 @@ impl SwdmmV2Position {
 // ---------------------------------------------------------------------
 
 pub(crate) fn initialize_v2_pool(ctx: Context<InitializeV2Pool>, params: InitializeV2PoolParams) -> Result<()> {
-    require!(!ctx.accounts.config.pool_creation_paused, SwdmmV2Error::PoolCreationPaused);
+    // Governance may still create while creation is paused (see lib.rs initialize_pool).
+    require!(
+        crate::governance::creation_allowed(&ctx.accounts.config, &ctx.accounts.creator.key()),
+        SwdmmV2Error::PoolCreationPaused
+    );
     require_keys_neq!(ctx.accounts.mint_a.key(), ctx.accounts.mint_b.key(), SwdmmV2Error::IdenticalMints);
     check_mint_policy(&ctx.accounts.mint_policy_a, &ctx.accounts.mint_a.to_account_info(), &ctx.accounts.token_program_a.key())?;
     check_mint_policy(&ctx.accounts.mint_policy_b, &ctx.accounts.mint_b.to_account_info(), &ctx.accounts.token_program_b.key())?;

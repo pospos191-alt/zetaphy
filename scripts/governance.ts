@@ -101,6 +101,13 @@
 //   cancel <actionId>
 //       Governance-only, before execution.
 //
+//   emergency-cancel-unpause <actionId>
+//       Emergency authority: cancel a pending propose-unpause-* action
+//       (e.g. right after a new emergency pause). Other kinds: governance.
+//
+//   A matured action must be executed within 7 days (EXECUTION_GRACE_SECS
+//   in timelock.rs) or it expires and has to be proposed again.
+//
 //   emergency-pause-v2-pool <pool> <pauseSwap> <pauseDeposit> <pauseWithdraw>
 //
 //   NOTE: governed-unpause-pool / governed-unpause-dlmm-pool below now
@@ -412,7 +419,7 @@ async function main() {
       for (let i = 0; i < Number(st.nextActionId); i++) {
         const a: any = await (program.account as any).pendingAction.fetchNullable(actionPda(i));
         if (!a) continue;
-        const status = a.executed ? "executed" : a.cancelled ? "cancelled" : now >= Number(a.executeAfter) ? "READY" : `pending until ${new Date(Number(a.executeAfter) * 1000).toISOString()}`;
+        const status = a.executed ? "executed" : a.cancelled ? "cancelled" : now > Number(a.executeAfter) + 7 * 24 * 3600 ? "EXPIRED" : now >= Number(a.executeAfter) ? "READY" : `pending until ${new Date(Number(a.executeAfter) * 1000).toISOString()}`;
         console.log(`  #${i} ${JSON.stringify(a.action, (_k, v) => (v instanceof PublicKey ? v.toBase58() : v))} — ${status}`);
       }
       break;
@@ -530,6 +537,16 @@ async function main() {
       await confirmOrDryRun(
         () => console.log(`Would execute action #${id} (${kind}); earliest execution ${new Date(Number(a.executeAfter) * 1000).toISOString()}`),
         () => builder.rpc()
+      );
+      break;
+    }
+
+    case "emergency-cancel-unpause": {
+      const id = Number(rest[0]);
+      const pending = actionPda(id);
+      await confirmOrDryRun(
+        () => console.log(`Would cancel unpause action #${id} (signer must be emergency_authority)`),
+        () => program.methods.emergencyCancelUnpause().accounts({ config: configPda, emergencyAuthority: wallet, pending }).rpc()
       );
       break;
     }

@@ -281,8 +281,14 @@ pub mod swd_amm {
             ctx.accounts.mint_b.key(),
             SwdAmmError::IdenticalMints
         );
+        // While creation is paused only governance itself may create pools
+        // (2026-11-10, security review): pools are one-per-(mint_a, mint_b)
+        // PDA with creator-chosen, immutable fee/oracle bounds, so anyone
+        // could squat a pair the moment its mints were allowlisted. Pausing
+        // creation and letting governance create the canonical pools closes
+        // that, which the runbook's "pause until reviewed" advice assumed.
         require!(
-            !ctx.accounts.config.pool_creation_paused,
+            governance::creation_allowed(&ctx.accounts.config, &ctx.accounts.payer.key()),
             SwdAmmError::PoolCreationPaused
         );
         require!(ctx.accounts.allowed_mint_a.enabled, SwdAmmError::MintNotAllowlisted);
@@ -594,11 +600,10 @@ pub mod swd_amm {
         // wallet) receives, never added on top of what the source (the
         // vault) pays. So crediting/debiting the tracked reserve with the
         // nominal `amount_a`/`amount_b` here is exactly as accurate as it
-        // was before Phase 1b, for every mint. Whether `owner_token_a`/
-        // `owner_token_b` receive slightly less than that (if mint_a/
-        // mint_b carries a transfer fee) is between the withdrawing LP and
-        // that mint's fee schedule — it does not touch this program's own
-        // solvency or any other LP's share.
+        // was before Phase 1b, for every mint. `owner_token_a`/
+        // `owner_token_b` may receive less than that (transfer-fee mint);
+        // that does not touch solvency, but since 2026-11-10 min_a_out /
+        // min_b_out are checked against what they actually receive.
         let amount_a = mul_div(lp_amount, reserve_a, lp_supply)?;
         let amount_b = mul_div(lp_amount, reserve_b, lp_supply)?;
 
@@ -626,6 +631,10 @@ pub mod swd_amm {
         let signer_seeds: &[&[u8]] = &[POOL_SEED, mint_a_key.as_ref(), mint_b_key.as_ref(), &[bump]];
         let signer = &[signer_seeds];
 
+        // min_a_out / min_b_out apply to what the owner actually receives
+        // (transfer-fee mints withhold part of it), see `swap`.
+        let owner_a_before = read_token_balance(&ctx.accounts.owner_token_a.to_account_info())?;
+        let owner_b_before = read_token_balance(&ctx.accounts.owner_token_b.to_account_info())?;
         transfer_checked(
             CpiContext::new_with_signer(
                 ctx.accounts.token_program_a.to_account_info(),
@@ -654,6 +663,13 @@ pub mod swd_amm {
             amount_b,
             ctx.accounts.mint_b.decimals,
         )?;
+        let got_a = read_token_balance(&ctx.accounts.owner_token_a.to_account_info())?
+            .checked_sub(owner_a_before)
+            .ok_or(SwdAmmError::MathOverflow)?;
+        let got_b = read_token_balance(&ctx.accounts.owner_token_b.to_account_info())?
+            .checked_sub(owner_b_before)
+            .ok_or(SwdAmmError::MathOverflow)?;
+        require!(got_a >= min_a_out && got_b >= min_b_out, SwdAmmError::SlippageExceeded);
 
         // Mirror the withdrawal in the tracked reserves.
         let pool = &mut ctx.accounts.pool;
@@ -866,6 +882,13 @@ pub mod swd_amm {
         let signer_seeds: &[&[u8]] = &[POOL_SEED, mint_a_key.as_ref(), mint_b_key.as_ref(), &[bump]];
         let signer = &[signer_seeds];
 
+        // `min_amount_out` is checked against what the trader's account
+        // actually RECEIVES (2026-11-10, security review): for a
+        // TransferFeeConfig mint the outbound transfer withholds a fee from
+        // the destination, so checking only the nominal `amount_out` let a
+        // fee (which the mint's fee authority can raise) eat past the
+        // trader's slippage limit. Same for classic mints: delta == amount_out.
+        let trader_out_before = read_token_balance(&ctx.accounts.trader_token_out.to_account_info())?;
         transfer_checked(
             CpiContext::new_with_signer(
                 token_program_out_ai,
@@ -880,6 +903,10 @@ pub mod swd_amm {
             amount_out,
             decimals_out,
         )?;
+        let trader_out_received = read_token_balance(&ctx.accounts.trader_token_out.to_account_info())?
+            .checked_sub(trader_out_before)
+            .ok_or(SwdAmmError::MathOverflow)?;
+        require!(trader_out_received >= min_amount_out, SwdAmmError::SlippageExceeded);
 
         // Mirror the swap in the tracked reserves. `amount_in_net` (the
         // MEASURED amount that actually landed in vault_in, including the
@@ -1091,6 +1118,10 @@ pub mod swd_amm {
 
     pub fn cancel_gov_action(ctx: Context<CancelAction>) -> Result<()> {
         timelock::cancel_action(ctx)
+    }
+
+    pub fn emergency_cancel_unpause(ctx: Context<EmergencyCancelUnpause>) -> Result<()> {
+        timelock::emergency_cancel_unpause(ctx)
     }
 
     pub fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<()> {
@@ -1582,7 +1613,7 @@ pub enum SwdAmmError {
     DepositPaused,
     #[msg("Withdrawals are paused on this pool")]
     WithdrawPaused,
-    #[msg("This Token-2022 mint carries an extension this program does not yet support (transfer fee, transfer hook, confidential transfer, non-transferable, or permanent delegate)")]
+    #[msg("This Token-2022 mint carries an extension this program does not yet support (transfer hook, confidential transfer, non-transferable, permanent delegate, mint close authority, or an extension this program does not know)")]
     UnsupportedMintExtension,
     #[msg("Price impact exceeds the 50% cap for a single swap")]
     PriceImpactTooHigh,
@@ -1638,6 +1669,18 @@ pub enum SwdAmmError {
 ///   outside this program's own logic entirely — a fund-safety property
 ///   no version of this program's own code can restore once the mint
 ///   itself grants that power away.
+/// - `MintCloseAuthority` (added 2026-11-10, security review): lets the
+///   close authority close the mint once its supply is 0 and re-create an
+///   account AT THE SAME ADDRESS with different extensions (the issuer
+///   holds the mint keypair). Every check here runs only when a pool or
+///   policy is created, so a mint that passed it could come back with a
+///   PermanentDelegate or TransferHook under a pool (or allowlist entry)
+///   that is still waiting for its first deposit. Without this extension a
+///   Token-2022 mint can never be closed, so its extension set is fixed.
+///
+/// Extension types this crate's spl-token-2022 version does not know
+/// (e.g. Pausable, ScaledUiAmount) make `get_extension_types` fail, which
+/// is mapped to `UnsupportedMintExtension` below: unknown means refused.
 ///
 /// Every OTHER Token-2022 extension (e.g. `MetadataPointer`,
 /// `TokenMetadata`, `InterestBearingConfig` — which changes what a UI
@@ -1647,11 +1690,12 @@ fn assert_mint_extensions_safe(mint_ai: &AccountInfo) -> Result<()> {
         return Ok(());
     }
 
-    const BLOCKED: [ExtensionType; 4] = [
+    const BLOCKED: [ExtensionType; 5] = [
         ExtensionType::TransferHook,
         ExtensionType::ConfidentialTransferMint,
         ExtensionType::NonTransferable,
         ExtensionType::PermanentDelegate,
+        ExtensionType::MintCloseAuthority,
     ];
 
     let data = mint_ai.try_borrow_data()?;
@@ -1901,5 +1945,131 @@ mod tests {
         // A result that genuinely doesn't fit back into u64 must error,
         // not silently truncate.
         assert!(mul_div(u64::MAX, 2, 1).is_err());
+    }
+
+    // -----------------------------------------------------------------
+    // Security review 2026-11-10: attack tests for the Token-2022
+    // extension gate and the governance helpers.
+    // -----------------------------------------------------------------
+
+    use anchor_spl::token_2022::spl_token_2022::extension::{
+        metadata_pointer::MetadataPointer, mint_close_authority::MintCloseAuthority,
+        permanent_delegate::PermanentDelegate, transfer_fee::TransferFeeConfig,
+        BaseStateWithExtensionsMut, StateWithExtensionsMut,
+    };
+    use anchor_lang::solana_program::program_option::COption;
+    use anchor_lang::solana_program::program_pack::Pack;
+
+    /// Raw Token-2022 mint account data carrying `exts` (each initialised
+    /// with its zero/default value — only the presence matters to the gate).
+    fn token_2022_mint_data(exts: &[ExtensionType]) -> Vec<u8> {
+        let len = if exts.is_empty() {
+            SplToken2022Mint::LEN
+        } else {
+            ExtensionType::try_calculate_account_len::<SplToken2022Mint>(exts).unwrap()
+        };
+        let mut data = vec![0u8; len];
+        {
+            let mut st = StateWithExtensionsMut::<SplToken2022Mint>::unpack_uninitialized(&mut data).unwrap();
+            for e in exts {
+                match e {
+                    ExtensionType::MintCloseAuthority => { st.init_extension::<MintCloseAuthority>(true).unwrap(); }
+                    ExtensionType::PermanentDelegate => { st.init_extension::<PermanentDelegate>(true).unwrap(); }
+                    ExtensionType::MetadataPointer => { st.init_extension::<MetadataPointer>(true).unwrap(); }
+                    ExtensionType::TransferFeeConfig => { st.init_extension::<TransferFeeConfig>(true).unwrap(); }
+                    other => panic!("test helper does not build {:?}", other),
+                }
+            }
+            st.base = SplToken2022Mint {
+                mint_authority: COption::Some(Pubkey::new_unique()),
+                supply: 0,
+                decimals: 6,
+                is_initialized: true,
+                freeze_authority: COption::None,
+            };
+            st.pack_base();
+            if !exts.is_empty() {
+                st.init_account_type().unwrap();
+            }
+        }
+        data
+    }
+
+    fn gate(owner: &Pubkey, mut data: Vec<u8>) -> Result<()> {
+        let key = Pubkey::new_unique();
+        let mut lamports = 1_000_000u64;
+        let ai = AccountInfo::new(&key, false, false, &mut lamports, &mut data, owner, false, 0);
+        assert_mint_extensions_safe(&ai)
+    }
+
+    #[test]
+    fn extension_gate_allows_plain_and_harmless_mints() {
+        let t22 = anchor_spl::token_2022::ID;
+        assert!(gate(&t22, token_2022_mint_data(&[])).is_ok());
+        assert!(gate(&t22, token_2022_mint_data(&[ExtensionType::MetadataPointer])).is_ok());
+        // CP pools measure balances, so a transfer fee is allowed here
+        // (SWDMM v2 refuses it separately: assert_no_transfer_fee).
+        assert!(gate(&t22, token_2022_mint_data(&[ExtensionType::TransferFeeConfig])).is_ok());
+        // classic SPL mints are never inspected
+        assert!(gate(&anchor_spl::token::ID, vec![0u8; 82]).is_ok());
+    }
+
+    #[test]
+    fn extension_gate_refuses_permanent_delegate() {
+        assert!(gate(&anchor_spl::token_2022::ID, token_2022_mint_data(&[ExtensionType::PermanentDelegate])).is_err());
+    }
+
+    /// ATTACK (2026-11-10): a mint with a close authority passes the gate
+    /// once, then — while supply is 0, e.g. before a pool's first deposit —
+    /// the issuer closes it and re-creates the same address with a
+    /// PermanentDelegate (or TransferHook). The gate only ever ran at
+    /// policy/pool creation, so the pool would then accept the new mint.
+    /// Fixed by refusing MintCloseAuthority outright.
+    #[test]
+    fn attack_extension_gate_refuses_mint_close_authority() {
+        let t22 = anchor_spl::token_2022::ID;
+        assert!(gate(&t22, token_2022_mint_data(&[ExtensionType::MintCloseAuthority])).is_err());
+        assert!(gate(&t22, token_2022_mint_data(&[ExtensionType::MetadataPointer, ExtensionType::MintCloseAuthority])).is_err());
+    }
+
+    /// An extension type this crate's spl-token-2022 does not know (newer
+    /// Token-2022 releases added Pausable, ScaledUiAmount, ...) must be
+    /// refused, not skipped.
+    #[test]
+    fn extension_gate_fails_closed_on_unknown_extension_type() {
+        let mut data = token_2022_mint_data(&[ExtensionType::MetadataPointer]);
+        // TLV starts after the 165-byte base (82 + padding) + 1 account-type byte.
+        let tlv = 166;
+        let unknown: u16 = 26; // Pausable in later Token-2022 versions
+        data[tlv..tlv + 2].copy_from_slice(&unknown.to_le_bytes());
+        assert!(gate(&anchor_spl::token_2022::ID, data).is_err());
+    }
+
+    #[test]
+    fn attack_stale_timelock_action_expires() {
+        let after = 1_000_000i64;
+        assert!(timelock::check_execution_window(after - 1, after).is_err(), "not matured");
+        assert!(timelock::check_execution_window(after, after).is_ok());
+        assert!(timelock::check_execution_window(after + timelock::EXECUTION_GRACE_SECS, after).is_ok());
+        // Before the fix a matured, never-executed unpause stayed executable
+        // forever — e.g. right after a later emergency pause.
+        assert!(timelock::check_execution_window(after + timelock::EXECUTION_GRACE_SECS + 1, after).is_err());
+        assert!(timelock::check_execution_window(i64::MAX, i64::MAX - 1).is_err(), "no overflow panic");
+    }
+
+    #[test]
+    fn pool_creation_pause_lets_only_governance_create() {
+        let gov = Pubkey::new_unique();
+        let mut c = governance::GlobalConfig {
+            governance_authority: gov,
+            emergency_authority: Pubkey::new_unique(),
+            pool_creation_paused: false,
+            bump: 255,
+        };
+        let squatter = Pubkey::new_unique();
+        assert!(governance::creation_allowed(&c, &squatter));
+        c.pool_creation_paused = true;
+        assert!(!governance::creation_allowed(&c, &squatter));
+        assert!(governance::creation_allowed(&c, &gov));
     }
 }

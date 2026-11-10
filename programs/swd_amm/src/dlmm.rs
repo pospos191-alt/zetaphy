@@ -846,7 +846,11 @@ pub(crate) fn initialize_dlmm_pool(
         max_fee_bps,
     )?;
     require_keys_neq!(ctx.accounts.mint_a.key(), ctx.accounts.mint_b.key(), SwdAmmError::IdenticalMints);
-    require!(!ctx.accounts.config.pool_creation_paused, SwdAmmError::PoolCreationPaused);
+    // Governance may still create while creation is paused (see lib.rs initialize_pool).
+    require!(
+        crate::governance::creation_allowed(&ctx.accounts.config, &ctx.accounts.payer.key()),
+        SwdAmmError::PoolCreationPaused
+    );
     require!(ctx.accounts.allowed_mint_a.enabled, SwdAmmError::MintNotAllowlisted);
     require!(ctx.accounts.allowed_mint_b.enabled, SwdAmmError::MintNotAllowlisted);
     require_keys_eq!(ctx.accounts.allowed_mint_a.mint, ctx.accounts.mint_a.key(), SwdAmmError::MintNotAllowlisted);

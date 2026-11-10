@@ -219,6 +219,10 @@ pub(crate) fn initialize_global_config(
         emergency_authority,
         GovernanceError::EmergencyCannotEqualGovernance
     );
+    require!(
+        governance_authority != Pubkey::default() && emergency_authority != Pubkey::default(),
+        GovernanceError::InvalidAuthority
+    );
 
     let config = &mut ctx.accounts.config;
     config.governance_authority = governance_authority;
@@ -251,6 +255,13 @@ pub(crate) fn set_authorities(
         new_emergency_authority,
         GovernanceError::EmergencyCannotEqualGovernance
     );
+    // 2026-11-10 (security review): the default key has no private key, so
+    // handing governance to it would brick every governance instruction
+    // (no unpause, no fee withdrawal, ever) with one typo'd transaction.
+    require!(
+        new_governance_authority != Pubkey::default() && new_emergency_authority != Pubkey::default(),
+        GovernanceError::InvalidAuthority
+    );
 
     let config = &mut ctx.accounts.config;
     config.governance_authority = new_governance_authority;
@@ -264,11 +275,18 @@ pub(crate) fn set_authorities(
     Ok(())
 }
 
-/// Governance-only global switch. When true, BOTH initialize_pool and
-/// initialize_dlmm_pool refuse to create any new pool, regardless of
-/// allowlist state — a fast-acting "stop new exposure" lever that does not
-/// touch any existing pool's funds or trading. Existing pools are
-/// completely unaffected; use emergency_pause_pool /
+/// Pool creation is open unless paused; while paused only the governance
+/// authority itself may create pools (2026-11-10, security review).
+pub fn creation_allowed(config: &GlobalConfig, creator: &Pubkey) -> bool {
+    !config.pool_creation_paused || *creator == config.governance_authority
+}
+
+/// Governance-only global switch. When true, initialize_pool,
+/// initialize_dlmm_pool and initialize_v2_pool refuse to create any new
+/// pool for anyone but the governance authority (see `creation_allowed`),
+/// regardless of allowlist state — a fast-acting "stop new exposure" lever
+/// that does not touch any existing pool's funds or trading. Existing pools
+/// are completely unaffected; use emergency_pause_pool /
 /// emergency_pause_dlmm_pool to actually stop trading on a specific pool
 /// that is already live.
 pub(crate) fn set_pool_creation_paused(ctx: Context<GovernanceOnly>, paused: bool) -> Result<()> {
@@ -855,4 +873,6 @@ pub enum GovernanceError {
     MultisigVaultMismatch,
     #[msg("A Pyth feed id cannot be all zeros")]
     InvalidFeedId,
+    #[msg("An authority cannot be the default (all-zero) pubkey")]
+    InvalidAuthority,
 }

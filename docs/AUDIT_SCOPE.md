@@ -21,7 +21,8 @@ three pool types sharing governance.
 - **Emergency authority**: separate key, can only pause (swap / deposit /
   withdraw) a pool. Cannot unpause, change fees, or move funds.
 - **Timelock**: 24–48h on a `--features mainnet` build. Execution after the
-  delay is permissionless.
+  delay is permissionless, within a 7-day window (then the action expires).
+  The emergency authority can also cancel a pending unpause.
 - **Nobody** can withdraw LP funds from a vault except the position owner /
   LP-token holder; protocol fees leave only to the treasury via a matured
   timelocked action.
@@ -42,6 +43,18 @@ three pool types sharing governance.
 Properties 2–4 and 7 are covered by `programs/swd_amm/tests/proptest_math.rs`
 and `swdmm_math.rs` unit tests; 1, 5, 6, 8, 9 by `tests/swdmm_v2.ts` and
 `tests/governance.ts`.
+
+## Internal security review 2026-11-10
+
+Findings and fixes of the in-house adversarial pass (attack tests in
+`tests/security-review.ts` and `lib.rs` `tests::attack_*`):
+MintCloseAuthority now refused by the extension gate (close + re-create the
+mint with a PermanentDelegate/TransferHook); timelocked actions expire 7 days
+after maturity and the emergency authority can cancel pending unpauses;
+governance may create pools while creation is paused (anti-squatting);
+`set_authorities` / `initialize_global_config` refuse the default key; CP
+`swap` / `remove_liquidity` check slippage against the amount actually
+received (transfer-fee mints).
 
 ## Known design choices / risks to review
 
