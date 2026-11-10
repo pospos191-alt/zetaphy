@@ -362,6 +362,7 @@ async function refresh() {
     const h = Number(st.result.sync_info.latest_block_height);
     lastHeight = h;
     net.className = 'net up';
+    $('node-down').hidden = true;
     $('net-text').textContent = `#${h.toLocaleString('en-US')}`;
     $('s-height').textContent = h.toLocaleString('en-US');
     if (current === 'home') {
@@ -382,6 +383,8 @@ async function refresh() {
   } catch {
     net.className = 'net down';
     $('net-text').textContent = T('netDown');
+    // say why the numbers are missing (2026-11: the public RPC pauses when the VM nears its free monthly traffic)
+    $('node-down').hidden = false;
   }
   try {
     const [vals, pool] = await Promise.all([bondedValidators(true), getJson(`${ep().rest}/cosmos/staking/v1beta1/pool`)]);
