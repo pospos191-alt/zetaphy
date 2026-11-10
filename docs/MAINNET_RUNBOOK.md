@@ -6,7 +6,7 @@ people named in each step. Nothing here is automated on purpose: the CI
 workflow never deploys to mainnet.
 
 Status on 2026-09-29: gates 1–3 are done for the code in this repository;
-gates 4–9 are not started.
+gates 4–9 are not started. Gate 10 (DeFi listings) is prepared, not started.
 
 ## Gate 1 — Tests (done, keep green)
 
@@ -82,6 +82,13 @@ logs must read `true`.
 
 Use a private RPC (Helius / Triton / QuickNode) for every mainnet step.
 
+`scripts/deploy-mainnet.sh` runs gates 7 and 7b in the right order (preflight → verified build → cost estimate →
+deploy → IDL init → verify PDA + OtterSec job → governance bootstrap → hand IDL, governance and upgrade authority to
+the Squads vault → check). Dry run by default; `--execute` asks before every transaction. Cost from the current
+build (1,266,528-byte .so): ~8.82 SOL program rent locked, the same again as a temporary buffer during deploy,
+~0.18 SOL IDL — have ≥ ~17.9 SOL in the deployer. Before running it, `declare_id!` and `[programs.mainnet]` must
+hold the fresh program id, committed and pushed. The manual equivalent:
+
 ```bash
 # 1. deploy with the one-time deployer key
 solana program deploy target/deploy/swd_amm.so --program-id <PROGRAM_KEYPAIR> \
@@ -117,8 +124,14 @@ So anyone can check that the program on mainnet is exactly this repository's aud
 ```bash
 bash scripts/verified-build.sh build                      # before deploy: deterministic Docker build, prints the hash
 bash scripts/verified-build.sh verify <PROGRAM_ID> <RPC>   # after deploy: on-chain hash must equal the build hash
-bash scripts/verified-build.sh upload <PROGRAM_ID> <RPC>   # publish to OtterSec's registry (explorers show "Verified")
+KEYPAIR=<upgrade-authority keypair> bash scripts/verified-build.sh upload <PROGRAM_ID> <RPC>   # verify PDA + OtterSec job
 ```
+
+solana-verify 0.5.x removed `verify-from-repo --remote`: the upload step now writes the verify PDA, then runs
+`solana-verify remote submit-job --program-id <ID> --uploader <AUTHORITY>`. Do it while the deployer is still the
+upgrade authority (the deploy script does); afterwards it needs `solana-verify export-pda-tx` + a Squads proposal.
+Also publish the IDL (`anchor idl init`, then `anchor idl set-authority -n <VAULT_PDA>`) so explorers decode the
+instructions.
 
 Deploy the `.so` produced by `solana-verify build` (not a plain `anchor build`), or the hashes will not match. Once
 the upgrade authority is the Squads vault, the `upload` step's verify-PDA write is a Squads proposal (2-of-3).
@@ -148,4 +161,17 @@ the upgrade authority is the Squads vault, the `upload` step's verify-PDA write 
   `emergency-cancel-unpause <id>` for every pending unpause of that pool
   (`yarn governance settings` lists them). A matured action expires 7 days
   after `execute_after`.
-- Bug bounty and a published `security.txt` contact.
+- Bug bounty and a published `security.txt` contact. The program embeds a `security.txt` (2026-11-08,
+  `solana-security-txt`, see `lib.rs`): its contact `security@sawasdeecoin.com` is a placeholder — create that
+  mailbox or change it before the mainnet build, and set `auditors` once a report is public.
+
+## Gate 10 — DeFi listings (Jupiter, DefiLlama, Solscan)
+
+After gates 4–8 and real liquidity. Full path, in Thai: `docs/DEFI_LISTING.th.md`.
+
+- Jupiter: SDK in `integrations/jupiter-amm-swd/` (jupiter-amm-interface 0.6.1, SWDMM v2 pools; quotes tested
+  against the built program in LiteSVM). Apply through Jupiter's DEX-integration page.
+- DefiLlama: TVL adapter in `integrations/defillama/swd-amm/` (set the mainnet program id, then a PR to
+  DefiLlama-Adapters as `projects/swd-amm/index.js`).
+- Solscan: verified build + on-chain IDL + security.txt are what Solscan reads itself; the request to appear in
+  its DeFi menu goes through Solscan's contact channel (no public listing form found).

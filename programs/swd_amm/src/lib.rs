@@ -180,6 +180,22 @@ pub use timelock::*;
 // The correct System Program address below is exactly 32 characters.)
 declare_id!("3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL");
 
+// security.txt (2026-11-08): read by Solscan / Solana Explorer from the
+// deployed binary ("Security" tab) and by `query-security-txt`. Same
+// `no-entrypoint` gate as the entrypoint (see the Cargo.toml comment).
+// Change `auditors` only once a published audit report exists, and the
+// contact once the project has a monitored security mailbox.
+#[cfg(not(feature = "no-entrypoint"))]
+solana_security_txt::security_txt! {
+    name: "SWD AMM",
+    project_url: "https://swd-zetaphy.sawasdeecoin.com",
+    contacts: "email:security@sawasdeecoin.com,link:https://github.com/pospos191-alt/zetaphy/security",
+    policy: "https://github.com/pospos191-alt/zetaphy/blob/main/SECURITY.md",
+    preferred_languages: "en,th",
+    source_code: "https://github.com/pospos191-alt/zetaphy",
+    auditors: "None yet"
+}
+
 pub const POOL_SEED: &[u8] = b"pool";
 pub const VAULT_A_SEED: &[u8] = b"vault_a";
 pub const VAULT_B_SEED: &[u8] = b"vault_b";

@@ -1,0 +1,44 @@
+[package]
+name = "jupiter-amm-swd"
+version = "0.1.0"
+edition = "2021"
+description = "Jupiter AMM interface (jupiter-amm-interface 0.6.1) for SWD AMM SWDMM v2 pools"
+license = "Apache-2.0"
+repository = "https://github.com/pospos191-alt/zetaphy"
+readme = "README.md"
+keywords = ["solana", "jupiter", "amm", "swd"]
+
+# Own workspace: this crate is NOT part of the on-chain program's workspace
+# (repo root Cargo.toml) and has a different dependency graph (off-chain
+# Jupiter crates). `cargo test` here never touches the program build.
+[workspace]
+
+[lib]
+name = "jupiter_amm_swd"
+path = "src/lib.rs"
+
+[dependencies]
+# Latest stable release on 2026-11-08 (1.0.0-beta.0 also exists; see README).
+jupiter-amm-interface = "=0.6.1"
+anyhow = "1"
+rust_decimal = "1.36"
+# Same major line as jupiter-amm-interface 0.6.1 and anchor-lang 0.31.1
+# (both resolve to the 2.x Solana SDK crates), so a Pubkey here is the
+# same type everywhere and there is one copy of each crate.
+solana-pubkey = { version = "2", features = ["curve25519"] }
+solana-account = "2"
+solana-instruction = "2"
+
+[dev-dependencies]
+# The on-chain program itself, as a library (no entrypoint, no
+# security.txt symbol). Used ONLY by tests/program_parity.rs to check that
+# this crate decodes the program's real account layout and reproduces the
+# program's own fee/swap functions. Not needed by Jupiter at runtime.
+swd_amm = { path = "../../programs/swd_amm", features = ["no-entrypoint"] }
+anchor-lang = "0.31.1"
+solana-clock = "2"
+litesvm = "0.6"
+solana-transaction = "2"
+solana-keypair = "2"
+solana-signer = "2"
+solana-message = "2"
