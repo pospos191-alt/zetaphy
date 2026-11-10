@@ -18,7 +18,7 @@ export const PROGRAM_ERRORS = {
   6014: ["SwapPaused","Swaps are paused on this pool","paused"],
   6015: ["DepositPaused","Deposits are paused on this pool","paused"],
   6016: ["WithdrawPaused","Withdrawals are paused on this pool","paused"],
-  6017: ["UnsupportedMintExtension","This Token-2022 mint carries an extension this program does not yet support (transfer fee, transfer hook, confidential transfer, non-transferable, or permanent delegate)","allow"],
+  6017: ["UnsupportedMintExtension","This Token-2022 mint carries an extension this program does not yet support (transfer hook, confidential transfer, non-transferable, permanent delegate, mint close authority, or an extension this program does not know)","allow"],
   6018: ["PriceImpactTooHigh","Price impact exceeds the 50% cap for a single swap","slippage"],
   6019: ["OracleFeedNotRegistered","Pyth feed ids must match the feeds governance registered for these mints (set_mint_feed)","oracle"],
   6100: ["BinStepTooHigh","bin_step_bps exceeds the maximum allowed","input"],
@@ -39,6 +39,7 @@ export const PROGRAM_ERRORS = {
   6204: ["MultisigAccountTooShort","Account is too short to be a Squads v4 Multisig account","auth"],
   6205: ["MultisigVaultMismatch","The given multisig account's vault at this index does not match governance_authority","auth"],
   6206: ["InvalidFeedId","A Pyth feed id cannot be all zeros","oracle"],
+  6207: ["InvalidAuthority","An authority cannot be the default (all-zero) pubkey","auth"],
   6300: ["PriceUnavailable","Pyth price is missing, for the wrong feed, or older than this pool's configured maximum staleness","oracle"],
   6301: ["PriceVerificationNotFull","Pyth price update's verification_level is not Full (Partial updates are not trusted for guarding real funds)","oracle"],
   6302: ["PriceFeedMismatch","Pyth price update's feed_id does not match this pool's configured pyth_feed_id_a/pyth_feed_id_b","oracle"],
@@ -94,6 +95,7 @@ export const PROGRAM_ERRORS = {
   8510: ["Token2022NotReviewed","Token-2022 mints must be explicitly marked as reviewed","allow"],
   8511: ["UseTimelockedUnpause","Instant unpause is disabled: use the timelocked propose/execute flow","timelock"],
   8512: ["MathOverflow","Math overflow","math"],
+  8513: ["ActionExpired","This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again","timelock"],
 };
 
 const BY_NAME = Object.fromEntries(Object.entries(PROGRAM_ERRORS).map(([c, [n]]) => [n, Number(c)]));
