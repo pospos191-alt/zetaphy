@@ -1,0 +1,30 @@
+{
+  "name": "swd-quantum",
+  "version": "0.1.0",
+  "description": "Off-chain library for SWD Quantum (programs/swd_quantum): LM-OTS (Winternitz, RFC 8554 / SP 800-208 N24_W8) quantum-safe Solana vaults and the PQ key commitment registry. UNAUDITED.",
+  "license": "MIT",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "files": ["dist/src", "README.md"],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "tsc -p . && node --test dist/test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pospos191-alt/zetaphy",
+    "directory": "integrations/swd-quantum-ts"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@noble/hashes": "^1.8.0"
+  },
+  "peerDependencies": {
+    "@solana/web3.js": "^1.95.0"
+  },
+  "devDependencies": {
+    "@solana/web3.js": "^1.98.4",
+    "@types/node": "^20.17.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -11,9 +11,14 @@ skip-lint = false
 # after your first `anchor build`, then `anchor keys list` and paste the
 # real program id here AND in programs/swd_amm/src/lib.rs's declare_id!.
 swd_amm = "3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL"
+# SWD Quantum (docs/SWD_QUANTUM.md). TODO(before build): same as above with
+# target/deploy/swd_quantum-keypair.json; paste the id here, below, AND in
+# programs/swd_quantum/src/lib.rs's declare_id! (placeholder until then).
+swd_quantum = "HGtZWKNPwqNY19RNJBrzs8qQwwmnAexxAWZFxAwFuF9h"
 
 [programs.devnet]
 swd_amm = "3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL"
+swd_quantum = "HGtZWKNPwqNY19RNJBrzs8qQwwmnAexxAWZFxAwFuF9h"
 
 [registry]
 url = "https://api.apr.dev"
