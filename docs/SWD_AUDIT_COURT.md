@@ -31,7 +31,7 @@ and emits `DisputeResolved`; the registry's authority applies it there.
 2. **`defend`** (optional) — one defender posts the same bond during voting.
 3. **`vote(support)`** — badge holders, during the voting period. One
    `VoteRecord` PDA per (dispute, voter) makes a second vote impossible. The
-   opener and the defender cannot vote.
+   opener and the defender cannot vote, and a wallet that already voted cannot become the defender (`defend` takes its VoteRecord PDA and requires it to be empty).
 4. **`finalize`** — anyone, after `voting_ends_at`:
    - `yes + no < quorum` → **NoQuorum**: everyone refunded;
    - `yes / (yes + no) > pass_bps` (strict) → **Upheld**;

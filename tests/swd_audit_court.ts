@@ -261,9 +261,9 @@ describe("swd_audit_court", () => {
     });
 
     it("defend: matches the bond, once, not by the opener", async () => {
-      await expectCode(() => program.methods.defend().accountsStrict({ defender: opener.publicKey, config, dispute: d0, vault: vaultPda(d0), defenderToken: ata(opener.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([opener]).rpc(), "ConflictOfInterest");
-      await program.methods.defend().accountsStrict({ defender: defender.publicKey, config, dispute: d0, vault: vaultPda(d0), defenderToken: ata(defender.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([defender]).rpc();
-      await expectCode(() => program.methods.defend().accountsStrict({ defender: v1.publicKey, config, dispute: d0, vault: vaultPda(d0), defenderToken: ata(v1.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([v1]).rpc(), "AlreadyDefended");
+      await expectCode(() => program.methods.defend().accountsStrict({ defender: opener.publicKey, config, dispute: d0, vault: vaultPda(d0), defenderToken: ata(opener.publicKey), defenderVote: votePda(d0, opener.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([opener]).rpc(), "ConflictOfInterest");
+      await program.methods.defend().accountsStrict({ defender: defender.publicKey, config, dispute: d0, vault: vaultPda(d0), defenderToken: ata(defender.publicKey), defenderVote: votePda(d0, defender.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([defender]).rpc();
+      await expectCode(() => program.methods.defend().accountsStrict({ defender: v1.publicKey, config, dispute: d0, vault: vaultPda(d0), defenderToken: ata(v1.publicKey), defenderVote: votePda(d0, v1.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([v1]).rpc(), "AlreadyDefended");
       assert.equal((await getAccount(conn, vaultPda(d0), "confirmed")).amount, BigInt(2 * BOND));
     });
 
@@ -298,6 +298,11 @@ describe("swd_audit_court", () => {
     it("d1 gets a 'no' majority above quorum", async () => {
       await voteIx(d1, v2, false, [badgeAta(badgeA, v2.publicKey), badgeAta(badgeB, v2.publicKey)]).rpc(); // 4 no
       await voteIx(d1, v1, true, [badgeAta(badgeA, v1.publicKey)]).rpc(); // 1 yes
+      // ATTACK: a wallet that already voted must not become the defender
+      // (vote() only refuses the defender once it is one). v1 holds bond tokens.
+      await expectCode(() => program.methods.defend().accountsStrict({ defender: v1.publicKey, config, dispute: d1, vault: vaultPda(d1), defenderToken: ata(v1.publicKey), defenderVote: votePda(d1, v1.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([v1]).rpc(), "ConflictOfInterest");
+      // and the vote PDA passed must be the defender's own
+      await expectThrows(() => program.methods.defend().accountsStrict({ defender: v1.publicKey, config, dispute: d1, vault: vaultPda(d1), defenderToken: ata(v1.publicKey), defenderVote: votePda(d1, stranger.publicKey), tokenProgram: TOKEN_PROGRAM_ID }).signers([v1]).rpc(), "seeds");
     });
 
     it("finalize is refused before the voting period ends", async () => {

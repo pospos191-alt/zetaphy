@@ -20,7 +20,7 @@
    `address_hash = sha256(ที่อยู่ที่ normalize แล้ว)` ศาลคำนวณ Record PDA ของ registry
    `["audit", chain_id LE, address_hash]` ไว้ (ไม่อ่าน/ไม่เขียน) `disputed_payload_hash` ระบุ attestation ที่โต้แย้ง,
    `claimed_level` (0..3 หรือ 255) ระดับที่ผู้เปิดเห็นว่าถูก, `evidence_hash` = sha256 ของเอกสารหลักฐานนอกเชน
-2. **`defend`** (ไม่บังคับ) — ผู้แก้ต่าง 1 คนวาง bond เท่ากันระหว่างโหวต
+2. **`defend`** (ไม่บังคับ) — ผู้แก้ต่าง 1 คนวาง bond เท่ากันระหว่างโหวต (กระเป๋าที่โหวตในข้อพิพาทนั้นไปแล้วจะเป็นผู้แก้ต่างไม่ได้)
 3. **`vote(support)`** — ผู้ถือ badge ระหว่างช่วงโหวต; `VoteRecord` PDA ต่อ (dispute, ผู้โหวต) ทำให้โหวตซ้ำไม่ได้
    ผู้เปิดและผู้แก้ต่างโหวตไม่ได้
 4. **`finalize`** — ใครก็ได้ หลัง `voting_ends_at`:

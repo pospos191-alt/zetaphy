@@ -287,6 +287,13 @@ pub mod swd_audit_court {
             d.opener,
             CourtError::ConflictOfInterest
         );
+        // `vote` refuses the defender, but only once it IS the defender: a
+        // wallet that already voted here must not become the defender either
+        // (its VoteRecord can only be closed after voting, so empty = never voted).
+        require!(
+            ctx.accounts.defender_vote.data_is_empty(),
+            CourtError::ConflictOfInterest
+        );
         let bond = d.bond_amount;
         token::transfer(
             CpiContext::new(
@@ -852,6 +859,10 @@ pub struct Defend<'info> {
     pub vault: Account<'info, TokenAccount>,
     #[account(mut, token::mint = config.bond_mint, token::authority = defender)]
     pub defender_token: Account<'info, TokenAccount>,
+    /// CHECK: the defender's VoteRecord PDA on this dispute; must be empty
+    /// (the defender has not voted)
+    #[account(seeds = [VOTE_SEED, dispute.key().as_ref(), defender.key().as_ref()], bump)]
+    pub defender_vote: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
 }
 
