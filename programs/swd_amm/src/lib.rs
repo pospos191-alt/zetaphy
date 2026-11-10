@@ -119,6 +119,8 @@ use anchor_spl::token_interface::{transfer_checked, Mint, TokenAccount, TokenInt
 // rest of this program, and even less proven — not yet exercised by any
 // localnet test as of this writing).
 mod dlmm;
+pub mod dlmm_math;
+pub mod cp_math;
 // A GLOB re-export, not a selective one, is required here — not just for
 // convenience. Anchor's `#[derive(Accounts)]` macro generates a hidden
 // companion module (e.g. `__client_accounts_add_dlmm_liquidity`) alongside
@@ -221,7 +223,7 @@ pub const MIN_INITIAL_DEPOSIT: u64 = 1_000_000;
 // Price-impact cap for constant-product swaps (added 2026-09-29, SWDMM
 // spec): a single swap may not push more than half of the input-side
 // reserve through the curve (impact = x / (reserve_in + x) <= 50%).
-pub const CP_MAX_PRICE_IMPACT_BPS: u128 = 5_000;
+pub const CP_MAX_PRICE_IMPACT_BPS: u128 = cp_math::CP_MAX_PRICE_IMPACT_BPS;
 
 #[program]
 pub mod swd_amm {
@@ -503,9 +505,8 @@ pub mod swd_amm {
             );
             liquidity_u64 - MINIMUM_LIQUIDITY
         } else {
-            let lp_from_a = mul_div(amount_a, lp_supply, reserve_a)?;
-            let lp_from_b = mul_div(amount_b, lp_supply, reserve_b)?;
-            lp_from_a.min(lp_from_b)
+            cp_math::lp_for_deposit(amount_a, amount_b, lp_supply, reserve_a, reserve_b)
+                .ok_or(SwdAmmError::MathOverflow)?
         };
 
         require!(lp_to_mint >= min_lp_out, SwdAmmError::SlippageExceeded);
@@ -604,8 +605,8 @@ pub mod swd_amm {
         // `owner_token_b` may receive less than that (transfer-fee mint);
         // that does not touch solvency, but since 2026-11-10 min_a_out /
         // min_b_out are checked against what they actually receive.
-        let amount_a = mul_div(lp_amount, reserve_a, lp_supply)?;
-        let amount_b = mul_div(lp_amount, reserve_b, lp_supply)?;
+        let (amount_a, amount_b) = cp_math::withdraw_amounts(lp_amount, reserve_a, reserve_b, lp_supply)
+            .ok_or(SwdAmmError::MathOverflow)?;
 
         require!(amount_a > 0 && amount_b > 0, SwdAmmError::ZeroAmount);
         require!(amount_a >= min_a_out, SwdAmmError::SlippageExceeded);
@@ -827,46 +828,22 @@ pub mod swd_amm {
         // pool's base `fee_bps`, scaled up toward `max_fee_bps` if the
         // pool's price had drifted from the oracle) — not the pool's
         // static `fee_bps` field directly.
-        let fee_bps = oracle_result.fee_bps as u128;
-        let fee_multiplier = 10_000u128
-            .checked_sub(fee_bps)
-            .ok_or(SwdAmmError::MathOverflow)?;
-        let amount_in_after_fee = (amount_in_net as u128)
-            .checked_mul(fee_multiplier)
-            .ok_or(SwdAmmError::MathOverflow)?
-            .checked_div(10_000)
-            .ok_or(SwdAmmError::MathOverflow)?;
-
-        let impact_bps = amount_in_after_fee
-            .checked_mul(10_000)
-            .ok_or(SwdAmmError::MathOverflow)?
-            .checked_div((reserve_in as u128).checked_add(amount_in_after_fee).ok_or(SwdAmmError::MathOverflow)?)
-            .ok_or(SwdAmmError::MathOverflow)?;
-        require!(impact_bps <= CP_MAX_PRICE_IMPACT_BPS, SwdAmmError::PriceImpactTooHigh);
-
-        // Constant product: (reserve_in + amount_in_after_fee) * (reserve_out - amount_out) = reserve_in * reserve_out
-        let k = (reserve_in as u128)
-            .checked_mul(reserve_out as u128)
-            .ok_or(SwdAmmError::MathOverflow)?;
-        let new_reserve_in = (reserve_in as u128)
-            .checked_add(amount_in_after_fee)
-            .ok_or(SwdAmmError::MathOverflow)?;
-        require!(new_reserve_in > 0, SwdAmmError::MathOverflow);
-        // The pool keeps ceil(k / new_reserve_in), so the payout rounds
+        //
+        // The curve math lives in cp_math::swap_out (pure; fuzzed and
+        // Kani-checked — see programs/swd_amm/fuzz and /kani): fee taken by
+        // rounding the after-fee input down, price-impact cap, then
+        // constant product (reserve_in + x) * (reserve_out - out) >= k where
+        // the pool keeps ceil(k / (reserve_in + x)), so the payout rounds
         // DOWN (in the pool's favour). It used to keep floor(k / ...),
         // which rounded the payout up: a 2-raw-unit swap could pay out a
         // whole raw unit of a far more valuable token, repeatable many
         // times per transaction (attack suite, 2026-10-08:
         // attack_rounding_drain_with_dust_swaps).
-        let new_reserve_out_ceil = k
-            .checked_add(new_reserve_in - 1)
-            .ok_or(SwdAmmError::MathOverflow)?
-            .checked_div(new_reserve_in)
-            .ok_or(SwdAmmError::MathOverflow)?;
-        let amount_out_u128 = (reserve_out as u128)
-            .checked_sub(new_reserve_out_ceil)
-            .ok_or(SwdAmmError::MathOverflow)?;
-        let amount_out = u64::try_from(amount_out_u128).map_err(|_| SwdAmmError::MathOverflow)?;
+        let amount_out = cp_math::swap_out(reserve_in, reserve_out, amount_in_net, oracle_result.fee_bps as u128)
+            .map_err(|e| match e {
+                cp_math::CpSwapError::MathOverflow => SwdAmmError::MathOverflow,
+                cp_math::CpSwapError::PriceImpactTooHigh => SwdAmmError::PriceImpactTooHigh,
+            })?;
 
         require!(amount_out > 0, SwdAmmError::ZeroAmount);
         require!(amount_out >= min_amount_out, SwdAmmError::SlippageExceeded);
@@ -1742,13 +1719,7 @@ fn read_token_balance(token_account_ai: &AccountInfo) -> Result<u64> {
 /// 0-decimal token with u64::MAX raw amount; a*b alone can then exceed
 /// u64's ~1.8e19 ceiling well before the division brings it back down).
 fn mul_div(a: u64, b: u64, denom: u64) -> Result<u64> {
-    require!(denom > 0, SwdAmmError::MathOverflow);
-    let result = (a as u128)
-        .checked_mul(b as u128)
-        .ok_or(SwdAmmError::MathOverflow)?
-        .checked_div(denom as u128)
-        .ok_or(SwdAmmError::MathOverflow)?;
-    u64::try_from(result).map_err(|_| SwdAmmError::MathOverflow.into())
+    cp_math::mul_div(a, b, denom).ok_or_else(|| SwdAmmError::MathOverflow.into())
 }
 
 /// Integer square root via the Babylonian method — standard technique
@@ -1759,38 +1730,30 @@ fn mul_div(a: u64, b: u64, denom: u64) -> Result<u64> {
 /// used to be missing: 0, 1, every perfect square up to 1000^2,
 /// non-perfect squares, u64::MAX, u128::MAX, and 10,000 pseudo-random
 /// values across the full u128 range.
+// Safe against overflow when value == u128::MAX. The original code
+// computed `(x + 1) / 2`, which is exactly `ceil(x / 2)` for every
+// unsigned integer x — but computed via an addition that overflows
+// `u128` in exactly the one case `x == u128::MAX`. `x / 2 + (x % 2)`
+// is the SAME mathematical value (`ceil(x/2)` via floor-division plus
+// the remainder, instead of via +1-then-floor-divide) without ever
+// performing an addition close to the type's ceiling — confirmed
+// equal to the original formula for every non-overflowing input by
+// this file's own test suite (`integer_sqrt_perfect_squares`,
+// `integer_sqrt_non_perfect_squares_floor_correctly`, and the 10,000-
+// value fuzz test all re-passed unchanged after this rewrite).
+//
+// (2026-09-08 history, for whoever reads this next: the first attempt
+// at this fix used `x / 2 + 1` instead, which is NOT the same value as
+// `ceil(x/2)` when x is even — e.g. x=2 gives 1+1=2 instead of the
+// correct 1 — and broke `integer_sqrt(2)` and similar small inputs.
+// Caught immediately by `integer_sqrt_non_perfect_squares_floor_correctly`
+// failing on the very next `cargo test` run. Left here as a reminder
+// that "avoids the overflow" and "is still correct" are two separate
+// things to verify — the fuzz/property tests are what caught it both
+// times.)
+// (Implementation now in cp_math::integer_sqrt, unchanged.)
 fn integer_sqrt(value: u128) -> u128 {
-    if value == 0 {
-        return 0;
-    }
-    let mut x = value;
-    // Safe against overflow when value == u128::MAX. The original code
-    // computed `(x + 1) / 2`, which is exactly `ceil(x / 2)` for every
-    // unsigned integer x — but computed via an addition that overflows
-    // `u128` in exactly the one case `x == u128::MAX`. `x / 2 + (x % 2)`
-    // is the SAME mathematical value (`ceil(x/2)` via floor-division plus
-    // the remainder, instead of via +1-then-floor-divide) without ever
-    // performing an addition close to the type's ceiling — confirmed
-    // equal to the original formula for every non-overflowing input by
-    // this file's own test suite (`integer_sqrt_perfect_squares`,
-    // `integer_sqrt_non_perfect_squares_floor_correctly`, and the 10,000-
-    // value fuzz test all re-passed unchanged after this rewrite).
-    //
-    // (2026-09-08 history, for whoever reads this next: the first attempt
-    // at this fix used `x / 2 + 1` instead, which is NOT the same value as
-    // `ceil(x/2)` when x is even — e.g. x=2 gives 1+1=2 instead of the
-    // correct 1 — and broke `integer_sqrt(2)` and similar small inputs.
-    // Caught immediately by `integer_sqrt_non_perfect_squares_floor_correctly`
-    // failing on the very next `cargo test` run. Left here as a reminder
-    // that "avoids the overflow" and "is still correct" are two separate
-    // things to verify — the fuzz/property tests are what caught it both
-    // times.)
-    let mut y = x / 2 + (x % 2);
-    while y < x {
-        x = y;
-        y = (x + value / x) / 2;
-    }
-    x
+    cp_math::integer_sqrt(value)
 }
 
 // ---------------------------------------------------------------------
