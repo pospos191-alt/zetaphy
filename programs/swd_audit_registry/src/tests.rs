@@ -302,7 +302,7 @@ fn rent_estimate() {
     assert_eq!(rent(Record::space(44)), 2_213_280); // ~0.0022 SOL
     assert_eq!(rent(Record::space(42)), 2_199_360);
     assert_eq!(rent(Record::space(MAX_ADDRESS_LEN)), 3_299_040);
-    assert_eq!(rent(Config::SPACE), 2_867_520);
+    assert_eq!(rent(Config::SPACE), 3_786_240);
 }
 
 fn attestor(pk: u8, status: u8) -> AttestorInput {
@@ -321,8 +321,7 @@ fn config_space_fits_max() {
         pending_authority: Some(Pubkey::new_unique()),
         paused: true,
         record_count: u64::MAX,
-        attestors: apply_attestors(
-            &[],
+        attestors: apply_attestors(&[], &mut vec![],
             &[
                 attestor(1, 1),
                 attestor(2, 1),
@@ -332,48 +331,46 @@ fn config_space_fits_max() {
             1,
         )
         .unwrap(),
+        revoked_key_ids: (0..MAX_REVOKED_KEYS as u8).map(|i| [i; 8]).collect(),
     };
     assert_eq!(account_bytes(&c).len(), Config::SPACE);
-    assert_eq!(Config::SPACE, 284);
+    assert_eq!(Config::SPACE, 416);
 }
 
 #[test]
 fn attestor_rules() {
-    let list = apply_attestors(&[], &[attestor(1, ATTESTOR_ACTIVE)], 100).unwrap();
+    let list = apply_attestors(&[], &mut vec![], &[attestor(1, ATTESTOR_ACTIVE)], 100).unwrap();
     assert_eq!(list[0].key_id, key_id_of(&[1; 32]));
     assert_eq!(list[0].since, 100);
     // rotation: old key retired, new one active; unchanged status keeps `since`
-    let rotated = apply_attestors(
-        &list,
+    let rotated = apply_attestors(&list, &mut vec![],
         &[attestor(1, ATTESTOR_RETIRED), attestor(2, ATTESTOR_ACTIVE)],
         200,
     )
     .unwrap();
     assert_eq!(rotated[0].since, 200);
-    let again = apply_attestors(
-        &rotated,
+    let again = apply_attestors(&rotated, &mut vec![],
         &[attestor(1, ATTESTOR_RETIRED), attestor(2, ATTESTOR_ACTIVE)],
         300,
     )
     .unwrap();
     assert_eq!(again[0].since, 200);
     // revoked is final
-    let revoked = apply_attestors(
-        &again,
+    let revoked = apply_attestors(&again, &mut vec![],
         &[attestor(1, ATTESTOR_REVOKED), attestor(2, ATTESTOR_ACTIVE)],
         400,
     )
     .unwrap();
-    assert!(apply_attestors(&revoked, &[attestor(1, ATTESTOR_ACTIVE)], 500).is_err());
-    assert!(apply_attestors(&revoked, &[attestor(1, ATTESTOR_RETIRED)], 500).is_err());
-    assert!(apply_attestors(&revoked, &[attestor(1, ATTESTOR_REVOKED)], 500).is_ok());
+    assert!(apply_attestors(&revoked, &mut vec![], &[attestor(1, ATTESTOR_ACTIVE)], 500).is_err());
+    assert!(apply_attestors(&revoked, &mut vec![], &[attestor(1, ATTESTOR_RETIRED)], 500).is_err());
+    assert!(apply_attestors(&revoked, &mut vec![], &[attestor(1, ATTESTOR_REVOKED)], 500).is_ok());
     // shape
-    assert!(apply_attestors(&[], &[attestor(1, 1), attestor(1, 2)], 1).is_err());
-    assert!(apply_attestors(&[], &[attestor(1, 0)], 1).is_err());
-    assert!(apply_attestors(&[], &[attestor(1, 4)], 1).is_err());
-    assert!(apply_attestors(&[], &[attestor(0, 1)], 1).is_err());
-    assert!(apply_attestors(&[], &(1..=5).map(|i| attestor(i, 1)).collect::<Vec<_>>(), 1).is_err());
-    assert!(apply_attestors(&[], &[], 1).unwrap().is_empty());
+    assert!(apply_attestors(&[], &mut vec![], &[attestor(1, 1), attestor(1, 2)], 1).is_err());
+    assert!(apply_attestors(&[], &mut vec![], &[attestor(1, 0)], 1).is_err());
+    assert!(apply_attestors(&[], &mut vec![], &[attestor(1, 4)], 1).is_err());
+    assert!(apply_attestors(&[], &mut vec![], &[attestor(0, 1)], 1).is_err());
+    assert!(apply_attestors(&[], &mut vec![], &(1..=5).map(|i| attestor(i, 1)).collect::<Vec<_>>(), 1).is_err());
+    assert!(apply_attestors(&[], &mut vec![], &[], 1).unwrap().is_empty());
 }
 
 #[test]
@@ -386,7 +383,8 @@ fn reader_evaluate() {
         pending_authority: None,
         paused: false,
         record_count: 1,
-        attestors: apply_attestors(&[], &[attestor(5, ATTESTOR_ACTIVE)], 1).unwrap(),
+        attestors: apply_attestors(&[], &mut vec![], &[attestor(5, ATTESTOR_ACTIVE)], 1).unwrap(),
+        revoked_key_ids: vec![],
     };
     let mut r = sample_record(addr);
     assert_eq!(evaluate(&config, &r), Some(LEVEL_MEDIUM));
@@ -477,6 +475,7 @@ fn reader_accounts() {
         paused: false,
         record_count: 0,
         attestors: vec![],
+        revoked_key_ids: vec![],
     };
     let mut data3 = account_bytes(&cfg);
     let mut lamports4 = 1u64;
@@ -538,4 +537,63 @@ fn record_input_fields_roundtrip() {
         audited_at: f.audited_at,
     };
     assert_eq!(input.fields(), f);
+}
+
+// ATTACK: "revoked is final" must survive dropping the key from the list. The
+// old rule only compared with the CURRENT list, so set_attestors([]) followed by
+// set_attestors([A active]) re-trusted every record the compromised key A signed.
+#[test]
+fn attack_revoked_key_cannot_return_after_removal() {
+    let mut tomb = vec![];
+    let l1 = apply_attestors(&[], &mut tomb, &[attestor(1, ATTESTOR_ACTIVE)], 1).unwrap();
+    let l2 = apply_attestors(&l1, &mut tomb, &[attestor(1, ATTESTOR_REVOKED)], 2).unwrap();
+    assert_eq!(tomb, vec![key_id_of(&[1; 32])]);
+    // drop it from the list entirely...
+    let l3 = apply_attestors(&l2, &mut tomb, &[attestor(2, ATTESTOR_ACTIVE)], 3).unwrap();
+    assert_eq!(tomb.len(), 1, "the tombstone outlives the list entry");
+    // ...and try to bring it back
+    for st in [ATTESTOR_ACTIVE, ATTESTOR_RETIRED] {
+        let e = apply_attestors(&l3, &mut tomb.clone(), &[attestor(1, st)], 4).unwrap_err();
+        assert_eq!(e, error!(RegistryError::AttestorRevokedForever));
+    }
+    // listing it again as revoked is fine
+    assert!(apply_attestors(&l3, &mut tomb.clone(), &[attestor(1, ATTESTOR_REVOKED)], 4).is_ok());
+    // and the reader never trusts its records, even if a listing slipped through
+    let mut r = sample_record(b"So11111111111111111111111111111111111111112");
+    r.ed25519_key_id = key_id_of(&[1; 32]);
+    let config = Config {
+        version: 1, bump: 255, authority: Pubkey::new_unique(), pending_authority: None,
+        paused: false, record_count: 1,
+        attestors: vec![Attestor { pubkey: Pubkey::new_from_array([1; 32]), key_id: key_id_of(&[1; 32]), status: ATTESTOR_ACTIVE, since: 0 }],
+        revoked_key_ids: tomb.clone(),
+    };
+    assert_eq!(evaluate(&config, &r), None);
+}
+
+// ATTACK: the reader matches records to attestors by the 8-byte key id (first
+// match wins). A second pubkey with the same key id (2^32 sha256 grinding)
+// listed before a revoked key would have made that key's records trusted.
+#[test]
+fn attack_key_id_collision_rejected() {
+    let a = Pubkey::new_from_array([1; 32]);
+    let kid = key_id_of(a.as_ref());
+    // the pure rule: two entries with one key id are refused (we cannot grind a
+    // real collision in a unit test, so reuse the revoked tombstone path)
+    let mut tomb = vec![kid];
+    let collider = AttestorInput { pubkey: a, status: ATTESTOR_ACTIVE };
+    assert!(apply_attestors(&[], &mut tomb, &[collider], 1).is_err());
+    // the same pubkey twice is still a duplicate
+    assert_eq!(
+        apply_attestors(&[], &mut vec![], &[attestor(1, 1), attestor(1, 3)], 1).unwrap_err(),
+        error!(RegistryError::DuplicateAttestor)
+    );
+}
+
+#[test]
+fn tombstones_are_bounded() {
+    let mut tomb: Vec<[u8; 8]> = (0..MAX_REVOKED_KEYS as u8).map(|i| [i; 8]).collect();
+    assert_eq!(
+        apply_attestors(&[], &mut tomb, &[attestor(200, ATTESTOR_REVOKED)], 1).unwrap_err(),
+        error!(RegistryError::TooManyAttestors)
+    );
 }

@@ -41,6 +41,9 @@ pub const CONFIG_SEED: &[u8] = b"config";
 pub const RECORD_SEED: &[u8] = b"audit";
 
 pub const MAX_ATTESTORS: usize = 4;
+/// Key ids ever revoked (tombstones). A revoked key stays refused even after
+/// it is dropped from `attestors`, so "revoked is final" holds.
+pub const MAX_REVOKED_KEYS: usize = 16;
 /// A record may be stamped at most this far in the future (attestor clock skew).
 pub const MAX_FUTURE_SKEW_SECS: i64 = 300;
 
@@ -94,7 +97,8 @@ pub mod swd_audit_registry {
         config.pending_authority = None;
         config.paused = false;
         config.record_count = 0;
-        config.attestors = apply_attestors(&[], &attestors, now)?;
+        config.revoked_key_ids = Vec::new();
+        config.attestors = apply_attestors(&[], &mut config.revoked_key_ids, &attestors, now)?;
 
         emit!(RegistryInitialized {
             config: config.key(),
@@ -267,7 +271,9 @@ pub mod swd_audit_registry {
     pub fn set_attestors(ctx: Context<Admin>, attestors: Vec<AttestorInput>) -> Result<()> {
         let now = Clock::get()?.unix_timestamp;
         let config = &mut ctx.accounts.config;
-        config.attestors = apply_attestors(&config.attestors, &attestors, now)?;
+        let mut revoked = config.revoked_key_ids.clone();
+        config.attestors = apply_attestors(&config.attestors, &mut revoked, &attestors, now)?;
+        config.revoked_key_ids = revoked;
         emit_attestors(config);
         Ok(())
     }
@@ -322,8 +328,14 @@ pub mod swd_audit_registry {
 // Attestor list rules (pure, unit-tested)
 // ---------------------------------------------------------------------
 
+/// `revoked_ids` is the config's permanent tombstone list: every key id ever
+/// set to revoked is added and never removed, so a revoked key cannot come
+/// back by being dropped from the list and re-added, and no other pubkey with
+/// the same 8-byte key id (what `reader::evaluate` matches on) can be listed
+/// as active / retired.
 pub fn apply_attestors(
     current: &[Attestor],
+    revoked_ids: &mut Vec<KeyId>,
     wanted: &[AttestorInput],
     now: i64,
 ) -> Result<Vec<Attestor>> {
@@ -341,20 +353,22 @@ pub fn apply_attestors(
             ),
             RegistryError::InvalidAttestorStatus
         );
+        let key_id = key_id_of(w.pubkey.as_ref());
+        // same pubkey twice, or two pubkeys sharing a key id
         require!(
-            !out.iter().any(|a| a.pubkey == w.pubkey),
+            !out.iter().any(|a| a.pubkey == w.pubkey || a.key_id == key_id),
             RegistryError::DuplicateAttestor
         );
         let prev = current.iter().find(|a| a.pubkey == w.pubkey);
-        if let Some(p) = prev {
-            require!(
-                !(p.status == ATTESTOR_REVOKED && w.status != ATTESTOR_REVOKED),
-                RegistryError::AttestorRevokedForever
-            );
-        }
+        let was_revoked = revoked_ids.contains(&key_id)
+            || prev.map_or(false, |p| p.status == ATTESTOR_REVOKED);
+        require!(
+            !(was_revoked && w.status != ATTESTOR_REVOKED),
+            RegistryError::AttestorRevokedForever
+        );
         out.push(Attestor {
             pubkey: w.pubkey,
-            key_id: key_id_of(w.pubkey.as_ref()),
+            key_id,
             status: w.status,
             since: match prev {
                 Some(p) if p.status == w.status => p.since,
@@ -362,6 +376,15 @@ pub fn apply_attestors(
             },
         });
     }
+    for a in out.iter().chain(current.iter()) {
+        if a.status == ATTESTOR_REVOKED && !revoked_ids.contains(&a.key_id) {
+            revoked_ids.push(a.key_id);
+        }
+    }
+    require!(
+        revoked_ids.len() <= MAX_REVOKED_KEYS,
+        RegistryError::TooManyAttestors
+    );
     Ok(out)
 }
 
@@ -412,10 +435,14 @@ pub struct Config {
     /// Records created so far (never decreases; records are never closed)
     pub record_count: u64,
     pub attestors: Vec<Attestor>,
+    /// Every key id ever revoked (never shrinks; at most MAX_REVOKED_KEYS).
+    pub revoked_key_ids: Vec<[u8; 8]>,
 }
 impl Config {
-    /// 8 discriminator + fields, with room for MAX_ATTESTORS (= 284 bytes).
-    pub const SPACE: usize = 8 + 1 + 1 + 32 + (1 + 32) + 1 + 8 + 4 + MAX_ATTESTORS * Attestor::SIZE;
+    /// 8 discriminator + fields, with room for MAX_ATTESTORS and
+    /// MAX_REVOKED_KEYS (= 416 bytes).
+    pub const SPACE: usize = 8 + 1 + 1 + 32 + (1 + 32) + 1 + 8 + 4 + MAX_ATTESTORS * Attestor::SIZE
+        + 4 + MAX_REVOKED_KEYS * 8;
 }
 
 /// The latest SWD Audit result of one subject: PDA

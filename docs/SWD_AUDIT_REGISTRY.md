@@ -18,7 +18,7 @@ can **look up by address**, holding one current record per subject.
 
 ## 1. Accounts
 
-### Config: PDA `["config"]`, 284 bytes
+### Config: PDA `["config"]`, 416 bytes
 
 | field | type | meaning |
 |---|---|---|
@@ -27,7 +27,8 @@ can **look up by address**, holding one current record per subject.
 | pending_authority | Option<Pubkey> | two-step hand-over (`propose_authority` then `accept_authority`) |
 | paused | bool | stops `upsert_record` only. Reads and admin calls keep working. |
 | record_count | u64 | records created so far |
-| attestors | Vec<Attestor>, at most 4 | `{ pubkey, key_id (8 bytes), status, since }` |
+| attestors | Vec<Attestor>, at most 4 | `{ pubkey, key_id (8 bytes), status, since }`; key ids must be unique |
+| revoked_key_ids | Vec<[u8; 8]>, at most 16 | tombstones: every key id ever set to revoked. Never shrinks, so a revoked key stays refused even after it is dropped from `attestors`, and `reader::evaluate` never trusts its records |
 
 Attestor status:
 
@@ -171,7 +172,7 @@ affected records, then `restore_record` and rewrite them.
 **Known limits.**
 
 - A key removed from the list (instead of set to `revoked`) reads as "unknown", which is also untrusted. Keep retired keys **listed** while their records matter.
-- A revoked key that was removed from the list could be added back as a "new" key. That is an authority (multisig) decision, recorded in the `AttestorsUpdated` event.
+- At most 16 keys can ever be revoked (the tombstone list is bounded so the Config has a fixed size); a 17th revocation fails with `TooManyAttestors`.
 - Records are never closed. Their rent stays locked. A future `close_record` could return it.
 - The registry holds only `kind = "contract"` attestations. Transaction checks are not indexed by subject.
 
@@ -275,7 +276,7 @@ wants fresh data can relay signed records it fetches from the site.
 | Record rent, Solana mint (190 B) | 2,213,280 | 0.00221 (≈ $0.33) |
 | Record rent, EVM address (188 B) | 2,199,360 | 0.00220 |
 | Record rent, max 200-byte address (346 B) | 3,299,040 | 0.00330 |
-| Config rent (284 B, once) | 2,867,520 | 0.00287 |
+| Config rent (416 B, once) | 3,786,240 | 0.00379 |
 | Fee per upsert (1 tx signature + 1 Ed25519 precompile signature) | 10,000 | 0.00001 |
 
 Rent = (128 + size) × 3,480 lamports/byte-year × 2 years (the rent-exempt

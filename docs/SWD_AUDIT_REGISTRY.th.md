@@ -13,7 +13,7 @@ English: [SWD_AUDIT_REGISTRY.md](SWD_AUDIT_REGISTRY.md) (ฉบับเต็�
 
 ## 1. บัญชี
 
-**Config** มี PDA เป็น `["config"]` ขนาด 284 ไบต์ เก็บค่าเหล่านี้:
+**Config** มี PDA เป็น `["config"]` ขนาด 416 ไบต์ (รวม `revoked_key_ids` รายการ key id ที่เคยถูกเพิกถอน สูงสุด 16 รายการ ไม่มีวันลบออก) เก็บค่าเหล่านี้:
 
 - `authority` คือ Squads vault บน mainnet
 - `pending_authority` ใช้ตอนโอนสิทธิ์แบบสองขั้น

@@ -26,7 +26,7 @@ use anchor_lang::prelude::*;
 
 /// Pure decision: the level a reader should trust, given both accounts' data.
 pub fn evaluate(config: &Config, record: &Record) -> Option<u8> {
-    if record.revoked {
+    if record.revoked || config.revoked_key_ids.contains(&record.ed25519_key_id) {
         return None;
     }
     let signer = config

@@ -378,6 +378,24 @@ describe("swd_audit_registry", () => {
       () => program.methods.setAttestors([{ pubkey: attestorA.publicKey, status: 1 }]).accountsStrict(admin()).rpc(),
       "AttestorRevokedForever"
     );
+    // ATTACK: drop the revoked key from the list, then re-add it as active.
+    await program.methods
+      .setAttestors([{ pubkey: attestorB.publicKey, status: 1 }])
+      .accountsStrict(admin())
+      .rpc();
+    let cfg: any = await program.account.config.fetch(config);
+    assert.equal(cfg.revokedKeyIds.length, 1, "tombstone kept after removal");
+    await expectCode(
+      () =>
+        program.methods
+          .setAttestors([
+            { pubkey: attestorA.publicKey, status: 1 },
+            { pubkey: attestorB.publicKey, status: 1 },
+          ])
+          .accountsStrict(admin())
+          .rpc(),
+      "AttestorRevokedForever"
+    );
     await expectCode(
       () => program.methods.setAttestors([{ pubkey: attestorB.publicKey, status: 1 }, { pubkey: attestorB.publicKey, status: 2 }]).accountsStrict(admin()).rpc(),
       "DuplicateAttestor"
