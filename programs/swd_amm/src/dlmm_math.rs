@@ -208,7 +208,9 @@ pub fn bin_price_q64(bin_id: i32, bin_step_bps: u16) -> Option<u128> {
         let denom = 10_000u128
             .checked_add(step_bps)?;
         let down_step = mul_div_u128(Q64_ONE, 10_000, denom)?;
-        pow_q64(down_step, (-bin_id) as u32)
+        // unsigned_abs, not `(-bin_id) as u32`: -i32::MIN overflows and
+        // panicked (fuzz finding 2026-11-10, math_units target).
+        pow_q64(down_step, bin_id.unsigned_abs())
     }
 }
 
@@ -541,4 +543,25 @@ pub fn swap_bins<B: BinMut>(
         }
     }
     Ok(BinSwapResult { total_amount_out, active_bin_id, bins_crossed })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Regression (fuzz finding 2026-11-10): bin_price_q64(i32::MIN, _)
+    /// panicked on `-bin_id`. It must return a value (or None), never panic.
+    /// initialize_dlmm_pool reaches it with active_bin_id = i32::MIN + 100.
+    #[test]
+    fn bin_price_extreme_ids_do_not_panic() {
+        for step in [1u16, 25, 1_000, u16::MAX] {
+            let lo = bin_price_q64(i32::MIN, step);
+            assert!(lo.unwrap_or(0) < Q64_ONE);
+            let _ = bin_price_q64(i32::MIN + 1, step);
+            let _ = bin_price_q64(i32::MAX, step);
+        }
+        // a pool whose range would start at i32::MIN is refused by
+        // initialize_dlmm_pool's "min price > 0" check instead of panicking.
+        assert_eq!(bin_price_q64(i32::MIN, 1), Some(0));
+    }
 }
