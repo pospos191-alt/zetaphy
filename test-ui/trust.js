@@ -117,11 +117,16 @@ export function classifyAuthority({ authority, isOnCurve, squadsVault }) {
 }
 
 /** Reads everything the panel shows. Every step is independent: one failure never hides the rest. */
-export async function readTrust({ connection, PublicKey, programId, network, project, squadsMultisig, squadsVaultIndex = 0, computeHash = true }) {
+export async function readTrust({ connection, PublicKey, programId, network, project, squadsMultisig, squadsVaultIndex = 0, computeHash = true, stepTimeoutMs = 10000 }) {
   const r = { programId, network, errors: [] };
   const pid = new PublicKey(programId);
   const pda = (seeds, prog = pid) => PublicKey.findProgramAddressSync(seeds, prog)[0];
-  const step = async (name, fn) => { try { await fn(); } catch (e) { r.errors.push(`${name}: ${e?.message || e}`); } };
+  // every step has a time limit: an RPC call that never answers must not leave the panel on "Reading…" forever
+  const step = async (name, fn) => {
+    let timer;
+    const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`no answer within ${Math.round(stepTimeoutMs / 1000)} s`)), stepTimeoutMs); });
+    try { await Promise.race([fn(), limit]); } catch (e) { r.errors.push(`${name}: ${e?.message || e}`); } finally { clearTimeout(timer); }
+  };
 
   await step("genesis", async () => {
     const g = await connection.getGenesisHash();

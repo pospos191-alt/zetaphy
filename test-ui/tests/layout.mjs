@@ -187,7 +187,7 @@ async function run(lang, width, auditMode) {
   const trust = await page.waitForFunction(() => {
     const b = document.getElementById("trust-body");
     return b && b.querySelector(".tr-list") ? { text: b.innerText, bad: b.querySelectorAll(".tr-bad").length } : null;
-  }, null, { timeout: 20000 }).then((h) => h.jsonValue(), () => null);
+  }, null, { timeout: 60000 }).then((h) => h.jsonValue(), () => null);
   const trustDiag = trust ? "" : await page.evaluate(() => JSON.stringify({
     open: !!document.getElementById("trust-body"),
     body: (document.getElementById("trust-body")?.innerText || "").slice(0, 600),

@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   parseProgramAccount, parseProgramData, trimTrailingZeros, sha256Hex, parseSecurityTxt,
-  parseGlobalConfig, parseGovernanceSettings, parseSquadsMultisig, classifyAuthority, renderTrust,
+  parseGlobalConfig, parseGovernanceSettings, parseSquadsMultisig, classifyAuthority, renderTrust, readTrust,
 } from "../trust.js";
 import { normalizeLevel, normalizeAuditResponse, checkTokenAudit, _resetTokenAuditCache } from "../token-audit.js";
 import { PROGRAM_ERRORS, findProgramError } from "../program-errors.js";
@@ -124,4 +124,24 @@ test("network config: devnet usable, mainnet off until a real id + RPC", () => {
   assert.equal(networkUsable({ enabled: true, programId: "not-an-id", rpc: "https://x" }), false);
   assert.equal(networkUsable({ enabled: true, programId: NETWORKS.devnet.programId, rpc: "" }), false);
   assert.equal(PROJECT.audit.status, "none");
+});
+
+test("readTrust: an RPC call that never answers times out and the other steps still run", async () => {
+  class PK {
+    constructor(v) { this.v = String(v); }
+    toBase58() { return this.v; }
+    toString() { return this.v; }
+    static findProgramAddressSync(_seeds, prog) { return [new PK(`pda-of-${prog}`), 255]; }
+  }
+  let accountReads = 0;
+  const connection = {
+    getGenesisHash: () => new Promise(() => {}), // hangs forever
+    getAccountInfo: async () => { accountReads++; return null; },
+  };
+  const started = Date.now();
+  const r = await readTrust({ connection, PublicKey: PK, programId: "Prog1111", network: "devnet", project: {}, stepTimeoutMs: 50 });
+  assert.ok(Date.now() - started < 2000, "readTrust finished");
+  assert.ok(r.errors.some((e) => e.startsWith("genesis:") && /no answer/.test(e)), JSON.stringify(r.errors));
+  assert.equal(r.deployed, false);
+  assert.ok(accountReads >= 1);
 });
