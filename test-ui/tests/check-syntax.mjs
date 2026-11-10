@@ -32,6 +32,20 @@ for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
   }
 }
 if (!checked) { console.error("no inline <script> found — wrong file?"); process.exit(1); }
+
+// The page's own ES modules next to it (config.js, i18n.js, i18n/<lang>.js, trust.js, …).
+const pageDir = path.dirname(htmlPath);
+const modules = [
+  ...fs.readdirSync(pageDir).filter((f) => f.endsWith(".js")).map((f) => path.join(pageDir, f)),
+  ...(fs.existsSync(path.join(pageDir, "i18n")) ? fs.readdirSync(path.join(pageDir, "i18n")).filter((f) => f.endsWith(".js")).map((f) => path.join(pageDir, "i18n", f)) : []),
+];
+for (const f of modules) {
+  const copy = path.join(tmp, path.basename(f).replace(/\.js$/, ".mjs"));
+  fs.writeFileSync(copy, fs.readFileSync(f));
+  const r = spawnSync(process.execPath, ["--check", copy], { encoding: "utf8" });
+  if (r.status !== 0) { failed++; console.error(`✗ ${path.relative(pageDir, f)}:\n${r.stderr}`); }
+}
+console.log(`✓ ${modules.length} module files`);
 if (failed) process.exit(1);
 console.log(`syntax OK (${checked} inline scripts)`);
 

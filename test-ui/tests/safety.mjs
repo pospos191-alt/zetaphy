@@ -20,7 +20,7 @@ const csp = JSON.parse(fs.readFileSync(path.join(root, "vercel.json"), "utf8")).
 const server = http.createServer((req, res) => {
   const p = new URL(req.url, "http://x").pathname;
   // index.html plus the page's own .js/.css files next to it (as on Vercel)
-  const type = FILES[p] || (/^\/[a-z0-9-]+\.js$/.test(p) ? "text/javascript" : /^\/[a-z0-9-]+\.css$/.test(p) ? "text/css" : null);
+  const type = FILES[p] || (/^\/(i18n\/)?[a-z0-9-]+\.js$/.test(p) ? "text/javascript" : /^\/[a-z0-9-]+\.css$/.test(p) ? "text/css" : null);
   if (!type || !fs.existsSync(path.join(root, p))) { res.statusCode = 404; res.end(); return; }
   res.setHeader("content-type", type);
   res.setHeader("content-security-policy", csp);

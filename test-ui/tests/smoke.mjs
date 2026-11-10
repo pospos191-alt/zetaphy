@@ -32,7 +32,7 @@ const server = http.createServer((req, res) => {
   if (req.url.startsWith("/index.html")) {
     res.setHeader("content-type", "text/html; charset=utf-8");
     res.end(fs.readFileSync(htmlPath));
-  } else if (/^\/[a-z0-9-]+\.(js|css)$/.test(req.url)) {
+  } else if (/^\/(i18n\/)?[a-z0-9-]+\.(js|css)$/.test(req.url)) {
     // the page's own modules (wallet safety), served next to it as on Vercel
     res.setHeader("content-type", req.url.endsWith(".css") ? "text/css" : "text/javascript");
     const f = path.join(path.dirname(htmlPath), req.url.slice(1));
