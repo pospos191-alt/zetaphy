@@ -17,6 +17,13 @@ default = []
 # Mainnet build: timelock delay must be 24h-48h (timelock.rs). Build with
 # `anchor build -- --features mainnet` for any mainnet deployment.
 mainnet = []
+# Reduced mainnet / audit scope (2026-11-10): compiles OUT the
+# constant-product (cp.rs, cp_math.rs) and DLMM (dlmm.rs, dlmm_math.rs) pool
+# types and their pause/unpause instructions. What remains: SWDMM v2,
+# governance, timelock, oracle reader, Token-2022 gate, security.txt.
+# Mainnet build: `anchor build -- --features mainnet,v2-only`
+# (scripts/deploy-mainnet.sh does this by default).
+v2-only = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]

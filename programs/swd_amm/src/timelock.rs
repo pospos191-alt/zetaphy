@@ -38,6 +38,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::governance::{GlobalConfig, GovernanceError, GLOBAL_CONFIG_SEED};
 use crate::swdmm_v2::{SwdmmV2Error, SwdmmV2Pool, V2_POOL_SEED};
+#[cfg(not(feature = "v2-only"))]
 use crate::{DlmmPool, Pool, DLMM_POOL_SEED, POOL_SEED};
 
 pub const GOV_SETTINGS_SEED: &[u8] = b"gov_settings";
@@ -153,6 +154,7 @@ fn take_ready(p: &mut Account<PendingAction>) -> Result<GovAction> {
     Ok(p.action.clone())
 }
 
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<()> {
     match take_ready(&mut ctx.accounts.pending)? {
         GovAction::UnpauseCpPool { pool, swap, deposit, withdraw } => {
@@ -167,6 +169,7 @@ pub(crate) fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<(
     }
 }
 
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn execute_unpause_dlmm_pool(ctx: Context<ExecuteUnpauseDlmmPool>) -> Result<()> {
     match take_ready(&mut ctx.accounts.pending)? {
         GovAction::UnpauseDlmmPool { pool, swap, deposit, withdraw } => {
@@ -295,6 +298,14 @@ fn validate_delay(secs: i64) -> Result<()> {
 }
 
 fn validate_action(a: &GovAction) -> Result<()> {
+    // A v2-only build has no CP / DLMM pools, so their unpause actions could
+    // never be executed; refuse them up front. The enum itself is the same in
+    // every build (stable Borsh layout and IDL).
+    #[cfg(feature = "v2-only")]
+    require!(
+        !matches!(a, GovAction::UnpauseCpPool { .. } | GovAction::UnpauseDlmmPool { .. }),
+        TimelockError::WrongActionKind
+    );
     match a {
         GovAction::UnpauseCpPool { swap, deposit, withdraw, .. }
         | GovAction::UnpauseDlmmPool { swap, deposit, withdraw, .. }
@@ -394,6 +405,7 @@ pub struct EmergencyCancelUnpause<'info> {
     pub pending: Account<'info, PendingAction>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct ExecuteUnpausePool<'info> {
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
@@ -403,6 +415,7 @@ pub struct ExecuteUnpausePool<'info> {
     pub pool: Account<'info, Pool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct ExecuteUnpauseDlmmPool<'info> {
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]

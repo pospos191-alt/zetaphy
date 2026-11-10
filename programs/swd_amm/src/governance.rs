@@ -138,8 +138,8 @@ use anchor_lang::prelude::*;
 // own classic-mint usage).
 use anchor_spl::token_interface::Mint as Token2022Mint;
 
-use crate::dlmm::DlmmPool;
-use crate::{Pool, DLMM_POOL_SEED, POOL_SEED};
+#[cfg(not(feature = "v2-only"))]
+use crate::{DlmmPool, Pool, DLMM_POOL_SEED, POOL_SEED};
 
 pub const GLOBAL_CONFIG_SEED: &[u8] = b"global-config";
 pub const ALLOWED_MINT_SEED: &[u8] = b"allowed-mint";
@@ -343,6 +343,7 @@ pub(crate) fn set_mint_feed(ctx: Context<SetMintFeed>, pyth_feed_id: [u8; 32]) -
 /// pause vs. multisig-only unpause) is the whole point of having a
 /// separate emergency key at all: it can react fast to stop damage, but it
 /// can never itself decide the incident is over.
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn emergency_pause_pool(
     ctx: Context<EmergencyPausePool>,
     pause_swap: bool,
@@ -380,6 +381,7 @@ pub(crate) fn emergency_pause_pool(
 /// are per concrete account type, so this program follows its own existing
 /// pattern of a thin, separate wrapper per pool type rather than one
 /// generic instruction — see lib.rs's swap / swap_dlmm for the precedent).
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn emergency_pause_dlmm_pool(
     ctx: Context<EmergencyPauseDlmmPool>,
     pause_swap: bool,
@@ -417,6 +419,7 @@ pub(crate) fn emergency_pause_dlmm_pool(
 /// are left exactly as they were (so a pool paused on swap+deposit can be
 /// unpaused on just swap, leaving deposit paused, in one call or two —
 /// caller's choice).
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn governed_unpause_pool(
     _ctx: Context<GovernancePausePool>,
     _unpause_swap: bool,
@@ -432,6 +435,7 @@ pub(crate) fn governed_unpause_pool(
 
 /// DLMM-pool counterpart to `governed_unpause_pool` — see that function's
 /// doc comment.
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn governed_unpause_dlmm_pool(
     _ctx: Context<GovernancePauseDlmmPool>,
     _unpause_swap: bool,
@@ -643,6 +647,7 @@ pub struct SetMintFeed<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct EmergencyPausePool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -659,6 +664,7 @@ pub struct EmergencyPausePool<'info> {
     pub pool: Account<'info, Pool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct EmergencyPauseDlmmPool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -675,6 +681,7 @@ pub struct EmergencyPauseDlmmPool<'info> {
     pub pool: Account<'info, DlmmPool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct GovernancePausePool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -691,6 +698,7 @@ pub struct GovernancePausePool<'info> {
     pub pool: Account<'info, Pool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct GovernancePauseDlmmPool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -804,6 +812,7 @@ pub struct MintFeedSet {
     pub pyth_feed_id: [u8; 32],
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct PoolPaused {
     pub pool: Pubkey,
@@ -812,6 +821,7 @@ pub struct PoolPaused {
     pub withdraw_paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct DlmmPoolPaused {
     pub pool: Pubkey,
@@ -820,6 +830,7 @@ pub struct DlmmPoolPaused {
     pub withdraw_paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct PoolUnpaused {
     pub pool: Pubkey,
@@ -828,6 +839,7 @@ pub struct PoolUnpaused {
     pub withdraw_paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct DlmmPoolUnpaused {
     pub pool: Pubkey,
