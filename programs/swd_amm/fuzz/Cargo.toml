@@ -1,0 +1,61 @@
+# Fuzz + property harnesses for swd_amm's pure math (2026-11-10).
+#
+# Standalone crate (its own [workspace]) so the root workspace and
+# `anchor build` never see it. It does NOT depend on the swd_amm crate:
+# it `#[path]`-includes the program's own pure math files
+# (src/cp_math.rs, src/dlmm_math.rs, src/swdmm_math.rs), so the fuzzed code
+# is byte-for-byte the code the program runs, without compiling Anchor.
+#
+#   cargo +nightly fuzz run <target> -- -max_total_time=300   (libFuzzer)
+#   cargo test --release                                      (stable: corpus replay + seeded random runs)
+#
+# See docs/FUZZING_FORMAL.md.
+[package]
+name = "swd_amm_fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = "1"
+libfuzzer-sys = "0.4"
+uint = "0.10"
+
+[profile.release]
+debug = 1
+overflow-checks = true
+debug-assertions = true
+
+[[bin]]
+name = "math_units"
+path = "fuzz_targets/math_units.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cp_sequence"
+path = "fuzz_targets/cp_sequence.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dlmm_sequence"
+path = "fuzz_targets/dlmm_sequence.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "v2_sequence"
+path = "fuzz_targets/v2_sequence.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]

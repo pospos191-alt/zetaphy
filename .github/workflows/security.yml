@@ -43,6 +43,10 @@
 #                 full `anchor test` localnet
 #                 suite (the same `yarn test` you run in WSL). First run ~20-30 min (compiling), later runs
 #                 are faster thanks to the caches.
+#   amm-fuzz      every push / PR touching programs/ — replays the AMM fuzz
+#                 corpus + crash reproducers and a fixed-seed batch through
+#                 the invariant models (programs/swd_amm/fuzz). ~3 min.
+#                 Long libFuzzer runs + Kani proofs: amm-formal.yml (manual/weekly).
 #   audit         every push / PR — cargo audit against the RustSec database.
 #   deploy-devnet ONLY when started by hand (Actions → CI → Run workflow →
 #                 tick "deploy to Devnet") AND both jobs above passed. Needs
@@ -858,6 +862,15 @@ jobs:
       - name: anchor build (SBF program + IDL)
         run: anchor build
 
+      # Random multi-actor op sequences (incl. timelocked governance) against
+      # the .so just built, in LiteSVM, checked against the fuzz model and
+      # the solvency invariants (docs/FUZZING_FORMAL.md). ~3 min.
+      - name: stateful sequence fuzz of the built program (LiteSVM)
+        run: cargo test --release --manifest-path programs/swd_amm/litesvm/Cargo.toml -- --nocapture
+        env:
+          SWD_SVM_SEEDS: "150"
+          SWD_SVM_STEPS: "150"
+
       # The attack suite for this program lives in the private repo (zetaphy-private, weekly).
 
       - name: anchor test (full localnet suite, same as `yarn test`)
@@ -885,6 +898,31 @@ jobs:
             .anchor/test-ledger/validator.log
           if-no-files-found: ignore
           retention-days: 7
+
+  amm-fuzz:
+    name: AMM fuzz regression (corpus replay + seeded runs)
+    needs: changes
+    if: needs.changes.outputs.program == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      # Stable toolchain, no libFuzzer instrumentation: every saved corpus
+      # input and crash reproducer, plus 30,000 fixed-seed inputs per target,
+      # plus the exhaustive small-domain checks (tests/exhaustive.rs).
+      - name: replay fuzz corpus + seeded inputs
+        run: cargo test --release --manifest-path programs/swd_amm/fuzz/Cargo.toml -- --nocapture
+        env:
+          SWD_FUZZ_CASES: "30000"
 
   audit:
     name: cargo audit (RustSec advisories)

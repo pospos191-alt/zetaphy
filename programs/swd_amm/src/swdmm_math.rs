@@ -50,6 +50,11 @@ pub fn isqrt(v: u128) -> u128 {
     if v < 2 {
         return v;
     }
+    // 2 and 3 (fuzz finding 2026-11-10: the Newton start y = v/2 + 1
+    // equals x for v = 2, so the loop never ran and isqrt(2) returned 2).
+    if v < 4 {
+        return 1;
+    }
     let mut x = v;
     let mut y = x / 2 + 1;
     while y < x {
@@ -578,6 +583,25 @@ mod tests {
             assert!((s + 1).checked_mul(s + 1).map_or(true, |q| q > v));
         }
         assert_eq!(isqrt(u128::MAX), u64::MAX as u128);
+    }
+
+    /// Regression (fuzz finding 2026-11-10, programs/swd_amm/fuzz
+    /// math_units): isqrt(2) returned 2. Exhaustive over a small domain
+    /// plus every value next to a perfect square up to 2^64.
+    #[test]
+    fn isqrt_small_and_near_squares_exact() {
+        assert_eq!(isqrt(2), 1);
+        assert_eq!(isqrt(3), 1);
+        for v in 0u128..200_000 {
+            let s = isqrt(v);
+            assert!(s * s <= v && (s + 1) * (s + 1) > v, "isqrt({v}) = {s}");
+        }
+        for r in (1u128..(1u128 << 32)).step_by(65_537) {
+            for v in [r * r - 1, r * r, r * r + 1] {
+                let s = isqrt(v);
+                assert!(s * s <= v && (s + 1) * (s + 1) > v, "isqrt({v}) = {s}");
+            }
+        }
     }
 
     #[test]
