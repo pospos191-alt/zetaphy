@@ -147,7 +147,31 @@ pub struct BuySwdTransaction {
     pub transaction: String,
     /// the same bytes, decoded (a v0 VersionedTransaction; the buyer is the fee payer)
     pub bytes: Vec<u8>,
+    /// the server's text (SOL in, SWD out): untrusted, show it, never parse it
     pub message: Option<String>,
+    /// what the SDK read from the transaction before returning it (None with `unsafe_skip_checks`)
+    pub inspection: Option<crate::inspect::TxInspection>,
+}
+
+/// What `buy_swd_transaction` checks in the server's transaction before returning it. The default refuses unless:
+/// the buyer is the fee payer and the only signer and nothing arrives signed; only
+/// [`crate::inspect::KNOWN_PROGRAMS`] (plus `allow_programs`) are called at the top level; no instruction hands the
+/// buyer's account or tokens to anyone (System Assign, SPL Approve / SetAuthority / transfer / burn / close to
+/// someone else); the SOL leaving the account is at most the amount + `max_extra_sol_bps` + 0.01 SOL.
+/// A refusal is `SwdError::Api { code: "unsafe_transaction", .. }`.
+#[derive(Debug, Clone)]
+pub struct BuyChecks {
+    pub allow_programs: Vec<String>,
+    /// default 1000 (10 %)
+    pub max_extra_sol_bps: u32,
+    /// returns the bytes unchecked (not recommended)
+    pub unsafe_skip_checks: bool,
+}
+
+impl Default for BuyChecks {
+    fn default() -> Self {
+        BuyChecks { allow_programs: Vec::new(), max_extra_sol_bps: 1000, unsafe_skip_checks: false }
+    }
 }
 
 /// A chain the audit API accepts (`GET /api/audit` with no query).

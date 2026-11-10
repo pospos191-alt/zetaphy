@@ -70,12 +70,17 @@ impl SwdClient {
     }
 
     /// An UNSIGNED SOL → SWD transaction for `account` (the buyer, also the fee payer). `amount_sol` like "0.1".
-    /// The SDK never signs: hand `bytes` to the buyer's wallet.
+    /// The SDK never signs: hand `bytes` to the buyer's wallet. The transaction is checked first ([`BuyChecks`]).
     pub fn buy_swd_transaction(&self, account: &str, amount_sol: &str, slippage_bps: Option<u16>, lang: &str) -> Result<BuySwdTransaction, SwdError> {
+        self.buy_swd_transaction_with(account, amount_sol, slippage_bps, lang, &BuyChecks::default())
+    }
+
+    /// [`Self::buy_swd_transaction`] with explicit [`BuyChecks`] (e.g. more allowed programs).
+    pub fn buy_swd_transaction_with(&self, account: &str, amount_sol: &str, slippage_bps: Option<u16>, lang: &str, checks: &BuyChecks) -> Result<BuySwdTransaction, SwdError> {
         let req = buy_request(&self.base, account, amount_sol, slippage_bps, lang)?;
         let r = self.http.post(req.url).header("content-type", "application/json").header("accept", "application/json").body(req.body).send()?;
         let s = r.status().as_u16();
-        parse_buy(s, &r.bytes()?)
+        parse_buy(s, &r.bytes()?, account, amount_sol, checks)
     }
 
     /// The SVG badge URL.
