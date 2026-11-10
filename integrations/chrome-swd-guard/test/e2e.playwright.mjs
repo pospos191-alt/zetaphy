@@ -5,7 +5,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
-const require = createRequire(join(execSync("npm root -g").toString().trim(), "/"));
+// Playwright from PLAYWRIGHT_DIR (a node_modules folder), else the global install.
+const require = createRequire(join(process.env.PLAYWRIGHT_DIR || execSync("npm root -g").toString().trim(), "/"));
 const { chromium } = require("playwright");
 const EXT = new URL("..", import.meta.url).pathname;
 const MINT = "Cmh2tu6bt5z2a8NKsx6G5WfVmaeQ9f2fcX5VnQbVaGLL";
@@ -22,6 +23,10 @@ await ctx.route("https://swd-zetaphy.sawasdeecoin.com/**", (r) => {
 });
 await ctx.route("https://solscan.io/**", (r) => r.fulfill({ contentType: "text/html", body: "<html><body><h1>token</h1></body></html>" }));
 await ctx.route("https://sawasdeecoin-claim.com/**", (r) => r.fulfill({ contentType: "text/html", body: "<html><body><h1>fake claim</h1></body></html>" }));
+// a phishing page that knows about SWD Guard: hides the warning with CSS and keeps deleting it
+await ctx.route("https://sawasdeecoin-airdrop.com/**", (r) => r.fulfill({ contentType: "text/html", body:
+  "<html><head><style>swd-guard-warning{display:none!important;visibility:hidden!important;opacity:0!important}</style></head><body><h1>fake airdrop</h1>" +
+  "<script>setInterval(() => document.querySelectorAll('swd-guard-warning').forEach((e) => { e.style.cssText = 'display:none'; e.remove(); }), 30)</script></body></html>" }));
 let [sw] = ctx.serviceWorkers();
 if (!sw) sw = await ctx.waitForEvent("serviceworker");
 const id = sw.url().split("/")[2];
@@ -40,6 +45,18 @@ await p2.waitForTimeout(800);
 const phish = await p2.evaluate(() => !!document.querySelector("swd-guard-warning"));
 console.log("phish warning:", phish);
 if (!phish) errors.push("no phishing warning");
+
+const p3 = await ctx.newPage();
+await p3.goto("https://sawasdeecoin-airdrop.com/");
+await p3.waitForTimeout(1500);
+const kept = await p3.evaluate(() => {
+  const w = document.querySelector("swd-guard-warning");
+  if (!w) return "removed";
+  const cs = getComputedStyle(w);
+  return cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0" ? `hidden (${cs.display}/${cs.visibility}/${cs.opacity})` : "shown";
+});
+console.log("phish warning on a hostile page:", kept);
+if (kept !== "shown") errors.push(`a phishing page could hide the warning: ${kept}`);
 
 const pop = await ctx.newPage();
 pop.on("pageerror", (e) => errors.push("popup: " + e.message));

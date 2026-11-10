@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const htmlPath = path.resolve(process.argv[2] || path.join(here, "..", "index.html"));
+const htmlPath = path.resolve(process.argv.slice(2).find((a) => !a.startsWith("--")) || path.join(here, "..", "index.html"));
 const html = fs.readFileSync(htmlPath, "utf8");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "swd-ui-check-"));
 
@@ -48,6 +48,43 @@ for (const f of modules) {
 console.log(`✓ ${modules.length} module files`);
 if (failed) process.exit(1);
 console.log(`syntax OK (${checked} inline scripts)`);
+
+// CSP (2026-11-10): script-src has no 'unsafe-inline'. The page's one inline module script is
+// allowed by its SHA-256 instead, so injected markup (an <img onerror>, a <script> from a token
+// name) cannot run even if an escape is missed somewhere. Any edit of the inline script changes
+// the hash: `node tests/check-syntax.mjs --write-csp` puts the new one into vercel.json.
+// Inline event handlers (onclick="…") are refused here too, since the CSP blocks them.
+{
+  const crypto = await import("node:crypto");
+  const vercelPath = path.join(here, "..", "vercel.json");
+  const inline = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)].filter(([, a, b]) => !/\bsrc=/.test(a) && b.trim());
+  const hashes = inline.map(([, , b]) => `'sha256-${crypto.createHash("sha256").update(b, "utf8").digest("base64")}'`);
+  const raw = fs.readFileSync(vercelPath, "utf8");
+  const cspOf = (txt) => JSON.parse(txt).headers[0].headers.find((h) => h.key === "Content-Security-Policy").value;
+  const scriptSrc = (csp) => (csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("script-src ")) || "");
+  if (process.argv.includes("--write-csp")) {
+    const csp = cspOf(raw);
+    const old = scriptSrc(csp);
+    const kept = old.split(/\s+/).slice(1).filter((x) => !/^'sha256-/.test(x) && x !== "'unsafe-inline'");
+    const next = ["script-src", kept[0] === "'self'" ? "'self'" : null, ...hashes, ...kept.filter((x) => x !== "'self'")].filter(Boolean).join(" ");
+    fs.writeFileSync(vercelPath, raw.replace(old, next));
+    console.log(`vercel.json: ${next}`);
+  }
+  const src = scriptSrc(cspOf(fs.readFileSync(vercelPath, "utf8")));
+  const bad = [];
+  if (/'unsafe-inline'|'unsafe-eval'/.test(src)) bad.push("script-src must not allow 'unsafe-inline' / 'unsafe-eval'");
+  for (const h of hashes) if (!src.includes(h)) bad.push(`the inline script's hash ${h} is not in script-src (run: node tests/check-syntax.mjs --write-csp)`);
+  const stale = (src.match(/'sha256-[^']+'/g) || []).filter((h) => !hashes.includes(h));
+  if (stale.length) bad.push(`stale script hashes in script-src: ${stale.join(" ")} (run: node tests/check-syntax.mjs --write-csp)`);
+  const handlers = [...html.matchAll(/<[a-z][^>]*\s(on[a-z]+)=["']/gi)].map((m) => m[1]);
+  if (handlers.length) bad.push(`inline event handler attributes (blocked by the CSP): ${[...new Set(handlers)].join(", ")}`);
+  for (const m of html.matchAll(/<script[^>]+src=["'](https?:[^"']+)["'][^>]*>/g)) {
+    if (!/\sintegrity=["']sha(256|384|512)-/.test(m[0])) bad.push(`remote <script> without integrity=: ${m[1]}`);
+    if (!/@\d+\.\d+\.\d+\//.test(m[1])) bad.push(`remote <script> without an exact version: ${m[1]}`);
+  }
+  if (bad.length) { console.error(`✗ CSP / script checks:\n  - ${bad.join("\n  - ")}`); process.exit(1); }
+  console.log(`CSP OK (script-src by hash, ${hashes.length} inline script, no inline handlers, remote scripts pinned + SRI)`);
+}
 
 // test-ui/vercel.json: one header rule for every path, and the old /zetaphy/
 // address of the DEX (now its own site, zetaphy-dex/web/) redirects there.

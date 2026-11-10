@@ -15,6 +15,16 @@ private keys.
 | `buy_swd_transaction(account, amount_sol, slippage_bps, lang)` | `POST /api/actions/buy-swd` — an **unsigned** SOL → SWD transaction for the buyer's wallet to sign |
 | `badge_url(chain, address)` | the SVG badge URL |
 
+**The Buy SWD transaction is checked before it is returned** (`inspect` module, no Solana dependency), so a
+compromised or impersonated server cannot slip an extra instruction past your app: the buyer must be the fee payer
+and the only signer, nothing may arrive signed, only known programs may be called at the top level (System,
+Compute Budget, SPL Token, Token-2022, Associated Token, Memo, Jupiter v6), no instruction may hand the buyer's
+account or tokens to anyone (System Assign, SPL Approve / SetAuthority / transfer / burn / close to someone else),
+and the SOL leaving the account may be at most the amount + 10 % + 0.01 SOL. Otherwise:
+`SwdError::Api { code: "unsafe_transaction", .. }`. `buy_swd_transaction_with(.., &BuyChecks { allow_programs, max_extra_sol_bps, .. })`
+changes the limits; what was read is in `inspection`. CPI inside a program and accounts from lookup tables are not
+visible offline: still let the wallet simulate before the user signs.
+
 ```toml
 [dependencies]
 swd-sdk = "0.1"                     # async + blocking + registry

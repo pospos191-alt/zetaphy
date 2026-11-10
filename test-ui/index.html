@@ -1816,7 +1816,7 @@
      used ones moved into the Settings popover. -->
 <header class="app-header" id="app-header">
   <a class="hdr-brand" href="https://sawasdeecoin.com/" target="_blank" rel="noopener" title="SAWASDEE COIN">
-    <img src="https://swd-claim-site.vercel.app/api/swd-logo" alt="" width="28" height="28" loading="lazy" onerror="this.remove()" />
+    <img src="https://swd-claim-site.vercel.app/api/swd-logo" alt="" width="28" height="28" loading="lazy" data-remove-on-error />
     <span class="hdr-brand-text">SWD</span>
   </a>
   <span class="hdr-badge" id="net-badge" data-net="devnet" data-short="DEV" data-tip="hdrBadgeTip" tabindex="0"><span id="net-badge-text">Devnet · test tokens</span></span>
@@ -2180,7 +2180,7 @@
                 <div class="field" style="max-width:200px;"><label data-i18n="labelOracleDeviation">Max deviation (bps)</label><input id="cpw-oracle-deviation" value="500" /></div>
                 <div class="field" style="max-width:200px;"><label data-i18n="labelMaxFeeBps">Max fee (bps)</label><input id="cpw-max-fee" value="100" /></div>
               </div>
-              <button type="button" class="secondary" onclick="fillLocalnetFixtureOracleFields('cpw')" data-i18n="btnUseLocalnetFixtures">Use Localnet test fixtures</button>
+              <button type="button" class="secondary" data-localnet-fixtures="cpw" data-i18n="btnUseLocalnetFixtures">Use Localnet test fixtures</button>
             </details>
           </div>
 
@@ -2223,7 +2223,7 @@
                 <div class="field" style="max-width:200px;"><label data-i18n="labelOracleDeviation">Max deviation (bps)</label><input id="dcw-oracle-deviation" value="500" /></div>
                 <div class="field" style="max-width:200px;"><label data-i18n="labelMaxFeeBps">Max fee (bps)</label><input id="dcw-max-fee" value="100" /></div>
               </div>
-              <button type="button" class="secondary" onclick="fillLocalnetFixtureOracleFields('dcw')" data-i18n="btnUseLocalnetFixtures">Use Localnet test fixtures</button>
+              <button type="button" class="secondary" data-localnet-fixtures="dcw" data-i18n="btnUseLocalnetFixtures">Use Localnet test fixtures</button>
             </details>
           </div>
 
@@ -3660,7 +3660,7 @@
   <!-- Create pool -->
   <section class="v2-view" data-v2-panel="create" hidden>
     <div class="v2-create">
-      <form class="v2-create-form" id="v2-create-form" autocomplete="off" onsubmit="return false">
+      <form class="v2-create-form" id="v2-create-form" autocomplete="off">
         <h3 class="v2-h" data-v2t="createTitle">SWDMM v2 Standard Pool</h3>
 
         <div class="v2-token-box">
@@ -3827,7 +3827,7 @@
 </footer>
 
 <!-- KLineChart: candlestick charting engine for the Trading Board (indicators + drawing tools), loaded from a public CDN. The Trading Board falls back to the page's own lightweight SVG chart if this fails to load (see ensureTbChart()). -->
-<script src="https://cdn.jsdelivr.net/npm/klinecharts@9/dist/klinecharts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/klinecharts@9.8.12/dist/umd/klinecharts.min.js" integrity="sha384-N0+OYSoH0p5B+LMHkqKVHtLag55VxhTNJBcpNtG3q7tLMfe7sRBr4z614UxQZOg8" crossorigin="anonymous"></script>
 <div class="pair-drawer-overlay" id="pair-drawer-overlay" hidden></div>
 <aside class="pair-drawer pd-scope" id="pair-drawer" role="dialog" aria-modal="true" aria-labelledby="pair-drawer-title" hidden>
   <div class="pd-head">
@@ -3959,7 +3959,9 @@ function saveTokenLabelsToStorage() {
 
 function getTokenLabel(mintOrStr) {
   const key = typeof mintOrStr === "string" ? mintOrStr : mintOrStr.toBase58();
-  return loadTokenLabels()[key] || null;
+  // Nicknames reach innerHTML through labelFor(), like on-chain symbols: plain text only.
+  const raw = loadTokenLabels()[key];
+  return (typeof raw === "string" && safeTokenText(raw, 40)) || null;
 }
 
 function setTokenLabel(mintOrStr, nickname) {
@@ -4004,9 +4006,9 @@ const RTL_LANGS = new Set([]); // none of the 8 languages is right-to-left
 function t(key, vars) {
   const dict = STRINGS[state.lang] || STRINGS.en;
   let str = dict[key] ?? STRINGS.en[key] ?? key;
-  if (vars) {
-    for (const k in vars) str = str.replaceAll(`{${k}}`, vars[k]);
-  }
+  // One pass: a value that itself contains "{x}" is never expanded again (a token name or an
+  // RPC error could otherwise pull another placeholder's HTML into its own position).
+  if (vars) str = str.replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
   return str;
 }
 
@@ -4407,7 +4409,7 @@ function explorerClusterQuery() {
 }
 
 function explorerLink(sig) {
-  return `https://explorer.solana.com/tx/${sig}${explorerClusterQuery()}`;
+  return `https://explorer.solana.com/tx/${encodeURIComponent(String(sig))}${explorerClusterQuery()}`;
 }
 
 function log(msg, kind) {
@@ -4551,7 +4553,7 @@ function friendlyErrorHint(msg) {
 
 function logTx(label, sig, opts = {}) {
   try { invalidateAccountLists(); } catch {}
-  log(`✅ ${label} — <a href="${explorerLink(sig)}" target="_blank" rel="noopener">${sig.slice(0, 20)}…</a>`, "ok");
+  log(`✅ ${label} — <a href="${escapeHtmlText(explorerLink(sig))}" target="_blank" rel="noopener">${escapeHtmlText(String(sig).slice(0, 20))}…</a>`, "ok");
   awardPointsForTx();
   scheduleChartRefreshAfterTx();
   if (opts.toast === false) return; // a step inside a one-approval batch; the batch toasts once at the end
@@ -4587,7 +4589,7 @@ function logErr(label, err, opts = {}) {
 // provider, bound to it so extension objects with private fields still
 // work.
 function wrapWalletForToasts(provider) {
-  const SIGN_METHODS = new Set(["signTransaction", "signAllTransactions", "signAndSendTransaction"]);
+  const SIGN_METHODS = new Set(["signTransaction", "signAllTransactions", "signAndSendTransaction", "signAndSendAllTransactions"]);
   return new Proxy(provider, {
     get(target, prop) {
       const value = Reflect.get(target, prop, target);
@@ -4602,7 +4604,7 @@ function wrapWalletForToasts(provider) {
           // The in-page summary first (network, account, programs, SOL sent, token approvals);
           // nothing reaches the wallet when it is cancelled.
           const owner = target.publicKey?.toBase58?.() ?? "";
-          const ok = await confirmSolana(sf, { network: safetyNetworkName(), owner, txs: args[0], labels: { [PROGRAM_ID]: "SWD AMM" } });
+          const ok = await confirmSolana(sf, { network: safetyNetworkName(), owner, txs: args[0], labels: { [PROGRAM_ID]: "SWD AMM" }, lang: state.lang });
           if (!ok) throw Object.assign(new Error(sf.t("cfCancelled")), { code: 4001 });
           txAwaitingOutcome = true;
           showPendingToast(t("toastAwaitWallet"));
@@ -5260,7 +5262,7 @@ function setupConnectionAndProgram() {
   anchor.setProvider(provider);
   state.program = new anchor.Program(PROGRAM_IDL, provider);
   try { v2OnConnectionChange(); } catch {}
-  log(t("logRpcConnected", { u: `<code class="inline">${url}</code>` }));
+  log(t("logRpcConnected", { u: `<code class="inline">${escapeHtmlText(url)}</code>` }));
   if (state.wallet) refreshBalance();
 }
 
@@ -6156,7 +6158,7 @@ document.getElementById("faucet-btn").addEventListener("click", async () => {
       return;
     }
     if (!resp.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
-    log(`✅ ${t("logFaucetOk", { amount: data.amountSol, sig: String(data.signature).slice(0, 20) + "…" })}`, "ok");
+    log(`✅ ${t("logFaucetOk", { amount: escapeHtmlText(String(data.amountSol)), sig: escapeHtmlText(String(data.signature).slice(0, 20)) + "…" })}`, "ok");
     refreshBalance();
   } catch (e) {
     logErr(t("labelFaucet"), e);
@@ -6171,7 +6173,7 @@ async function faucetFallback() {
     try {
       const sig = await state.connection.requestAirdrop(state.wallet.publicKey, 1_000_000_000);
       await state.connection.confirmTransaction(sig, "confirmed");
-      log(`✅ ${t("logFaucetOk", { amount: 1, sig: String(sig).slice(0, 20) + "…" })}`, "ok");
+      log(`✅ ${t("logFaucetOk", { amount: 1, sig: escapeHtmlText(String(sig).slice(0, 20)) + "…" })}`, "ok");
       refreshBalance();
       return;
     } catch (e) {
@@ -6756,6 +6758,15 @@ function fillLocalnetFixtureOracleFields(prefix) {
   registerOracleFeed(LOCALNET_FIXTURE_ORACLE.feedIdBHex, LOCALNET_FIXTURE_ORACLE.priceUpdateB);
   log(t("logLocalnetFixturesFilled"), "ok");
 }
+// The "Use Localnet test fixtures" buttons (no inline onclick: the CSP has no 'unsafe-inline' for scripts).
+document.querySelectorAll("[data-localnet-fixtures]").forEach((btn) => {
+  btn.addEventListener("click", () => fillLocalnetFixtureOracleFields(btn.dataset.localnetFixtures));
+});
+// Images that just disappear when they fail to load (was an inline onerror="this.remove()").
+document.querySelectorAll("img[data-remove-on-error]").forEach((img) => {
+  if (img.complete && img.naturalWidth === 0 && img.currentSrc) img.remove(); // already failed before this ran
+  else img.addEventListener("error", () => img.remove(), { once: true });
+});
 
 // Used by the one-click Dev Tools "Quick Setup" pool-creation buttons,
 // which have no oracle-guard form fields of their own — always wires them
@@ -16688,7 +16699,7 @@ function renderLimitOrdersList() {
     const expiryDisplay = order.expiryMs ? new Date(order.expiryMs).toLocaleString() : t("loNoExpiry");
     const canCancel = order.status === "pending";
     const canRetry = order.status === "failed";
-    const errNote = order.status === "failed" && order.lastError ? `<div class="hint" style="margin-top:4px;">${order.lastError}</div>` : "";
+    const errNote = order.status === "failed" && order.lastError ? `<div class="hint" style="margin-top:4px;">${escapeHtmlText(String(order.lastError))}</div>` : "";
     return `
       <tr>
         <td class="mono">${pairHtml}</td>
@@ -17711,7 +17722,7 @@ var V2_NO_ORACLE = { enabled: false, pythFeedIdA: Array(32).fill(0), pythFeedIdB
 function tv(key, vars) {
   const d = V2_STR[state.lang] || V2_STR.en;
   let s = d[key] ?? V2_STR.en[key] ?? key;
-  if (vars) for (const k in vars) s = s.replaceAll(`{${k}}`, vars[k]);
+  if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
   return s;
 }
 function v2ApplyStatic() {
@@ -18773,6 +18784,7 @@ async function v2Execute(id) {
   }
   document.getElementById("v2c-impact").addEventListener("input", () => v2DrawFeeChart());
   document.getElementById("v2c-confirm").addEventListener("click", () => v2CreatePool());
+  document.getElementById("v2-create-form").addEventListener("submit", (e) => e.preventDefault()); // was onsubmit="return false"
   document.getElementById("v2-create-form").addEventListener("click", async (e) => {
     const fill = e.target.closest("[data-v2-fill]");
     if (fill) {

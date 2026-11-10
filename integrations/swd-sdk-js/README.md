@@ -11,7 +11,7 @@ browsers.
 | `audit(chain, address, { lang?, full? })` | `GET /api/audit` | Automated audit of a contract / token on 14 chains: `level`, findings, verdict ID, attestation, permalink, badge |
 | `auditTx(chain, hash, { lang?, full? })` | `GET /api/audit/tx` | What a transaction moved and known scam patterns (sol, eth, bsc, base, arbitrum, zetaphy) |
 | `supply()` | `GET /api/supply/total`, `/api/supply/circulating` | SWD total and circulating supply (whole SWD, decimal strings) |
-| `buySwdTransaction({ account, amountSol, slippageBps?, lang? })` | `POST /api/actions/buy-swd` | An **unsigned** SOL → SWD transaction from the Buy SWD Solana Action, for the buyer's wallet to sign |
+| `buySwdTransaction({ account, amountSol, slippageBps?, lang?, allowPrograms?, maxExtraSolBps? })` | `POST /api/actions/buy-swd` | An **unsigned** SOL → SWD transaction from the Buy SWD Solana Action, for the buyer's wallet to sign |
 | `attestationKeys()` | `GET /api/audit/attest/keys` | The public keys that sign audit attestations |
 | `verifyAttestation(att, { keys?, mldsaVerify? })` | (offline) | Checks an attestation's hashes, key ids and Ed25519 signature; ML-DSA-44 only with a verifier you pass in |
 | client: `auditInfo()`, `badgeUrl()`, `permalink()`, `buySwdAction()`, `tokenInfo()`, `swapQuote()`, `info()` | | chains/langs, links, the Action card, MCP tools |
@@ -64,6 +64,24 @@ await wallet.sendTransaction(tx, connection);
 The SDK never sees a private key and never signs. Limits: 0.001–50 SOL, slippage 10–300 bps (default 50). The
 site's fee is included in the transaction (the Action's description states it).
 
+**The SDK checks the transaction before it hands it to you** (`inspect.ts`, no dependencies), so a compromised or
+impersonated server, or a wrong `SWD_API_BASE`, cannot slip an extra instruction past your app. It throws
+`SwdApiError` with code `unsafe_transaction` unless:
+
+- the buyer is the fee payer and the only signer, and nothing arrives already signed;
+- only known programs are called at the top level (System, Compute Budget, SPL Token, Token-2022, Associated Token,
+  Memo, Jupiter v6; add more with `allowPrograms`) — an unknown program given the buyer's signature could drain
+  the wallet from inside (CPI), which no offline check can see;
+- no instruction hands the buyer's account or tokens to anyone: System `Assign`, SPL `Approve` / `SetAuthority` /
+  `Transfer` / `Burn`, `CloseAccount` to another address;
+- the SOL leaving the buyer's account (System transfers / account creation) is at most the amount asked for
+  + `maxExtraSolBps` (default 1000 = 10 %) + 0.01 SOL.
+
+What was read is returned as `inspection` (`programs`, `solOutLamports`, `usesLookupTables`, ...). Accounts loaded
+from address lookup tables cannot be resolved offline, and what Jupiter does inside its route is not visible here:
+still let the wallet simulate before the user signs. `decodeTransaction` / `inspectTransaction` are exported for
+your own checks; `unsafeSkipChecks: true` turns the check off (not recommended).
+
 ### Verify an attestation
 
 ```ts
@@ -85,7 +103,7 @@ the ML-DSA-44 and the Ed25519 signatures verify. This function is a port of the 
 ## Errors
 
 Every failure is an `SwdApiError` with `code` (the API's own: `bad_chain`, `bad_address`, `bad_hash`,
-`read_failed`, or `http_error`, `bad_input`, `bad_response`, `rpc_error`, `tool_error`) and `status`.
+`read_failed`, or `http_error`, `bad_input`, `bad_response`, `unsafe_transaction`, `rpc_error`, `tool_error`) and `status`.
 The API rate-limits per IP (HTTP 429).
 
 Results are automated, rule-based checks, not financial advice and not a guarantee. `info` means the rules found

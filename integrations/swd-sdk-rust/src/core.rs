@@ -1,7 +1,8 @@
 //! What the async and the blocking client share: URLs, input checks, response parsing. No I/O here.
 
 use crate::error::SwdError;
-use crate::types::{AuditChain, BuySwdTransaction};
+use crate::inspect::{decode_transaction, inspect_transaction, InspectPolicy};
+use crate::types::{AuditChain, BuyChecks, BuySwdTransaction};
 use base64::Engine;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -127,7 +128,15 @@ pub(crate) fn buy_request(base: &Base, account: &str, amount_sol: &str, slippage
     Ok(BuyRequest { url: base.url(P_BUY, &q), body: serde_json::json!({ "account": account }).to_string() })
 }
 
-pub(crate) fn parse_buy(status: u16, body: &[u8]) -> Result<BuySwdTransaction, SwdError> {
+/// Lamports of a SOL amount string already checked by [`check_sol_amount`].
+fn sol_lamports(s: &str) -> u128 {
+    let (w, f) = s.trim().split_once('.').unwrap_or((s.trim(), ""));
+    w.parse::<u128>().unwrap_or(0) * 1_000_000_000 + format!("{f:0<9}").parse::<u128>().unwrap_or(0)
+}
+
+/// Parses the Action's answer and checks the transaction for `account` (see [`BuyChecks`]): a compromised or
+/// impersonated server must not be able to slip an extra instruction past the caller.
+pub(crate) fn parse_buy(status: u16, body: &[u8], account: &str, amount_sol: &str, checks: &BuyChecks) -> Result<BuySwdTransaction, SwdError> {
     let v: Value = serde_json::from_slice(body).map_err(|_| SwdError::Api { code: "http_error".into(), message: format!("HTTP {status}"), status })?;
     if !(200..300).contains(&status) {
         let msg = v.get("message").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("HTTP {status}"));
@@ -138,7 +147,28 @@ pub(crate) fn parse_buy(status: u16, body: &[u8]) -> Result<BuySwdTransaction, S
         _ => return Err(SwdError::BadResponse("no transaction in the answer".into())),
     };
     let bytes = base64::engine::general_purpose::STANDARD.decode(&tx).map_err(|_| SwdError::BadResponse("transaction is not base64".into()))?;
-    Ok(BuySwdTransaction { transaction: tx, bytes, message: v.get("message").and_then(Value::as_str).map(str::to_string) })
+    let message = v.get("message").and_then(Value::as_str).map(str::to_string);
+    if checks.unsafe_skip_checks {
+        return Ok(BuySwdTransaction { transaction: tx, bytes, message, inspection: None });
+    }
+    if checks.max_extra_sol_bps > 10_000 {
+        return Err(SwdError::BadInput("max_extra_sol_bps must be 0 to 10000".into()));
+    }
+    let decoded = decode_transaction(&bytes).map_err(|e| SwdError::BadResponse(format!("not a Solana transaction: {e}")))?;
+    let asked = sol_lamports(amount_sol);
+    let policy = InspectPolicy {
+        allow_programs: checks.allow_programs.clone(),
+        max_sol_out_lamports: Some(asked + asked * checks.max_extra_sol_bps as u128 / 10_000 + 10_000_000),
+    };
+    let inspection = inspect_transaction(&decoded, account, &policy);
+    if !inspection.problems.is_empty() {
+        return Err(SwdError::Api {
+            code: "unsafe_transaction".into(),
+            message: format!("refusing the server's transaction: {}", inspection.problems.join("; ")),
+            status,
+        });
+    }
+    Ok(BuySwdTransaction { transaction: tx, bytes, message, inspection: Some(inspection) })
 }
 
 /// Drops Neuro's full `report` unless asked for.

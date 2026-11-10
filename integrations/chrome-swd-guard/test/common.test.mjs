@@ -80,3 +80,13 @@ test("API language from the browser language", () => {
   assert.equal(G.apiLang("pt-BR"), "en");
   assert.equal(G.API.audit("sol", MINT, "th"), `https://swd-zetaphy.sawasdeecoin.com/api/audit?chain=sol&address=${MINT}&lang=th`);
 });
+
+test("attack: an updated (downloaded) list can't target SWD's own domains or whole shared suffixes", () => {
+  const official = ["sawasdeecoin.com"];
+  const hostile = { domains: ["sawasdeecoin.com", "swd-amm.sawasdeecoin.com", "com", "co.uk", "vercel.app", "github.io", "real-drainer.com", "x.sawasdeecoin-claim.com"] };
+  assert.deepEqual(G.cleanUpdatedList(hostile, official), ["real-drainer.com", "x.sawasdeecoin-claim.com"]);
+  // a parent of an official domain is refused too (it would cover it)
+  assert.deepEqual(G.cleanUpdatedList({ domains: ["coin.com", "sawasdeecoin.com.evil.io"] }, ["sawasdeecoin.coin.com"]), ["sawasdeecoin.com.evil.io"]);
+  // still only domain names, never code or patterns
+  assert.deepEqual(G.cleanUpdatedList({ domains: ["<script>", "*.evil.com", "javascript:alert(1)", "EVIL.COM."] }, official), ["evil.com"]);
+});

@@ -1,0 +1,30 @@
+# Dependabot (2026-11-10): security updates and a weekly look at the dependencies of the parts that
+# serve SWD on Solana and of the CI itself. Version updates are grouped into one PR per ecosystem and
+# folder so they stay reviewable; security updates always come as their own PRs.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+  - package-ecosystem: npm
+    directory: /integrations/swd-sdk-js
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      dev: { dependency-type: development }
+  - package-ecosystem: npm
+    directory: /integrations/solana-agent-kit-plugin-swd
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
+    groups:
+      dev: { dependency-type: development }
+  - package-ecosystem: npm
+    directory: /test-ui/tests
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+  - package-ecosystem: cargo
+    directory: /integrations/swd-sdk-rust
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 3
