@@ -145,3 +145,43 @@ test("readTrust: an RPC call that never answers times out and the other steps st
   assert.equal(r.deployed, false);
   assert.ok(accountReads >= 1);
 });
+
+// ---- attack tests (2026-11-10): hostile account data / a hostile RPC behind the trust panel
+test("attack: the byte parsers never throw on random or truncated account data", () => {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) & 255;
+  for (let i = 0; i < 2000; i++) {
+    const b = Uint8Array.from({ length: i % 300 }, rnd);
+    if (i % 3 === 0 && b.length >= 4) b.set(le32(i % 2 ? 2 : 3), 0);
+    for (const f of [parseProgramAccount, parseProgramData, parseGlobalConfig, parseGovernanceSettings, parseSquadsMultisig, parseSecurityTxt]) {
+      assert.doesNotThrow(() => f(b), `${f.name} on ${b.length} bytes`);
+    }
+  }
+  for (const x of [null, undefined, new Uint8Array(0)]) for (const f of [parseProgramAccount, parseProgramData, parseGlobalConfig, parseGovernanceSettings, parseSquadsMultisig]) assert.equal(f(x), null);
+});
+
+test("attack: a security.txt with __proto__ / HTML keys can't pollute objects or inject markup", () => {
+  const enc = (s) => new TextEncoder().encode(s);
+  const body = "=======BEGIN SECURITY.TXT V1=======\0__proto__\0{\"polluted\":1}\0name\0<script>x</script>\0constructor\0y\0=======END SECURITY.TXT V1=======";
+  const st = parseSecurityTxt(Uint8Array.from([...fill(10, 1), ...enc(body)]));
+  assert.equal(({}).polluted, undefined);
+  assert.equal(Object.prototype.polluted, undefined);
+  const html = renderTrust({ programId: "P", deployed: true, authorityKind: "immutable", securityTxt: st, errors: ["genesis: <img src=x onerror=alert(1)>"] },
+    { t: (k, v) => k + (v ? JSON.stringify(v) : ""), explorer: (a) => `https://e/${a}`, project: PROJECT, mainnetLive: true });
+  assert.doesNotMatch(html, /<script>|<img/);
+});
+
+test("attack: a hostile RPC (garbage types, throws, hangs) can't break readTrust", async () => {
+  const PublicKey = class { constructor(v) { this.v = typeof v === "string" ? v : "K" + [...(v || [])].slice(0, 4).join("."); } toBase58() { return this.v; } toBytes() { return new Uint8Array(32); }
+    static findProgramAddressSync() { return [new PublicKey("PDA")]; } static isOnCurve() { return true; } };
+  const conns = [
+    { getGenesisHash: async () => ({ toString() { throw new Error("x"); } }), getAccountInfo: async () => ({ owner: 42, data: "not bytes", executable: "yes" }) },
+    { getGenesisHash: async () => { throw new Error("<b>boom</b>"); }, getAccountInfo: async () => { throw new Error("down"); } },
+    { getGenesisHash: () => new Promise(() => {}), getAccountInfo: () => new Promise(() => {}) },
+  ];
+  for (const connection of conns) {
+    const r = await readTrust({ connection, PublicKey, programId: "Prog", network: "devnet", project: PROJECT, stepTimeoutMs: 50 });
+    assert.equal(typeof r, "object");
+    assert.ok(Array.isArray(r.errors));
+  }
+});
