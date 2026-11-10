@@ -488,7 +488,17 @@ class SWD_Pay_Gateway extends WC_Payment_Gateway {
 		}
 		$ref    = (string) $order->get_meta( self::META_REF );
 		$wallet = $this->get_option( 'wallet' );
-		$quotes = $this->order_quotes( $order );
+		// Only quotes made for the order's CURRENT total: when the shop changes the total (adds shipping, edits a
+		// line), a quote of the old, smaller total must stop being payable (a fixed-rate quote never expires).
+		$total  = $this->order_total( $order );
+		$quotes = array_values(
+			array_filter(
+				$this->order_quotes( $order ),
+				function ( $q ) use ( $total ) {
+					return ! isset( $q['total'] ) || (string) $q['total'] === $total;
+				}
+			)
+		);
 		if ( ! SWD_Pay_Math::is_address( $ref ) || ! SWD_Pay_Math::is_address( $wallet ) || ! $quotes ) {
 			return 'error';
 		}
@@ -516,6 +526,12 @@ class SWD_Pay_Gateway extends WC_Payment_Gateway {
 			$fresh = wc_get_order( $order_id );
 			if ( $fresh && $fresh->is_paid() ) {
 				return 'paid';
+			}
+			// One transaction can carry the references of several orders. The signature is claimed atomically
+			// first, so two checks running at the same time (two tabs, the cron) cannot both use one payment.
+			if ( ! self::claim_signature( $found['signature'], $order_id ) ) {
+				$this->log( 'order ' . $order_id . ': signature already used by another order' );
+				return 'pending';
 			}
 			$symbol = $this->symbol_of( $found['mint'] );
 			$order->update_meta_data( self::META_SIG, $found['signature'] );
@@ -555,6 +571,10 @@ class SWD_Pay_Gateway extends WC_Payment_Gateway {
 	 * @return bool
 	 */
 	public static function signature_used_elsewhere( $sig, $order_id ) {
+		$owner = self::signature_owner( $sig );
+		if ( null !== $owner && (int) $owner !== (int) $order_id ) {
+			return true;
+		}
 		$ids = wc_get_orders(
 			array(
 				'limit'      => 2,
@@ -574,6 +594,47 @@ class SWD_Pay_Gateway extends WC_Payment_Gateway {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Option name of a signature's claim.
+	 *
+	 * @param string $sig Signature.
+	 * @return string
+	 */
+	private static function claim_key( $sig ) {
+		return 'swd_pay_sig_' . md5( (string) $sig );
+	}
+
+	/**
+	 * Claims a transaction signature for an order, atomically: an INSERT IGNORE on the options table's unique
+	 * option_name, so of two requests racing for the same signature exactly one wins, whatever the order meta
+	 * says yet. Claiming again for the same order succeeds (a retry after a failed save).
+	 *
+	 * @param string $sig      Signature.
+	 * @param int    $order_id Order.
+	 * @return bool True when the signature now belongs to this order.
+	 */
+	public static function claim_signature( $sig, $order_id ) {
+		global $wpdb;
+		$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- must be atomic; the options cache would hide a concurrent claim
+			$wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, %s, 'no')", self::claim_key( $sig ), (string) (int) $order_id )
+		);
+		return self::signature_owner( $sig ) === (string) (int) $order_id;
+	}
+
+	/**
+	 * The order that claimed a signature (as a string), or null.
+	 *
+	 * @param string $sig Signature.
+	 * @return string|null
+	 */
+	private static function signature_owner( $sig ) {
+		global $wpdb;
+		$v = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- read past the options cache
+			$wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", self::claim_key( $sig ) )
+		);
+		return null === $v ? null : (string) $v;
 	}
 
 	/**

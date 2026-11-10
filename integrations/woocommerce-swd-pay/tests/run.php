@@ -121,6 +121,14 @@ eq( SWD_Pay_Verifier::check( $paid, $exp2 )['ok'], false, 'expired quote not hon
 $exp2['quotes'][]           = array( 'mint' => $swd, 'decimals' => 5, 'raw' => '20000000', 'until' => 2100 );
 eq( SWD_Pay_Verifier::check( $paid, $exp2 )['ok'], true, 'a newer valid quote is' );
 eq( SWD_Pay_Verifier::check( null, $expect )['ok'], false, 'missing transaction' );
+// attack: an RPC answer without blockTime must not skip the quote expiry / age checks
+$no_time = $paid;
+unset( $no_time['blockTime'] );
+$exp3                       = $expect;
+$exp3['quotes'][0]['until'] = 1900; // expired at 1900; the payment really happened at 2000
+eq( SWD_Pay_Verifier::check( $no_time, $exp3 )['reason'], 'no_time', 'no blockTime: an expired quote is not honoured' );
+$no_time['blockTime'] = null;
+eq( SWD_Pay_Verifier::check( $no_time, $expect )['ok'], false, 'null blockTime: not accepted (retried later)' );
 
 // ---- RPC flow with a fake transport
 $calls     = array();

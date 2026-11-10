@@ -47,6 +47,13 @@ Admin → order → "Order actions" → **Check Solana Pay payment now** runs a 
 - The status endpoint needs the page's nonce **and** the order key (`hash_equals`), and is rate-limited per order.
 - All output is escaped (`esc_html`, `esc_attr`, `esc_url` with the `solana` protocol allowed only for the wallet link).
 - RPC errors are never read as "not paid" or "paid": the check simply runs again later.
+- One transaction pays one order: its signature is claimed atomically (`INSERT IGNORE` on the options table) before
+  the order is completed, so a transaction carrying the references of two orders cannot pay both, even when the two
+  checks run at the same moment (two tabs, the cron).
+- Only quotes made for the order's current total are accepted: if the shop changes the total, older quotes stop
+  being payable. A transaction without a block time is not accepted (checked again later).
+- The RPC you configure is trusted to tell the truth about the chain: use your own (or a provider you trust),
+  over https. "Finalized" is safer than "Confirmed" for large orders.
 - A manual transfer (without the reference) is not detected automatically; the page says so and the merchant can
   complete the order by hand.
 - Refunds are manual (send from your wallet; add a note).
