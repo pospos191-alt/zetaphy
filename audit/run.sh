@@ -47,6 +47,17 @@ MODE=repo; SCOPE_ARG=(--scope "$HERE/scope.json")
 [ "$TARGET" = "$REPO" ] || { MODE=target; SCOPE_ARG=(); }
 [ -n "$COMMIT" ] || COMMIT=$(git -C "$TARGET" rev-parse HEAD 2>/dev/null || echo unknown)
 SOLC=${SOLC:-solc}
+# On this repository only the pinned compiler (audit/tools/install.sh) will do: the sources pin 0.8.26, so any
+# other solc compiles nothing, and the run would still write a report that looks complete but checked nothing
+# (2026-11-10: a deep run picked 0.8.38 and reported 0 compiled contracts). Stop instead.
+if [ "$MODE" = repo ] && command -v "$SOLC" >/dev/null 2>&1; then
+  PIN=$(sed -n 's/^SOLC_VERSION=//p' "$HERE/tools/install.sh")
+  GOT=$("$SOLC" --version 2>/dev/null | sed -n 's/^Version: \([0-9.]*\).*/\1/p')
+  if [ -n "$PIN" ] && [ "$GOT" != "$PIN" ]; then
+    echo "audit: $SOLC is solc ${GOT:-unknown}, but this repository pins $PIN (audit/tools/install.sh); set SOLC to the pinned binary" >&2
+    exit 1
+  fi
+fi
 
 TOOLS="$OUT/raw/tools.tsv"
 if [ -n "$ONLY" ] && [ -f "$TOOLS" ]; then

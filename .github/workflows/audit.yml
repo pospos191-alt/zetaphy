@@ -107,7 +107,9 @@ jobs:
 
       - name: Run the ${{ env.TIER }} tier
         env:
-          SOLC: solc
+          # the pinned solc (as in the step above): plain `solc` finds the venv's solc-select shim first, which
+          # picked 0.8.38 in the 2026-11-10 deep run, compiled nothing and still produced a report
+          SOLC: ${{ runner.temp }}/audit-tools/bin/solc
           # deep-tier budgets (normal / long)
           SMT_WALL: ${{ env.BUDGET == 'long' && '1800' || '900' }}
           MUTANTS_PER_FILE: ${{ env.BUDGET == 'long' && '40' || '15' }}
