@@ -43,7 +43,13 @@ const GLOBAL_MAX_PER_HOUR = 30;
 function getReserveKeypair() {
   const raw = process.env.DEVNET_FAUCET_SECRET_KEY;
   if (!raw) throw new Error("DEVNET_FAUCET_SECRET_KEY is not configured");
-  const parsed = JSON.parse(raw);
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // JSON.parse's message quotes part of its input, i.e. of the secret key: never let it reach a log.
+    throw new Error("DEVNET_FAUCET_SECRET_KEY is not valid JSON");
+  }
   return Keypair.fromSecretKey(Uint8Array.from(parsed));
 }
 
@@ -53,15 +59,31 @@ function getReserveKeypair() {
 function clientIp(req) {
   for (const h of ["x-vercel-forwarded-for", "x-real-ip", "x-forwarded-for"]) {
     const v = req.headers[h];
-    if (typeof v === "string" && v.length > 0) return v.split(",")[0].trim().slice(0, 64);
+    if (typeof v === "string" && v.length > 0) return ipBucket(v.split(",")[0].trim().slice(0, 64));
   }
-  return req.socket?.remoteAddress || "unknown";
+  return ipBucket(req.socket?.remoteAddress || "unknown");
+}
+
+// The rate-limit key for an address. IPv6 users usually get a whole /64 (2^64 addresses) from their
+// provider, so one key per IPv6 address would let a single home connection rotate addresses past
+// the per-IP limit forever: the limit is per /64 instead. IPv4 (and IPv4-mapped IPv6) stay per address.
+function ipBucket(ip) {
+  const s = String(ip).toLowerCase().replace(/^\[|\]$/g, "").replace(/%.*$/, "");
+  const mapped = s.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return mapped[1];
+  if (!s.includes(":") || !/^[0-9a-f:.]+$/.test(s)) return s;
+  const [head, tail = ""] = s.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail ? tail.split(":") : [];
+  if (!s.includes("::") && h.length !== 8) return s;
+  const groups = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t];
+  return groups.slice(0, 4).map((g) => (parseInt(g, 16) || 0).toString(16)).join(":") + "::/64";
 }
 
 module.exports = async (req, res) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // No CORS headers (2026-11-10): the only caller is the app on this same origin. With
+  // "Access-Control-Allow-Origin: *", any website could make each of its visitors' browsers
+  // claim SOL to an attacker's wallets, one visitor IP after another, past the per-IP limit.
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
@@ -90,6 +112,13 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // JSON only: a cross-site <form> or a no-cors fetch can send text/plain without a CORS preflight,
+  // but not application/json.
+  const ctype = String(req.headers["content-type"] || "").toLowerCase();
+  if (!ctype.startsWith("application/json")) {
+    res.status(415).json({ error: "Send JSON" });
+    return;
+  }
   let body = req.body;
   if (typeof body === "string") {
     try {
@@ -142,6 +171,7 @@ module.exports = async (req, res) => {
     return;
   }
 
+  let sendStarted = false;
   try {
     const connection = new Connection(DEVNET_RPC_URL, "confirmed");
     const reserve = getReserveKeypair();
@@ -163,14 +193,21 @@ module.exports = async (req, res) => {
       })
     );
 
+    sendStarted = true;
     const signature = await sendAndConfirmTransaction(connection, tx, [reserve], { commitment: "confirmed" });
 
     res.status(200).json({ signature, amountSol: FAUCET_AMOUNT_SOL });
   } catch (err) {
-    // Release both locks — the request never actually disbursed anything.
-    await kv.del(walletKey);
-    await kv.del(ipKey);
-    console.error("devnet-faucet error:", err);
+    // Release both locks when nothing can have been sent. Once the transfer was submitted, a
+    // confirmation timeout does not mean it failed (it often lands a few seconds later): keeping the
+    // locks then stops a retry from being paid twice.
+    if (!sendStarted) {
+      await kv.del(walletKey);
+      await kv.del(ipKey);
+    }
+    console.error("devnet-faucet error:", err?.name, String(err?.message || "").slice(0, 200));
     res.status(500).json({ error: "Internal faucet error, please try again" });
   }
 };
+
+module.exports.ipBucket = ipBucket;
