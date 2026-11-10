@@ -177,11 +177,22 @@ export interface PreparedSpend {
   computeUnits: number;
 }
 
-function checkKeys(keys: VaultKeys, state: VaultState): void {
-  const sameId = keys.id.every((b, i) => b === state.id[i]);
-  const k = publicKey(keys, state.seq);
-  if (!sameId || !k.every((b, i) => b === state.key[i])) {
+const eq = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * Refuses to sign unless every message field the caller did not choose is
+ * consistent with the seed: the id, the CURRENT key, the genesis key, and the
+ * vault address itself (PDA of id + genesis key under `programId`). A message
+ * the chain will reject still uses up the one-time key: a retry would then be
+ * a SECOND signature for the same q, which lets anyone who saw both forge.
+ * (`openedSlot` cannot be derived from the seed: read it from the chain.)
+ */
+function checkKeys(keys: VaultKeys, state: VaultState, vault: PublicKey, programId: PublicKey): void {
+  if (!eq(keys.id, state.id) || !eq(publicKey(keys, state.seq), state.key)) {
     throw new Error("this seed does not hold the vault's current key (wrong seed, wrong vault index, or stale vault state)");
+  }
+  if (!eq(publicKey(keys, 0), state.genesisKey) || !findVaultAddress(state.id, state.genesisKey, programId)[0].equals(vault)) {
+    throw new Error("vault address / genesis key do not belong to this seed and program id (refusing to burn the one-time key)");
   }
 }
 
@@ -202,7 +213,7 @@ export function prepareSpendSol(a: {
   tries?: number;
 }): PreparedSpend {
   const programId = a.programId ?? SWD_QUANTUM_PROGRAM_ID;
-  checkKeys(a.keys, a.state);
+  checkKeys(a.keys, a.state, a.vault, programId);
   const nextKey = publicKey(a.keys, a.state.seq + 1);
   const m: SpendMessage = {
     action: ACTION_SPEND_SOL,
@@ -250,7 +261,7 @@ export function prepareSpendToken(a: {
   const programId = a.programId ?? SWD_QUANTUM_PROGRAM_ID;
   const tokenProgram = a.tokenProgram ?? TOKEN_PROGRAM_ID;
   const source = a.source ?? associatedTokenAddress(a.vault, a.mint, tokenProgram);
-  checkKeys(a.keys, a.state);
+  checkKeys(a.keys, a.state, a.vault, programId);
   const nextKey = publicKey(a.keys, a.state.seq + 1);
   const flags = a.closeSource ? FLAG_CLOSE_SOURCE : 0;
   const message = encodeSpendMessage({

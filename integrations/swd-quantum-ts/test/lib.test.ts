@@ -132,6 +132,26 @@ test("instruction layouts and transaction sizes (one transaction, no buffer acco
   assert.throws(() => q.prepareSpendSol({ keys, vault, state: { ...state, seq: 1 }, destination: vault, lamports: 1, programId }));
 });
 
+// ATTACK (one-time-key burn): a wrong vault address, program id or genesis
+// key used to be signed anyway with the LIVE key; the chain rejects that
+// message, and the retry is a second signature for the same q (forgeable).
+test("prepare refuses to sign for a vault address / program the seed does not own", () => {
+  const programId = pk("msg.program_id");
+  const { address: vault } = q.vaultFromSeed(master, 7, programId);
+  const state: q.VaultState = {
+    version: 1, bump: 255, id: keys.id, genesisKey: unhex(G["k0"]), key: unhex(G["k0"]), seq: 0, openedSlot: BigInt(5), spends: BigInt(0),
+  };
+  const dest = Keypair.generate().publicKey;
+  const other = Keypair.generate().publicKey;
+  assert.ok(q.prepareSpendSol({ keys, vault, state, destination: dest, lamports: 1, programId, tries: 1 }));
+  assert.throws(() => q.prepareSpendSol({ keys, vault: other, state, destination: dest, lamports: 1, programId, tries: 1 }), /refusing/);
+  assert.throws(() => q.prepareSpendSol({ keys, vault, state, destination: dest, lamports: 1, programId: other, tries: 1 }), /refusing/);
+  assert.throws(() => q.prepareSpendToken({ keys, vault: other, state, mint: other, destination: dest, amount: 1, programId, tries: 1 }), /refusing/);
+  // a state whose genesis key is not this seed's K0 (same id, current key ok at seq 0 is K0, so use seq 1)
+  const k1 = q.publicKey(keys, 1);
+  assert.throws(() => q.prepareSpendSol({ keys, vault, state: { ...state, seq: 1, key: k1, genesisKey: k1 }, destination: dest, lamports: 1, programId, tries: 1 }), /refusing/);
+});
+
 test("account decoding", () => {
   const data = new Uint8Array(q.VAULT_ACCOUNT_SIZE);
   data.set(q.accountDiscriminator("Vault"), 0);

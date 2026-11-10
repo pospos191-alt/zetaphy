@@ -30,6 +30,10 @@ const prep = q.prepareSpendSol({ keys: v.keys, vault: v.address, state, destinat
 used. If the transaction does not land, send the **same** instructions again
 (new blockhash or fee payer is fine). Never prepare a *different* spend for
 the same `seq` — persist the prepared spend before broadcasting.
+`prepareSpend*` refuses to sign unless the seed owns `state.id`, the current
+key, the genesis key AND the `vault` address under `programId` (a message the
+chain rejects still burns the key). It cannot check `state.openedSlot`: decode
+the state from the vault account itself, from an RPC you trust.
 
 API: `vaultKeys`, `publicKey`, `sign`, `verify`, `candidateKey`,
 `encodeSpendMessage`, `findVaultAddress`, `associatedTokenAddress`,
