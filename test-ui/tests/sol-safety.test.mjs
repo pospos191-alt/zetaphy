@@ -52,3 +52,63 @@ test("confirmSolana: the summary fields, and Cancel is false", async () => {
   sf.confirmTx = async () => "0x";
   assert.equal(await confirmSolana(sf, { network: "x", owner: OWNER, txs: [] }), true);
 });
+
+// ---- attack tests (2026-11-10): what a hostile or buggy transaction builder could slip past the summary ----
+const keyBytes = (fill) => new Uint8Array(32).fill(fill);
+
+test("attack: System Assign of the wallet account is a DANGER warning (wallet takeover)", async () => {
+  const assign = { programId: SYS, keys: [{ pubkey: OWNER }], data: Uint8Array.from([...le(1, 4), ...keyBytes(7)]) };
+  const i = solTxInfo({ instructions: [assign] }, OWNER);
+  assert.equal(i.assigns.length, 1);
+  assert.equal(i.assigns[0].program.length >= 32, true, "the new owner program is shown as base58");
+  let seen;
+  const sf = { t: (k) => k, confirmTx: async (o) => { seen = o; return null; } };
+  await confirmSolana(sf, { network: "x", owner: OWNER, txs: { instructions: [assign] } });
+  assert.match(seen.warnings[0], /^DANGER/);
+  // someone else's account being assigned (e.g. a new mint account) is not a warning
+  assert.equal(solTxInfo({ instructions: [{ ...assign, keys: [{ pubkey: OTHER }] }] }, OWNER).assigns.length, 0);
+});
+
+test("attack: SOL leaving through CreateAccount / CreateAccountWithSeed / TransferWithSeed is counted", () => {
+  const create = { programId: SYS, keys: [{ pubkey: OWNER }, { pubkey: OTHER }], data: Uint8Array.from([...le(0, 4), ...le(5_000_000_000n, 8), ...le(0, 8), ...keyBytes(1)]) };
+  const seed = new TextEncoder().encode("x");
+  const withSeed = { programId: SYS, keys: [{ pubkey: OWNER }, { pubkey: OTHER }], data: Uint8Array.from([...le(3, 4), ...keyBytes(2), ...le(seed.length, 8), ...seed, ...le(7n, 8), ...le(0, 8), ...keyBytes(1)]) };
+  const tws = { programId: SYS, keys: [{ pubkey: OTHER }, { pubkey: OWNER }, { pubkey: OTHER }], data: Uint8Array.from([...le(11, 4), ...le(3n, 8)]) };
+  assert.equal(solTxInfo({ instructions: [create, withSeed, tws] }, OWNER).solOut, 5_000_000_010n);
+});
+
+test("attack: SPL SetAuthority / CloseAccount to another address / Transfer by the owner are warned about", async () => {
+  const setAuth = { programId: TOKEN, keys: [{ pubkey: "myAta" }, { pubkey: OWNER }], data: Uint8Array.from([6, 2, 1, ...keyBytes(9)]) };
+  const close = { programId: TOKEN, keys: [{ pubkey: "myAta" }, { pubkey: OTHER }, { pubkey: OWNER }], data: Uint8Array.from([9]) };
+  const closeToSelf = { programId: TOKEN, keys: [{ pubkey: "myAta" }, { pubkey: OWNER }, { pubkey: OWNER }], data: Uint8Array.from([9]) };
+  const xfer = { programId: TOKEN, keys: [{ pubkey: "myAta" }, { pubkey: "theirAta" }, { pubkey: OWNER }], data: Uint8Array.from([3, ...le(1000n, 8)]) };
+  const xferChecked = { programId: TOKEN, keys: [{ pubkey: "myAta" }, { pubkey: "mint" }, { pubkey: "theirAta" }, { pubkey: OWNER }], data: Uint8Array.from([12, ...le(5n, 8), 6]) };
+  const i = solTxInfo({ instructions: [setAuth, close, closeToSelf, xfer, xferChecked] }, OWNER);
+  assert.equal(i.authorities.length, 1);
+  assert.equal(i.closes.length, 1, "closing to yourself is normal (unwrapping SOL)");
+  assert.deepEqual(i.tokenOut.map((x) => [x.to, x.amount]), [["theirAta", 1000n], ["theirAta", 5n]]);
+  let seen;
+  const sf = { t: (k) => k, confirmTx: async (o) => { seen = o; return null; } };
+  await confirmSolana(sf, { network: "x", owner: OWNER, lang: "th", txs: { instructions: [setAuth, close, xfer] } });
+  assert.equal(seen.warnings.length, 3);
+  assert.match(seen.warnings[0], /^อันตราย/, "Thai text for Thai visitors");
+});
+
+test("attack: accounts hidden in address lookup tables are called out", async () => {
+  const v0 = { message: { staticAccountKeys: [OWNER, TOKEN].map((k) => ({ toBase58: () => k })), addressTableLookups: [{ accountKey: OTHER, writableIndexes: [0], readonlyIndexes: [] }],
+    compiledInstructions: [{ programIdIndex: 1, accountKeyIndexes: [2, 3, 0], data: Uint8Array.from([4, ...le(1n << 64n - 1n, 8)]) }] } };
+  const i = solTxInfo(v0, OWNER);
+  assert.equal(i.lookupTables, true);
+  assert.equal(i.approvals[0].delegate, "?", "a delegate loaded from a lookup table cannot be named");
+  let seen;
+  const sf = { t: (k) => k, confirmTx: async (o) => { seen = o; return null; } };
+  await confirmSolana(sf, { network: "x", owner: OWNER, txs: v0 });
+  assert.ok(seen.warnings.some((w) => /lookup tables/.test(w)));
+});
+
+test("attack: a normal swap-shaped transaction has no extra warnings", () => {
+  const ata = { programId: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL", keys: [{ pubkey: OWNER }], data: new Uint8Array([1]) };
+  const swap = { programId: AMM, keys: [{ pubkey: OWNER }], data: new Uint8Array([9, 9, 9]) };
+  const i = solTxInfo({ instructions: [ata, swap] }, OWNER);
+  assert.deepEqual([i.assigns, i.authorities, i.closes, i.tokenOut, i.approvals, i.lookupTables], [[], [], [], [], [], false]);
+});

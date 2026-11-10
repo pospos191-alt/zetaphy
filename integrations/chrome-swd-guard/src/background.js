@@ -4,7 +4,7 @@
 // Nothing here reads page content, cookies, wallets or keys. Results are cached in chrome.storage.session (memory).
 "use strict";
 importScripts("common.js");
-const { API, apiLang, cleanDomainList, matchPatterns, listedDomain, lookalike, validAddress } = self.SWDG;
+const { API, apiLang, cleanDomainList, cleanUpdatedList, matchPatterns, listedDomain, lookalike, validAddress } = self.SWDG;
 
 const LIST_URL = "https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/integrations/chrome-swd-guard/data/phishing-domains.json";
 const CACHE_MS = 10 * 60 * 1000;
@@ -93,7 +93,8 @@ async function txCheck(chain, hash, lang) {
 
 async function updatedDomains() {
   const { updated } = await chrome.storage.local.get("updated");
-  return updated && Array.isArray(updated.domains) ? updated.domains : [];
+  // re-checked on every read (a list stored by an older version had no official-domain filter)
+  return updated && Array.isArray(updated.domains) ? cleanUpdatedList({ domains: updated.domains }, (await bundledList()).official) : [];
 }
 
 async function refreshList() {
@@ -102,7 +103,8 @@ async function refreshList() {
   try {
     const r = await fetch(LIST_URL, { credentials: "omit", cache: "no-cache", signal: AbortSignal.timeout(30_000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const domains = cleanDomainList(await r.json());
+    // DATA only, and never an official SWD domain or a shared suffix (see cleanUpdatedList)
+    const domains = cleanUpdatedList(await r.json(), (await bundledList()).official);
     await chrome.storage.local.set({ updated: { domains, at: Date.now() } });
     await syncDynamicScript();
     return { ok: true, count: domains.length };

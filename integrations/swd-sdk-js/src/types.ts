@@ -153,6 +153,8 @@ export interface BuySwdTransaction {
   transaction: string;
   /** the same bytes, decoded */
   bytes: Uint8Array;
-  /** human text from the server: SOL in, SWD out (estimate) and the minimum after slippage */
+  /** human text from the server: SOL in, SWD out (estimate) and the minimum after slippage. Untrusted text: show it, never parse it. */
   message?: string;
+  /** what the SDK read from the transaction before returning it (absent with unsafeSkipChecks) */
+  inspection?: import("./inspect").TxInspection;
 }

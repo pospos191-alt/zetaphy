@@ -53,6 +53,27 @@ function wp_safe_remote_post( $url, $args ) { return call_user_func( $GLOBALS['_
 function wp_safe_remote_get( $url, $args ) { return call_user_func( $GLOBALS['_http'], $url, $args ); }
 function wp_remote_retrieve_response_code( $r ) { return $r[0]; }
 function wp_remote_retrieve_body( $r ) { return $r[1]; }
+// $wpdb with just the options table (INSERT IGNORE keeps the first row for a name, as the unique key does)
+class Fake_Wpdb {
+	public $options = 'wp_options';
+	public $rows = array();
+	public function prepare( $sql, ...$args ) { return array( $sql, $args ); }
+	public function query( $q ) {
+		list( $sql, $a ) = $q;
+		if ( 0 === strpos( $sql, 'INSERT IGNORE INTO wp_options' ) ) {
+			if ( isset( $this->rows[ $a[0] ] ) ) { return 0; }
+			$this->rows[ $a[0] ] = $a[1];
+			return 1;
+		}
+		throw new Exception( "unexpected query $sql" );
+	}
+	public function get_var( $q ) {
+		list( $sql, $a ) = $q;
+		if ( 0 === strpos( $sql, 'SELECT option_value FROM wp_options WHERE option_name = %s' ) ) { return isset( $this->rows[ $a[0] ] ) ? $this->rows[ $a[0] ] : null; }
+		throw new Exception( "unexpected query $sql" );
+	}
+}
+$GLOBALS['wpdb'] = new Fake_Wpdb();
 class WC_Admin_Settings { public static $errors = array(); public static function add_error( $m ) { self::$errors[] = $m; } }
 
 class WC_Payment_Gateway {
@@ -70,13 +91,13 @@ class WC_Payment_Gateway {
 class Fake_Date { public function getTimestamp() { return time() - 60; } }
 class WC_Order {
 	private $id, $meta = array(), $status = 'pending', $paid = false;
-	public $notes = array(), $tx = null;
+	public $notes = array(), $tx = null, $total = '10.00';
 	public function __construct( $id ) { $this->id = $id; }
 	public function get_id() { return $this->id; }
 	public function get_meta( $k ) { return isset( $this->meta[ $k ] ) ? $this->meta[ $k ] : ''; }
 	public function update_meta_data( $k, $v ) { $this->meta[ $k ] = $v; }
 	public function save() {}
-	public function get_total() { return '10.00'; }
+	public function get_total() { return $this->total; }
 	public function get_currency() { return 'USD'; }
 	public function get_order_number() { return (string) $this->id; }
 	public function get_order_key() { return 'wc_order_abc'; }
@@ -164,6 +185,54 @@ $order2 = new WC_Order( 43 );
 $GLOBALS['_orders'][43] = $order2;
 $gw->process_payment( 43 );
 ok( 'error' === $gw->check_order( $order2 ) && ! $order2->is_paid(), 'RPC down → error, not paid' );
+
+// ---- attack: ONE payment carrying the references of TWO orders, checked at the same time (two tabs, or a tab and
+// the cron). The second check runs while the first is still waiting for its getTransaction answer, i.e. before
+// the first has saved anything to the order: only one of the two orders may be marked paid.
+$oa = new WC_Order( 50 );
+$ob = new WC_Order( 51 );
+$GLOBALS['_orders'][50] = $oa;
+$GLOBALS['_orders'][51] = $ob;
+$gw->process_payment( 50 );
+$gw->process_payment( 51 );
+$both_tx = $paid_tx;
+$both_tx['transaction']['message']['accountKeys'] = array( array( 'pubkey' => $oa->get_meta( '_swd_pay_reference' ) ), array( 'pubkey' => $ob->get_meta( '_swd_pay_reference' ) ) );
+$one_sig  = str_repeat( '7', 88 );
+$nested   = false;
+$GLOBALS['_http'] = function ( $url, $args ) use ( &$nested, $both_tx, $one_sig, $gw, $ob ) {
+	$req = json_decode( $args['body'], true );
+	if ( 'getSignaturesForAddress' === $req['method'] ) {
+		return array( 200, json_encode( array( 'result' => array( array( 'signature' => $one_sig, 'err' => null ) ) ) ) );
+	}
+	if ( ! $nested ) { // order 51's check overtakes order 50's
+		$nested = true;
+		$gw->check_order( $ob );
+	}
+	return array( 200, json_encode( array( 'result' => $both_tx ) ) );
+};
+$gw->check_order( $oa );
+ok( 1 === (int) $oa->is_paid() + (int) $ob->is_paid(), 'one transaction with two references, racing checks: only ONE order is paid (got ' . ( (int) $oa->is_paid() + (int) $ob->is_paid() ) . ')' );
+ok( 'pending' === $gw->check_order( $oa ) || $oa->is_paid(), 'the loser stays unpaid on later checks' );
+ok( ! ( $oa->is_paid() && $ob->is_paid() ), 'and is never paid by that signature later' );
+
+// ---- attack: the shop raises the total after the quote (adds shipping); the old, cheaper quote must not pay it
+$oc = new WC_Order( 60 );
+$GLOBALS['_orders'][60] = $oc;
+$gw->process_payment( 60 ); // quotes for 10.00: 10 USDC
+$oc->total = '15.00';
+$c_tx = $paid_tx;
+$c_tx['transaction']['message']['accountKeys'] = array( array( 'pubkey' => $oc->get_meta( '_swd_pay_reference' ) ) );
+$GLOBALS['_http'] = function ( $url, $args ) use ( $c_tx ) {
+	$req = json_decode( $args['body'], true );
+	if ( 'getSignaturesForAddress' === $req['method'] ) {
+		return array( 200, json_encode( array( 'result' => array( array( 'signature' => str_repeat( '8', 88 ), 'err' => null ) ) ) ) );
+	}
+	return array( 200, json_encode( array( 'result' => $c_tx ) ) );
+};
+$st = $gw->check_order( $oc );
+ok( ! $oc->is_paid(), "10 USDC does not pay an order whose total became 15.00 (status $st)" );
+$gw->ensure_quotes( $oc, true ); // a fresh quote for 15.00 (what the payment page does)
+ok( ! $oc->is_paid() && 'paid' !== $gw->check_order( $oc ), 'still underpaid against the new 15 USDC quote' );
 
 echo $fails ? "$fails FAILED\n" : "gateway smoke test passed\n";
 exit( $fails ? 1 : 0 );

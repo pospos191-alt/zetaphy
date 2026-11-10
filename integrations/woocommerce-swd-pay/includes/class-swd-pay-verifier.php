@@ -27,7 +27,7 @@ class SWD_Pay_Verifier {
 	 *     @type int    $not_before Unix time; a transaction older than this (minus 10 minutes) is refused.
 	 * }
 	 * @return array [ 'ok' => bool, 'reason' => string, 'mint' => ?string, 'received' => ?string ]
-	 *               reason: paid | failed | no_reference | too_old | underpaid | no_transfer
+	 *               reason: paid | failed | no_reference | no_time | too_old | underpaid | no_transfer
 	 */
 	public static function check( $tx, $expect ) {
 		$out = array(
@@ -54,14 +54,20 @@ class SWD_Pay_Verifier {
 			$out['reason'] = 'no_reference';
 			return $out;
 		}
-		if ( ! empty( $expect['not_before'] ) && isset( $tx['blockTime'] ) && (int) $tx['blockTime'] < (int) $expect['not_before'] - 600 ) {
+		// No block time, no time checks: such a transaction is not accepted now (a later check, once the RPC has
+		// the time, can). Otherwise an RPC answer without blockTime would skip quote expiry and the age check.
+		if ( ! isset( $tx['blockTime'] ) || ! is_numeric( $tx['blockTime'] ) ) {
+			$out['reason'] = 'no_time';
+			return $out;
+		}
+		if ( ! empty( $expect['not_before'] ) && (int) $tx['blockTime'] < (int) $expect['not_before'] - 600 ) {
 			$out['reason'] = 'too_old';
 			return $out;
 		}
 		$best_under = null;
 		foreach ( $expect['quotes'] as $q ) {
 			// A price quote is honoured only until it expires (fixed-rate quotes have no `until`).
-			if ( ! empty( $q['until'] ) && isset( $tx['blockTime'] ) && (int) $tx['blockTime'] > (int) $q['until'] ) {
+			if ( ! empty( $q['until'] ) && (int) $tx['blockTime'] > (int) $q['until'] ) {
 				continue;
 			}
 			$delta = self::received( $tx['meta'], $expect['recipient'], $q['mint'], (int) $q['decimals'] );

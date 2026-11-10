@@ -19,6 +19,7 @@
 mod client;
 mod core;
 mod error;
+pub mod inspect;
 pub mod types;
 
 #[cfg(feature = "blocking")]

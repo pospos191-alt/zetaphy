@@ -4,7 +4,10 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use swd_sdk::{Level, SwdClient, SwdError, SWD_MINT};
+use swd_sdk::{BuyChecks, Level, SwdClient, SwdError, SWD_MINT};
+
+mod txbuild;
+use txbuild::*;
 
 #[derive(Debug, Clone)]
 struct Seen {
@@ -94,13 +97,14 @@ async fn async_audit_and_errors() {
 
 #[test]
 fn blocking_tx_supply_buy() {
+    let good = b64(&buy_tx(vec![], Opts::default()));
     let tx = serde_json::json!({ "ok": true, "tx": { "chain": "sol", "hash": "5sig", "found": true, "status": true,
         "level": "info", "overall": "medium", "lines": [], "notes": [{ "id": "n", "severity": "medium", "text": "t" }] } });
     let (base, log) = serve(vec![
         ("/api/audit/tx", 200, "application/json", tx.to_string()),
         ("/api/supply/total", 200, "text/plain", "999999999.12345\n".into()),
         ("/api/supply/circulating", 200, "text/plain", "500000000".into()),
-        ("/api/actions/buy-swd", 200, "application/json", r#"{"type":"transaction","transaction":"AQID","message":"0.1 SOL"}"#.into()),
+        ("/api/actions/buy-swd", 200, "application/json", serde_json::json!({ "type": "transaction", "transaction": good, "message": "0.1 SOL" }).to_string()),
     ]);
     let swd = swd_sdk::blocking::SwdClient::with_base_url(&base).unwrap();
     let t = swd.audit_tx("sol", "5sig", "en", false).unwrap();
@@ -114,7 +118,11 @@ fn blocking_tx_supply_buy() {
 
     let acct = "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin";
     let b = swd.buy_swd_transaction(acct, "0.1", Some(100), "en").unwrap();
-    assert_eq!(b.bytes, vec![1, 2, 3]);
+    assert_eq!(b.bytes, buy_tx(vec![], Opts::default()));
+    let i = b.inspection.as_ref().unwrap();
+    assert!(i.problems.is_empty(), "{:?}", i.problems);
+    assert_eq!(i.sol_out_lamports, 100_000_000);
+    assert!(i.uses_lookup_tables);
     let seen = log.lock().unwrap().last().cloned().unwrap();
     assert_eq!(seen.method, "POST");
     assert!(seen.target.contains("amount=0.1") && seen.target.contains("slippageBps=100"));
@@ -148,4 +156,72 @@ fn sol_amounts() {
     for bad in ["", ".5", "1.", "0.0009", "50.000000001", "1e3", "-1", "1.1234567891", "1000"] {
         assert!(swd_sdk::check_sol_amount(bad).is_err(), "{bad}");
     }
+}
+
+// ---- attack tests: a compromised / impersonated server answers with a hostile transaction
+fn answer(tx: &[u8]) -> swd_sdk::blocking::SwdClient {
+    let body = serde_json::json!({ "type": "transaction", "transaction": b64(tx), "message": "0.1 SOL" }).to_string();
+    let (base, _) = serve(vec![("/api/actions/buy-swd", 200, "application/json", body)]);
+    swd_sdk::blocking::SwdClient::with_base_url(&base).unwrap()
+}
+fn refused(tx: Vec<u8>, why: &str) {
+    match answer(&tx).buy_swd_transaction(BUYER, "0.1", None, "en") {
+        Err(SwdError::Api { code, message, .. }) => {
+            assert_eq!(code, "unsafe_transaction");
+            assert!(message.contains(why), "{message} should mention {why}");
+        }
+        other => panic!("expected unsafe_transaction ({why}), got {other:?}"),
+    }
+}
+
+#[test]
+fn attack_hostile_buy_transactions_are_refused() {
+    refused(buy_tx(vec![transfer(BUYER, ATTACKER, 5_000_000_000)], Opts::default()), "lamports out of the account");
+    refused(buy_tx(vec![], Opts { lamports: 2_000_000_000, ..Opts::default() }), "more than");
+    let approve = Ix { program: TOK, accounts: vec![WSOL_ATA, ATTACKER, BUYER], data: [vec![4], le(u64::MAX, 8)].concat() };
+    refused(buy_tx(vec![approve], Opts::default()), "SPL Approve");
+    let set_auth = Ix { program: TOK, accounts: vec![WSOL_ATA, BUYER], data: [vec![6, 2, 1], b58dec(ATTACKER)].concat() };
+    refused(buy_tx(vec![set_auth], Opts::default()), "SetAuthority");
+    let close = Ix { program: TOK, accounts: vec![WSOL_ATA, ATTACKER, BUYER], data: vec![9] };
+    refused(buy_tx(vec![close], Opts::default()), "CloseAccount");
+    let assign = Ix { program: SYS, accounts: vec![BUYER], data: [le(1, 4), b58dec(EVIL)].concat() };
+    refused(buy_tx(vec![assign], Opts::default()), "Assign");
+    refused(buy_tx(vec![Ix { program: EVIL, accounts: vec![BUYER], data: vec![1] }], Opts::default()), "unknown programs: Evi1Program");
+    refused(buy_tx(vec![], Opts { fee_payer: ATTACKER, signers: 2, ..Opts::default() }), "fee payer is HUj3");
+    refused(buy_tx(vec![], Opts { signers: 2, extra_keys: vec![ATTACKER], ..Opts::default() }), "other signers");
+    refused(buy_tx(vec![], Opts { signed: true, ..Opts::default() }), "already (partly) signed");
+}
+
+#[test]
+fn attack_fee_within_margin_allowed_programs_and_skip() {
+    let ok = answer(&buy_tx(vec![transfer(BUYER, ATTACKER, 1_000_000)], Opts::default())).buy_swd_transaction(BUYER, "0.1", None, "en").unwrap();
+    assert_eq!(ok.inspection.unwrap().sol_out_lamports, 101_000_000);
+    let evil = buy_tx(vec![Ix { program: EVIL, accounts: vec![BUYER], data: vec![1] }], Opts::default());
+    let checks = BuyChecks { allow_programs: vec![EVIL.to_string()], ..BuyChecks::default() };
+    assert!(answer(&evil).buy_swd_transaction_with(BUYER, "0.1", None, "en", &checks).is_ok());
+    let skip = BuyChecks { unsafe_skip_checks: true, ..BuyChecks::default() };
+    assert!(answer(&evil).buy_swd_transaction_with(BUYER, "0.1", None, "en", &skip).unwrap().inspection.is_none());
+}
+
+#[test]
+fn attack_malformed_bytes_are_bad_response() {
+    let good = buy_tx(vec![], Opts::default());
+    let mut trailing = good.clone();
+    trailing.push(0);
+    for bad in [good[..good.len() - 3].to_vec(), trailing, vec![1, 2, 3]] {
+        assert!(matches!(answer(&bad).buy_swd_transaction(BUYER, "0.1", None, "en"), Err(SwdError::BadResponse(_))));
+    }
+}
+
+#[test]
+fn decode_and_inspect_legacy() {
+    use swd_sdk::inspect::{base58, decode_transaction, inspect_transaction, InspectPolicy};
+    let legacy = build(&[BUYER, ATTACKER, SYS], 1, false, &[transfer(BUYER, ATTACKER, 7)], 0, false);
+    let d = decode_transaction(&legacy).unwrap();
+    assert_eq!(d.version, None);
+    assert_eq!(d.fee_payer, BUYER);
+    assert_eq!(inspect_transaction(&d, BUYER, &InspectPolicy::default()).sol_out_lamports, 7);
+    assert!(inspect_transaction(&d, ATTACKER, &InspectPolicy::default()).problems[0].contains("fee payer"));
+    assert_eq!(base58(&[0, 0, 1]), "112");
+    assert_eq!(base58(&[0u8; 32]), SYS);
 }

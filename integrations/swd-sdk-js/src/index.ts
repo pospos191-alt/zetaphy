@@ -5,6 +5,7 @@ import type { SwdLang } from "./types";
 
 export * from "./types";
 export { createSwdClient, SwdApiError, DEFAULT_BASE_URL, SWD_MINT, SWD_DECIMALS, BUY_MIN_SOL, BUY_MAX_SOL, solAmountString, type SwdClient, type SwdClientOptions } from "./client";
+export { decodeTransaction, inspectTransaction, base58, KNOWN_PROGRAMS, LOOKUP, type DecodedTransaction, type DecodedInstruction, type TxInspection, type InspectPolicy } from "./inspect";
 export { verifyAttestation, canonical, keyIdOf, signedMessage, ATTEST_FORMAT, type VerifyOptions, type VerifyResult, type MldsaVerify } from "./attest";
 
 let shared: SwdClient | null = null;
