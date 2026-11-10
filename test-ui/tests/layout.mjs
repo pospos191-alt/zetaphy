@@ -184,16 +184,17 @@ async function run(lang, width, auditMode) {
   // Trust panel
   // header shield (hidden below 380 px) or the banner's "Check this app" link
   await page.click(width < 380 ? "#net-banner-trust" : "#trust-btn");
+  let trustWaitError = "";
   const trust = await page.waitForFunction(() => {
     const b = document.getElementById("trust-body");
     return b && b.querySelector(".tr-list") ? { text: b.innerText, bad: b.querySelectorAll(".tr-bad").length } : null;
-  }, null, { timeout: 60000 }).then((h) => h.jsonValue(), () => null);
+  }, null, { timeout: 60000 }).then((h) => h.jsonValue(), (e) => { trustWaitError = String(e?.message || e).slice(0, 400); return null; });
   const trustDiag = trust ? "" : await page.evaluate(() => JSON.stringify({
     open: !!document.getElementById("trust-body"),
     body: (document.getElementById("trust-body")?.innerText || "").slice(0, 600),
     log: (document.getElementById("log")?.innerText || "").slice(-600),
   }));
-  check(!!trust, `${tag}: trust panel did not render ${trustDiag}`);
+  check(!!trust, `${tag}: trust panel did not render ${trustDiag} wait: ${trustWaitError}`);
   if (trust) {
     check(trust.text.includes("424,242") || trust.text.includes("424 242") || trust.text.includes("424242") || /424.242/.test(trust.text), `${tag}: trust panel lacks the deploy slot`);
     check(trust.text.includes("SWD AMM"), `${tag}: trust panel lacks security.txt: ${JSON.stringify(trust.text.slice(0, 1500))}`);
