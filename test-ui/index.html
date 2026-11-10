@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SWD AMM — Devnet Test UI</title>
+<title>SWD AMM · Devnet</title>
+<meta name="description" content="SWD AMM: swap and provide liquidity on Solana (constant-product, DLMM and SWDMM v2 pools). Now on devnet with test tokens; mainnet after an independent audit." />
+<meta name="theme-color" content="#0b0d14" />
+<link rel="modulepreload" href="./i18n/en.js" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -4310,6 +4313,7 @@ function applyNetworkUi() {
     try { hidden = localStorage.getItem(`${NET_BANNER_KEY}-${net}`) === "1" || (net === "devnet" && localStorage.getItem(NET_BANNER_KEY) === "1"); } catch {}
     box.hidden = hidden;
   }
+  document.title = `SWD AMM · ${{ devnet: "Devnet", mainnet: "Mainnet", localnet: "Localnet" }[net] || t("badgeCustom")}`;
   const opt = document.getElementById("opt-mainnet");
   if (opt) {
     opt.disabled = !MAINNET_LIVE;
