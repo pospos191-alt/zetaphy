@@ -5,8 +5,10 @@
 #          job and uploads the reproducer: copy it into
 #          programs/swd_amm/fuzz/regressions/<target>/ with the fix, so the
 #          per-PR amm-fuzz job (security.yml) replays it forever.
-#   kani   every Kani proof in programs/swd_amm/kani (bounded model
-#          checking of the CP / DLMM / v2 math). ~1-2 h.
+#   kani   the Kani proofs in programs/swd_amm/kani that complete (~7 min).
+#          Harnesses marked SLOW (cfg kani_slow) are not run: CBMC did not
+#          finish them in 15-25 min; their properties are checked
+#          exhaustively on small domains by fuzz/tests/exhaustive.rs (per PR).
 #
 # What these do and do not prove: docs/FUZZING_FORMAL.md.
 
@@ -58,7 +60,7 @@ jobs:
 
   kani:
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:

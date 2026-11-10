@@ -917,7 +917,8 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       # Stable toolchain, no libFuzzer instrumentation: every saved corpus
-      # input and crash reproducer, plus 30,000 fixed-seed inputs per target.
+      # input and crash reproducer, plus 30,000 fixed-seed inputs per target,
+      # plus the exhaustive small-domain checks (tests/exhaustive.rs).
       - name: replay fuzz corpus + seeded inputs
         run: cargo test --release --manifest-path programs/swd_amm/fuzz/Cargo.toml -- --nocapture
         env:

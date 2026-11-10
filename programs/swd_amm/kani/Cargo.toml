@@ -1,0 +1,25 @@
+# Kani model-checking proofs for swd_amm's pure math (2026-11-10).
+#
+# Standalone crate (own [workspace]); `#[path]`-includes the program's own
+# src/cp_math.rs, src/dlmm_math.rs and src/swdmm_math.rs, so the proofs
+# are about the exact code the program runs. All harnesses are behind
+# #[cfg(kani)]: a normal `cargo build`/`cargo test` of this crate compiles
+# only the included math.
+#
+#   cargo kani                       # every proof
+#   cargo kani --harness cp_swap     # one proof (substring match)
+#
+# See docs/FUZZING_FORMAL.md for what each proof does and does not cover.
+[package]
+name = "swd_amm_kani"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)', 'cfg(kani_slow)'] }
+
+[workspace]
+members = ["."]
