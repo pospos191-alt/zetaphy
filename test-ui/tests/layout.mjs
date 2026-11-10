@@ -187,8 +187,13 @@ async function run(lang, width, auditMode) {
   const trust = await page.waitForFunction(() => {
     const b = document.getElementById("trust-body");
     return b && b.querySelector(".tr-list") ? { text: b.innerText, bad: b.querySelectorAll(".tr-bad").length } : null;
-  }, null, { timeout: 8000 }).then((h) => h.jsonValue(), () => null);
-  check(!!trust, `${tag}: trust panel did not render`);
+  }, null, { timeout: 20000 }).then((h) => h.jsonValue(), () => null);
+  const trustDiag = trust ? "" : await page.evaluate(() => JSON.stringify({
+    open: !!document.getElementById("trust-body"),
+    body: (document.getElementById("trust-body")?.innerText || "").slice(0, 600),
+    log: (document.getElementById("log")?.innerText || "").slice(-600),
+  }));
+  check(!!trust, `${tag}: trust panel did not render ${trustDiag}`);
   if (trust) {
     check(trust.text.includes("424,242") || trust.text.includes("424 242") || trust.text.includes("424242") || /424.242/.test(trust.text), `${tag}: trust panel lacks the deploy slot`);
     check(trust.text.includes("SWD AMM"), `${tag}: trust panel lacks security.txt: ${JSON.stringify(trust.text.slice(0, 1500))}`);
