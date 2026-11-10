@@ -33,8 +33,12 @@ gates 4–9 are not started.
   `set_mint_policy`. A Token-2022 mint additionally needs the explicit
   `token_2022_reviewed` flag, passes the extension gate
   (`assert_mint_extensions_safe`: no TransferHook, PermanentDelegate,
-  ConfidentialTransfer, NonTransferable…) and must not carry a
+  ConfidentialTransfer, NonTransferable, MintCloseAuthority, and no
+  extension type this build does not know) and must not carry a
   TransferFeeConfig (SWDMM v2 books nominal amounts).
+- The gate cannot see a mint's freeze authority: a frozen vault makes
+  every withdrawal of that pool fail (both sides). Review the freeze
+  authority of every mint before enabling it.
 - Negative tests: `tests/swdmm_v2.ts` ("mint policy" cases) and
   `tests/swd_amm.ts` (Token-2022 extension cases).
 
@@ -124,8 +128,11 @@ the upgrade authority is the Squads vault, the `upload` step's verify-PDA write 
 - Allow the launch mints (`set-mint-policy <mint> true`, as Squads
   proposals). Allow wSOL (`So11111111111111111111111111111111111111112`) if
   SOL pairs are wanted.
-- Consider `set-pool-creation-paused true` until the first pools are
-  reviewed.
+- Keep `set-pool-creation-paused true` and create the canonical pools from
+  the governance vault (governance may create while creation is paused).
+  Pools are one per (mint_a, mint_b) [and fee tier for v2] with
+  creator-chosen, immutable bounds, so an open creation lets anyone squat a
+  pair with bad parameters.
 - Point test-ui (or the production UI) at the mainnet RPC and the mainnet
   program id; remove the devnet banner only after gates 4–7.
 
@@ -136,5 +143,9 @@ the upgrade authority is the Squads vault, the `upload` step's verify-PDA write 
   changes.
 - Incident: the emergency authority pauses (`emergency-pause-v2-pool`,
   `emergency-pause-pool`); only the multisig can unpause, and only after
-  the timelock (`propose-unpause-*` → wait → `execute`).
+  the timelock (`propose-unpause-*` → wait → `execute`). Execution is
+  permissionless: on a new incident the emergency authority also runs
+  `emergency-cancel-unpause <id>` for every pending unpause of that pool
+  (`yarn governance settings` lists them). A matured action expires 7 days
+  after `execute_after`.
 - Bug bounty and a published `security.txt` contact.

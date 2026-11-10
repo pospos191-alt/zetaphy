@@ -195,7 +195,8 @@ describe("swd_amm governance", () => {
     mA: PublicKey,
     mB: PublicKey,
     allowedMintAPda: PublicKey,
-    allowedMintBPda: PublicKey
+    allowedMintBPda: PublicKey,
+    creator: Keypair = payer
   ) {
     const { poolPda, vaultAPda, vaultBPda, lpMintPda } = derivePoolAddresses(mA, mB);
     await registerFeeds(program, payer, globalConfigPda, [
@@ -212,7 +213,7 @@ describe("swd_amm governance", () => {
         LEGACY_MAX_FEE_BPS
       )
       .accounts({
-        payer: payer.publicKey,
+        payer: creator.publicKey,
         mintA: mA,
         mintB: mB,
         config: globalConfigPda,
@@ -232,6 +233,7 @@ describe("swd_amm governance", () => {
         systemProgram: SystemProgram.programId,
         rent: SYSVAR_RENT_PUBKEY,
       })
+      .signers(creator === payer ? [] : [creator])
       .rpc();
     return { poolPda, vaultAPda, vaultBPda, lpMintPda };
   }
@@ -362,8 +364,17 @@ describe("swd_amm governance", () => {
       .accounts({ config: globalConfigPda, governanceAuthority: payer.publicKey })
       .rpc();
 
+    // Anyone but governance is refused while paused (governance itself may
+    // still create the canonical pools, see tests/security-review.ts F-3).
+    const creator = Keypair.generate();
+    await provider.sendAndConfirm(
+      new anchor.web3.Transaction().add(
+        SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: creator.publicKey, lamports: 1_000_000_000 })
+      ),
+      [payer]
+    );
     const err = await expectThrows(
-      () => initPoolRaw(mA, mB, allowedA, allowedB),
+      () => initPoolRaw(mA, mB, allowedA, allowedB, creator),
       "pool creation while globally paused"
     );
     const code = errorCode(err);
@@ -377,7 +388,7 @@ describe("swd_amm governance", () => {
       .accounts({ config: globalConfigPda, governanceAuthority: payer.publicKey })
       .rpc();
 
-    await initPoolRaw(mA, mB, allowedA, allowedB); // now succeeds
+    await initPoolRaw(mA, mB, allowedA, allowedB, creator); // now succeeds
   });
 
   it("emergency_authority can pause swap on an existing pool, and swap then fails", async () => {

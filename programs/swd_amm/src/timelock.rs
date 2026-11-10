@@ -50,6 +50,14 @@ pub const MIN_TIMELOCK_SECS: i64 = 24 * 60 * 60;
 pub const MIN_TIMELOCK_SECS: i64 = 5;
 pub const MAX_TIMELOCK_SECS: i64 = 48 * 60 * 60;
 
+/// A matured action must be executed within this window, or it expires
+/// (2026-11-10, security review). Execution is permissionless, so before
+/// this an old matured `Unpause*` proposal nobody executed stayed valid
+/// forever: anyone could execute it seconds after a NEW emergency pause of
+/// the same pool, undoing the pause mid-incident (same idea as Compound's
+/// Timelock GRACE_PERIOD). An expired action must be proposed again.
+pub const EXECUTION_GRACE_SECS: i64 = 7 * 24 * 60 * 60;
+
 /// Protocol share of SWDMM v2 trading fees can never exceed 20%.
 pub const MAX_PROTOCOL_FEE_SHARE_BPS: u16 = 2_000;
 
@@ -114,12 +122,32 @@ pub(crate) fn cancel_action(ctx: Context<CancelAction>) -> Result<()> {
     Ok(())
 }
 
+/// The emergency authority may cancel a pending UNPAUSE action (2026-11-10,
+/// security review). It can already pause at will, so this gives it no new
+/// power over funds; it closes the race where a matured unpause proposal is
+/// executed (permissionlessly) right after a new emergency pause, before the
+/// multisig gathers signatures to cancel it. Other kinds of action stay
+/// governance-only.
+pub(crate) fn emergency_cancel_unpause(ctx: Context<EmergencyCancelUnpause>) -> Result<()> {
+    let p = &mut ctx.accounts.pending;
+    require!(!p.executed && !p.cancelled, TimelockError::ActionNotPending);
+    require!(
+        matches!(
+            p.action,
+            GovAction::UnpauseCpPool { .. } | GovAction::UnpauseDlmmPool { .. } | GovAction::UnpauseV2Pool { .. }
+        ),
+        TimelockError::WrongActionKind
+    );
+    p.cancelled = true;
+    emit!(GovActionCancelled { id: p.id });
+    Ok(())
+}
+
 /// Shared checks for every execute_* instruction: still pending and the
 /// delay has passed. Marks it executed.
 fn take_ready(p: &mut Account<PendingAction>) -> Result<GovAction> {
     require!(!p.executed && !p.cancelled, TimelockError::ActionNotPending);
-    let now = Clock::get()?.unix_timestamp;
-    require!(now >= p.execute_after, TimelockError::TimelockNotElapsed);
+    check_execution_window(Clock::get()?.unix_timestamp, p.execute_after)?;
     p.executed = true;
     emit!(GovActionExecuted { id: p.id });
     Ok(p.action.clone())
@@ -250,6 +278,14 @@ pub(crate) fn set_mint_policy(ctx: Context<SetMintPolicy>, enabled: bool, token_
     Ok(())
 }
 
+/// `execute_after <= now <= execute_after + EXECUTION_GRACE_SECS`.
+pub fn check_execution_window(now: i64, execute_after: i64) -> Result<()> {
+    require!(now >= execute_after, TimelockError::TimelockNotElapsed);
+    let expires = execute_after.checked_add(EXECUTION_GRACE_SECS).ok_or(TimelockError::MathOverflow)?;
+    require!(now <= expires, TimelockError::ActionExpired);
+    Ok(())
+}
+
 fn validate_delay(secs: i64) -> Result<()> {
     require!(
         (MIN_TIMELOCK_SECS..=MAX_TIMELOCK_SECS).contains(&secs),
@@ -341,6 +377,18 @@ pub struct CancelAction<'info> {
 
     #[account(constraint = governance_authority.key() == config.governance_authority @ GovernanceError::Unauthorized)]
     pub governance_authority: Signer<'info>,
+
+    #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
+    pub pending: Account<'info, PendingAction>,
+}
+
+#[derive(Accounts)]
+pub struct EmergencyCancelUnpause<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
+    #[account(constraint = emergency_authority.key() == config.emergency_authority @ GovernanceError::Unauthorized)]
+    pub emergency_authority: Signer<'info>,
 
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
     pub pending: Account<'info, PendingAction>,
@@ -577,4 +625,6 @@ pub enum TimelockError {
     UseTimelockedUnpause,
     #[msg("Math overflow")]
     MathOverflow,
+    #[msg("This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again")]
+    ActionExpired,
 }
