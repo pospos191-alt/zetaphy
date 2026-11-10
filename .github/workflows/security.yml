@@ -213,6 +213,10 @@ jobs:
       - name: Faucet attack tests (rate limits, spoofed IPs, secret leaks)
         run: node test-ui/tests/faucet-attacks.mjs
 
+      - name: XSS attack tests (hostile token metadata / errors / API answers, with and without the CSP)
+        working-directory: test-ui/tests
+        run: node xss-attacks.mjs
+
   zetaphy-neuro:
     name: zetaphy-neuro (unit + browser tests)
     needs: changes
@@ -964,6 +968,12 @@ jobs:
           avm use "${ANCHOR_VERSION}"
           anchor --version | grep -q "${ANCHOR_VERSION}" || { echo "::error::anchor ${ANCHOR_VERSION} did not install"; exit 1; }
 
+      # Build BEFORE the keys exist on disk: anchor build runs code from the repo and from crates.io
+      # (build scripts, proc macros), none of which needs or should see a deploy key. anchor build may
+      # write a random target/deploy/swd_amm-keypair.json; the step below overwrites it.
+      - name: anchor build
+        run: anchor build
+
       # Two secrets of the environment devnet, each the full contents of a Solana keypair
       # JSON file (the [12,34,...] array):
       #   DEVNET_DEPLOYER_KEYPAIR  a Devnet-only wallet with a few SOL that is
@@ -994,9 +1004,6 @@ jobs:
           echo "Program id: $have"
           echo "Deployer:   $(solana-keygen pubkey ~/.config/solana/devnet-deployer.json)"
           solana balance "$(solana-keygen pubkey ~/.config/solana/devnet-deployer.json)" --url devnet
-
-      - name: anchor build
-        run: anchor build
 
       - name: Deploy / upgrade on Devnet
         run: |

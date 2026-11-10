@@ -129,6 +129,8 @@ jobs:
           npm ci --prefix zetaphy-snap --no-audit --no-fund
 
       - name: Pick up the state of an earlier run (launch/testnet), if any
+        env:
+          REF_NAME: ${{ github.ref_name }} # a branch name is text, never shell code: through env, not ${{ }} in run
         run: |
           if git fetch -q origin "$BRANCH" 2>/dev/null && git cat-file -e "FETCH_HEAD:$STATE" 2>/dev/null; then
             mkdir -p "$(dirname "$STATE")"
@@ -136,7 +138,7 @@ jobs:
             mkdir -p zetaphy-launch/state/proposals
             git archive FETCH_HEAD zetaphy-launch/state/proposals 2>/dev/null | tar -x 2>/dev/null || true
             echo "resuming from the state on $BRANCH"
-          elif [ -f "$STATE" ]; then echo "resuming from the state on ${{ github.ref_name }}"
+          elif [ -f "$STATE" ]; then echo "resuming from the state on $REF_NAME"
           else echo "no earlier state: a fresh launch"; fi
 
       - name: Check the RPC is ZETAPHY (eth_chainId 0x12e4e = 77390) before any key is used
