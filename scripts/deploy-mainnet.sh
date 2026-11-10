@@ -7,7 +7,8 @@
 #
 # Order (each is a sub-command; `all` runs them in this order):
 #   preflight  tools, versions, cluster = mainnet-beta, keypair files, declare_id == program keypair, clean git tree
-#   build      verified (Docker) build with --features mainnet  -> target/deploy/swd_amm.so + hash, then the IDL
+#   build      verified (Docker) build with --features mainnet,v2-only (the audited scope; --all-pools for
+#              --features mainnet = CP + DLMM too)  -> target/deploy/swd_amm.so + hash, then the IDL
 #   estimate   cost from the real .so size (program rent, temporary buffer, IDL, fees)
 #   deploy     solana program deploy with the FRESH program keypair (deployer = temporary upgrade authority)
 #   idl        anchor idl init (IDL on-chain, so Solscan decodes instructions)
@@ -20,6 +21,7 @@
 #   RPC=https://<private mainnet rpc> DEPLOYER_KEYPAIR=~/keys/deployer.json PROGRAM_KEYPAIR=~/keys/swd_amm-program.json \
 #   SQUADS_VAULT=<vault pda> EMERGENCY_AUTHORITY=<pubkey> bash scripts/deploy-mainnet.sh all            # dry run
 #   ... bash scripts/deploy-mainnet.sh all --execute                                                   # real
+#   ... bash scripts/deploy-mainnet.sh all --all-pools   # ALSO ship CP + DLMM (only if THEY were audited too)
 #
 # Optional: PRIORITY_FEE (micro-lamports per CU, default 50000), TIMELOCK_SECS (86400), PROTOCOL_FEE_BPS (1000),
 #           TREASURY (default SQUADS_VAULT), AUDITED_SHA256 (sha256 of the audited .so; build refuses a mismatch),
@@ -38,10 +40,13 @@ TIMELOCK_SECS="${TIMELOCK_SECS:-86400}"
 PROTOCOL_FEE_BPS="${PROTOCOL_FEE_BPS:-1000}"
 
 EXECUTE=0
+# Default = the reduced audit scope: SWDMM v2 + governance, CP and DLMM compiled out (AUDIT_README.md).
+FEATURES="mainnet,v2-only"
 ARGS=()
 for a in "$@"; do
   case "$a" in
     --execute) EXECUTE=1 ;;
+    --all-pools) FEATURES="mainnet" ;;
     *) ARGS+=("$a") ;;
   esac
 done
@@ -110,8 +115,9 @@ preflight() {
 }
 
 build() {
-  say "build (verified, --features mainnet)"
-  run solana-verify build --library-name "$LIB" -- --features mainnet
+  say "build (verified, --features $FEATURES)"
+  [ "$FEATURES" = "mainnet,v2-only" ] || info "WARNING: --all-pools ships the CP + DLMM pool types; deploy this only if the audit covered them"
+  run solana-verify build --library-name "$LIB" -- --features "$FEATURES"
   if [ -f "$SO" ]; then
     local h="(solana-verify not installed)"
     command -v solana-verify >/dev/null 2>&1 && h=$(solana-verify get-executable-hash "$SO")
@@ -122,7 +128,7 @@ build() {
     fi
   fi
   # The IDL must carry the mainnet address (governance.ts reads it). Building it does not touch the .so.
-  run anchor idl build -o "$IDL"
+  run anchor idl build -o "$IDL" -- --features "$FEATURES"
 }
 
 estimate() {
@@ -179,7 +185,7 @@ verify() {
   #    upgrade authority = still the deployer at this point; after handover use `solana-verify export-pda-tx` and
   #    a Squads proposal instead). solana-verify 0.5.x removed --remote from this command.
   run solana-verify -u "$RPC" verify-from-repo --program-id "$pid" --library-name "$LIB" --commit-hash "$commit" \
-    --mount-path . --keypair "$DEPLOYER_KEYPAIR" "$REPO_URL" -- --features mainnet
+    --mount-path . --keypair "$DEPLOYER_KEYPAIR" "$REPO_URL" -- --features "$FEATURES"
   # 2) queue OtterSec's remote build; explorers read its result.
   run solana-verify -u "$RPC" remote submit-job --program-id "$pid" --uploader "$(pubkey_of "$DEPLOYER_KEYPAIR")"
   info "check: solana-verify -u \$RPC remote get-status --program-id $pid"
@@ -234,5 +240,5 @@ case "$CMD" in
   handover) need RPC; need PROGRAM_KEYPAIR; need DEPLOYER_KEYPAIR; need SQUADS_VAULT; need EMERGENCY_AUTHORITY; handover ;;
   check) check ;;
   all) preflight; build; estimate; deploy; idl; verify; governance; handover; check ;;
-  *) sed -n '2,30p' "$0"; exit 2 ;;
+  *) sed -n '2,28p' "$0"; exit 2 ;;
 esac

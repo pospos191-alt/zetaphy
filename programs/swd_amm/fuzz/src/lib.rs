@@ -15,7 +15,7 @@
 //! docs/FUZZING_FORMAL.md. In short: cp_math / dlmm_math / swdmm_math are
 //! the real code; the few lines of per-handler bookkeeping around them
 //! (reserve += amount, position.shares[i] += ..., vault transfers) are
-//! re-stated in the models from lib.rs / dlmm.rs / swdmm_v2.rs.
+//! re-stated in the models from cp.rs / lib.rs / dlmm.rs / swdmm_v2.rs.
 
 #![allow(clippy::too_many_arguments)]
 

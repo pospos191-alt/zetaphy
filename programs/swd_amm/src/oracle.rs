@@ -1,123 +1,41 @@
-// SWD AMM — Pyth pull-oracle guard + dynamic fee ("Phase 3", added
-// 2026-09-23, per the user's original "SWDMM" scope list — see
-// architecture-and-decisions.md).
+// Pyth pull-oracle reader, deviation guard and oracle dynamic fee.
 //
-// WHAT THIS ADDS: both pool types (constant-product in lib.rs, DLMM in
-// dlmm.rs) now MANDATE a fresh Pyth price for both sides of the pair on
-// every swap — this is a deliberate breaking change from this program's
-// prior fully-permissionless swap path, chosen explicitly by the user
-// (asked directly: "should a pool with no oracle configured still be
-// swappable, permissionless, like before?" — answer: no, every pool must
-// have an oracle to swap at all). A pool with no oracle configured simply
-// cannot be created any more; `pyth_feed_id_a`/`pyth_feed_id_b` are now
-// required arguments to `initialize_pool`/`initialize_dlmm_pool`, exactly
-// like `fee_bps` already was, and — consistent with this program's
-// existing "no admin-set-fee, fee is immutable once a pool is created"
-// design (see lib.rs's `initialize_pool` doc comment) — the oracle/fee
-// parameters below are likewise fixed at pool creation, with no
-// governance instruction to change them afterward. If that turns out to
-// be too rigid in practice (e.g. a feed gets deprecated), the fix is a
-// new pool, not a new governance instruction — same tradeoff this
-// program already accepted for `fee_bps`.
+// Who uses it
+// - SWDMM v2 (swdmm_v2.rs): OPTIONAL per pool (`oracle.enabled`); when on,
+//   the feed ids must equal the ones governance registered with
+//   `set_mint_feed`, and every swap checks the post-trade price against the
+//   oracle (`evaluate_oracle_and_fee` + `enforce_guard`).
+// - CP and DLMM (full build only): MANDATORY; feed ids and bounds are fixed
+//   at pool creation, and the oracle dynamic fee scales the swap fee from
+//   `fee_bps` to `max_fee_bps` with the deviation.
 //
-// WHY BOTH A GUARD *AND* A DYNAMIC FEE, NOT JUST ONE:
-//   - The GUARD (`oracle_max_deviation_bps`) is a hard circuit breaker —
-//     if this pool's own current spot price has drifted from the oracle
-//     price by more than this many basis points, the swap is rejected
-//     (`OracleError::PriceDeviationTooLarge`) unless it moves the price
-//     back toward the oracle — see `guard_allows` for why that exception
-//     is needed (without it one large swap could freeze a pool). This is what
-//     actually protects LPs from the classic "drain a thinly-traded pool
-//     via a huge price-impact trade, profit on a healthier venue"
-//     attack — no fee surcharge, however large, fully closes that hole
-//     on its own, because a large enough single trade can always outrun
-//     a fee that's still bounded by `MAX_FEE_BPS` (10%).
-//   - The DYNAMIC FEE (scaling from the pool's normal `fee_bps` up to
-//     `max_fee_bps` as deviation approaches the guard threshold) is a
-//     softer, continuous disincentive for the price range BELOW the hard
-//     cutoff — it makes it progressively more expensive to push the
-//     pool's price away from the oracle-observed fair price as that gap
-//     widens, without outright blocking every large-but-legitimate trade
-//     the moment the pool drifts even slightly.
+// Mechanics
+// - Two USD feeds (one per mint); price of A in B = price_a / price_b,
+//   rescaled for exponents and mint decimals into the same Q64.64
+//   "raw units of B per raw unit of A" the pools use (`oracle_price_q64`).
+// - Guard: a swap is refused (PriceDeviationTooLarge) when the post-trade
+//   pool price deviates from the oracle by more than `max_deviation_bps`,
+//   unless it moves the price back toward the oracle (`guard_allows`), so
+//   one large swap cannot freeze a pool.
+// - Staleness: `publish_time` may be at most `max_staleness_secs`
+//   (<= MAX_ORACLE_STALENESS_SECS) behind the cluster clock; a publish_time
+//   AHEAD of the clock counts as age 0 (validator clock skew), like the
+//   official SDK. Confidence must be <= MAX_ORACLE_CONF_BPS of the price;
+//   only VerificationLevel::Full is accepted; the account must be owned by
+//   the Pyth receiver program. Any Full-verified update inside the window
+//   is accepted, so a trader can pick among several recent prices (pull
+//   oracle property; see the audit package's known issues).
 //
-// WHY TWO SEPARATE PRICE FEEDS (one per mint) RATHER THAN ONE
-// "A-per-B" FEED: Pyth publishes feeds against USD (or occasionally
-// another common quote asset), not arbitrary pairs — there is no
-// single published "mint_a/mint_b" feed for most pairs this program
-// could plausibly list. Requiring one USD-denominated feed per side and
-// dividing them (see `oracle_price_q64` below) is the standard pattern
-// every Pyth pull-oracle integration guide recommends for this reason.
-//
-// PRICE-COMPARISON UNITS: both the pool's own spot price and the oracle
-// price are reduced to the exact same Q64.64 fixed-point representation
-// this program already uses elsewhere — "raw units of mint_b per 1 raw
-// unit of mint_a" (see dlmm.rs's `bin_price_q64` doc comment for the
-// precedent; this module deliberately reuses that exact convention so
-// the constant-product pool's `reserve_b/reserve_a` ratio, a DLMM pool's
-// `bin_price_q64(active_bin_id, bin_step_bps)`, and this module's
-// `oracle_price_q64(...)` are all directly comparable numbers with no
-// extra conversion at the call site).
-//
-// LOCAL/localnet TESTING: unlike a normal SPL token account, a real Pyth
-// `PriceUpdateV2` account cannot be manufactured by simply calling this
-// program's own instructions — it is written by Pyth's own Receiver
-// program from a signed, cross-chain price update. There is no
-// documented way (checked directly against Pyth's own current docs,
-// 2026-09-23) to get a real, fresh one on a bare `solana-test-validator`
-// without either a live relayer or hand-built fixture data. This
-// program's test suite takes the fixture route — see
-// `scripts/gen-pyth-fixtures.js` and its own header comment for exactly
-// how, and what that approach does and does not prove.
-//
-// KNOWN UNCERTAINTY: `PYTH_RECEIVER_PROGRAM_ID` below and the exact byte
-// layout this module hand-implements for `PriceUpdateV2` (see "WHY THIS
-// MODULE DOES NOT DEPEND ON `pyth-solana-receiver-sdk`" below) were both
-// independently cross-checked against Pyth's own published crate docs
-// (docs.rs for `pyth-solana-receiver-sdk` 2.0.0, both the current and
-// "legacy" compat crate, which agreed with each other) and, for the
-// program ID specifically, against three independent third-party block
-// explorers showing real transaction history at that address — high
-// confidence, but never compiled and round-tripped against a real
-// Pyth-posted account in this pass (this sandbox cannot reach crates.io —
-// see the project's standing verification workflow). Treat `anchor
-// build`/`anchor test` on the user's own machine as the real
-// verification, same as every other external integration in this
-// codebase.
-//
-// WHY THIS MODULE DOES NOT DEPEND ON THE OFFICIAL `pyth-solana-receiver-
-// sdk` CRATE (added 2026-09-24, after the first real `cargo test` on the
-// user's own machine surfaced a genuine dependency dead-end — see
-// SECURITY.md/chat history for the full story): `pyth-solana-receiver-sdk`
-// 2.0.0 requires anchor-lang's newly-released 1.0.x line; downgrading to
-// 1.0.1 avoids that but then hard-requires `pythnet-sdk >=2.3.1`, whose
-// `PriceFeedMessage` type is written against borsh 1.x — but anchor-lang
-// 0.31.1 (what this whole program is built on, pre-Anchor-1.0) needs
-// borsh 0.10.x for its own `#[account]`/`Account<'info, T>` machinery.
-// Every currently-published version of the official SDK sits on one side
-// or the other of that borsh/anchor-lang fault line; there is no version
-// that satisfies both without upgrading this entire program off
-// anchor-lang 0.31.1 (a far larger, separately-scoped change the user
-// explicitly declined for this phase — see the AskUserQuestion exchange
-// this decision came from). So the account TYPE below is hand-implemented
-// against anchor-lang 0.31.1's own traits directly (`Owner`,
-// `Discriminator`, `AccountSerialize`/`AccountDeserialize`, all manually
-// implemented the same way Anchor's own `#[account]` macro would generate
-// them — verified against anchor-lang 0.31.1's real macro-codegen source,
-// docs.rs, 2026-09-24 — rather than relying on `#[account]` itself, which
-// always hardcodes `Owner::owner()` to `crate::ID`, i.e. THIS program, not
-// the real foreign owner an imported oracle account needs). This is a
-// deliberate, security-relevant tradeoff: it trades "reuse Pyth's own
-// audited SDK code" for "full control, zero cross-version dependency
-// conflicts" — the exact byte layout and the `get_price_no_older_than`
-// equivalent below were built from the SAME cross-checked field order and
-// verification-level rule already used by `scripts/gen-pyth-fixtures.js`
-// (require `VerificationLevel::Full`, reject `Partial` outright — pull
-// oracle guidance is that only a fully-verified update should be trusted;
-// see that script's own header comment for the layout cross-check
-// methodology). If Pyth ever changes `PriceUpdateV2`'s on-chain layout,
-// this module has to be updated by hand — there is no `cargo update` that
-// picks that up automatically anymore. Cargo.toml no longer depends on
-// `pyth-solana-receiver-sdk` or `pythnet-sdk` at all.
+// Why `PriceUpdateV2` is hand-implemented here (not pyth-solana-receiver-sdk)
+// Every published version of the official SDK conflicts with anchor-lang
+// 0.31.1 (it needs anchor-lang 1.x, or pythnet-sdk >= 2.3.1 built on borsh
+// 1.x while anchor-lang 0.31.1 needs borsh 0.10). So the account type
+// implements Owner (= PYTH_RECEIVER_PROGRAM_ID), Discriminator and
+// Account(De)Serialize by hand, mirroring the SDK's byte layout
+// (discriminator, write_authority, verification_level, PriceFeedMessage,
+// posted_slot). This trades reuse of Pyth's audited code for no dependency
+// conflict: a Pyth layout change must be mirrored here by hand. The test
+// fixtures (scripts/gen-pyth-fixtures.js) are written with the same layout.
 
 use anchor_lang::prelude::*;
 use std::io::Write;
@@ -476,11 +394,7 @@ pub fn oracle_price_q64(
 /// u128 values with no unscaling step.
 pub fn deviation_bps(pool_price_q64: u128, oracle_price_q64: u128) -> Result<u64> {
     require!(oracle_price_q64 > 0, OracleError::InvalidOraclePrice);
-    let diff = if pool_price_q64 >= oracle_price_q64 {
-        pool_price_q64 - oracle_price_q64
-    } else {
-        oracle_price_q64 - pool_price_q64
-    };
+    let diff = pool_price_q64.abs_diff(oracle_price_q64);
     let bps = diff
         .checked_mul(10_000)
         .ok_or(OracleError::MathOverflow)?

@@ -24,6 +24,11 @@ const REMOVED = [
   "emergencyPausePool", "emergencyPauseDlmmPool", "governedUnpausePool", "governedUnpauseDlmmPool",
   "executeUnpausePool", "executeUnpauseDlmmPool", "setAllowedMint",
 ];
+// SWD_MAINNET_BUILD=1: the binary was built with `mainnet,v2-only`, whose
+// timelock must be 24h-48h (timelock.rs), so the set-up uses 24h and the
+// suites that wait for a timelock (swdmm_v2.ts) cannot run against it.
+const MAINNET_BUILD = process.env.SWD_MAINNET_BUILD === "1";
+const DELAY = MAINNET_BUILD ? 86_400 : 5;
 
 describe("v2-only build (reduced mainnet scope)", function () {
   const provider = anchor.AnchorProvider.env();
@@ -46,8 +51,14 @@ describe("v2-only build (reduced mainnet scope)", function () {
       await program.methods.initializeGlobalConfig(payer.publicKey, emergencyAuthority.publicKey)
         .accounts({ config: globalConfig, programData: PublicKey.findProgramAddressSync([program.programId.toBuffer()], new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"))[0], payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
     } catch (e) { if (!String(e).includes("already in use")) throw e; }
+    if (MAINNET_BUILD) {
+      // Must run before any other suite initialises the settings.
+      const err = await expectThrows(() => program.methods.initializeGovernanceSettings(new BN(5), 1_000, payer.publicKey)
+        .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, settings, payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc(), "5s timelock on a mainnet build");
+      if (!String(err).includes("already in use")) assert.equal(code(err), "InvalidTimelockDelay", String(err));
+    }
     try {
-      await program.methods.initializeGovernanceSettings(new BN(5), 1_000, payer.publicKey)
+      await program.methods.initializeGovernanceSettings(new BN(DELAY), 1_000, payer.publicKey)
         .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, settings, payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
     } catch (e) { if (!String(e).includes("already in use")) throw e; }
   });
@@ -61,7 +72,7 @@ describe("v2-only build (reduced mainnet scope)", function () {
       "initializeV2Pool", "createV2Position", "addV2Liquidity", "removeV2Liquidity", "claimV2Fees",
       "lockV2Liquidity", "transferV2Position", "closeV2Position", "swapV2", "emergencyPauseV2Pool",
     ]) assert.isTrue(names.has(n), `${n} missing`);
-    assert.equal(names.size, 24);
+    assert.equal(names.size, 23);
   });
 
   it("the binary refuses a CP instruction discriminator (not just the IDL)", async () => {

@@ -76,10 +76,9 @@ solana_security_txt::security_txt! {
     auditors: "None yet"
 }
 
-// Sanity ceiling only, not a promise of what any given pool actually
-// charges — each pool's real fee is whatever was passed to
-// initialize_pool and is stored (immutably — there is no
-// set_fee/admin instruction in this program) on the Pool account.
+// Ceiling for the CP / DLMM `fee_bps` and oracle `max_fee_bps` (immutable
+// per pool). Also bounds `oracle::validate_oracle_params`, which SWDMM v2
+// calls with fee arguments 0 / 0.
 pub const MAX_FEE_BPS: u16 = 1_000; // 10%
 
 #[program]
@@ -387,6 +386,12 @@ pub mod swd_amm {
 // Errors
 // ---------------------------------------------------------------------
 
+// Default offset (6000). Kept whole in every build so error numbers never
+// shift; in a `v2-only` build only `UnsupportedMintExtension` (the
+// Token-2022 gate below) can be returned. Other enums: DlmmError 6100,
+// GovernanceError 6200, OracleError 6300, SwdmmV2Error 8000,
+// TimelockError 8500 (the Anchor 0.31 IDL lists only one enum; the full
+// table is in audit-package/ERROR_CODES.md).
 #[error_code]
 pub enum SwdAmmError {
     #[msg("Fee exceeds the maximum allowed")]

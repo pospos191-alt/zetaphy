@@ -15,12 +15,15 @@
 //    hostage), and governance can CANCEL it before that. Everything that
 //    changes fees, unpauses a pool or moves protocol fees goes through
 //    here:
-//      - unpause a constant-product, DLMM or SWDMM v2 pool
+//      - unpause a SWDMM v2 pool (and, in the full build, a CP or DLMM
+//        pool; a `v2-only` build refuses to propose those)
 //      - protocol fee share, timelock delay, treasury
 //      - SWDMM v2 pool risk parameters (price-impact cap, dynamic fee on/off)
 //      - withdraw accrued SWDMM v2 protocol fees to the treasury
 //    The old instant `governed_unpause_pool` / `governed_unpause_dlmm_pool`
-//    always refuse with UseTimelockedUnpause (see governance.rs).
+//    (full build) always refuse with UseTimelockedUnpause (governance.rs).
+//    A matured action can be executed for EXECUTION_GRACE_SECS (7 days),
+//    then it expires; the emergency authority may cancel a pending unpause.
 // 3. MintPolicy (per-mint PDA "mint_policy"): allowlist entry that also
 //    pins the mint's token program and, for Token-2022 mints, requires an
 //    explicit "reviewed" flag plus the extension safety gate. SWDMM v2

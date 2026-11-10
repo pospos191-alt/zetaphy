@@ -8,20 +8,22 @@
 #                       i.e. a Squads proposal once the authority is the multisig vault — see docs/MAINNET_RUNBOOK.md)
 #
 # Needs Docker and `cargo install solana-verify`. Never put a private key in this repo or in CI.
+# FEATURES (default mainnet,v2-only = the audited scope, CP + DLMM compiled out; FEATURES=mainnet ships all pools).
 set -euo pipefail
 cmd="${1:-}"
 LIB=swd_amm
+FEATURES="${FEATURES:-mainnet,v2-only}"
 REPO_URL="${REPO_URL:-https://github.com/pospos191-alt/zetaphy}"
 case "$cmd" in
   build)
-    solana-verify build --library-name "$LIB" -- --features mainnet
+    solana-verify build --library-name "$LIB" -- --features "$FEATURES"
     solana-verify get-executable-hash "target/deploy/${LIB}.so"
     ;;
   verify)
     : "${2:?program id}" "${3:?rpc url}"
     COMMIT=$(git rev-parse HEAD)
     solana-verify verify-from-repo -u "$3" --program-id "$2" --library-name "$LIB" --commit-hash "$COMMIT" \
-      --mount-path . "$REPO_URL" -- --features mainnet
+      --mount-path . "$REPO_URL" -- --features "$FEATURES"
     solana-verify get-program-hash -u "$3" "$2"
     ;;
   upload)
@@ -32,7 +34,7 @@ case "$cmd" in
     # Once the authority is the Squads vault: `solana-verify export-pda-tx ...` -> Squads proposal, then submit-job
     # with UPLOADER=<vault>.
     solana-verify -u "$3" verify-from-repo --program-id "$2" --library-name "$LIB" --commit-hash "$COMMIT" \
-      --mount-path . ${KEYPAIR:+--keypair "$KEYPAIR"} "$REPO_URL" -- --features mainnet
+      --mount-path . ${KEYPAIR:+--keypair "$KEYPAIR"} "$REPO_URL" -- --features "$FEATURES"
     UPLOADER="${UPLOADER:-$(solana-keygen pubkey ${KEYPAIR:-})}"
     solana-verify -u "$3" remote submit-job --program-id "$2" --uploader "$UPLOADER"
     ;;
