@@ -1,0 +1,72 @@
+# Long-running AMM checks (2026-11-10) — manual or weekly, never on PRs.
+#
+#   fuzz   libFuzzer (cargo-fuzz, nightly) on every target in
+#          programs/swd_amm/fuzz for FUZZ_SECONDS each. A crash fails the
+#          job and uploads the reproducer: copy it into
+#          programs/swd_amm/fuzz/regressions/<target>/ with the fix, so the
+#          per-PR amm-fuzz job (security.yml) replays it forever.
+#   kani   every Kani proof in programs/swd_amm/kani (bounded model
+#          checking of the CP / DLMM / v2 math). ~1-2 h.
+#
+# What these do and do not prove: docs/FUZZING_FORMAL.md.
+
+name: AMM fuzz + formal (long)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: "libFuzzer seconds per target"
+        default: "600"
+  schedule:
+    - cron: '41 2 * * 0' # Sundays
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      FUZZ_SECONDS: ${{ github.event.inputs.fuzz_seconds || '600' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: nightly
+      - name: Install cargo-fuzz
+        run: cargo install --locked cargo-fuzz
+      - name: Fuzz every target
+        working-directory: programs/swd_amm
+        run: |
+          for t in $(cargo +nightly fuzz list --fuzz-dir fuzz); do
+            echo "::group::$t"
+            cargo +nightly fuzz run --fuzz-dir fuzz -O -a "$t" -- \
+              -max_total_time="$FUZZ_SECONDS" -max_len=4096 -timeout=10 -print_final_stats=1
+            echo "::endgroup::"
+          done
+      - name: Upload crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: programs/swd_amm/fuzz/artifacts/
+          retention-days: 30
+
+  kani:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - name: Run every proof
+        working-directory: programs/swd_amm/kani
+        run: cargo kani
