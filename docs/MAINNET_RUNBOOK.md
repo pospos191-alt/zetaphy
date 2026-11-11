@@ -102,7 +102,7 @@ buffer during deploy, ~0.10 SOL IDL — have ≥ ~11.4 SOL in the deployer (~5.7
 build (`--all-pools`, 1,294,360 bytes) needs ~18.1 SOL. (`scripts/deploy-mainnet.sh estimate` recomputes this from the
 real .so.) Before running it, the `#[cfg(feature = "mainnet")] declare_id!` in
 `lib.rs` and `[programs.mainnet]` in `Anchor.toml` must hold the fresh program id, committed and pushed
-(set 2026-11-11: `3acaVErTYMArMbfXwMTEQiefUHBZgAkPuVaBgo1ptkc4`; the keypair stays on the owner's machine). The manual equivalent:
+(set 2026-11-11: `3B6BBGon6nVj7avJ92B8xJAMe5BocaUwNVu5MvkJrwLu`; the keypair stays on the owner's machine). The manual equivalent:
 
 ```bash
 # 1. deploy with the one-time deployer key
