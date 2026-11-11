@@ -243,9 +243,11 @@ describe("v2-only build (reduced mainnet scope)", function () {
       priceUpdateA: fx.priceUpdateA, priceUpdateB: fx.priceUpdateB,
     }).instruction();
     const units = async (label: string, ixs: anchor.web3.TransactionInstruction[]) => {
-      const sig = await provider.sendAndConfirm(new anchor.web3.Transaction().add(...ixs), [], { commitment: "confirmed" });
+      // provider defaults (a per-call commitment made the preflight look for a
+      // blockhash the node did not have at that commitment yet)
+      const sig = await provider.sendAndConfirm(new anchor.web3.Transaction().add(...ixs), []);
       let tx = null;
-      for (let i = 0; i < 20 && !tx; i++) {
+      for (let i = 0; i < 60 && !tx; i++) {
         tx = await conn.getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
         if (!tx) await new Promise((r) => setTimeout(r, 500));
       }
