@@ -15,7 +15,7 @@ in Solscan's DeFi menu, and says plainly which facts are **confirmed** and which
 |---|---|---|---|---|
 | 1 | External audit | auditor + developer fixes | the largest cost (see 1) | ❌ not started |
 | 2 | New keys + mainnet program id | owner | hardware wallets | ❌ |
-| 3 | Verified build + deploy | owner (runs the script) | ~17.9 SOL needed in the wallet, ~9.04 SOL spent/locked | ❌ |
+| 3 | Verified build + deploy | owner (runs the script) | ~11.2 SOL needed in the wallet, ~5.7 SOL spent/locked (v2-only build; full build ~17.9 / ~9.04) | ❌ |
 | 4 | Upload the IDL on-chain | script | ~0.18 SOL | ❌ |
 | 5 | "Verified" status with OtterSec | script | free (small fees) | ❌ |
 | 6 | Hand all authorities to the Squads multisig | script + Squads members | small | ❌ |
@@ -34,6 +34,12 @@ Already prepared in the repo:
 ---
 
 ## 1. Audit (must come first)
+
+> **Update 2026-11-11 — the audit package is ready:** `AUDIT_README.md` and `audit-package/` (scope, architecture,
+> trust model, invariants, known issues, questions), RFP emails and firm list in `audit-package/rfp/`, owner's guide
+> in Thai in `audit-package/README.th.md`. The "SWDMM v2 only" option below is now done: the Cargo feature `v2-only`
+> compiles CP and DLMM out, and the mainnet build (`--features mainnet,v2-only`, what `scripts/deploy-mainnet.sh`
+> builds) is **2,531 nSLOC** (full program 4,745). The numbers in 1.1–1.2 below are the earlier estimate.
 
 Why: Jupiter says DEXes that don't use a standard audited program need their own audit, DefiLlama has a field for the
 audit link, and users and Solscan look at it. An AMM holds users' money — one bug can drain a pool permanently.
@@ -153,7 +159,7 @@ What the script does, in order (the order matters):
 
 1. **preflight** — checks the tools; checks the RPC really is mainnet (genesis hash); keypair files are outside the
    repo; `declare_id!` matches the program keypair; git is clean and pushed; shows the deployer's SOL balance
-2. **build** — `solana-verify build` (Docker build, so every machine gets the same file) with `--features mainnet`
+2. **build** — `solana-verify build` (Docker build, so every machine gets the same file) with `--features mainnet,v2-only`
    (24–48h timelock) and prints the hash; if `AUDITED_SHA256` is set, it refuses to continue when the hash doesn't match
    the audited build
 3. **estimate** — computes the cost from the real `.so` size
@@ -167,7 +173,7 @@ What the script does, in order (the order matters):
 8. **handover** — transfers governance, IDL authority and program upgrade authority to the Squads vault (**last step**)
 9. **check** — verifies: authority == vault, on-chain hash == built hash, IDL exists on-chain
 
-### Costs (computed from today's .so build: 1,266,528 bytes — the real mainnet build may differ slightly; the script recomputes)
+### Costs (v2-only mainnet build 2026-11-11: 793,096 bytes → ~11.2 SOL needed, ~5.66 SOL locked/spent; the table below is the earlier full build: 1,266,528 bytes — the real mainnet build may differ slightly; the script recomputes)
 
 | Item | SOL |
 |---|---|
