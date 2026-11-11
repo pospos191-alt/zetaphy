@@ -150,7 +150,9 @@ export function analyzeSolana(m, ctx = {}) {
     if (known) add('known-issuer', 'good', { symbol: known.symbol, issuer: known.issuer, kind: known.kind });
     if (ctx.lookalike) add('lookalike', 'high', { symbol: t.symbol, official: ctx.lookalike.address, issuer: ctx.lookalike.issuer });
 
-    if (m.mintAuthority) add('sol-mint-authority', cap('high'), { authority: m.mintAuthority, ...issuer });
+    // A mint authority can add supply (medium: many large tokens keep one); a
+    // freeze authority can lock holders' coins, a classic Solana trap (high).
+    if (m.mintAuthority) add('sol-mint-authority', cap('medium'), { authority: m.mintAuthority, ...issuer });
     else add('sol-mint-renounced', 'good');
     if (m.freezeAuthority) add('sol-freeze-authority', cap('high'), { authority: m.freezeAuthority, ...issuer });
     else add('sol-freeze-renounced', 'good');
