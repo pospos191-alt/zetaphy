@@ -31,7 +31,9 @@ for (const optimize of [true, false]) {
       for (const id of ['owner-active', 'can-mint', 'can-blacklist', 'can-pause', 'can-change-fee', 'trading-switch', 'can-limit', 'fee-exempt']) {
         assert.ok(ids(r).includes(id), `missing ${id}`);
       }
-      assert.equal(sev(r, 'can-mint'), 'high');
+      // mint alone means "trust the owner" (medium); blacklist + pause + fee + trading + limit is the honeypot kit (high)
+      assert.equal(sev(r, 'can-mint'), 'medium');
+      for (const id of ['can-blacklist', 'can-pause', 'can-change-fee', 'trading-switch', 'can-limit']) assert.equal(sev(r, id), 'high', id);
     });
 
     test('unnamed dispatcher functions are reported instead of "nothing found"', async () => {
@@ -54,10 +56,10 @@ for (const optimize of [true, false]) {
       assert.equal(r.analysis.level, 'low');
     });
 
-    test('role-based token: mint stays high', async () => {
+    test('role-based token: mint is medium when every function is named', async () => {
       const r = await read(await chain.deploy('RolesToken'));
       assert.equal(r.analysis.control, 'roles');
-      assert.equal(sev(r, 'can-mint'), 'high');
+      assert.equal(sev(r, 'can-mint'), 'medium');
     });
 
     test('phishing name is flagged and the symbol is cleaned', async () => {

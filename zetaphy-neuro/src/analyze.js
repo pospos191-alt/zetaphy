@@ -6,16 +6,27 @@
 const ZERO = '0x0000000000000000000000000000000000000000';
 const RANK = { high: 3, medium: 2, low: 1, info: 0, good: 0 };
 
-// Owner-gated powers. `base` is the severity while someone still holds control.
+// Owner-gated powers. `base` is the severity while someone still holds control
+// and every function of the code has a known name. Many well-known tokens hold
+// mint / blacklist / pause powers (stablecoins, bridged coins), so on their own
+// they mean "you must trust the owner" (medium). Next to functions the rules
+// cannot name they are raised to high (`opaque`): that pairing is typical of
+// scam tokens (SWD Audit benchmark 2026-11-11: 774 labelled tokens).
+// Seizing holders' coins stays high: it takes coins that are already bought.
 const POWERS = [
-  { cat: 'mint', id: 'can-mint', base: 'high' },
-  { cat: 'blacklist', id: 'can-blacklist', base: 'high' },
-  { cat: 'pause', id: 'can-pause', base: 'high' },
+  { cat: 'mint', id: 'can-mint', base: 'medium', opaque: 'high' },
+  { cat: 'blacklist', id: 'can-blacklist', base: 'medium', opaque: 'high' },
+  { cat: 'pause', id: 'can-pause', base: 'medium', opaque: 'high' },
   { cat: 'seize', id: 'can-seize', base: 'high' },
   { cat: 'fee', id: 'can-change-fee', base: 'medium' },
   { cat: 'trading', id: 'trading-switch', base: 'medium' },
   { cat: 'limit', id: 'can-limit', base: 'medium' },
 ];
+
+// Powers that can stop holders from selling or tax them. Three or more of
+// them together, still owner-held, is the usual honeypot kit: all count as high.
+const TRAP_CATS = ['blacklist', 'pause', 'trading', 'fee', 'limit'];
+export const TRAP_KIT = 3;
 
 // Unknown-pattern signal: at least this many unnamed functions making up at
 // least this share of the dispatcher, in code that can move value.
@@ -67,6 +78,10 @@ export function analyze(input) {
   const upgradeable = proxy.kind === 'eip1967' || proxy.kind === 'beacon' || proxy.kind === 'zos'
     || sigsIn('upgrade').some((s) => s.startsWith('upgradeTo') || s === 'deprecate(address)');
 
+  // Code with functions the rules cannot name: its powers are not fully
+  // known, so the owner-held ones count as high (see POWERS).
+  const opaque = (input.unknownSelectors ?? []).length > 0;
+
   // Who controls the contract?
   let control;
   if (upgradeable) control = 'upgradeable';
@@ -106,7 +121,9 @@ export function analyze(input) {
   if (proxy.kind === 'eip1167') {
     add('proxy-minimal', 'info', { implementation: proxy.implementation });
   } else if (upgradeable) {
-    add('proxy-upgradeable', issuerCap('high'), { implementation: proxy.implementation, admin: proxy.admin, kind: proxy.kind, issuer: known?.issuer });
+    // Upgradeable code can be swapped for anything; with unnamed functions in
+    // the current code it is high, otherwise medium (common for large tokens).
+    add('proxy-upgradeable', issuerCap(opaque ? 'high' : 'medium'), { implementation: proxy.implementation, admin: proxy.admin, kind: proxy.kind, issuer: known?.issuer });
   }
 
   // Control
@@ -130,7 +147,8 @@ export function analyze(input) {
   // longer be passed (we cannot prove every function uses that guard).
   for (const p of POWERS) {
     if (!cats.has(p.cat)) continue;
-    let severity = issuerCap(control === 'renounced' ? 'low' : p.base);
+    const kit = TRAP_CATS.includes(p.cat) && TRAP_CATS.filter((c) => cats.has(c)).length >= TRAP_KIT;
+    let severity = issuerCap(control === 'renounced' ? 'low' : kit ? 'high' : (opaque && p.opaque) || p.base);
     const params = { functions: sigsIn(p.cat) };
     if (known) params.issuer = known.issuer;
     if (p.cat === 'fee' && promised.has('tax-decrease-only')) {

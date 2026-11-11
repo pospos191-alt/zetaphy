@@ -115,7 +115,8 @@ test('Stylus WASM is unpacked and read: selectors in either byte order, host imp
   assert.deepEqual(r.functions, ['balanceOf(address)', 'mint(address,uint256)', 'pause()', 'transfer(address,uint256)']);
   for (const id of ['stylus-read', 'erc20', 'owner-active', 'can-mint', 'can-pause', 'delegatecall']) assert.ok(ids(r).includes(id), id);
   assert.ok(!ids(r).includes('stylus-code'));
-  assert.equal(r.analysis.level, 'high');
+  // mint + pause with every function named: "trust the owner" (medium), not a scam sign on its own
+  assert.equal(r.analysis.level, 'medium');
   const lines = explain(r, 'en').lines;
   assert.match(lines[0].text, /Stylus contract.*found 4 known function/);
   assert.match(lines[1].text, /Rusty Coin/);
