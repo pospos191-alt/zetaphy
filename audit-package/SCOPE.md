@@ -9,7 +9,7 @@
 | Build audited | `anchor build -- --features mainnet,v2-only` (what `scripts/deploy-mainnet.sh` deploys) |
 | Program size | 806,640-byte `.so`, sha256 `e6e3921713380585…3c423651f` (local `anchor build -- --features mainnet,v2-only`, 2026-11-11, after the pre-audit hardening; the reproducible Docker `solana-verify build` hash is recorded at freeze) |
 | Instructions | 24 (list: [INSTRUCTIONS.md](INSTRUCTIONS.md)) |
-| **nSLOC in scope** | **2,644** |
+| **nSLOC in scope** | **2,647** |
 
 nSLOC = non-blank, non-comment Rust lines, `#[cfg(test)]` modules excluded, items
 compiled out by `v2-only` excluded. Reproduce with
@@ -24,7 +24,7 @@ binary by the Cargo feature `v2-only` (not just "unused"):
 
 | | Full build (default) | Mainnet build (`mainnet,v2-only`) |
 |---|---|---|
-| nSLOC | 4,868 | **2,644** (−46%) |
+| nSLOC | 4,871 | **2,647** (−46%) |
 | Instructions | 39 | 24 |
 | Account types (IDL) | 13 | 8 |
 | Events | 32 | 19 |
@@ -49,8 +49,8 @@ builds both feature sets and runs the v2 / governance / security suites against 
 | `programs/swd_amm/src/swdmm_math.rs` | 387 | Pure integer math (no Anchor): mul-div floor/ceil, isqrt, Q64.64 price, fee schedulers (time / market cap, linear / exponential), dynamic (volatility) fee, swap with three fee-collection modes and protocol share, deposit / withdraw quotes, fee growth, pending fee, impact caps |
 | `programs/swd_amm/src/oracle.rs` | 279 | Hand-written Pyth `PriceUpdateV2` account type (owner, discriminator, Borsh layout), staleness / confidence / verification checks, oracle price in Q64.64, deviation guard (optional for v2 pools) |
 | `programs/swd_amm/src/governance.rs` | 231 | `GlobalConfig` (governance + emergency authority, pool-creation pause), `initialize_global_config` (upgrade-authority gated), `set_mint_feed` / `MintFeed`, `verify_governance_multisig` (Squads v4 account parsing at fixed offsets) |
-| `programs/swd_amm/src/lib.rs` | 210 | `#[program]` entry points (thin wrappers), `SwdAmmError`, Token-2022 extension gate `assert_mint_extensions_safe`, freeze checks `assert_freeze_authority_trusted` / `assert_vault_not_frozen`, embedded `security.txt`, `declare_id!` |
-| **Total** | **2,644** | |
+| `programs/swd_amm/src/lib.rs` | 213 | `#[program]` entry points (thin wrappers), `SwdAmmError`, Token-2022 extension gate `assert_mint_extensions_safe`, freeze checks `assert_freeze_authority_trusted` / `assert_vault_not_frozen`, embedded `security.txt`, `declare_id!` |
+| **Total** | **2,647** | |
 
 Also in scope (small, configuration):
 

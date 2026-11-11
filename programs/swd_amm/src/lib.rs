@@ -55,10 +55,17 @@ pub struct BinLiquidityAmount;
 #[cfg(all(feature = "v2-only", feature = "idl-build"))]
 impl anchor_lang::IdlBuild for BinLiquidityAmount {}
 
-// Program id. The mainnet id is generated fresh at deploy time
-// (docs/MAINNET_RUNBOOK.md Gate 5, scripts/deploy-mainnet.sh preflight
-// refuses to deploy unless this matches the program keypair).
+// Program id. Devnet / localnet builds keep the devnet id; a `mainnet` build
+// declares the mainnet id (set 2026-11-11 from the owner's fresh program
+// keypair, which never leaves the owner's machine). scripts/deploy-mainnet.sh
+// preflight refuses to deploy unless the mainnet id matches PROGRAM_KEYPAIR
+// (docs/MAINNET_RUNBOOK.md Gate 5). Keep the devnet line first: tools that
+// read "the" id from this file (LiteSVM harness, CI devnet deploy) take the
+// first one.
+#[cfg(not(feature = "mainnet"))]
 declare_id!("3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL");
+#[cfg(feature = "mainnet")]
+declare_id!("3acaVErTYMArMbfXwMTEQiefUHBZgAkPuVaBgo1ptkc4");
 
 // security.txt (2026-11-08): read by Solscan / Solana Explorer from the
 // deployed binary ("Security" tab) and by `query-security-txt`. Same

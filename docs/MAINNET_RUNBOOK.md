@@ -100,8 +100,9 @@ the Squads vault → check). Dry run by default; `--execute` asks before every t
 `mainnet,v2-only` build (806,640-byte .so, 2026-11-11): ~5.62 SOL program rent locked, the same again as a temporary
 buffer during deploy, ~0.10 SOL IDL — have ≥ ~11.4 SOL in the deployer (~5.76 SOL stays locked/spent). The full
 build (`--all-pools`, 1,294,360 bytes) needs ~18.1 SOL. (`scripts/deploy-mainnet.sh estimate` recomputes this from the
-real .so.) Before running it, `declare_id!` and `[programs.mainnet]` must
-hold the fresh program id, committed and pushed. The manual equivalent:
+real .so.) Before running it, the `#[cfg(feature = "mainnet")] declare_id!` in
+`lib.rs` and `[programs.mainnet]` in `Anchor.toml` must hold the fresh program id, committed and pushed
+(set 2026-11-11: `3acaVErTYMArMbfXwMTEQiefUHBZgAkPuVaBgo1ptkc4`; the keypair stays on the owner's machine). The manual equivalent:
 
 ```bash
 # 1. deploy with the one-time deployer key

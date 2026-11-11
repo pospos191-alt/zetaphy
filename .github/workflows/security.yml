@@ -1071,7 +1071,8 @@ jobs:
           umask 077
           printf '%s' "$DEVNET_DEPLOYER_KEYPAIR" > ~/.config/solana/devnet-deployer.json
           printf '%s' "$PROGRAM_KEYPAIR" > target/deploy/swd_amm-keypair.json
-          want=$(grep -oP 'declare_id!\("\K[1-9A-HJ-NP-Za-km-z]+' programs/swd_amm/src/lib.rs)
+          # first declare_id! = the devnet / localnet id (the second is the mainnet build's)
+          want=$(grep -oP 'declare_id!\("\K[1-9A-HJ-NP-Za-km-z]+' programs/swd_amm/src/lib.rs | head -1)
           have=$(solana-keygen pubkey target/deploy/swd_amm-keypair.json)
           if [ "$want" != "$have" ]; then
             echo "::error::PROGRAM_KEYPAIR is $have but declare_id! in lib.rs is $want — refusing to deploy."
