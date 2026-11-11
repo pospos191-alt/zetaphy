@@ -62,7 +62,7 @@ fn cp_mul_div_and_sqrt(g: &mut Gen) {
     }
 }
 
-/// CP swap (lib.rs `swap`): output < reserve, output <= the exact
+/// CP swap (cp.rs `swap`): output < reserve, output <= the exact
 /// constant-product output (rounded in the pool's favour), k never
 /// decreases, the fee never exceeds the input, and every error is a clean
 /// Err — never a panic.
@@ -112,7 +112,7 @@ fn cp_swap(g: &mut Gen) {
     }
 }
 
-/// CP add/remove liquidity helpers (lib.rs add_liquidity/remove_liquidity).
+/// CP add/remove liquidity helpers (cp.rs add_liquidity/remove_liquidity).
 fn cp_liquidity(g: &mut Gen) {
     let (ra, rb) = (g.amount().max(1), g.amount().max(1));
     let s = g.amount().max(1);

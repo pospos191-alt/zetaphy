@@ -15,12 +15,15 @@
 //    hostage), and governance can CANCEL it before that. Everything that
 //    changes fees, unpauses a pool or moves protocol fees goes through
 //    here:
-//      - unpause a constant-product, DLMM or SWDMM v2 pool
+//      - unpause a SWDMM v2 pool (and, in the full build, a CP or DLMM
+//        pool; a `v2-only` build refuses to propose those)
 //      - protocol fee share, timelock delay, treasury
 //      - SWDMM v2 pool risk parameters (price-impact cap, dynamic fee on/off)
 //      - withdraw accrued SWDMM v2 protocol fees to the treasury
 //    The old instant `governed_unpause_pool` / `governed_unpause_dlmm_pool`
-//    always refuse with UseTimelockedUnpause (see governance.rs).
+//    (full build) always refuse with UseTimelockedUnpause (governance.rs).
+//    A matured action can be executed for EXECUTION_GRACE_SECS (7 days),
+//    then it expires; the emergency authority may cancel a pending unpause.
 // 3. MintPolicy (per-mint PDA "mint_policy"): allowlist entry that also
 //    pins the mint's token program and, for Token-2022 mints, requires an
 //    explicit "reviewed" flag plus the extension safety gate. SWDMM v2
@@ -38,6 +41,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::governance::{GlobalConfig, GovernanceError, GLOBAL_CONFIG_SEED};
 use crate::swdmm_v2::{SwdmmV2Error, SwdmmV2Pool, V2_POOL_SEED};
+#[cfg(not(feature = "v2-only"))]
 use crate::{DlmmPool, Pool, DLMM_POOL_SEED, POOL_SEED};
 
 pub const GOV_SETTINGS_SEED: &[u8] = b"gov_settings";
@@ -153,6 +157,7 @@ fn take_ready(p: &mut Account<PendingAction>) -> Result<GovAction> {
     Ok(p.action.clone())
 }
 
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<()> {
     match take_ready(&mut ctx.accounts.pending)? {
         GovAction::UnpauseCpPool { pool, swap, deposit, withdraw } => {
@@ -167,6 +172,7 @@ pub(crate) fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<(
     }
 }
 
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn execute_unpause_dlmm_pool(ctx: Context<ExecuteUnpauseDlmmPool>) -> Result<()> {
     match take_ready(&mut ctx.accounts.pending)? {
         GovAction::UnpauseDlmmPool { pool, swap, deposit, withdraw } => {
@@ -295,6 +301,14 @@ fn validate_delay(secs: i64) -> Result<()> {
 }
 
 fn validate_action(a: &GovAction) -> Result<()> {
+    // A v2-only build has no CP / DLMM pools, so their unpause actions could
+    // never be executed; refuse them up front. The enum itself is the same in
+    // every build (stable Borsh layout and IDL).
+    #[cfg(feature = "v2-only")]
+    require!(
+        !matches!(a, GovAction::UnpauseCpPool { .. } | GovAction::UnpauseDlmmPool { .. }),
+        TimelockError::WrongActionKind
+    );
     match a {
         GovAction::UnpauseCpPool { swap, deposit, withdraw, .. }
         | GovAction::UnpauseDlmmPool { swap, deposit, withdraw, .. }
@@ -394,6 +408,7 @@ pub struct EmergencyCancelUnpause<'info> {
     pub pending: Account<'info, PendingAction>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct ExecuteUnpausePool<'info> {
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
@@ -403,6 +418,7 @@ pub struct ExecuteUnpausePool<'info> {
     pub pool: Account<'info, Pool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct ExecuteUnpauseDlmmPool<'info> {
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]

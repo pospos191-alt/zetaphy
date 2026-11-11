@@ -41,8 +41,10 @@
 #                 load, like build 2026-09-25o). ~2 min.
 #   program       every push / PR — cargo test (unit/property tests), the
 #                 full `anchor test` localnet
-#                 suite (the same `yarn test` you run in WSL). First run ~20-30 min (compiling), later runs
-#                 are faster thanks to the caches.
+#                 suite (the same `yarn test` you run in WSL), then the reduced
+#                 mainnet build (--features v2-only and mainnet,v2-only: CP + DLMM
+#                 compiled out) with the v2 / governance / security suites against it.
+#                 First run ~20-30 min (compiling), later runs are faster thanks to the caches.
 #   amm-fuzz      every push / PR touching programs/ — replays the AMM fuzz
 #                 corpus + crash reproducers and a fixed-seed batch through
 #                 the invariant models (programs/swd_amm/fuzz). ~3 min.
@@ -751,7 +753,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.program == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 95
     steps:
       # The Solana toolchain, the Rust target dir and the test validator fill
       # the runner's disk (the linker then dies with a bus error). Remove
@@ -886,6 +888,40 @@ jobs:
             attempt=$((attempt + 1))
             sleep 20
           done
+
+      # Reduced mainnet / audit scope (AUDIT_README.md): SWDMM v2 + governance
+      # only, CP and DLMM compiled out. Runs after the full suite so the
+      # default build above is what everything else tested.
+      - name: v2-only — cargo test (unit tests without CP/DLMM) + audit-package tables up to date
+        run: |
+          cargo test -p swd_amm --features v2-only
+          python3 audit-package/tools/gen_tables.py --check
+          python3 audit-package/tools/nsloc.py --v2-only
+
+      - name: v2-only — build + v2 / governance / security suites (5s timelock)
+        run: |
+          anchor build -p swd_amm -- --features v2-only
+          scripts/localnet-test.sh tests/v2-only.ts tests/swdmm_v2.ts tests/security-review.ts
+
+      - name: v2-only — stateful sequence fuzz of the v2-only binary (LiteSVM)
+        run: cargo test --release --manifest-path programs/swd_amm/litesvm/Cargo.toml -- --nocapture
+        env:
+          SWD_SVM_SEEDS: "60"
+          SWD_SVM_STEPS: "150"
+
+      - name: mainnet,v2-only — the binary scripts/deploy-mainnet.sh deploys
+        run: |
+          anchor build -p swd_amm -- --features mainnet,v2-only
+          python3 - <<'PY'
+          import json
+          names = {i["name"] for i in json.load(open("target/idl/swd_amm.json"))["instructions"]}
+          assert len(names) == 23, sorted(names)
+          for gone in ("initialize_pool", "swap", "swap_dlmm", "initialize_dlmm_pool", "set_allowed_mint"):
+              assert gone not in names, gone
+          print("mainnet,v2-only IDL:", len(names), "instructions")
+          PY
+          ls -l target/deploy/swd_amm.so
+          SWD_MAINNET_BUILD=1 scripts/localnet-test.sh tests/v2-only.ts
 
       - name: Upload validator / program logs (on failure)
         if: failure()

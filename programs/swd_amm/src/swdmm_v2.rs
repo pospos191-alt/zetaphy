@@ -1,7 +1,7 @@
 // SWDMM v2 — dynamic AMM pools modelled on Meteora DAMM v2.
 //
-// Added 2026-09-29. A third pool type in this program next to the
-// constant-product pool (lib.rs) and DLMM (dlmm.rs). Full-range
+// Added 2026-09-29. The pool type of the mainnet (`v2-only`) build; the full
+// build also has the constant-product (cp.rs) and DLMM (dlmm.rs) pools. Full-range
 // constant-product liquidity with the DAMM v2 feature set:
 //
 //   - Fee tiers (0.25% ... 6%) and a "Base Fee Mode":
@@ -260,7 +260,7 @@ impl SwdmmV2Position {
 // ---------------------------------------------------------------------
 
 pub(crate) fn initialize_v2_pool(ctx: Context<InitializeV2Pool>, params: InitializeV2PoolParams) -> Result<()> {
-    // Governance may still create while creation is paused (see lib.rs initialize_pool).
+    // Governance may still create while creation is paused (anti-squatting, governance::creation_allowed).
     require!(
         crate::governance::creation_allowed(&ctx.accounts.config, &ctx.accounts.creator.key()),
         SwdmmV2Error::PoolCreationPaused
@@ -673,12 +673,12 @@ pub(crate) fn emergency_pause_v2_pool(ctx: Context<EmergencyPauseV2Pool>, swap: 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn withdraw_protocol_fees<'info>(
     pool: &mut Box<Account<'info, SwdmmV2Pool>>,
-    vault_a: &Box<InterfaceAccount<'info, TokenAccount>>,
-    vault_b: &Box<InterfaceAccount<'info, TokenAccount>>,
-    mint_a: &Box<InterfaceAccount<'info, Mint>>,
-    mint_b: &Box<InterfaceAccount<'info, Mint>>,
-    to_a: &Box<InterfaceAccount<'info, TokenAccount>>,
-    to_b: &Box<InterfaceAccount<'info, TokenAccount>>,
+    vault_a: &InterfaceAccount<'info, TokenAccount>,
+    vault_b: &InterfaceAccount<'info, TokenAccount>,
+    mint_a: &InterfaceAccount<'info, Mint>,
+    mint_b: &InterfaceAccount<'info, Mint>,
+    to_a: &InterfaceAccount<'info, TokenAccount>,
+    to_b: &InterfaceAccount<'info, TokenAccount>,
     token_program_a: &Interface<'info, TokenInterface>,
     token_program_b: &Interface<'info, TokenInterface>,
 ) -> Result<()> {

@@ -1,124 +1,34 @@
-// Governance layer — added 2026-09-22 at the project owner's request to
-// bring a Squads-multisig-governed allowlist + emergency-pause model into
-// this program, on top of the existing permissionless constant-product
-// (lib.rs) and DLMM (dlmm.rs) pool types.
+// Governance layer: GlobalConfig (singleton PDA "global-config"), the
+// governance / emergency authorities, the global pool-creation switch,
+// per-mint Pyth feed registry (MintFeed), Squads v4 verification, and — in
+// the full build only — the CP/DLMM mint allowlist (AllowedMint) and the
+// CP/DLMM pause instructions.
 //
-// ============================================================================
-// STATUS: UNAUDITED DRAFT, same as the rest of this program. This file adds
-// new attack surface (new accounts, new authority checks) to a program that
-// was already "DO NOT DEPLOY TO MAINNET" before this file existed — treat
-// the whole program as no closer to mainnet-ready than it was before this
-// was added. See SECURITY.md.
-// ============================================================================
+// Roles
+// - governance_authority: expected to be a Squads v4 vault PDA. This program
+//   does not re-check the multisig threshold on every instruction; it only
+//   requires that exact key to sign (Squads has already enforced M-of-N by
+//   the time its vault signs). Whether the key really is a Squads vault is a
+//   deployment fact, made publicly checkable by `verify_governance_multisig`.
+// - emergency_authority: a separate key that can only PAUSE (swap / deposit
+//   / withdraw) and cancel a pending UNPAUSE action (timelock.rs). It cannot
+//   unpause, change fees or move funds.
+// - Unpausing goes through the timelock (timelock.rs); the instant
+//   `governed_unpause_*` instructions of the full build always fail with
+//   UseTimelockedUnpause.
+// - `initialize_global_config` may only be signed by the program's upgrade
+//   authority (ProgramData check), closing the deploy front-run; neither
+//   authority may be the all-zero key, and they must differ.
+// - `set_authorities` rotates both keys in one step (no propose/accept).
 //
-// DESIGN NOTE — why this does NOT re-implement Squads' threshold logic
-// on-chain: an earlier draft of this feature (handed to me by the project
-// owner, originally produced by a different AI tool) had this program load
-// a Squads `Multisig` account directly and re-check its threshold/member
-// count on every governed instruction, using the `squads-multisig` crate.
-// That draft's own comments flagged real uncertainty about matching that
-// crate's exact field names/API to whatever Squads version actually gets
-// deployed. This file takes a simpler, more robust approach instead:
-// `GlobalConfig.governance_authority` is just a Pubkey — expected to be a
-// Squads Vault PDA, but this program never loads or inspects the Squads
-// Multisig account itself. It only requires a signature from that exact
-// pubkey on every governed instruction. This is safe for the same reason
-// nearly every Solana program that is "governed by a multisig" works this
-// way: by the time a Squads Vault PDA's signature reaches ANY program,
-// Squads' own on-chain program has already enforced the M-of-N approval —
-// re-checking it here would be redundant, and re-implementing it here
-// (rather than just trusting the signature) would only add a second,
-// independently-maintained copy of that logic that could drift out of sync
-// with whatever Squads version is actually live. The tradeoff: this program
-// cannot verify from the outside that `governance_authority` really is a
-// well-formed Squads vault (as opposed to, say, a single hot wallet) —
-// that is a deployment-time responsibility, not something this program can
-// or should enforce on-chain. Document your actual Squads vault setup
-// (members, threshold) in SECURITY.md / your deploy runbook, not in code.
-//
-// SCOPE of what this file adds:
-// 1. GlobalConfig — one singleton PDA holding the governance authority (the
-//    Squads vault), a SEPARATE emergency authority, and a global switch to
-//    stop NEW pool creation.
-// 2. AllowedMint — a per-mint allowlist gate. After this file, both
-//    initialize_pool (lib.rs) and initialize_dlmm_pool (dlmm.rs) require
-//    BOTH mints of a new pool to have an enabled AllowedMint entry. This is
-//    a real behavior change from before this file existed — pool creation
-//    used to be fully permissionless (see initialize_pool's old doc
-//    comment, now updated). Existing pools created before this change are
-//    unaffected; they do not need an AllowedMint entry to keep operating.
-// 3. Emergency pause: emergency_authority can pause swap/deposit/withdraw
-//    on an existing pool (either pool type) — and ONLY pause. There is
-//    deliberately no emergency-unpause, no emergency fee/allowlist change,
-//    and no emergency ability to move vault funds — matching this
-//    program's existing "no admin-drain" principle for anything the
-//    emergency key can reach. Only governance_authority (the Squads vault)
-//    can unpause, and unpausing is intentionally instant (no additional
-//    on-chain timelock) — Squads' own multi-signer approval already is the
-//    human-review gate for that action; layering a second on-chain
-//    timelock on top of it would slow down un-blocking real users after a
-//    false alarm without a matching security benefit.
-//
-// EXPLICITLY NOT IN SCOPE (deferred, not silently dropped):
-// - Governed, timelocked fee changes. Pool.fee_bps is immutable by the
-//   original, deliberate design of this program (see initialize_pool's
-//   comment history) — "there is no set_fee/admin instruction in this
-//   program" was a security property, not an oversight. Making fees
-//   governance-mutable is a real architecture change with its own
-//   centralization tradeoffs (a compromised or coerced multisig could raise
-//   fees on existing LPs) and needs its own explicit design/review, not a
-//   quick addition here.
-// - An oracle-guarded price/impact check. This program has no oracle
-//   integration anywhere today; the constant-product and DLMM swap formulas
-//   both derive price purely from pool reserves. Bolting an external oracle
-//   dependency onto the already-tested swap math is a substantial change
-//   that needs its own design pass (which oracle, staleness handling,
-//   deviation bounds) — attempting it inside this file risked destabilizing
-//   the 10/10 passing tests for a feature that wasn't part of what was
-//   asked for (allowlist + pause).
-// - Token-2022 support. Still fully out of scope program-wide — see the
-//   ASSUMPTION note at the top of lib.rs. AllowedMint does not gate token
-//   PROGRAM choice, only which legacy-SPL mints may be paired.
-//
-// SQUADS MULTISIG TRANSPARENCY ("Phase 2", added 2026-09-23): the design
-// note above (why this file trusts `governance_authority`'s signature
-// rather than re-checking Squads' own approval logic) still holds — this
-// addition does NOT change that. What it adds is purely informational:
-// `verify_governance_multisig` lets anyone load the REAL, live on-chain
-// Squads `Multisig` account that `config.governance_authority` is
-// supposedly a vault of, cryptographically confirm that binding (by
-// re-deriving the vault PDA from the multisig account and checking it
-// equals `governance_authority`), and emit that multisig's actual current
-// `threshold`/member count in an event — so anyone watching on-chain
-// activity can see for themselves "this program's governance really is
-// gated by an M-of-N multisig with these exact parameters" instead of
-// trusting an out-of-band claim in a README. Deliberately a SEPARATE,
-// permissionless, read-only instruction rather than something bolted onto
-// `set_authorities`/`governed_unpause_pool`/etc.: those instructions are
-// already implemented and covered by the existing 26/26 passing test
-// suite, and gating them on a NEW on-chain integration this file has less
-// certainty about (see below) would risk bricking real governance actions
-// if that integration turns out wrong. This way, a mistake in the new
-// code only breaks the new, isolated instruction — every existing
-// governance action keeps working exactly as it does today regardless.
-//
-// KNOWN UNCERTAINTY (read before trusting this in production): this file
-// reads the Squads v4 `Multisig` account's raw bytes at fixed offsets
-// (see `read_squads_multisig_summary`) rather than depending on Squads'
-// own Rust crate — same reasoning as the design note above: avoiding a
-// dependency whose exact version/API compatibility with this program's
-// toolchain can't be verified here. The account's FIELD LAYOUT and the
-// PROGRAM ID (`SQUADS_V4_PROGRAM_ID`) were confirmed directly against
-// Squads' own published documentation (docs.squads.so) on 2026-09-23. The
-// VAULT PDA SEED LITERALS (`SQUADS_SEED_PREFIX`/`SQUADS_SEED_VAULT`)
-// were NOT independently confirmed byte-for-byte the same way — they are
-// a best-effort reconstruction. `tests/governance.ts`'s Squads
-// transparency test is the real verification for those two constants: it
-// creates a genuine multisig with the official `@sqds/multisig` SDK,
-// lets THAT SDK derive the real vault PDA, and checks this program's own
-// derivation lands on the exact same address. If that test fails with
-// `MultisigVaultMismatch`, these are the two constants to fix first —
-// nothing else in this program depends on them.
+// `verify_governance_multisig` (permissionless, read-only): reads a Squads
+// v4 Multisig account at fixed byte offsets (no Squads crate dependency),
+// re-derives the vault PDA from it, checks it equals governance_authority
+// and emits threshold / member count. The field layout and program id are
+// from Squads' documentation; the vault seed literals are confirmed by
+// tests/z-squads-live-verification.ts against the official @sqds/multisig
+// SDK on a cloned mainnet Squads program. Nothing else depends on this
+// instruction.
 
 use anchor_lang::prelude::*;
 // Token-2022 support (added 2026-09-23, alongside lib.rs's — see that
@@ -138,10 +48,11 @@ use anchor_lang::prelude::*;
 // own classic-mint usage).
 use anchor_spl::token_interface::Mint as Token2022Mint;
 
-use crate::dlmm::DlmmPool;
-use crate::{Pool, DLMM_POOL_SEED, POOL_SEED};
+#[cfg(not(feature = "v2-only"))]
+use crate::{DlmmPool, Pool, DLMM_POOL_SEED, POOL_SEED};
 
 pub const GLOBAL_CONFIG_SEED: &[u8] = b"global-config";
+#[cfg(not(feature = "v2-only"))]
 pub const ALLOWED_MINT_SEED: &[u8] = b"allowed-mint";
 /// Per-mint Pyth feed registry (2026-10-08) — see `set_mint_feed`.
 pub const MINT_FEED_SEED: &[u8] = b"mint-feed";
@@ -304,6 +215,7 @@ pub(crate) fn set_pool_creation_paused(ctx: Context<GovernanceOnly>, paused: boo
 /// enabled mint (enabled = false) also does not touch any pool already
 /// created while it was enabled; those pools keep operating exactly as
 /// before (see the module doc comment).
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool) -> Result<()> {
     let allowed = &mut ctx.accounts.allowed_mint;
     allowed.mint = ctx.accounts.mint.key();
@@ -343,6 +255,7 @@ pub(crate) fn set_mint_feed(ctx: Context<SetMintFeed>, pyth_feed_id: [u8; 32]) -
 /// pause vs. multisig-only unpause) is the whole point of having a
 /// separate emergency key at all: it can react fast to stop damage, but it
 /// can never itself decide the incident is over.
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn emergency_pause_pool(
     ctx: Context<EmergencyPausePool>,
     pause_swap: bool,
@@ -380,6 +293,7 @@ pub(crate) fn emergency_pause_pool(
 /// are per concrete account type, so this program follows its own existing
 /// pattern of a thin, separate wrapper per pool type rather than one
 /// generic instruction — see lib.rs's swap / swap_dlmm for the precedent).
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn emergency_pause_dlmm_pool(
     ctx: Context<EmergencyPauseDlmmPool>,
     pause_swap: bool,
@@ -417,6 +331,7 @@ pub(crate) fn emergency_pause_dlmm_pool(
 /// are left exactly as they were (so a pool paused on swap+deposit can be
 /// unpaused on just swap, leaving deposit paused, in one call or two —
 /// caller's choice).
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn governed_unpause_pool(
     _ctx: Context<GovernancePausePool>,
     _unpause_swap: bool,
@@ -432,6 +347,7 @@ pub(crate) fn governed_unpause_pool(
 
 /// DLMM-pool counterpart to `governed_unpause_pool` — see that function's
 /// doc comment.
+#[cfg(not(feature = "v2-only"))]
 pub(crate) fn governed_unpause_dlmm_pool(
     _ctx: Context<GovernancePauseDlmmPool>,
     _unpause_swap: bool,
@@ -582,6 +498,7 @@ pub struct GovernanceOnly<'info> {
     pub governance_authority: Signer<'info>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct SetAllowedMint<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -643,6 +560,7 @@ pub struct SetMintFeed<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct EmergencyPausePool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -659,6 +577,7 @@ pub struct EmergencyPausePool<'info> {
     pub pool: Account<'info, Pool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct EmergencyPauseDlmmPool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -675,6 +594,7 @@ pub struct EmergencyPauseDlmmPool<'info> {
     pub pool: Account<'info, DlmmPool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct GovernancePausePool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -691,6 +611,7 @@ pub struct GovernancePausePool<'info> {
     pub pool: Account<'info, Pool>,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct GovernancePauseDlmmPool<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
@@ -746,6 +667,7 @@ impl GlobalConfig {
     pub const SIZE: usize = 32 + 32 + 1 + 1;
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[account]
 pub struct AllowedMint {
     pub mint: Pubkey,
@@ -753,6 +675,7 @@ pub struct AllowedMint {
     pub bump: u8,
 }
 
+#[cfg(not(feature = "v2-only"))]
 impl AllowedMint {
     pub const SIZE: usize = 32 + 1 + 1;
 }
@@ -792,6 +715,7 @@ pub struct PoolCreationPausedSet {
     pub paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct AllowedMintUpdated {
     pub mint: Pubkey,
@@ -804,6 +728,7 @@ pub struct MintFeedSet {
     pub pyth_feed_id: [u8; 32],
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct PoolPaused {
     pub pool: Pubkey,
@@ -812,6 +737,7 @@ pub struct PoolPaused {
     pub withdraw_paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct DlmmPoolPaused {
     pub pool: Pubkey,
@@ -820,6 +746,7 @@ pub struct DlmmPoolPaused {
     pub withdraw_paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct PoolUnpaused {
     pub pool: Pubkey,
@@ -828,6 +755,7 @@ pub struct PoolUnpaused {
     pub withdraw_paused: bool,
 }
 
+#[cfg(not(feature = "v2-only"))]
 #[event]
 pub struct DlmmPoolUnpaused {
     pub pool: Pubkey,

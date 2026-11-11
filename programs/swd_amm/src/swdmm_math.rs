@@ -77,7 +77,7 @@ pub fn price_change_bps(price: u128, reference: u128) -> Option<u64> {
     if reference == 0 {
         return None;
     }
-    let diff = if price >= reference { price - reference } else { reference - price };
+    let diff = price.abs_diff(reference);
     // diff * 10_000 can overflow u128 for extreme Q64 prices; divide first
     // when it would, trading a little precision for no overflow.
     let bps = match diff.checked_mul(FEE_DENOMINATOR as u128) {

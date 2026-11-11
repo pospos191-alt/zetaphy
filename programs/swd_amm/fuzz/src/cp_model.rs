@@ -1,4 +1,4 @@
-//! Stateful model of the constant-product pool (lib.rs add_liquidity /
+//! Stateful model of the constant-product pool (cp.rs add_liquidity /
 //! remove_liquidity / swap), driven by random multi-actor op sequences.
 //!
 //! Invariants checked after EVERY successful op:
@@ -19,7 +19,7 @@ use crate::stats;
 use crate::wide::{w, U512};
 use crate::Gen;
 
-/// lib.rs constants (kept in sync by tests/regression.rs::constants_match).
+/// cp.rs / lib.rs constants (kept in sync by tests/regression.rs::constants_match).
 pub const MINIMUM_LIQUIDITY: u64 = 1_000;
 pub const MIN_INITIAL_DEPOSIT: u64 = 1_000_000;
 pub const MAX_FEE_BPS: u64 = 1_000;
@@ -53,7 +53,7 @@ fn o<T>(v: Option<T>) -> R<T> {
 }
 
 impl CpPool {
-    /// lib.rs add_liquidity (standard SPL mints: amount received == amount sent).
+    /// cp.rs add_liquidity (standard SPL mints: amount received == amount sent).
     pub fn deposit(&mut self, who: usize, a_desired: u64, b_desired: u64, min_lp: u64) -> R<(u64, u64, u64)> {
         req(a_desired > 0 && b_desired > 0)?;
         let first = self.lp_supply == 0;
@@ -96,7 +96,7 @@ impl CpPool {
         Ok((lp, pull_a, pull_b))
     }
 
-    /// lib.rs remove_liquidity.
+    /// cp.rs remove_liquidity.
     pub fn withdraw(&mut self, who: usize, lp: u64) -> R<(u64, u64)> {
         req(lp > 0)?;
         req(self.lp_supply > 0)?;
@@ -116,7 +116,7 @@ impl CpPool {
         Ok((a, b))
     }
 
-    /// lib.rs swap (oracle-supplied fee_bps).
+    /// cp.rs swap (oracle-supplied fee_bps).
     pub fn swap(&mut self, amount_in: u64, a_to_b: bool, fee_bps: u128) -> R<u64> {
         req(amount_in > 0)?;
         let (r_in, r_out) = if a_to_b { (self.reserve_a, self.reserve_b) } else { (self.reserve_b, self.reserve_a) };

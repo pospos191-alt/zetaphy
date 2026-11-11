@@ -29,13 +29,14 @@ fn src(file: &str) -> String {
 #[test]
 fn constants_match_program() {
     let lib = src("lib.rs");
+    let cp = src("cp.rs");
     let dlmm = src("dlmm.rs");
     let v2 = src("swdmm_v2.rs");
     let tl = src("timelock.rs");
     let has = |s: &str, line: &str| assert!(s.contains(line), "program constant changed — update the fuzz model: {line}");
     use swd_amm_fuzz::{cp_model as c, dlmm_model as d, v2_model as v};
-    has(&lib, &format!("pub const MINIMUM_LIQUIDITY: u64 = {};", fmt(c::MINIMUM_LIQUIDITY as u128)));
-    has(&lib, &format!("pub const MIN_INITIAL_DEPOSIT: u64 = {};", fmt(c::MIN_INITIAL_DEPOSIT as u128)));
+    has(&cp, &format!("pub const MINIMUM_LIQUIDITY: u64 = {};", fmt(c::MINIMUM_LIQUIDITY as u128)));
+    has(&cp, &format!("pub const MIN_INITIAL_DEPOSIT: u64 = {};", fmt(c::MIN_INITIAL_DEPOSIT as u128)));
     has(&lib, &format!("pub const MAX_FEE_BPS: u16 = {};", fmt(c::MAX_FEE_BPS as u128)));
     assert_eq!(c::MAX_FEE_BPS, d::MAX_FEE_BPS);
     has(&dlmm, &format!("pub const HALF_RANGE: i32 = {};", d::HALF_RANGE));
