@@ -167,6 +167,12 @@ instructions.
 Deploy the `.so` produced by `solana-verify build` (not a plain `anchor build`), or the hashes will not match. Once
 the upgrade authority is the Squads vault, the `upload` step's verify-PDA write is a Squads proposal (2-of-3).
 
+Releases (2026-11-11): tag the audited commit `program-vX.Y.Z`; `.github/workflows/verifiable-build.yml` publishes
+`swd_amm-mainnet.so` with its hashes, IDL and provenance. Deploy that file, set the repository variables
+`MAINNET_PROGRAM_ID` / `EXPECTED_AUTHORITY_MAINNET` (= vault) so `program-watch` checks it hourly, and keep
+`docs/PROGRAM_ROLLBACK.md` (pause → rollback through Squads → verify → unpause) with the incident contacts.
+`bash scripts/verified-build.sh verify-command <ID> mainnet <COMMIT>` prints the Squads `export-pda-tx` route.
+
 ## Gate 8 — Launch configuration
 
 - Allow the launch mints (`set-mint-policy <mint> true`, as Squads

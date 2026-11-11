@@ -6,3 +6,10 @@ resolver = "2"
 
 [profile.release]
 overflow-checks = true
+
+# solana-verify (verifiable Docker build, scripts/verified-build.sh) picks its pinned build image from this
+# version. Without it, it falls back to the solana-program version in Cargo.lock (2.x through Anchor 0.31.1),
+# which is the wrong toolchain. Keep equal to Anchor.toml [toolchain] solana_version and CI's SOLANA_VERSION.
+# Metadata only: it does not change what cargo compiles.
+[workspace.metadata.cli]
+solana = "3.1.10"

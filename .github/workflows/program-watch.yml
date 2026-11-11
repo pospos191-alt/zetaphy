@@ -1,0 +1,77 @@
+# program-watch (2026-11-11): every hour, read (only) the swd_amm program on devnet — and on mainnet once the
+# repository variable MAINNET_PROGRAM_ID is set — and FAIL + alert when
+#   - the deployed bytes (executable hash) differ from the latest program-v* release (verifiable-build.yml)
+#     or from a pinned EXPECTED_HASH_<CLUSTER>,
+#   - the upgrade authority differs from EXPECTED_AUTHORITY_<CLUSTER> (mainnet: the Squads vault),
+#   - the program disappeared / is not owned by the upgradeable loader;
+# and notifies (once) when the program was redeployed (last deployed slot changed).
+# A failed scheduled run e-mails the repository owner (GitHub's default); Telegram is optional.
+# What to do when it fires: docs/PROGRAM_ROLLBACK.md (Thai: docs/PROGRAM_ROLLBACK.th.md).
+#
+# Settings → Secrets and variables → Actions:
+#   variables (public values):  MAINNET_PROGRAM_ID, EXPECTED_AUTHORITY_DEVNET, EXPECTED_AUTHORITY_MAINNET,
+#                               EXPECTED_HASH_DEVNET, EXPECTED_HASH_MAINNET (only to pin, e.g. after a rollback)
+#   secrets (optional):         ALERT_TELEGRAM_BOT_TOKEN, ALERT_TELEGRAM_CHAT_ID, DEVNET_RPC_URL, MAINNET_RPC_URL
+#                               (a private RPC URL if the public endpoint rate-limits; it may contain an API key)
+# No signing keys: this job cannot change anything on chain. Scheduled workflows run on the default branch only.
+
+name: program-watch
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: program-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: on-chain program hash + upgrade authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+
+      - name: Self-test (fake RPC)
+        run: node --test scripts/program-watch.test.mjs
+
+      - name: Restore the watcher state
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .program-watch
+          key: program-watch-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: program-watch-state-
+
+      - name: Watch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEVNET_RPC_URL: ${{ secrets.DEVNET_RPC_URL }}
+          MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+          MAINNET_PROGRAM_ID: ${{ vars.MAINNET_PROGRAM_ID }}
+          EXPECTED_AUTHORITY_DEVNET: ${{ vars.EXPECTED_AUTHORITY_DEVNET }}
+          EXPECTED_AUTHORITY_MAINNET: ${{ vars.EXPECTED_AUTHORITY_MAINNET }}
+          EXPECTED_HASH_DEVNET: ${{ vars.EXPECTED_HASH_DEVNET }}
+          EXPECTED_HASH_MAINNET: ${{ vars.EXPECTED_HASH_MAINNET }}
+          ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.ALERT_TELEGRAM_BOT_TOKEN }}
+          ALERT_TELEGRAM_CHAT_ID: ${{ secrets.ALERT_TELEGRAM_CHAT_ID }}
+        run: node scripts/program-watch.mjs --state .program-watch/state.json
+
+      # Saved even after a critical finding, so a known alert is not re-sent every hour (it repeats every 6 h).
+      - name: Save the watcher state
+        if: always() && hashFiles('.program-watch/state.json') != ''
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .program-watch
+          key: program-watch-state-${{ github.run_id }}-${{ github.run_attempt }}
