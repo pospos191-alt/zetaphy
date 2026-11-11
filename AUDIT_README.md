@@ -59,7 +59,7 @@ Results on the prepared branch (2026-11-11, local, after the pre-audit hardening
 | Compute units, worst-case `swap_v2` (`tests/v2-only.ts` K-17, `mainnet,v2-only` binary, CI run 466) | about 35,200 of the default 200,000 (Token-2022 both sides + Pyth guard + dynamic fee) — KNOWN_ISSUES K-17 |
 | Fuzz regression (stable) | 28 passed |
 | LiteSVM stateful differential, `v2-only` and full `.so` | 60 seeds × 150 steps each, no violation |
-| Kani | 6 of 6 completing harnesses verified (14 SLOW harnesses not run — see FUZZING_FORMAL §5) |
+| Kani | 6 of 6 completing harnesses verified. Of the 16 SLOW harnesses, the 5 of the mainnet scope were given 180 min each (2026-11-11): `v2_fee_amount_u32` verified, the other 4 did not finish; the 11 CP / DLMM ones were not run — see FUZZING_FORMAL §5 |
 | `cargo audit` (cargo-audit 0.23.0, 1,446 advisories) | 0 vulnerabilities; 3 warnings on transitive Solana/Anchor crates (bincode 1.3.3 and libsecp256k1 0.6.0 unmaintained, rand 0.7.3 unsound-with-custom-logger) — not reachable from program logic. CI runs it on every push. |
 
 ## Ground rules we ask for
