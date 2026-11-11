@@ -1,0 +1,55 @@
+# L1-3: tests of zetaphy-chain/verify-release.sh (docs/ANTI-ROLLBACK-OFFCHAIN.md) on fake release directories,
+# with stub gh / cosign that accept only the right signer identity (repo, release workflow, refs/heads/main, the
+# commit of RELEASE.json). The real Sigstore check runs on a node against a published release; this job never
+# downloads or signs anything.
+name: verify-release
+
+on:
+  pull_request:
+    paths:
+      - 'zetaphy-chain/verify-release.sh'
+      - 'audit/tools/verify-release.test.js'
+      - '.github/workflows/release-zetaphyd.yml'
+      - '.github/workflows/verify-release.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'zetaphy-chain/verify-release.sh'
+      - 'audit/tools/verify-release.test.js'
+      - '.github/workflows/release-zetaphyd.yml'
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  test:
+    name: verify-release.sh (fake releases)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: shellcheck
+        run: shellcheck -S warning zetaphy-chain/verify-release.sh
+
+      - name: Tests (hashes, signer identity, anti-rollback, cosign path, unsigned releases)
+        run: node --test audit/tools/verify-release.test.js
+
+      # What the sign job of release-zetaphyd.yml writes into RELEASE.json must be what verify-release.sh reads.
+      - name: The release workflow writes the fields verify-release.sh checks
+        run: |
+          for f in schema tag repository setup_node_sha256 commit ref main_commits commit_time upgrades; do
+            grep -q "$f: " .github/workflows/release-zetaphyd.yml || { echo "release-zetaphyd.yml does not write $f"; exit 1; }
+            grep -q "\.$f" zetaphy-chain/verify-release.sh || { echo "verify-release.sh does not read $f"; exit 1; }
+          done
+          grep -q 'zetaphyd-provenance.sigstore.json' .github/workflows/release-zetaphyd.yml
+          grep -q 'zetaphyd-provenance.sigstore.json' zetaphy-chain/verify-release.sh

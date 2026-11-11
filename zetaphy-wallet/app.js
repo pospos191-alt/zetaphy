@@ -13,6 +13,7 @@ import {
   DEFAULT_PRECOMPILE_GAS_LIMIT, DEFAULT_DEPLOY_GAS_LIMIT, PUBLIC_KEY_BYTES, quantumLockTx, codeFingerprint,
   secp256k1, qdayRevealText, qdaySalt, qdayCommitment, consentCall, SECURITY_PRECOMPILE, MAX_CONSENT_SECONDS,
   THREAT_SEL, PROXY_DEPTH, proxyTargets, codeKey, addressKey, detailQueries, readEvidence, readResponse, REASON_TEXT, DISCLAIMER, REPRODUCE,
+  verifyBlock, cometClient, decodeCertificate,
 } from './vendor/pqwallet.js';
 import {
   CHAIN_ID, CHAIN_NAME, EVM_CHAIN_ID_HEX, EVM_SYMBOL, DECIMALS, nodeEndpoints, evmChainParams, keplrChainInfo,
@@ -21,6 +22,9 @@ import {
 import {
   seal, unseal, passwordStrength, MIN_PASSWORD_LENGTH, wrapSeed, unwrapSeed, isPasskeyBlob, newPrfSalt, toB64url, fromB64url,
 } from './security.js';
+// Your own proof + the rollback alarm (docs/ANTI-ROLLBACK-OFFCHAIN.md): checkpoints of certified blocks with the
+// account's eth_getProof, kept on this device; signing is refused when the node later serves a lower or different state.
+import { parseBook, newBook, checkpoint, bridgedBalanceSlot, exportProofs, INTERVAL_MS } from './rollback.js';
 
 const KEYS = { seed: 'zetaphy-wallet:seed:v1', rpc: 'zetaphy-wallet:rpc', lang: 'zetaphy-wallet:lang', token: 'zetaphy-wallet:token',
   owners: 'zetaphy-wallet:owners:v1:', // + this wallet's zetaphy1… address
@@ -30,7 +34,9 @@ const KEYS = { seed: 'zetaphy-wallet:seed:v1', rpc: 'zetaphy-wallet:rpc', lang: 
   threats: 'zetaphy-wallet:threat-registry', // ThreatRegistry address (the vaccine), else the page's meta tag
   autolock: 'zetaphy-wallet:autolock-minutes', // 30, 60, 120 or 240
   passkey: 'zetaphy-wallet:passkey:v1', // the seed wrapped under a passkey's PRF output (security.js wrapSeed); never the PRF output
-  bigHidden: 'zetaphy-wallet:big-balance-hidden-until:' }; // + address: the large-balance banner hidden until (ms)
+  bigHidden: 'zetaphy-wallet:big-balance-hidden-until:', // + address: the large-balance banner hidden until (ms)
+  comet: 'zetaphy-wallet:comet-rpc', // CometBFT RPC for finality certificates (else <the node's origin>/rpc/)
+  rollback: 'zetaphy-wallet:rollback:v1:77390' }; // checkpoints held and the alarm (rollback.js), per chain
 const EVM_CHAIN_ID = 77390n;
 
 const T = {
@@ -405,6 +411,28 @@ const T = {
     helpHw3: 'โอนเงินไปที่อยู่ 0x… ของบัญชีฮาร์ดแวร์ และยืนยันทุกธุรกรรมบนหน้าจอของอุปกรณ์เอง',
     helpMore: 'รายละเอียดอยู่ในส่วนความปลอดภัยของ README นี่คือ testnet ไม่ใช่เงินจริง',
     helpClose: 'ปิด',
+    rbTitle: 'หลักฐานของคุณเอง (สัญญาณเตือนการย้อนเชน)',
+    rbIntro: 'ทุกไม่กี่นาที กระเป๋านี้จะเก็บบล็อกล่าสุดที่เห็นไว้ในเครื่องนี้เท่านั้น: ใบรับรองความสิ้นสุด (finality) แบบทนควอนตัมของบล็อกนั้น และหลักฐานยอดเงินของคุณ (eth_getProof) ถ้าภายหลังโหนดแสดงบล็อกที่ต่ำกว่า หรือสถานะที่ต่างไปสำหรับบล็อกที่คุณถืออยู่ กระเป๋าจะเตือนและไม่ยอมเซ็นธุรกรรม',
+    rbCometLabel: 'CometBFT RPC สำหรับใบรับรองความสิ้นสุด (เว้นว่าง: ที่อยู่ของโหนด + /rpc/)',
+    rbSave: 'บันทึก',
+    rbCheck: 'ตรวจตอนนี้',
+    rbExport: 'ดาวน์โหลดหลักฐานของฉัน',
+    rbAlarmTitle: 'สัญญาณเตือนการย้อนเชน: ไม่ยอมเซ็นธุรกรรม',
+    rbAlarmHelp: 'อาจหมายความว่าเชนถูกย้อนกลับ หรือโหนดนี้ให้ข้อมูลเท็จ หลักฐานของคุณยังเก็บอยู่ในเครื่องนี้ ลองใช้โหนดอื่น ให้ยอมรับเชนใหม่เฉพาะเมื่อทีม ZETAPHY ประกาศว่าเริ่มเชนใหม่เท่านั้น',
+    rbAccept: 'ยอมรับเชนใหม่ (ลืมจุดตรวจของฉัน)',
+    rbNone: 'ยังไม่มีจุดตรวจ',
+    rbHeld: 'ถืออยู่: บล็อก {h} สถานะ {root} บันทึกเมื่อ {when} UTC',
+    rbCertOk: 'ตรวจใบรับรองความสิ้นสุดแบบทนควอนตัมแล้ว: กำลังโหวต {signed} จาก {total} เซ็นด้วย ML-DSA-44',
+    rbCertNo: 'ยังไม่มีใบรับรองความสิ้นสุดที่ตรวจผ่านสำหรับบล็อกนี้ ({why})',
+    rbErr: 'บันทึกจุดตรวจไม่สำเร็จ: {why}',
+    rbAlarmLower: 'ตอนนี้โหนดบอกว่าเชนอยู่ที่บล็อก {served} แต่คุณถือบล็อก {held} อยู่',
+    rbAlarmFork: 'สำหรับบล็อก {h} ตอนนี้โหนดแสดงสถานะ {served} แต่คุณถือ {held} อยู่',
+    rbAlarmMissing: 'โหนดไม่มีบล็อก {h} แล้ว ทั้งที่เคยแสดงให้คุณเห็นมาก่อน',
+    rbAlarmMismatch: 'โหนดให้คำตอบสองแบบที่ไม่ตรงกันสำหรับบล็อก {h} (state root กับ header ที่ได้รับการรับรอง หรือหลักฐานกับยอดเงิน)',
+    rbRefuse: 'ไม่ยอมเซ็น: สัญญาณเตือนการย้อนเชนเปิดอยู่ (ดู "หลักฐานของคุณเอง")',
+    rbAccepted: 'ลืมจุดตรวจแล้ว เซ็นธุรกรรมได้อีกครั้ง',
+    rbAcceptConfirm: 'ทำสิ่งนี้เฉพาะเมื่อทีม ZETAPHY ประกาศว่าเริ่มเชนใหม่ หรือคุณตรวจโหนดนี้ด้วยตัวเองแล้ว ดาวน์โหลดหลักฐานก่อน ลืมจุดตรวจและอนุญาตให้เซ็นอีกครั้งหรือไม่?',
+    rbCometSaved: 'บันทึก CometBFT RPC แล้ว',
   },
   en: {
     subtitle: 'Quantum-safe wallet (ML-DSA-44) · no ECDSA key',
@@ -768,6 +796,28 @@ const T = {
     helpHw3: 'Send the funds to the hardware account\'s 0x… address, and confirm every transaction on the device\'s own screen.',
     helpMore: 'The README\'s security section has the details. This is testnet: none of it is real money.',
     helpClose: 'Close',
+    rbTitle: 'Your own proof (rollback alarm)',
+    rbIntro: 'Every few minutes this wallet keeps, on this device only, the latest block it saw: its post-quantum finality certificate and a proof of your balance (eth_getProof). If a node later shows a lower block, or a different state for a block you hold, the wallet warns you and refuses to sign.',
+    rbCometLabel: 'CometBFT RPC for finality certificates (empty: the node\'s address + /rpc/)',
+    rbSave: 'Save',
+    rbCheck: 'Check now',
+    rbExport: 'Download my proofs',
+    rbAlarmTitle: 'Rollback alarm: signing is refused',
+    rbAlarmHelp: 'This can mean the chain was rolled back or this node is lying. Your proofs are kept on this device. Try another node. Only if the ZETAPHY team announced a chain restart, accept the new chain.',
+    rbAccept: 'Accept the new chain (forget my checkpoints)',
+    rbNone: 'No checkpoint yet.',
+    rbHeld: 'Held: block {h}, state {root}, taken {when} UTC.',
+    rbCertOk: 'Post-quantum finality certificate verified: {signed} of {total} voting power signed with ML-DSA-44.',
+    rbCertNo: 'No verified finality certificate for this block yet ({why}).',
+    rbErr: 'Could not take a checkpoint: {why}',
+    rbAlarmLower: 'The node now says the chain is at block {served}, but you hold block {held}.',
+    rbAlarmFork: 'For block {h} the node now shows state {served}, but you hold {held}.',
+    rbAlarmMissing: 'The node no longer has block {h}, which it showed you before.',
+    rbAlarmMismatch: 'The node gave two answers that do not match for block {h} (the state root and the certified header, or the proof and the balance).',
+    rbRefuse: 'Signing refused: the rollback alarm is on (see "Your own proof").',
+    rbAccepted: 'Checkpoints forgotten; signing is allowed again.',
+    rbAcceptConfirm: 'Only do this if the ZETAPHY team announced a chain restart, or you checked this node yourself. Download your proofs first. Forget the checkpoints and allow signing again?',
+    rbCometSaved: 'CometBFT RPC saved.',
   },
   // Translated from en (th only to resolve meaning). reason1..7, threatEvidence and
   // threatDisclaimer mirror zetaphy-network/src/vaccine.js, which has only th and en.
@@ -1137,6 +1187,28 @@ const T = {
     helpHw3: '把资金转到硬件账户的 0x… 地址，并在设备自己的屏幕上确认每笔交易。',
     helpMore: '详情见 README 的安全部分。这是测试网，都不是真钱。',
     helpClose: '关闭',
+    rbTitle: '你自己的证明（回滚警报）',
+    rbIntro: '本钱包每隔几分钟会把看到的最新区块仅保存在本设备上：该区块的抗量子最终性证书和你的余额证明（eth_getProof）。如果节点之后显示更低的区块，或你已保存的区块出现不同的状态，钱包会发出警告并拒绝签名。',
+    rbCometLabel: '用于最终性证书的 CometBFT RPC（留空：节点地址 + /rpc/）',
+    rbSave: '保存',
+    rbCheck: '立即检查',
+    rbExport: '下载我的证明',
+    rbAlarmTitle: '回滚警报：已拒绝签名',
+    rbAlarmHelp: '这可能意味着链被回滚，或此节点在撒谎。你的证明仍保存在本设备上。请尝试其他节点。只有在 ZETAPHY 团队宣布链重启时，才接受新链。',
+    rbAccept: '接受新链（忘记我的检查点）',
+    rbNone: '还没有检查点。',
+    rbHeld: '已保存：区块 {h}，状态 {root}，记录于 {when} UTC。',
+    rbCertOk: '抗量子最终性证书已验证：{total} 投票权中的 {signed} 以 ML-DSA-44 签名。',
+    rbCertNo: '此区块还没有经过验证的最终性证书（{why}）。',
+    rbErr: '无法记录检查点：{why}',
+    rbAlarmLower: '节点现在说链在区块 {served}，但你保存了区块 {held}。',
+    rbAlarmFork: '对于区块 {h}，节点现在显示状态 {served}，但你保存的是 {held}。',
+    rbAlarmMissing: '节点已不再有区块 {h}，而它之前向你显示过。',
+    rbAlarmMismatch: '节点对区块 {h} 给出了两个不一致的回答（状态根与已认证的区块头，或证明与余额）。',
+    rbRefuse: '已拒绝签名：回滚警报已开启（见“你自己的证明”）。',
+    rbAccepted: '检查点已忘记；可以再次签名。',
+    rbAcceptConfirm: '只有在 ZETAPHY 团队宣布链重启，或你亲自检查过此节点时才这样做。请先下载你的证明。忘记检查点并重新允许签名？',
+    rbCometSaved: 'CometBFT RPC 已保存。',
   },
   es: {
     subtitle: 'Billetera resistente a la computación cuántica (ML-DSA-44) · sin clave ECDSA',
@@ -1504,6 +1576,28 @@ const T = {
     helpHw3: 'Envía los fondos a la dirección 0x… de la cuenta de hardware y confirma cada transacción en la propia pantalla del dispositivo.',
     helpMore: 'La sección de seguridad del README tiene los detalles. Esto es testnet: nada es dinero real.',
     helpClose: 'Cerrar',
+    rbTitle: 'Tu propia prueba (alarma de reversión)',
+    rbIntro: 'Cada pocos minutos, esta billetera guarda, solo en este dispositivo, el último bloque que vio: su certificado de finalidad poscuántico y una prueba de tu saldo (eth_getProof). Si después un nodo muestra un bloque más bajo, o un estado distinto para un bloque que tienes, la billetera te avisa y se niega a firmar.',
+    rbCometLabel: 'RPC de CometBFT para los certificados de finalidad (vacío: la dirección del nodo + /rpc/)',
+    rbSave: 'Guardar',
+    rbCheck: 'Comprobar ahora',
+    rbExport: 'Descargar mis pruebas',
+    rbAlarmTitle: 'Alarma de reversión: no se firma nada',
+    rbAlarmHelp: 'Puede significar que la cadena se revirtió o que este nodo miente. Tus pruebas siguen en este dispositivo. Prueba otro nodo. Acepta la nueva cadena solo si el equipo de ZETAPHY anunció un reinicio de la cadena.',
+    rbAccept: 'Aceptar la nueva cadena (olvidar mis puntos de control)',
+    rbNone: 'Aún no hay punto de control.',
+    rbHeld: 'Guardado: bloque {h}, estado {root}, tomado el {when} UTC.',
+    rbCertOk: 'Certificado de finalidad poscuántico verificado: {signed} de {total} de poder de voto firmaron con ML-DSA-44.',
+    rbCertNo: 'Aún no hay un certificado de finalidad verificado para este bloque ({why}).',
+    rbErr: 'No se pudo tomar un punto de control: {why}',
+    rbAlarmLower: 'El nodo ahora dice que la cadena está en el bloque {served}, pero tú tienes el bloque {held}.',
+    rbAlarmFork: 'Para el bloque {h} el nodo ahora muestra el estado {served}, pero tú tienes {held}.',
+    rbAlarmMissing: 'El nodo ya no tiene el bloque {h}, que antes te mostró.',
+    rbAlarmMismatch: 'El nodo dio dos respuestas que no coinciden para el bloque {h} (la raíz de estado y la cabecera certificada, o la prueba y el saldo).',
+    rbRefuse: 'Firma rechazada: la alarma de reversión está activa (ver "Tu propia prueba").',
+    rbAccepted: 'Puntos de control olvidados; se puede volver a firmar.',
+    rbAcceptConfirm: 'Hazlo solo si el equipo de ZETAPHY anunció un reinicio de la cadena, o si comprobaste este nodo tú mismo. Descarga antes tus pruebas. ¿Olvidar los puntos de control y permitir firmar de nuevo?',
+    rbCometSaved: 'RPC de CometBFT guardado.',
   },
   ko: {
     subtitle: '양자 내성 지갑 (ML-DSA-44) · ECDSA 키 없음',
@@ -1871,6 +1965,28 @@ const T = {
     helpHw3: '하드웨어 계정의 0x… 주소로 자금을 보내고, 모든 거래를 기기 자체 화면에서 확인하세요.',
     helpMore: '자세한 내용은 README의 보안 섹션에 있습니다. 테스트넷이므로 실제 돈이 아닙니다.',
     helpClose: '닫기',
+    rbTitle: '나만의 증명 (롤백 경보)',
+    rbIntro: '이 지갑은 몇 분마다 본 최신 블록을 이 기기에만 보관합니다: 그 블록의 양자 내성 완결성 인증서와 잔액 증명(eth_getProof)입니다. 나중에 노드가 더 낮은 블록을 보여주거나, 보관 중인 블록에 다른 상태를 보여주면 지갑이 경고하고 서명을 거부합니다.',
+    rbCometLabel: '완결성 인증서용 CometBFT RPC (비워 두면: 노드 주소 + /rpc/)',
+    rbSave: '저장',
+    rbCheck: '지금 확인',
+    rbExport: '내 증명 다운로드',
+    rbAlarmTitle: '롤백 경보: 서명이 거부됩니다',
+    rbAlarmHelp: '체인이 롤백되었거나 이 노드가 거짓말을 한다는 뜻일 수 있습니다. 증명은 이 기기에 보관되어 있습니다. 다른 노드를 사용해 보세요. ZETAPHY 팀이 체인 재시작을 공지한 경우에만 새 체인을 받아들이세요.',
+    rbAccept: '새 체인 받아들이기 (체크포인트 잊기)',
+    rbNone: '아직 체크포인트가 없습니다.',
+    rbHeld: '보관 중: 블록 {h}, 상태 {root}, {when} UTC에 기록.',
+    rbCertOk: '양자 내성 완결성 인증서 확인됨: 투표권 {total} 중 {signed}가 ML-DSA-44로 서명했습니다.',
+    rbCertNo: '이 블록에 대해 확인된 완결성 인증서가 아직 없습니다 ({why}).',
+    rbErr: '체크포인트를 기록하지 못했습니다: {why}',
+    rbAlarmLower: '노드가 이제 체인이 블록 {served}에 있다고 하지만, 당신은 블록 {held}를 보관하고 있습니다.',
+    rbAlarmFork: '블록 {h}에 대해 노드가 이제 상태 {served}를 보여주지만, 당신이 보관한 것은 {held}입니다.',
+    rbAlarmMissing: '노드에 예전에 보여준 블록 {h}가 더 이상 없습니다.',
+    rbAlarmMismatch: '노드가 블록 {h}에 대해 서로 맞지 않는 두 답을 주었습니다 (상태 루트와 인증된 헤더, 또는 증명과 잔액).',
+    rbRefuse: '서명 거부: 롤백 경보가 켜져 있습니다 ("나만의 증명" 참고).',
+    rbAccepted: '체크포인트를 잊었습니다. 다시 서명할 수 있습니다.',
+    rbAcceptConfirm: 'ZETAPHY 팀이 체인 재시작을 공지했거나 이 노드를 직접 확인한 경우에만 하세요. 먼저 증명을 다운로드하세요. 체크포인트를 잊고 다시 서명을 허용할까요?',
+    rbCometSaved: 'CometBFT RPC를 저장했습니다.',
   },
   ja: {
     subtitle: '耐量子ウォレット（ML-DSA-44）· ECDSA 鍵なし',
@@ -2238,6 +2354,28 @@ const T = {
     helpHw3: 'ハードウェアアカウントの 0x… アドレスに資金を送り、すべての取引を端末自身の画面で確認します。',
     helpMore: '詳しくは README のセキュリティの節にあります。これはテストネットで、本物のお金ではありません。',
     helpClose: '閉じる',
+    rbTitle: '自分で持つ証明（ロールバック警報）',
+    rbIntro: 'このウォレットは数分ごとに、見た最新のブロックをこの端末にだけ保存します：そのブロックの耐量子ファイナリティ証明書と残高の証明（eth_getProof）です。後でノードがより低いブロックや、保存済みのブロックに別の状態を示した場合、ウォレットは警告し署名を拒否します。',
+    rbCometLabel: 'ファイナリティ証明書用の CometBFT RPC（空欄：ノードのアドレス + /rpc/）',
+    rbSave: '保存',
+    rbCheck: '今すぐ確認',
+    rbExport: '自分の証明をダウンロード',
+    rbAlarmTitle: 'ロールバック警報：署名を拒否します',
+    rbAlarmHelp: 'チェーンがロールバックされたか、このノードが嘘をついている可能性があります。証明はこの端末に残っています。別のノードを試してください。ZETAPHY チームがチェーンの再起動を告知した場合にのみ、新しいチェーンを受け入れてください。',
+    rbAccept: '新しいチェーンを受け入れる（チェックポイントを忘れる）',
+    rbNone: 'まだチェックポイントはありません。',
+    rbHeld: '保存済み：ブロック {h}、状態 {root}、{when} UTC に記録。',
+    rbCertOk: '耐量子ファイナリティ証明書を確認しました：投票力 {total} のうち {signed} が ML-DSA-44 で署名。',
+    rbCertNo: 'このブロックの確認済みファイナリティ証明書はまだありません（{why}）。',
+    rbErr: 'チェックポイントを記録できませんでした：{why}',
+    rbAlarmLower: 'ノードは今チェーンがブロック {served} にあると言っていますが、あなたはブロック {held} を保存しています。',
+    rbAlarmFork: 'ブロック {h} について、ノードは今状態 {served} を示していますが、あなたが保存しているのは {held} です。',
+    rbAlarmMissing: 'ノードは以前見せたブロック {h} をもう持っていません。',
+    rbAlarmMismatch: 'ノードはブロック {h} について食い違う二つの答えを返しました（状態ルートと認証済みヘッダー、または証明と残高）。',
+    rbRefuse: '署名を拒否：ロールバック警報が有効です（「自分で持つ証明」を参照）。',
+    rbAccepted: 'チェックポイントを忘れました。再び署名できます。',
+    rbAcceptConfirm: 'ZETAPHY チームがチェーンの再起動を告知したか、このノードを自分で確認した場合にのみ行ってください。先に証明をダウンロードしてください。チェックポイントを忘れて再び署名を許可しますか？',
+    rbCometSaved: 'CometBFT RPC を保存しました。',
   },
   ru: {
     subtitle: 'Квантово-устойчивый кошелёк (ML-DSA-44) · без ключа ECDSA',
@@ -2605,6 +2743,28 @@ const T = {
     helpHw3: 'Переведите средства на адрес 0x… аппаратного счёта и подтверждайте каждую транзакцию на экране самого устройства.',
     helpMore: 'Подробности — в разделе безопасности README. Это тестовая сеть: всё это не настоящие деньги.',
     helpClose: 'Закрыть',
+    rbTitle: 'Ваше собственное доказательство (тревога отката)',
+    rbIntro: 'Каждые несколько минут этот кошелёк сохраняет, только на этом устройстве, последний увиденный блок: его постквантовый сертификат финальности и доказательство вашего баланса (eth_getProof). Если позже узел покажет более низкий блок или другое состояние для блока, который у вас есть, кошелёк предупредит вас и откажется подписывать.',
+    rbCometLabel: 'CometBFT RPC для сертификатов финальности (пусто: адрес узла + /rpc/)',
+    rbSave: 'Сохранить',
+    rbCheck: 'Проверить сейчас',
+    rbExport: 'Скачать мои доказательства',
+    rbAlarmTitle: 'Тревога отката: подпись запрещена',
+    rbAlarmHelp: 'Это может значить, что цепочку откатили или этот узел лжёт. Ваши доказательства хранятся на этом устройстве. Попробуйте другой узел. Принимайте новую цепочку, только если команда ZETAPHY объявила перезапуск цепочки.',
+    rbAccept: 'Принять новую цепочку (забыть мои контрольные точки)',
+    rbNone: 'Контрольных точек пока нет.',
+    rbHeld: 'Сохранено: блок {h}, состояние {root}, записано {when} UTC.',
+    rbCertOk: 'Постквантовый сертификат финальности проверен: {signed} из {total} голосующей силы подписали ML-DSA-44.',
+    rbCertNo: 'Для этого блока пока нет проверенного сертификата финальности ({why}).',
+    rbErr: 'Не удалось записать контрольную точку: {why}',
+    rbAlarmLower: 'Узел теперь говорит, что цепочка на блоке {served}, но у вас сохранён блок {held}.',
+    rbAlarmFork: 'Для блока {h} узел теперь показывает состояние {served}, но у вас сохранено {held}.',
+    rbAlarmMissing: 'У узла больше нет блока {h}, который он раньше вам показывал.',
+    rbAlarmMismatch: 'Узел дал два несовпадающих ответа для блока {h} (корень состояния и сертифицированный заголовок или доказательство и баланс).',
+    rbRefuse: 'Подпись отклонена: включена тревога отката (см. «Ваше собственное доказательство»).',
+    rbAccepted: 'Контрольные точки забыты; подписывать снова можно.',
+    rbAcceptConfirm: 'Делайте это, только если команда ZETAPHY объявила перезапуск цепочки или вы сами проверили этот узел. Сначала скачайте свои доказательства. Забыть контрольные точки и снова разрешить подпись?',
+    rbCometSaved: 'CometBFT RPC сохранён.',
   },
   vi: {
     subtitle: 'Ví kháng lượng tử (ML-DSA-44) · không có khóa ECDSA',
@@ -2972,6 +3132,28 @@ const T = {
     helpHw3: 'Gửi tiền đến địa chỉ 0x… của tài khoản phần cứng, và xác nhận mọi giao dịch trên màn hình của chính thiết bị.',
     helpMore: 'Chi tiết có trong phần bảo mật của README. Đây là testnet: không có gì là tiền thật.',
     helpClose: 'Đóng',
+    rbTitle: 'Bằng chứng của riêng bạn (cảnh báo quay lui)',
+    rbIntro: 'Cứ vài phút, ví này lưu, chỉ trên thiết bị này, khối mới nhất mà nó thấy: chứng chỉ hoàn tất (finality) kháng lượng tử của khối đó và bằng chứng số dư của bạn (eth_getProof). Nếu sau đó một nút hiển thị khối thấp hơn, hoặc trạng thái khác cho một khối bạn đang giữ, ví sẽ cảnh báo và từ chối ký.',
+    rbCometLabel: 'CometBFT RPC cho chứng chỉ hoàn tất (để trống: địa chỉ của nút + /rpc/)',
+    rbSave: 'Lưu',
+    rbCheck: 'Kiểm tra ngay',
+    rbExport: 'Tải xuống bằng chứng của tôi',
+    rbAlarmTitle: 'Cảnh báo quay lui: từ chối ký',
+    rbAlarmHelp: 'Điều này có thể nghĩa là chuỗi đã bị quay lui hoặc nút này đang nói dối. Bằng chứng của bạn vẫn được giữ trên thiết bị này. Hãy thử nút khác. Chỉ chấp nhận chuỗi mới nếu nhóm ZETAPHY đã thông báo khởi động lại chuỗi.',
+    rbAccept: 'Chấp nhận chuỗi mới (quên các điểm kiểm tra của tôi)',
+    rbNone: 'Chưa có điểm kiểm tra.',
+    rbHeld: 'Đang giữ: khối {h}, trạng thái {root}, ghi lúc {when} UTC.',
+    rbCertOk: 'Đã xác minh chứng chỉ hoàn tất kháng lượng tử: {signed} trên {total} quyền biểu quyết đã ký bằng ML-DSA-44.',
+    rbCertNo: 'Chưa có chứng chỉ hoàn tất đã xác minh cho khối này ({why}).',
+    rbErr: 'Không ghi được điểm kiểm tra: {why}',
+    rbAlarmLower: 'Nút giờ nói chuỗi đang ở khối {served}, nhưng bạn đang giữ khối {held}.',
+    rbAlarmFork: 'Với khối {h}, nút giờ hiển thị trạng thái {served}, nhưng bạn đang giữ {held}.',
+    rbAlarmMissing: 'Nút không còn khối {h}, khối mà trước đây nó đã cho bạn thấy.',
+    rbAlarmMismatch: 'Nút đưa ra hai câu trả lời không khớp cho khối {h} (gốc trạng thái và tiêu đề đã được chứng nhận, hoặc bằng chứng và số dư).',
+    rbRefuse: 'Từ chối ký: cảnh báo quay lui đang bật (xem "Bằng chứng của riêng bạn").',
+    rbAccepted: 'Đã quên các điểm kiểm tra; có thể ký lại.',
+    rbAcceptConfirm: 'Chỉ làm điều này nếu nhóm ZETAPHY đã thông báo khởi động lại chuỗi, hoặc bạn đã tự kiểm tra nút này. Hãy tải bằng chứng xuống trước. Quên các điểm kiểm tra và cho phép ký lại?',
+    rbCometSaved: 'Đã lưu CometBFT RPC.',
   },
 };
 
@@ -3012,6 +3194,7 @@ function applyLang() {
   showNudge();
   showPasskey();
   showBigBalance();
+  showRollback();
 }
 
 /** status(key, vars, isError, extra): extra is raw text (e.g. a node's log). */
@@ -3056,6 +3239,7 @@ function lock() {
 /** What pqClient signs with: the key in this page, or the snap (it gets the messages, never bytes). */
 /** Signing needs the unlocked wallet, checked again at the moment of signing (an auto-lock may come in between). */
 function signer() {
+  rollbackGuard();
   const w = wallet;
   if (!w || w.locked || (w.kind === 'local' && !w.secretKey)) throw new Error('lockedErr');
   const live = () => { if (wallet !== w || w.locked) throw new Error('lockedErr'); };
@@ -3139,6 +3323,8 @@ function render() {
   $('chpw-box').hidden = $('pk-box').hidden = snapMode;
   if (wallet) { if (!owned.length) loadOwned(); showAccount(); showToken(); showOwned(); }
   if (wallet) { if (!autoLockTimer) startAutoLock(); } else stopAutoLock();
+  if (wallet) { if (!rbTimer) rbTimer = setInterval(takeCheckpoint, INTERVAL_MS); } else if (rbTimer) { clearInterval(rbTimer); rbTimer = null; }
+  showRollback();
   if (!wallet) $('weak-nudge').hidden = true;
   showPasskey();
   showBigBalance();
@@ -3163,10 +3349,88 @@ async function refresh() {
     showAccount();
     await refreshOwned();
   } catch (e) { return showError(e); }
+  takeCheckpoint(); // in the background; its own errors stay in its card
   // The token panel follows: the one looked up, or the one remembered from last time.
   try {
     if (token) { token.balance = await tokenBalanceOf(token.address); showToken(); } else if ($('token').value.trim()) await loadToken(true);
   } catch (e) { showError(e); }
+}
+
+// ---- your own proof + the rollback alarm (rollback.js) ----
+let book = parseBook(store.get(KEYS.rollback));
+let rbTimer = null;
+let rbBusy = false;
+let rbError = null;
+
+const saveBook = () => store.set(KEYS.rollback, JSON.stringify(book));
+/** Refuses to sign while the alarm is on (every signing path: this page's key, the snap, MetaMask). */
+function rollbackGuard() { if (book.alarm) throw new Error('rbRefuse'); }
+
+/** The CometBFT RPC for certificates: the one saved, else the node's origin + /rpc/ (setup-node.sh's Caddy). */
+function cometUrl() {
+  const typed = $('comet-rpc').value.trim();
+  if (typed) return typed;
+  try { return new URL('/rpc/', rpcUrl()).href; } catch { return ''; }
+}
+
+async function takeCheckpoint() {
+  if (!wallet || rbBusy || book.alarm) return;
+  let url;
+  try { url = rpcUrl(); } catch { return; } // no node yet: nothing to check
+  rbBusy = true;
+  try {
+    const comet = cometUrl();
+    const tok = token?.address ? { address: token.address, slot: bridgedBalanceSlot(wallet.addr.hex, keccak_256) } : null;
+    const r = await checkpoint(book, { call: checkedCall, comet: comet ? cometClient(comet, { timeoutMs: 15_000 }) : null, verifyBlock, decodeCertificate,
+      address: wallet.addr.hex, token: tok, chainId: CHAIN_ID });
+    book = r.book;
+    if (r.alarm) book.alarm.rpc = url;
+    saveBook();
+    rbError = null;
+  } catch (e) {
+    rbError = String(e?.message ?? e);
+  } finally {
+    rbBusy = false;
+    showRollback();
+  }
+}
+
+const shortHash = (h) => (h ? `0x${String(h).replace(/^0x/, '').slice(0, 10)}…` : '?');
+function alarmText(a) {
+  if (a.kind === 'lower') return t('rbAlarmLower', { served: a.served, held: a.held });
+  if (a.kind === 'fork') return t('rbAlarmFork', { h: a.height, served: shortHash(a.served), held: shortHash(a.held) });
+  if (a.kind === 'missing') return t('rbAlarmMissing', { h: a.height });
+  return t('rbAlarmMismatch', { h: a.height });
+}
+
+function showRollback() {
+  const a = book.alarm;
+  $('rb-alarm').hidden = !(wallet && a);
+  if (a) $('rb-alarm-text').textContent = alarmText(a);
+  const r = book.latest;
+  $('rb-held').textContent = r ? t('rbHeld', { h: r.height, root: shortHash(r.stateRoot), when: new Date(r.at).toISOString().slice(0, 16).replace('T', ' ') }) : t('rbNone');
+  $('rb-cert').textContent = !r?.cert ? '' : r.cert.ok ? t('rbCertOk', { signed: r.cert.signedPower, total: r.cert.totalPower })
+    : t('rbCertNo', { why: r.cert.error ?? r.cert.problems?.[0] ?? '?' });
+  $('rb-cert').classList.toggle('error', !!(r?.cert && !r.cert.ok));
+  $('rb-error').textContent = rbError ? t('rbErr', { why: T.en[rbError] ? t(rbError) : rbError }) : '';
+  $('rb-export').disabled = !r && !a;
+}
+
+function downloadProofs() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([exportProofs(book, { address: wallet?.addr.hex ?? null, rpc: $('rpc').value.trim() })], { type: 'application/json' }));
+  a.download = `zetaphy-proofs-${book.latest?.height ?? 'none'}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function acceptNewChain() {
+  if (!window.confirm(t('rbAcceptConfirm'))) return;
+  book = newBook();
+  saveBook();
+  rbError = null;
+  showRollback();
+  status('rbAccepted');
 }
 
 /** Runs fn with the button(s) disabled; any error is shown in the status line. */
@@ -4135,6 +4399,7 @@ async function stopActing() {
 // ---- quantum lock from MetaMask: an EVM tx to 0x…5051 with this wallet's address as data ----
 async function metamaskLock() {
   if (!wallet || !$('mm-ok').checked) return;
+  rollbackGuard();
   const eth = ethereum(); // the EVM wallet picked under "other wallets" (MetaMask or any other)
   status('working');
   // The chain only accepts an ML-DSA-44 controller whose public key it knows.
@@ -4230,6 +4495,7 @@ async function qdayMigration() {
 }
 
 async function qdayCommitStep() {
+  rollbackGuard();
   const st = await qdayStatus();
   const mig = await qdayMigration();
   const c = await client.commitmentHeight(mig.commitment);
@@ -4240,6 +4506,7 @@ async function qdayCommitStep() {
 }
 
 async function qdayRevealStep() {
+  rollbackGuard();
   const st = await qdayStatus();
   if (!st?.qdayActive) throw new Error('qdNotYet');
   const mig = await qdayMigration();
@@ -4272,6 +4539,7 @@ async function consentSend() {
 
 async function consentMetaMask() {
   if (!$('cs-ok').checked) return;
+  rollbackGuard();
   const { target, seconds } = consentArgs();
   const owner = await metamaskAccount();
   const chain = BigInt(await ethereum().request({ method: 'eth_chainId' }));
@@ -4682,6 +4950,18 @@ function init() {
     clearPending(); // a confirm box checked against the old setting is not reused
     status('threatSaved');
   });
+  $('comet-rpc').value = store.get(KEYS.comet) ?? '';
+  $('comet-save').addEventListener('click', () => {
+    const u = $('comet-rpc').value.trim();
+    if (u && !/^https?:\/\//i.test(u)) return fail('badRpc');
+    if (u) store.set(KEYS.comet, u); else store.del(KEYS.comet);
+    status('rbCometSaved');
+    takeCheckpoint();
+  });
+  $('rb-check').addEventListener('click', () => busy($('rb-check'), takeCheckpoint));
+  $('rb-export').addEventListener('click', downloadProofs);
+  $('rb-alarm-export').addEventListener('click', downloadProofs);
+  $('rb-accept').addEventListener('click', acceptNewChain);
   // The typed URL is used right away; Save also remembers it.
   $('rpc').addEventListener('input', () => { checkedRpc = null; showManual(); });
   applyLang();

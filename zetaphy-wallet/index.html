@@ -128,6 +128,15 @@
   </section>
 
   <section id="wallet" hidden>
+    <div class="warn" id="rb-alarm" role="alert" hidden>
+      <strong data-i18n="rbAlarmTitle">Rollback alarm: signing is refused</strong>
+      <p id="rb-alarm-text"></p>
+      <p data-i18n="rbAlarmHelp">This can mean the chain was rolled back or this node is lying. Your proofs are kept on this device. Try another node. Only if the ZETAPHY team announced a chain restart, accept the new chain.</p>
+      <div class="row">
+        <button id="rb-alarm-export" type="button" data-i18n="rbExport">Download my proofs</button>
+        <button id="rb-accept" type="button" class="ghost" data-i18n="rbAccept">Accept the new chain (forget my checkpoints)</button>
+      </div>
+    </div>
     <div class="warn" id="weak-nudge" hidden>
       <p id="weak-nudge-text"></p>
       <button id="weak-nudge-go" type="button" data-i18n="weakNudgeGo">Change it now</button>
@@ -361,6 +370,23 @@
       <button id="cs-send" type="button" disabled data-i18n="csSend">Send consent from this wallet</button>
       <button id="cs-send-mm" type="button" disabled data-i18n="csSendMM">Send consent from MetaMask</button>
       <p id="cs-result" class="ok" hidden><span data-i18n="csSent">Consent sent. tx hash:</span> <code id="cs-hash"></code></p>
+    </div>
+
+    <div class="card" id="rb-card">
+      <h2 data-i18n="rbTitle">Your own proof (rollback alarm)</h2>
+      <p class="hint" data-i18n="rbIntro">Every few minutes this wallet keeps, on this device only, the latest block it saw: its post-quantum finality certificate and a proof of your balance (eth_getProof). If a node later shows a lower block, or a different state for a block you hold, the wallet warns you and refuses to sign.</p>
+      <p id="rb-held"></p>
+      <p id="rb-cert" class="hint"></p>
+      <p id="rb-error" class="hint"></p>
+      <label for="comet-rpc" data-i18n="rbCometLabel">CometBFT RPC for finality certificates (empty: the node's address + /rpc/)</label>
+      <div class="row">
+        <input id="comet-rpc" type="url" spellcheck="false" autocomplete="off" placeholder="https://…/rpc/">
+        <button id="comet-save" type="button" class="ghost" data-i18n="rbSave">Save</button>
+      </div>
+      <div class="row">
+        <button id="rb-check" type="button" class="ghost" data-i18n="rbCheck">Check now</button>
+        <button id="rb-export" type="button" class="ghost" data-i18n="rbExport" disabled>Download my proofs</button>
+      </div>
     </div>
 
     <div class="card" id="backup-card">

@@ -5,6 +5,8 @@
 // quantum lock from MetaMask (window.ethereum mocked), acting for a locked
 // account (as_owner), and the MetaMask Snap mode (a fake ZETAPHY Snap behind a
 // mocked window.ethereum: wallet_requestSnaps / wallet_invokeSnap).
+// Rollback alarm: checkpoints of certified blocks (a fake chain with real ML-DSA-44 finality certificates) and
+// the refusal to sign when the node later serves a lower block, another state, or two views that disagree.
 // Other wallets: fake EIP-6963 wallets, Binance Wallet (window.binancew3w), Phantom,
 // Keplr / Leap / Cosmostation, WalletConnect off without a projectId, and the
 // network settings checked against zetaphy-chain/wallets/*.json. Vaccine: calls and transfers to
@@ -29,6 +31,8 @@ import { keccak_256 } from '@noble/hashes/sha3.js';
 // The fake snap builds and signs with the same code the real one bundles.
 import { passwordStrength, seal, unseal, wrapSeed, unwrapSeed, isPasskeyBlob, MIN_PASSWORD_LENGTH } from '../security.js';
 import { buildTx, messageFromIntent, pqAddress, bytesToHex, createAddress, codeFingerprint, addressKey, REASON_TEXT, DISCLAIMER, REPRODUCE } from '../vendor/pqwallet.js';
+// The rollback alarm's fake chain builds real PQ finality certificates with the code the page verifies them with.
+import { voteMessage, headerHash, txsHash, CERT_TYPE_URL, encodeTxBody, encodeTxRaw, varint } from '../vendor/pqwallet.js';
 
 const PORT = 18090;
 const ORIGIN = `http://localhost:${PORT}`;
@@ -277,6 +281,13 @@ async function openPage(node = {}, { ethereum, snap, wallets, clock, watchKeys }
       result = node.commitments?.[params[0].toLowerCase()] ?? { found: false, height: 0 };
     } else if (method === 'zetaphy_consent') {
       result = { until: node.consents?.[`${params[0]}|${params[1]}`.toLowerCase()] ?? 0 };
+    } else if (node.chain && method === 'eth_getBlockByNumber') {
+      result = node.chain.evmBlock(params[0]);
+    } else if (node.chain && method === 'eth_getProof') {
+      result = node.chain.proof(params, node);
+    } else if (node.chain?.comet && ['block', 'validators', 'abci_query'].includes(method)) {
+      // the CometBFT RPC (the node's /rpc/): blocks with their PQ finality certificates
+      try { result = node.chain.cometAnswer(method, params); } catch (e) { error = { code: -32603, message: 'Internal error', data: e.message }; }
     } else if (method === 'zetaphy_sendCosmosTx') {
       sent.push(params[0]);
       result = { txHash: createHash('sha256').update(Buffer.from(params[0].slice(2), 'hex')).digest('hex').toUpperCase(), code: node.code ?? 0, log: node.log ?? '' };
@@ -2111,4 +2122,195 @@ test('large balance: a banner suggests the Snap (or a hardware wallet for an EVM
   assert.match(await page.textContent('#big-balance-text'), /ฮาร์ดแวร์วอลเล็ต/);
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+// ---- your own proof + the rollback alarm (rollback.js; docs/ANTI-ROLLBACK-OFFCHAIN.md) ----
+
+const RB_CHAIN = 'zetaphy_77390-1';
+const RB_VAL = { address: 'AB'.repeat(20), key: ml_dsa44.keygen(new Uint8Array(32).fill(9)) };
+const upperHex = (b) => bytesToHex(b).toUpperCase();
+const sha = (x) => createHash('sha256').update(x).digest('hex');
+const pbLen = (field, b) => Buffer.concat([Buffer.from(varint((field << 3) | 2)), Buffer.from(varint(b.length)), Buffer.from(b)]);
+
+/**
+ * A ZETAPHY chain for the mock node: EVM blocks (stateRoot = CometBFT header's app_hash, as cosmos/evm serves it),
+ * eth_getProof, and the CometBFT RPC: headers, one validator with an ML-DSA-44 vote key, and block n+1's first tx the
+ * certificate of block n. Mutable: latest (a rollback lowers it), salt (another history), evmLies (an EVM state root
+ * that is not the certified header's).
+ */
+function fakeChain({ latest = 100, comet = true } = {}) {
+  const ch = { latest, salt: 'a', evmLies: false, comet };
+  const memo = new Map();
+  const appHash = (n) => sha(`app/${ch.salt}/${n}`).toUpperCase();
+  const block = (n) => {
+    const k = `${ch.salt}/${n}`;
+    if (memo.has(k)) return memo.get(k);
+    const txs = n > 1 ? [certTx(n - 1)] : [];
+    const header = { version: { block: '11' }, chain_id: RB_CHAIN, height: String(n), time: '2026-11-11T00:00:00Z',
+      last_block_id: { hash: '11'.repeat(32), parts: { total: 1, hash: '22'.repeat(32) } }, last_commit_hash: '33'.repeat(32),
+      data_hash: upperHex(txsHash(txs)), validators_hash: '44'.repeat(32), next_validators_hash: '44'.repeat(32), consensus_hash: '55'.repeat(32),
+      app_hash: appHash(n), last_results_hash: '77'.repeat(32), evidence_hash: '88'.repeat(32), proposer_address: RB_VAL.address };
+    const b = { header, hash: headerHash(header), txs };
+    memo.set(k, b);
+    return b;
+  };
+  function certTx(h) {
+    const sig = ml_dsa44.sign(voteMessage(RB_CHAIN, h, block(h).hash), RB_VAL.key.secretKey);
+    const att = Buffer.concat([Buffer.from(RB_VAL.address, 'hex'), Buffer.from(sig)]);
+    const value = Buffer.concat([pbLen(1, Buffer.from('zetaphy1certsigner')), Buffer.from(varint(2 << 3)), Buffer.from(varint(h)), pbLen(3, att)]);
+    return encodeTxRaw({ bodyBytes: encodeTxBody({ messages: [{ typeUrl: CERT_TYPE_URL, value }] }), authInfoBytes: new Uint8Array(), signatures: [] });
+  }
+  ch.evmBlock = (tag) => {
+    const n = tag === 'latest' ? ch.latest : Number(BigInt(tag));
+    if (n > ch.latest) return null;
+    return { number: '0x' + n.toString(16), hash: '0x' + sha(`evm/${ch.salt}/${n}`), stateRoot: '0x' + (ch.evmLies ? sha(`lie/${n}`) : appHash(n).toLowerCase()) };
+  };
+  ch.proof = ([address, slots], node) => ({ address, balance: '0x' + (node.balance ?? 10n ** 19n).toString(16), nonce: '0x4', codeHash: '0x' + '00'.repeat(32),
+    storageHash: '0x' + '00'.repeat(32), accountProof: ['0x0a2b' + sha(address).slice(0, 16)], storageProof: slots.map((key) => ({ key, value: '0x0', proof: ['0x0a00', '0x0a01'] })) });
+  ch.cometAnswer = (method, params) => {
+    if (method === 'block') {
+      const n = Number(params.height);
+      if (n > ch.latest) throw new Error(`height ${n} must be less than or equal to the current blockchain height ${ch.latest}`);
+      const b = block(n);
+      return { block_id: { hash: upperHex(b.hash), parts: { total: 1, hash: '99'.repeat(32) } }, block: { header: b.header, data: { txs: b.txs.map((t) => Buffer.from(t).toString('base64')) } } };
+    }
+    if (method === 'validators') return { block_height: params.height, validators: [{ address: RB_VAL.address, voting_power: '10', pub_key: {}, proposer_priority: '0' }], count: '1', total: '1' };
+    const since = Buffer.alloc(8); since.writeBigUInt64BE(1n);
+    return { response: { code: 0, value: Buffer.concat([since, Buffer.from(RB_VAL.key.publicKey)]).toString('base64'), height: params.height } };
+  };
+  return ch;
+}
+
+const rbBook = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('zetaphy-wallet:rollback:v1:77390') ?? 'null'));
+const rbHeld = (page, h) => page.waitForFunction((x) => document.getElementById('rb-held').textContent.includes(` ${x}`), String(h), { timeout: 15000 })
+  .catch(async () => { throw new Error(`#rb-held is "${await page.textContent('#rb-held')}" / "${await page.textContent('#rb-error')}", wanted block ${h}`); });
+
+/** A send of 1 ZETAPHY to TO up to the confirm box; then confirm. */
+async function sendOne(page) {
+  await page.fill('#to', TO);
+  await page.fill('#amount', '1');
+  await page.click('#review');
+  await visible(page, '#confirm');
+  await page.click('#confirm-send');
+}
+
+test('rollback alarm: a checkpoint holds a certified block (ML-DSA-44 certificate verified) and its eth_getProof; a lower block later: alarm, nothing is signed; the proofs download; accepting the new chain allows signing again', async () => {
+  const node = { exists: true, chain: fakeChain({ latest: 100 }) };
+  const { page, context, errors, outside, sent } = await importedPage(node);
+  await rbHeld(page, 99);
+  await page.waitForFunction(() => /verified: 10 of 10/.test(document.getElementById('rb-cert').textContent), null, { timeout: 15000 });
+  const book = await rbBook(page);
+  assert.equal(book.latest.height, '99');
+  assert.equal(book.latest.cert.ok, true, 'the certificate of block 99 (in block 100) verifies for zetaphy_77390-1');
+  assert.equal(book.latest.cert.certHeight, '99');
+  assert.ok(book.latest.cert.tx, 'the certificate tx itself is kept');
+  assert.equal(book.latest.stateRoot, sha('app/a/99'), 'the EVM state root = the certified header\'s app hash');
+  assert.equal(book.latest.account.address.toLowerCase(), SEED_HEX_ADDR.toLowerCase());
+  assert.equal(book.latest.account.balance, String(10n ** 19n));
+  assert.ok(book.latest.account.accountProof.length, 'the account proof is kept');
+  assert.ok(await page.isHidden('#rb-alarm'));
+
+  // the chain moves on: still fine
+  node.chain.latest = 104;
+  await page.click('#rb-check');
+  await rbHeld(page, 103);
+  await sendOne(page);
+  await visible(page, '#tx-result');
+  assert.equal(sent.length, 1, 'signing works while the node agrees with what is held');
+
+  // the node now serves a lower block than the one held: the alarm, and every signing path refuses
+  node.chain.latest = 90;
+  await page.click('#rb-check');
+  await visible(page, '#rb-alarm');
+  assert.match(await page.textContent('#rb-alarm-text'), /chain is at block 90, but you hold block 103/);
+  await sendOne(page);
+  await statusMatches(page, /Signing refused: the rollback alarm is on/);
+  assert.equal(sent.length, 1, 'nothing more was signed or sent');
+  // the alarm survives a reload (it is stored), and the wallet still refuses after unlocking
+  await page.reload();
+  await page.fill('#unlock-pass', PASS);
+  await page.click('#unlock');
+  await visible(page, '#wallet');
+  await visible(page, '#rb-alarm');
+  // the proofs the user holds: one file with the certified checkpoint, its proofs and the alarm
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#rb-alarm-export')]);
+  const file = JSON.parse(readFileSync(await dl.path(), 'utf8'));
+  assert.equal(file.kind, 'zetaphy-wallet-proofs/v1');
+  assert.equal(file.latest.height, '103');
+  assert.equal(file.latest.cert.ok, true);
+  assert.equal(file.alarm.kind, 'lower');
+  // accepting the new chain (only on purpose: a confirm) forgets the checkpoints and allows signing again
+  page.once('dialog', (d) => d.dismiss());
+  await page.click('#rb-accept');
+  assert.ok(await page.isVisible('#rb-alarm'), 'dismissed: nothing changes');
+  page.once('dialog', (d) => d.accept());
+  await page.click('#rb-accept');
+  await statusMatches(page, /Checkpoints forgotten/);
+  assert.ok(await page.isHidden('#rb-alarm'));
+  await page.waitForFunction(() => document.getElementById('balance').textContent.includes('ZETAPHY'));
+  await sendOne(page);
+  await visible(page, '#tx-result');
+  assert.equal(sent.length, 2);
+  assert.deepEqual(outside, []);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('rollback alarm (Thai): another state for a block held is a fork; an EVM state root that is not the certified header\'s is a mismatch; the snap is never asked to sign', async () => {
+  const node = { exists: true, chain: fakeChain({ latest: 50 }) };
+  const { page, context, errors } = await importedPage(node);
+  await rbHeld(page, 49);
+  await setLang(page, 'th');
+  // another history from block 1 on (the same heights, other hashes and states): a fork of what is held
+  node.chain.salt = 'b';
+  node.chain.latest = 52;
+  await page.click('#rb-check');
+  await visible(page, '#rb-alarm');
+  assert.match(await page.textContent('#rb-alarm-text'), /สำหรับบล็อก 49 ตอนนี้โหนดแสดงสถานะ 0x/);
+  assert.equal(await page.textContent('[data-i18n="rbAlarmTitle"]'), 'สัญญาณเตือนการย้อนเชน: ไม่ยอมเซ็นธุรกรรม');
+  assert.equal((await rbBook(page)).alarm.kind, 'fork');
+  await sendOne(page);
+  await statusMatches(page, /ไม่ยอมเซ็น: สัญญาณเตือนการย้อนเชนเปิดอยู่/);
+  await context.close();
+
+  // a node whose EVM answers do not match its own certified CometBFT header
+  const liar = { exists: true, chain: fakeChain({ latest: 30 }) };
+  liar.chain.evmLies = true;
+  const snap = {};
+  const p2 = await openPage(liar, { ethereum: { snaps: true, chainId: '0x12e4e', account: '0x4444444444444444444444444444444444444444' }, snap });
+  await setLang(p2.page, 'en');
+  await p2.page.fill('#rpc', RPC);
+  await p2.page.click('#rpc-save');
+  await p2.page.click('#snap-connect');
+  await visible(p2.page, '#wallet');
+  await visible(p2.page, '#rb-alarm');
+  assert.match(await p2.page.textContent('#rb-alarm-text'), /two answers that do not match for block 29/);
+  assert.equal((await rbBook(p2.page)).alarm.what, 'appHash');
+  await sendOne(p2.page).catch(() => {});
+  await statusMatches(p2.page, /Signing refused: the rollback alarm is on/);
+  assert.ok(!snap.requests.some((r) => r.method === 'zetaphy_signTx'), 'the snap was never asked to sign');
+  assert.deepEqual(errors, []);
+  assert.deepEqual(p2.errors, []);
+  await p2.context.close();
+});
+
+test('rollback alarm: without a CometBFT RPC the checkpoint still holds the proofs (no certificate, no alarm); a node without eth_getProof is a note, not an alarm', async () => {
+  const node = { exists: true, chain: fakeChain({ latest: 20, comet: false }) };
+  const { page, context, errors, sent } = await importedPage(node);
+  await rbHeld(page, 19);
+  assert.match(await page.textContent('#rb-cert'), /No verified finality certificate for this block yet/);
+  assert.equal((await rbBook(page)).latest.cert.ok, false);
+  assert.ok(await page.isHidden('#rb-alarm'));
+  await sendOne(page);
+  await visible(page, '#tx-result');
+  assert.equal(sent.length, 1);
+  await context.close();
+  // the node of the other tests (no eth_getBlockByNumber / eth_getProof): just a note in the card
+  const p2 = await importedPage({ exists: true });
+  await p2.page.waitForFunction(() => /Could not take a checkpoint/.test(document.getElementById('rb-error').textContent), null, { timeout: 15000 });
+  assert.ok(await p2.page.isHidden('#rb-alarm'));
+  assert.equal(await p2.page.textContent('#rb-held'), 'No checkpoint yet.');
+  assert.deepEqual(errors, []);
+  assert.deepEqual(p2.errors, []);
+  await p2.context.close();
 });

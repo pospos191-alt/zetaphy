@@ -238,8 +238,11 @@ for f in registerZetaphyV4 registerZetaphyV5 registerZetaphyFirewall; do echo "$
 ```
 
 `setup-node.sh` (and so `zetaphy-validator update`) runs `upgrade-check` itself before it replaces the binary of
-a running node, and refuses a binary that fails it (`UPGRADE_CHECK=0` skips the check, e.g. for a deliberate
-rollback).
+a running node, and refuses a binary that fails it. There is no silent skip any more (`UPGRADE_CHECK=0` is ignored):
+only `ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<height>`, with this node's chain id and a height at most 100 blocks below
+its current one (the refusal prints the value), installs a refused binary on purpose, and each use is logged to the
+journal (`journalctl -t zetaphy-setup`). A binary with the chain guard also checks this itself at every start
+(`zetaphyd start` refuses before it joins the network); see [ANTI-ROLLBACK-CHAIN.md](ANTI-ROLLBACK-CHAIN.md).
 
 ### 4. Install it **[CHANGES FILES]** (restarts the node; the chain goes on)
 
@@ -297,6 +300,25 @@ error (`raw_log` / `eth_getTransactionReceipt` status 0).
   Keep the new binary and turn the firewall off as above. Only if the new binary itself fails (crash, app-hash
   error), stop `zetaphyd`, put back the data copy (or the disk snapshot) from step 2 and the old binary; blocks made
   after the copy are lost (single-validator testnet). With neither, the way out is forward: a fixed binary.
+  This is a deliberate chain rollback, which the start guard ([ANTI-ROLLBACK-CHAIN.md](ANTI-ROLLBACK-CHAIN.md))
+  refuses unless you say so: a node started on an older `data/` (older `priv_validator_state.json`) than the
+  heights it already signed stops with `ZETAPHY start guard: refused to start ... double sign`. On the
+  single-validator testnet, where the blocks after the copy are thrown away with it, start it once with the value
+  the refusal prints (the copy's chain id and height); on a chain with other validators never do this, put the
+  newest `priv_validator_state.json` back instead:
+  ```bash
+  sudo systemctl stop zetaphyd
+  sudo -u zetaphy cp -a /home/zetaphy/.zetaphy/data/priv_validator_state.json /home/zetaphy/pvs.before-rollback.json  # [CHANGES FILES] keep the newest
+  sudo -u zetaphy bash -c 'rm -rf ~/.zetaphy/data && cp -a ~/.zetaphy/data.pre-firewall ~/.zetaphy/data'          # [CHANGES FILES]
+  sudo install -m 755 /usr/local/bin/zetaphyd.pre-firewall /usr/local/bin/zetaphyd                                 # [CHANGES FILES]
+  sudo systemctl start zetaphyd; journalctl -u zetaphyd -n 20 --no-pager | grep 'start guard' || echo started        # [read]
+  # only if it printed "refused to start" (single-validator testnet only):
+  sudo systemctl set-environment ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<height from the message>
+  sudo systemctl restart zetaphyd && sudo systemctl unset-environment ZETAPHY_ALLOW_DOWNGRADE
+  ```
+  A same-handler-set rollback (the binary in place has the handler of every upgrade the restored state completed)
+  passes the downgrade check by itself; only the signing-state check needs the override. A binary from before the
+  chain guard has neither check.
 - Clean up when done **[CHANGES FILES]**: `sudo -u zetaphy rm -rf /home/zetaphy/src/evm-firewall /home/zetaphy/setup-node-firewall.sh`.
 
 ## Limits

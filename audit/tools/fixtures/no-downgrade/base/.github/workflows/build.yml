@@ -1,0 +1,12 @@
+name: build
+jobs:
+  a:
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.11'
+  b:
+    steps:
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.14"

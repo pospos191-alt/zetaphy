@@ -151,3 +151,5 @@ dialog { max-width: min(560px, calc(100vw - 32px)); border: 1px solid var(--line
 dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
 dialog ol { padding-left: 20px; }
 dialog li { margin: 4px 0; }
+
+#rb-cert.error, #rb-error:not(:empty), #rb-alarm-text { color: var(--danger); }

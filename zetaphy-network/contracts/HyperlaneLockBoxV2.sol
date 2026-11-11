@@ -76,6 +76,14 @@ interface IGuardOutbound {
 ///         owed (token balances on ZETAPHY at its last block, releases queued here and not claimed, locks
 ///         ZETAPHY never minted). Once it is set, each address takes its share here (escape), pro rata if
 ///         the backing is short; nothing else moves any more. A heartbeat before the root ends escaping.
+///
+///         Forced exit (docs/ANTI-ROLLBACK-OFFCHAIN.md, item Q): if the validators do not sign an exit root within
+///         FORCE_AFTER of escaping beginning (censoring, gone, or captured), the route's ZetaphyForcedExit (governance
+///         names it once, like the checkpointer; never while escaping) pays each holder from what THEY prove: their
+///         token(X) balance in a ZETAPHY state the light client finalized (the proof the wallet keeps). The pool is
+///         `locked` at the first forced payout, the total the last heartbeat's token(X) supply (proof of reserves):
+///         pro rata if short, and never more owed in all than that supply. After the first forced payout no exit root
+///         is accepted (the two never mix).
 contract HyperlaneLockBoxV2 {
     struct Release {
         address to;
@@ -128,6 +136,12 @@ contract HyperlaneLockBoxV2 {
     uint256 public exitTotal;                // the sum the root owes
     uint256 public exitPool;                 // what this lockbox held for locks when the root was set
     mapping(address => bool) public escaped;
+    // forced exit (added at the end of storage)
+    uint64 public constant FORCE_AFTER = 7 days;   // after escaping begins, without an exit root
+    bytes32 public constant FORCED_ROOT = keccak256("saphan/forced-exit/v1"); // exitRoot in forced mode (no Merkle exit)
+    address public forcedExit;               // ZetaphyForcedExit here (zero: no forced exit)
+    bool public forced;                      // forced mode began (exitRoot == FORCED_ROOT)
+    uint256 public forcedOwed;               // what the forced payouts have owed so far (<= exitTotal)
 
     event Locked(uint256 indexed nonce, address indexed sender, address indexed to, uint256 amount);
     event Dispatched(uint256 indexed nonce, bytes32 messageId);
@@ -148,6 +162,8 @@ contract HyperlaneLockBoxV2 {
     event Escaped(address indexed who, uint256 owed, uint256 paid);
     event ProofVerifierSet(address verifier, bool required);
     event Reserves(uint256 locked, uint256 zetaphySupply);
+    event ForcedExitSet(address forcedExit);
+    event ForcedExitBegan(uint256 total, uint256 pool);
 
     error NotGovernance();
     error NotGuardian();
@@ -175,6 +191,9 @@ contract HyperlaneLockBoxV2 {
     error BadProof();
     error NotVerifier();
     error ProofRequired();
+    error NotForcedExit();
+    error TooSoon(uint64 at);
+    error OverSupply(uint256 left);
 
     constructor(ISaphanMailbox mailbox_, uint32 zetaphyDomain_, uint256 zetaphyChainId_, bytes32 recipient_, bytes32 remoteSender_,
         address hook_, ISaphanIsm ism_, address governance_, address guardian_, uint256 dailyLimit_, uint64 releaseDelay_)
@@ -371,7 +390,7 @@ contract HyperlaneLockBoxV2 {
     /// The caller's share of the exit: `owed` as in the root (leaf = keccak256(keccak256(abi.encode(caller, owed))),
     /// sorted-pair Merkle proof), paid in full when the backing covers the root's total, else pro rata. Once.
     function escape(uint256 owed, bytes32[] calldata proof) external {
-        if (exitRoot == bytes32(0)) revert NotEscaping();
+        if (exitRoot == bytes32(0) || forced) revert NotEscaping();
         if (escaped[msg.sender]) revert AlreadyClaimed();
         bytes32 node = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, owed))));
         for (uint256 i = 0; i < proof.length; i++) {
@@ -384,6 +403,40 @@ contract HyperlaneLockBoxV2 {
         locked -= pay;
         emit Escaped(msg.sender, owed, pay);
         (bool ok, ) = msg.sender.call{value: pay}("");
+        if (!ok) revert PayFailed();
+    }
+
+    /// When forced payouts may begin: FORCE_AFTER after escaping began (zero while no checkpointer).
+    function forcedFrom() public view returns (uint64) {
+        if (checkpointer == bytes32(0) || lastHeard == 0) return 0;
+        return lastHeard + ESCAPE_AFTER + FORCE_AFTER;
+    }
+
+    /// The route's ZetaphyForcedExit only: pays `to` its share of `owed` (a token(X) balance it proved). The first call
+    /// starts forced mode (no exit root came in time): pool = locked now, total = token(X)'s supply at the last
+    /// heartbeat. Pro rata if the pool is short; each address once; never more owed in all than the total.
+    function forcedPay(address to, uint256 owed) external returns (uint256 pay) {
+        if (msg.sender != forcedExit || forcedExit == address(0)) revert NotForcedExit();
+        if (!escaping()) revert NotEscaping();
+        if (!forced) {
+            if (exitRoot != bytes32(0)) revert ExitDone();       // the validators' exit root came first
+            if (block.timestamp <= forcedFrom()) revert TooSoon(forcedFrom());
+            if (zetaphySupply == 0) revert BadBody();             // no heartbeat ever carried the supply: no total
+            forced = true;
+            exitRoot = FORCED_ROOT;
+            exitTotal = zetaphySupply;
+            exitPool = locked;
+            emit ForcedExitBegan(exitTotal, exitPool);
+        }
+        if (escaped[to]) revert AlreadyClaimed();
+        if (to == address(0) || owed == 0) revert BadBody();
+        if (forcedOwed + owed > exitTotal) revert OverSupply(exitTotal - forcedOwed);
+        escaped[to] = true;
+        forcedOwed += owed;
+        pay = exitTotal <= exitPool ? owed : owed * exitPool / exitTotal;
+        locked -= pay;
+        emit Escaped(to, owed, pay);
+        (bool ok, ) = to.call{value: pay}("");
         if (!ok) revert PayFailed();
     }
 
@@ -459,6 +512,14 @@ contract HyperlaneLockBoxV2 {
         checkpointer = c;
         lastHeard = uint64(block.timestamp);
         emit CheckpointerSet(c);
+    }
+
+    /// The route's ZetaphyForcedExit (zero: none). Like the checkpointer: never while escaping or after an exit root, so
+    /// governance cannot swap it once holders may need it.
+    function setForcedExit(address f) external onlyGov {
+        if (escaping() || exitRoot != bytes32(0)) revert Escaping();
+        forcedExit = f;
+        emit ForcedExitSet(f);
     }
 
     /// A new ISM (e.g. more of our validators, a higher threshold). Never zero.

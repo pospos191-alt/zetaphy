@@ -15,3 +15,6 @@ export { codeFingerprint } from '../../zetaphy-neuro/src/fingerprint.js';
 // Plus the registry's keys and the views that explain a flag (evidence, the owner's
 // response) and the neutral reason texts with the disclaimer.
 export { THREAT_SEL, PROXY_DEPTH, proxyTargets, codeKey, addressKey, detailQueries, readEvidence, readResponse, REASON_TEXT, DISCLAIMER, REPRODUCE } from '../../zetaphy-network/src/vaccine.js';
+// The PQ finality certificate check every node applies (pqcert.js verifyBlock over CometBFT RPC), for the rollback
+// alarm's checkpoints (rollback.js); voteMessage / headerHash / txsHash let the browser test build a certificate.
+export { verifyBlock, cometClient, decodeCertificate, voteMessage, headerHash, txsHash, CERT_TYPE_URL } from '../../zetaphy-network/src/pqcert.js';
