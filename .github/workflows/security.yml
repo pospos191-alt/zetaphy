@@ -916,8 +916,9 @@ jobs:
           import json
           names = {i["name"] for i in json.load(open("target/idl/swd_amm.json"))["instructions"]}
           assert len(names) == 23, sorted(names)
-          for gone in ("initialize_pool", "swap", "swap_dlmm", "initialize_dlmm_pool", "set_allowed_mint"):
+          for gone in ("initialize_pool", "swap", "swap_dlmm", "initialize_dlmm_pool", "set_allowed_mint", "set_authorities"):
               assert gone not in names, gone
+          assert "accept_authority" in names  # two-step authority rotation (K-3)
           print("mainnet,v2-only IDL:", len(names), "instructions")
           PY
           ls -l target/deploy/swd_amm.so

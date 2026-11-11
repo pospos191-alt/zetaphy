@@ -1268,6 +1268,7 @@ export default {
     allow: "Permitir",
     disallow: "Prohibir",
     reviewed: "Token-2022 revisado",
+    trustFreeze: "Confiar en su autoridad de congelación (p. ej. USDC/USDT)",
     actions: "Acciones con timelock",
     noActions: "Aún no hay acciones.",
     execute: "Ejecutar",

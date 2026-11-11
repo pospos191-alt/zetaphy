@@ -32,7 +32,7 @@ transferred to another owner and closed (rent refunded) once empty.
 
 | Instruction | Who |
 |---|---|
-| `initialize_v2_pool(params)` | anyone (both mints need an enabled MintPolicy; pool creation not paused) |
+| `initialize_v2_pool(params)` | `mainnet` build: governance only (K-5). Other builds: anyone (pool creation not paused). Both mints need an enabled MintPolicy |
 | `create_v2_position` | anyone |
 | `add_v2_liquidity(max_a, max_b, min_liquidity)` | position owner (first deposit: pool creator only) |
 | `remove_v2_liquidity(liquidity, min_a, min_b)` | position owner |
@@ -41,8 +41,9 @@ transferred to another owner and closed (rent refunded) once empty.
 | `transfer_v2_position(new_owner)`, `close_v2_position` | position owner |
 | `swap_v2(amount_in, min_out, a_to_b)` | anyone |
 | `emergency_pause_v2_pool` | emergency authority |
-| `set_mint_policy`, `initialize_governance_settings`, `propose_gov_action`, `cancel_gov_action` | governance |
+| `set_mint_policy` (a mint with a freeze authority needs `trust_freeze_authority`), `initialize_governance_settings`, `propose_gov_action`, `cancel_gov_action` | governance |
 | `execute_*` | anyone, after the timelock |
+| `accept_authority` | the new governance / emergency key named in a matured rotation action |
 
 ## Using it on devnet
 
@@ -51,10 +52,11 @@ transferred to another owner and closed (rent refunded) once empty.
    3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL 420000 --url devnet`).
 2. With the governance wallet (Phantom CRZs…), open test-ui → SWDMM v2 →
    Governance: *Initialize settings* (e.g. 60 s timelock, 10% share), then
-   *Allow* each mint you want to pool (and wSOL for SOL pairs).
+   *Allow* each mint you want to pool (and wSOL for SOL pairs). A mint with a
+   freeze authority also needs the *Trust its freeze authority* box.
 3. Create pool → pick tokens and amounts → options → Confirm (one wallet
    approval for two transactions).
 4. Trade / add / withdraw / lock / claim on the pool page.
 
 CLI equivalents: `yarn governance init-settings | set-mint-policy |
-propose-* | execute | cancel | settings`.
+propose-* | execute | cancel | settings | accept-authority`.

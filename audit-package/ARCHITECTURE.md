@@ -34,12 +34,12 @@ flowchart LR
 
 | Account | Seeds | Created by | Mutable by |
 |---|---|---|---|
-| `GlobalConfig` | `["global-config"]` | `initialize_global_config` (signer must be the program's **upgrade authority**) | governance (`set_authorities`, `set_pool_creation_paused`) |
+| `GlobalConfig` | `["global-config"]` | `initialize_global_config` (signer must be the program's **upgrade authority**) | governance (`set_pool_creation_paused`); `accept_authority` (signed by the NEW authority of a matured rotation action) |
 | `GovernanceSettings` | `["gov_settings"]` | `initialize_governance_settings` (governance) | timelocked `SetProtocolFeeShare` / `SetTimelockDelay` / `SetTreasury`; `next_action_id` on every proposal |
-| `PendingAction` | `["gov_action", id u64 LE]` | `propose_gov_action` (governance) | `cancel_gov_action` (governance), `emergency_cancel_unpause` (emergency, unpause kinds only), `execute_*` (anyone, after the delay, within 7 days) |
+| `PendingAction` | `["gov_action", id u64 LE]` | `propose_gov_action` (governance) | `cancel_gov_action` (governance), `emergency_cancel_unpause` (emergency, unpause kinds only), `execute_*` (anyone, after the delay, within 7 days), `accept_authority` (the new authority, rotation kinds only) |
 | `MintPolicy` | `["mint_policy", mint]` | `set_mint_policy` (governance, `init_if_needed`) | `set_mint_policy` |
 | `MintFeed` | `["mint-feed", mint]` | `set_mint_feed` (governance, `init_if_needed`) | `set_mint_feed` (existing pools copied the feed id; unaffected) |
-| `SwdmmV2Pool` | `["swdmm_v2_pool", mint_a, mint_b, floor_fee_bps u16 LE]` | `initialize_v2_pool` (anyone, unless creation is paused; both mints need an enabled `MintPolicy`) | pool instructions; emergency pause; timelocked unpause / params / fee withdrawal |
+| `SwdmmV2Pool` | `["swdmm_v2_pool", mint_a, mint_b, floor_fee_bps u16 LE]` | `initialize_v2_pool` (`mainnet` build: governance only, K-5; other builds: anyone unless creation is paused. Both mints need an enabled `MintPolicy`; neither vault may be born frozen) | pool instructions; emergency pause; timelocked unpause / params / fee withdrawal |
 | vault A / B (token accounts) | `["swdmm_v2_vault", pool, mint]`, authority = pool PDA | `initialize_v2_pool` | only via pool-PDA-signed `transfer_checked` in `remove_v2_liquidity`, `claim_v2_fees`, `swap_v2`, `execute_withdraw_protocol_fees` |
 | `SwdmmV2Position` | `["swdmm_v2_position", pool, index u64 LE]`, `index = sha256("swdmm_v2_position_index" ‖ owner ‖ nonce)[..8]` | `create_v2_position` (owner) | owner-gated instructions (`position.owner == signer && position.pool == pool`); closed by `close_v2_position` when empty |
 
@@ -69,7 +69,7 @@ sequenceDiagram
   opt oracle guard wanted
     G->>P: set_mint_feed(mint, pyth_feed_id)
   end
-  C->>P: initialize_v2_pool(params)  [creation not paused, or C is governance]
+  C->>P: initialize_v2_pool(params)  [mainnet: C is governance; devnet: creation not paused, or C is governance]
   C->>P: create_v2_position(nonce, index)
   C->>P: add_v2_liquidity(max_a, max_b, min_liquidity)  [first deposit: creator only, sets price, locks MINIMUM_LIQUIDITY]
   L->>P: create_v2_position + add_v2_liquidity (proportional quote)
@@ -128,10 +128,12 @@ stateDiagram-v2
 | `SetProtocolFeeShare { bps }` | `execute_settings_action` | ≤ 2,000 (20% of the fee) |
 | `SetTimelockDelay { secs }` | `execute_settings_action` | 24 h–48 h on `mainnet` builds (5 s–48 h otherwise) |
 | `SetTreasury { treasury }` | `execute_settings_action` | not the default key |
+| `SetGovernanceAuthority { new_authority }` | `accept_authority`, **signed by `new_authority`** | not the default key, ≠ emergency (at propose and accept); proposer must still be governance at accept |
+| `SetEmergencyAuthority { new_authority }` | `accept_authority`, **signed by `new_authority`** | **no delay** (executable at once); not the default key, ≠ governance |
 | `UnpauseCpPool`, `UnpauseDlmmPool` | — | refused at proposal in `v2-only` builds (kept in the enum for layout stability) |
 
 **Not timelocked (instant, governance signature):** `set_mint_policy`,
-`set_mint_feed`, `set_pool_creation_paused`, `set_authorities`,
+`set_mint_feed`, `set_pool_creation_paused`,
 `initialize_governance_settings` (once), `propose_gov_action`, `cancel_gov_action`.
 **Instant, emergency key:** `emergency_pause_v2_pool` (pause only),
 `emergency_cancel_unpause`. See [TRUST_MODEL.md](TRUST_MODEL.md).
@@ -143,13 +145,15 @@ flowchart LR
   D[one-time deployer key] -->|solana program deploy| PR[(swd_amm program)]
   D -->|initialize_global_config<br/>gov = deployer temporarily| GC[(GlobalConfig)]
   D -->|initialize_governance_settings<br/>24 h delay, treasury = vault| GS[(GovernanceSettings)]
-  D -->|set_authorities gov = Squads vault,<br/>emergency = separate key| GC
+  D -->|propose SetGovernanceAuthority = vault<br/>emergency = separate key since init| GC
   D -->|IDL authority → vault| IDL[(IDL account)]
-  D -->|upgrade authority → vault LAST| PR
+  D -->|upgrade authority → vault| PR
+  V -->|after 24 h: accept_authority<br/>via a Squads proposal| GC
   V[Squads v4 vault 2-of-3] -. governs .-> GC
   V -. upgrades .-> PR
 ```
 
 `scripts/deploy-mainnet.sh` runs this order (dry run by default) and builds
-`--features mainnet,v2-only`. Until the last step the deployer key is all-powerful;
+`--features mainnet,v2-only`. Until the upgrade authority moves the deployer key is
+all-powerful; it then stays governance until the vault accepts (≥ 24 h, the timelock);
 see KNOWN_ISSUES K-9.

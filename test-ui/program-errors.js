@@ -21,6 +21,8 @@ export const PROGRAM_ERRORS = {
   6017: ["UnsupportedMintExtension","This Token-2022 mint carries an extension this program does not yet support (transfer hook, confidential transfer, non-transferable, permanent delegate, mint close authority, or an extension this program does not know)","allow"],
   6018: ["PriceImpactTooHigh","Price impact exceeds the 50% cap for a single swap","slippage"],
   6019: ["OracleFeedNotRegistered","Pyth feed ids must match the feeds governance registered for these mints (set_mint_feed)","oracle"],
+  6020: ["FreezeAuthorityNotTrusted","This mint has a freeze authority: governance must explicitly trust it (trust_freeze_authority) to allow the mint","allow"],
+  6021: ["VaultFrozen","A new pool vault is frozen (e.g. Token-2022 DefaultAccountState = Frozen): the pool would be unusable","allow"],
   6100: ["BinStepTooHigh","bin_step_bps exceeds the maximum allowed","input"],
   6101: ["BinOutOfRange","Requested bin id falls outside this pool's fixed bin array range","input"],
   6102: ["InvalidBinRange","bin_id_upper must be >= bin_id_lower","input"],
@@ -82,6 +84,7 @@ export const PROGRAM_ERRORS = {
   8027: ["MathOverflow","Math overflow","math"],
   8028: ["OracleFeedNotRegistered","Pyth feed ids must match the feeds governance registered for these mints (set_mint_feed)","oracle"],
   8029: ["PositionIndexMismatch","Position index must be v2_position_index(owner, nonce)","input"],
+  8030: ["GovernanceOnlyPoolCreation","On a mainnet build only the governance authority can create SWDMM v2 pools","auth"],
   8500: ["InvalidTimelockDelay","Timelock delay is outside the allowed range for this build","timelock"],
   8501: ["ProtocolFeeShareTooHigh","Protocol fee share exceeds the 20% maximum","input"],
   8502: ["InvalidTreasury","Treasury cannot be the default pubkey","input"],
@@ -96,6 +99,7 @@ export const PROGRAM_ERRORS = {
   8511: ["UseTimelockedUnpause","Instant unpause is disabled: use the timelocked propose/execute flow","timelock"],
   8512: ["MathOverflow","Math overflow","math"],
   8513: ["ActionExpired","This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again","timelock"],
+  8514: ["StaleAuthorityProposal","This authority rotation was proposed by an earlier governance authority: propose it again","timelock"],
 };
 
 const BY_NAME = Object.fromEntries(Object.entries(PROGRAM_ERRORS).map(([c, [n]]) => [n, Number(c)]));

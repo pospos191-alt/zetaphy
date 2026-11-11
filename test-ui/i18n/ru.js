@@ -1268,6 +1268,7 @@ export default {
     allow: "Разрешить",
     disallow: "Запретить",
     reviewed: "Token-2022 проверен",
+    trustFreeze: "Доверять полномочию заморозки (напр. USDC/USDT)",
     actions: "Действия с таймлоком",
     noActions: "Действий пока нет.",
     execute: "Выполнить",

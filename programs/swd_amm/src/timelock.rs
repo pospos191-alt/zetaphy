@@ -20,6 +20,10 @@
 //      - protocol fee share, timelock delay, treasury
 //      - SWDMM v2 pool risk parameters (price-impact cap, dynamic fee on/off)
 //      - withdraw accrued SWDMM v2 protocol fees to the treasury
+//      - rotate the governance authority (2026-11-11, K-3); the NEW key
+//        must sign `accept_authority` (not the permissionless execute)
+//      - rotate the emergency authority: same two steps but with no delay,
+//        so a lost or compromised emergency key can be replaced at once
 //    The old instant `governed_unpause_pool` / `governed_unpause_dlmm_pool`
 //    (full build) always refuse with UseTimelockedUnpause (governance.rs).
 //    A matured action can be executed for EXECUTION_GRACE_SECS (7 days),
@@ -39,7 +43,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
-use crate::governance::{GlobalConfig, GovernanceError, GLOBAL_CONFIG_SEED};
+use crate::governance::{AuthoritiesUpdated, GlobalConfig, GovernanceError, GLOBAL_CONFIG_SEED};
 use crate::swdmm_v2::{SwdmmV2Error, SwdmmV2Pool, V2_POOL_SEED};
 #[cfg(not(feature = "v2-only"))]
 use crate::{DlmmPool, Pool, DLMM_POOL_SEED, POOL_SEED};
@@ -100,11 +104,12 @@ pub(crate) fn initialize_governance_settings(
 
 pub(crate) fn propose_action(ctx: Context<ProposeAction>, action: GovAction) -> Result<()> {
     validate_action(&action)?;
+    check_authority_change(&ctx.accounts.config, &action)?;
     let now = Clock::get()?.unix_timestamp;
     let s = &mut ctx.accounts.settings;
     let id = s.next_action_id;
     s.next_action_id = id.checked_add(1).ok_or(TimelockError::MathOverflow)?;
-    let execute_after = now.checked_add(s.timelock_delay_secs).ok_or(TimelockError::MathOverflow)?;
+    let execute_after = now.checked_add(action_delay(&action, s.timelock_delay_secs)).ok_or(TimelockError::MathOverflow)?;
     let p = &mut ctx.accounts.pending;
     p.id = id;
     p.action = action.clone();
@@ -144,6 +149,40 @@ pub(crate) fn emergency_cancel_unpause(ctx: Context<EmergencyCancelUnpause>) -> 
     );
     p.cancelled = true;
     emit!(GovActionCancelled { id: p.id });
+    Ok(())
+}
+
+/// Second step of an authority rotation (2026-11-11, KNOWN_ISSUES K-3).
+/// The key named in a matured `SetGovernanceAuthority` /
+/// `SetEmergencyAuthority` action signs to take over, so a typo'd or
+/// unowned key can never become an authority. A Squads vault accepts
+/// through a Squads proposal (it signs as the vault PDA).
+///
+/// Only a proposal made by the CURRENT governance counts: once governance
+/// has moved, rotations queued by an earlier governance are stale.
+pub(crate) fn accept_authority(ctx: Context<AcceptAuthority>) -> Result<()> {
+    let config = &mut ctx.accounts.config;
+    require_keys_eq!(ctx.accounts.pending.proposer, config.governance_authority, TimelockError::StaleAuthorityProposal);
+    let action = take_ready(&mut ctx.accounts.pending)?;
+    // Re-checked: the other authority may have changed since the proposal.
+    check_authority_change(config, &action)?;
+    let signer = ctx.accounts.new_authority.key();
+    match action {
+        GovAction::SetGovernanceAuthority { new_authority } => {
+            require_keys_eq!(new_authority, signer, GovernanceError::Unauthorized);
+            config.governance_authority = new_authority;
+        }
+        GovAction::SetEmergencyAuthority { new_authority } => {
+            require_keys_eq!(new_authority, signer, GovernanceError::Unauthorized);
+            config.emergency_authority = new_authority;
+        }
+        _ => return err!(TimelockError::WrongActionKind),
+    }
+    emit!(AuthoritiesUpdated {
+        config: config.key(),
+        governance_authority: config.governance_authority,
+        emergency_authority: config.emergency_authority,
+    });
     Ok(())
 }
 
@@ -255,10 +294,24 @@ pub(crate) fn execute_withdraw_protocol_fees(ctx: Context<ExecuteWithdrawProtoco
     )
 }
 
-pub(crate) fn set_mint_policy(ctx: Context<SetMintPolicy>, enabled: bool, token_2022_reviewed: bool) -> Result<()> {
+/// `trust_freeze_authority` (2026-11-11, KNOWN_ISSUES K-1): a mint whose
+/// freeze authority is set can only be enabled with it, i.e. governance
+/// trusts that issuer not to freeze pool vaults (USDC, USDT). See
+/// `crate::assert_freeze_authority_trusted` for why checking it here, once,
+/// is enough.
+pub(crate) fn set_mint_policy(
+    ctx: Context<SetMintPolicy>,
+    enabled: bool,
+    token_2022_reviewed: bool,
+    trust_freeze_authority: bool,
+) -> Result<()> {
     let token_program = ctx.accounts.token_program.key();
     let mint_ai = ctx.accounts.mint.to_account_info();
     require_keys_eq!(*mint_ai.owner, token_program, TimelockError::TokenProgramMismatch);
+    let freeze_authority: Option<Pubkey> = ctx.accounts.mint.freeze_authority.into();
+    if enabled {
+        crate::assert_freeze_authority_trusted(&ctx.accounts.mint.freeze_authority, trust_freeze_authority)?;
+    }
     let is_2022 = token_program == anchor_spl::token_2022::ID;
     if is_2022 && enabled {
         require!(token_2022_reviewed, TimelockError::Token2022NotReviewed);
@@ -280,6 +333,8 @@ pub(crate) fn set_mint_policy(ctx: Context<SetMintPolicy>, enabled: bool, token_
         token_program,
         enabled,
         token_2022_reviewed: m.token_2022_reviewed,
+        freeze_authority,
+        freeze_authority_trusted: freeze_authority.is_some() && trust_freeze_authority,
     });
     Ok(())
 }
@@ -290,6 +345,31 @@ pub fn check_execution_window(now: i64, execute_after: i64) -> Result<()> {
     let expires = execute_after.checked_add(EXECUTION_GRACE_SECS).ok_or(TimelockError::MathOverflow)?;
     require!(now <= expires, TimelockError::ActionExpired);
     Ok(())
+}
+
+/// Authority rotations: neither key may be the all-zero key (no private
+/// key, F-4) and governance must differ from emergency. Checked at propose
+/// and again at accept. A no-op for every other action.
+pub(crate) fn check_authority_change(config: &GlobalConfig, a: &GovAction) -> Result<()> {
+    let (new, other) = match a {
+        GovAction::SetGovernanceAuthority { new_authority } => (new_authority, config.emergency_authority),
+        GovAction::SetEmergencyAuthority { new_authority } => (new_authority, config.governance_authority),
+        _ => return Ok(()),
+    };
+    require_keys_neq!(*new, Pubkey::default(), GovernanceError::InvalidAuthority);
+    require_keys_neq!(*new, other, GovernanceError::EmergencyCannotEqualGovernance);
+    Ok(())
+}
+
+/// Seconds between propose and earliest execution. Everything waits for the
+/// timelock except an emergency-key rotation: the emergency key can only
+/// pause, and a compromised one must be replaceable before it keeps
+/// cancelling unpauses (the new key must still accept).
+pub(crate) fn action_delay(a: &GovAction, timelock_delay_secs: i64) -> i64 {
+    match a {
+        GovAction::SetEmergencyAuthority { .. } => 0,
+        _ => timelock_delay_secs,
+    }
 }
 
 fn validate_delay(secs: i64) -> Result<()> {
@@ -328,7 +408,9 @@ fn validate_action(a: &GovAction) -> Result<()> {
                 TimelockError::InvalidPriceImpactCap
             );
         }
-        GovAction::WithdrawV2ProtocolFees { .. } => {}
+        GovAction::WithdrawV2ProtocolFees { .. }
+        | GovAction::SetGovernanceAuthority { .. }
+        | GovAction::SetEmergencyAuthority { .. } => {}
     }
     Ok(())
 }
@@ -497,6 +579,18 @@ pub struct ExecuteWithdrawProtocolFees<'info> {
 }
 
 #[derive(Accounts)]
+pub struct AcceptAuthority<'info> {
+    #[account(mut, seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
+    /// The key named in the action (checked in `accept_authority`).
+    pub new_authority: Signer<'info>,
+
+    #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
+    pub pending: Account<'info, PendingAction>,
+}
+
+#[derive(Accounts)]
 pub struct SetMintPolicy<'info> {
     #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
     pub config: Account<'info, GlobalConfig>,
@@ -545,6 +639,10 @@ pub enum GovAction {
     SetTreasury { treasury: Pubkey },
     SetV2PoolParams { pool: Pubkey, max_price_impact_bps: u16, dynamic_fee_enabled: bool },
     WithdrawV2ProtocolFees { pool: Pubkey },
+    // Appended 2026-11-11 (K-3): earlier variants keep their Borsh index and
+    // PendingAction keeps its size (the largest variant is still 35 bytes).
+    SetGovernanceAuthority { new_authority: Pubkey },
+    SetEmergencyAuthority { new_authority: Pubkey },
 }
 
 #[account]
@@ -607,6 +705,9 @@ pub struct MintPolicyUpdated {
     pub token_program: Pubkey,
     pub enabled: bool,
     pub token_2022_reviewed: bool,
+    /// The mint's freeze authority when the policy was set (K-1).
+    pub freeze_authority: Option<Pubkey>,
+    pub freeze_authority_trusted: bool,
 }
 
 // ---------------------------------------------------------------------
@@ -643,4 +744,6 @@ pub enum TimelockError {
     MathOverflow,
     #[msg("This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again")]
     ActionExpired,
+    #[msg("This authority rotation was proposed by an earlier governance authority: propose it again")]
+    StaleAuthorityProposal,
 }

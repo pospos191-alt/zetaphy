@@ -72,7 +72,7 @@ describe("SWDMM v2 pools", () => {
   }
 
   async function allow(m: PublicKey, enabled = true) {
-    await program.methods.setMintPolicy(enabled, false)
+    await program.methods.setMintPolicy(enabled, false, false)
       .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint: m, tokenProgram: TOKEN_PROGRAM_ID, mintPolicy: mintPolicy(m), payer: payer.publicKey, systemProgram: SystemProgram.programId })
       .rpc();
   }

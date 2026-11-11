@@ -217,6 +217,9 @@ pub(crate) fn initialize_pool(
     // for classic SPL Token mints (they can't carry extensions at all).
     assert_mint_extensions_safe(&ctx.accounts.mint_a.to_account_info())?;
     assert_mint_extensions_safe(&ctx.accounts.mint_b.to_account_info())?;
+    // K-1 (2026-11-11): a vault born frozen (Token-2022 DefaultAccountState).
+    crate::assert_vault_not_frozen(&ctx.accounts.vault_a)?;
+    crate::assert_vault_not_frozen(&ctx.accounts.vault_b)?;
 
     let pool = &mut ctx.accounts.pool;
     pool.mint_a = ctx.accounts.mint_a.key();

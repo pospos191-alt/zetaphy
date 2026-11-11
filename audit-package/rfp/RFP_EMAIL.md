@@ -18,7 +18,7 @@ known issues, prior findings, questions): `AUDIT_README.md` at the repository ro
 The commit will be frozen when we book (we will tag it `audit-freeze-v1`).
 
 **Scope.** The mainnet build only (`anchor build -- --features mainnet,v2-only`):
-6 Rust files, **2,531 nSLOC**, 23 instructions. Anchor 0.31.1, Solana 3.1.10.
+6 Rust files, **2,600 nSLOC**, 23 instructions. Anchor 0.31.1, Solana 3.1.10.
 - SWDMM v2 pools (full-range constant product, Meteora-DAMM-v2-style fee
   schedulers, dynamic fee, three fee-collection modes, LP positions with
   claimable fees and permanent locks, per-swap and per-slot impact caps) — 1,361 nSLOC

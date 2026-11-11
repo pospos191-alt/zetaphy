@@ -178,7 +178,7 @@ describe("swd_amm governance", () => {
   async function setAllowlisted(mint: PublicKey, enabled: boolean) {
     const allowedMintPda = deriveAllowedMintPda(mint);
     await program.methods
-      .setAllowedMint(enabled)
+      .setAllowedMint(enabled, false)
       .accounts({
         config: globalConfigPda,
         governanceAuthority: payer.publicKey,

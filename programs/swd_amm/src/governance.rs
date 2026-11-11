@@ -19,7 +19,11 @@
 // - `initialize_global_config` may only be signed by the program's upgrade
 //   authority (ProgramData check), closing the deploy front-run; neither
 //   authority may be the all-zero key, and they must differ.
-// - `set_authorities` rotates both keys in one step (no propose/accept).
+// - Rotating either authority is two-step (2026-11-11, KNOWN_ISSUES K-3):
+//   governance proposes `GovAction::SetGovernanceAuthority` (timelocked) or
+//   `SetEmergencyAuthority` (no delay) and the NEW key must sign
+//   `accept_authority` (timelock.rs). A typo'd or unowned key can therefore
+//   never take over. The old single-step `set_authorities` is removed.
 //
 // `verify_governance_multisig` (permissionless, read-only): reads a Squads
 // v4 Multisig account at fixed byte offsets (no Squads crate dependency),
@@ -99,8 +103,9 @@ const SQUADS_MULTISIG_MIN_LEN: usize = 100;
 /// One-time bootstrap. Can only ever run once per deployment — the `init`
 /// constraint on `config` fails on a second call, there is no
 /// re-initialize/overwrite path. Changing either authority afterward
-/// requires a new instruction signed by the CURRENT governance_authority
-/// (see `set_authorities`), never just by paying rent again.
+/// requires a proposal by the CURRENT governance_authority accepted by the
+/// new key (see timelock.rs `accept_authority`), never just by paying rent
+/// again.
 ///
 /// SECURITY (2026-10-08, attack suite `security/attack-tests`): the payer
 /// must be the program's UPGRADE AUTHORITY, read from the program's own
@@ -149,43 +154,6 @@ pub(crate) fn initialize_global_config(
     Ok(())
 }
 
-/// Rotates either authority. Signed by the CURRENT governance_authority —
-/// so if the Squads vault itself is ever replaced (e.g. membership
-/// changes), governance moves itself to the new vault deliberately rather
-/// than this program trying to detect that change automatically. Passing
-/// the same value as the field's current one is allowed (a no-op update)
-/// to keep the instruction simple; it still emits an event either way so
-/// off-chain monitoring sees every call.
-pub(crate) fn set_authorities(
-    ctx: Context<GovernanceOnly>,
-    new_governance_authority: Pubkey,
-    new_emergency_authority: Pubkey,
-) -> Result<()> {
-    require_keys_neq!(
-        new_governance_authority,
-        new_emergency_authority,
-        GovernanceError::EmergencyCannotEqualGovernance
-    );
-    // 2026-11-10 (security review): the default key has no private key, so
-    // handing governance to it would brick every governance instruction
-    // (no unpause, no fee withdrawal, ever) with one typo'd transaction.
-    require!(
-        new_governance_authority != Pubkey::default() && new_emergency_authority != Pubkey::default(),
-        GovernanceError::InvalidAuthority
-    );
-
-    let config = &mut ctx.accounts.config;
-    config.governance_authority = new_governance_authority;
-    config.emergency_authority = new_emergency_authority;
-
-    emit!(AuthoritiesUpdated {
-        config: config.key(),
-        governance_authority: new_governance_authority,
-        emergency_authority: new_emergency_authority,
-    });
-    Ok(())
-}
-
 /// Pool creation is open unless paused; while paused only the governance
 /// authority itself may create pools (2026-11-10, security review).
 pub fn creation_allowed(config: &GlobalConfig, creator: &Pubkey) -> bool {
@@ -215,8 +183,17 @@ pub(crate) fn set_pool_creation_paused(ctx: Context<GovernanceOnly>, paused: boo
 /// enabled mint (enabled = false) also does not touch any pool already
 /// created while it was enabled; those pools keep operating exactly as
 /// before (see the module doc comment).
+///
+/// Enabling a mint with a freeze authority needs `trust_freeze_authority`
+/// (K-1, see `crate::assert_freeze_authority_trusted`); the Token-2022
+/// extension gate also runs here, so an allowlisted mint can never be closed
+/// and re-created (e.g. with a freeze authority) at the same address.
 #[cfg(not(feature = "v2-only"))]
-pub(crate) fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool) -> Result<()> {
+pub(crate) fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool, trust_freeze_authority: bool) -> Result<()> {
+    if enabled {
+        crate::assert_mint_extensions_safe(&ctx.accounts.mint.to_account_info())?;
+        crate::assert_freeze_authority_trusted(&ctx.accounts.mint.freeze_authority, trust_freeze_authority)?;
+    }
     let allowed = &mut ctx.accounts.allowed_mint;
     allowed.mint = ctx.accounts.mint.key();
     allowed.enabled = enabled;
@@ -247,7 +224,7 @@ pub(crate) fn set_mint_feed(ctx: Context<SetMintFeed>, pyth_feed_id: [u8; 32]) -
 
 /// Pause-only, and only reachable by `config.emergency_authority` — a
 /// deliberately DIFFERENT key from `governance_authority` (enforced at
-/// `initialize_global_config` / `set_authorities` time). At least one of
+/// `initialize_global_config` / `accept_authority` time). At least one of
 /// the three flags must be requested true; this instruction can never turn
 /// a flag OFF (see `require!` below) — that is `governed_unpause_pool`'s
 /// job, and that one requires `governance_authority`, not

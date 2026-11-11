@@ -1268,6 +1268,7 @@ export default {
     allow: "允许",
     disallow: "禁止",
     reviewed: "Token-2022 已审核",
+    trustFreeze: "信任其冻结权限（如 USDC/USDT）",
     actions: "时间锁操作",
     noActions: "还没有操作。",
     execute: "执行",

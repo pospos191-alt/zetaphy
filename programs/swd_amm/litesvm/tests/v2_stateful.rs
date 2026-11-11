@@ -395,7 +395,7 @@ fn setup(g: &mut Gen) -> Option<(Env, V2)> {
         let ix = env.ix(
             "set_mint_policy",
             &[("config", config), ("governance_authority", p), ("mint", m), ("token_program", TOKEN), ("mint_policy", policy), ("payer", p)],
-            &[1, 0],
+            &[1, 0, 0], // enabled, not Token-2022, no freeze authority to trust (K-1)
         );
         env.send(vec![ix], &[]).expect("set_mint_policy");
     }

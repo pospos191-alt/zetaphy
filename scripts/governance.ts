@@ -31,22 +31,43 @@
 //   init-global-config <governanceAuthority> <emergencyAuthority>
 //       One-time bootstrap. Only ever works once per deployment.
 //
-//   set-authorities <newGovernanceAuthority> <newEmergencyAuthority>
-//       Must be signed by the CURRENT governance_authority — if that is a
-//       Squads vault, this instruction has to be wrapped in a Squads
-//       vaultTransactionCreate/proposalCreate/.../vaultTransactionExecute
-//       flow (e.g. via the Squads UI or SDK), not run directly from this
-//       CLI's own wallet. This subcommand still builds and prints the
-//       instruction's accounts/args either way, useful for constructing
-//       that Squads transaction by hand.
+//   --- Authority rotation: two steps (2026-11-11, KNOWN_ISSUES K-3) ---
+//   (the old one-step `set-authorities` no longer exists on-chain)
+//
+//   propose-governance-authority <newGovernanceAuthority>
+//       Governance-only. Queues SetGovernanceAuthority; the new key can
+//       accept after the timelock (24-48 h on mainnet) and within 7 days.
+//
+//   propose-emergency-authority <newEmergencyAuthority>
+//       Governance-only. Queues SetEmergencyAuthority with NO delay (a lost
+//       or compromised emergency key must be replaceable at once).
+//
+//   accept-authority <actionId>
+//       Signed by the NEW authority named in the action (it pays the fee:
+//       fund it). If this wallet is
+//       not that key (e.g. the new authority is a Squads vault), nothing is
+//       sent: the command prints the exact instruction (program, accounts,
+//       data) to put in a Squads proposal, plus the Squads steps.
+//
+//   cancel <actionId> (below) withdraws a pending rotation. Rotations
+//   proposed by an earlier governance key cannot be accepted
+//   (StaleAuthorityProposal); after a handover review `settings` and
+//   cancel anything still pending that the new governance did not intend.
+//
+//   If the authority that must SIGN any command here is a Squads vault, the
+//   command has to be wrapped in a Squads proposal (vaultTransactionCreate
+//   -> proposalCreate -> 2 approvals -> vaultTransactionExecute, e.g. in the
+//   Squads app); run it with --print-ix to get the instruction to wrap.
 //
 //   set-pool-creation-paused <true|false>
 //       Governance-only global switch — stops ALL new pool creation
 //       instantly, does not touch any existing pool.
 //
-//   set-allowed-mint <mintPubkey> <true|false>
-//       Governance-only. Enables/disables a mint for NEW pool creation
-//       (existing pools using this mint are unaffected either way).
+//   set-allowed-mint <mintPubkey> <true|false> [trust-freeze]
+//       Governance-only (full build: CP / DLMM). Enables/disables a mint for
+//       NEW pool creation (existing pools using this mint are unaffected
+//       either way). A mint with a freeze authority needs "trust-freeze"
+//       (KNOWN_ISSUES K-1).
 //
 //   set-mint-feed <mintPubkey> <pythFeedIdHex>
 //       Governance-only (added 2026-10-08). Registers the Pyth feed id
@@ -78,9 +99,13 @@
 //       Read-only: GovernanceSettings plus every governance action and its
 //       status (pending / ready / executed / cancelled).
 //
-//   set-mint-policy <mint> <true|false> [reviewed]
+//   set-mint-policy <mint> <true|false> [reviewed] [trust-freeze]
 //       SWDMM v2 allowlist. Pass "reviewed" to confirm a Token-2022 mint
-//       was reviewed (required to enable one).
+//       was reviewed (required to enable one). Pass "trust-freeze" to enable
+//       a mint that HAS a freeze authority (e.g. USDC, USDT): its issuer can
+//       freeze a pool vault and stop all withdrawals, so this is an explicit
+//       governance decision (KNOWN_ISSUES K-1, runbook Gate 8). The dry run
+//       prints the mint's freeze authority.
 //
 //   propose-unpause-cp   <mintA> <mintB> <swap> <deposit> <withdraw>
 //   propose-unpause-dlmm <mintA> <mintB> <swap> <deposit> <withdraw>
@@ -122,7 +147,8 @@
 //       against a real cloned Squads program in the test suite.
 //
 // Every subcommand accepts an optional trailing `--yes` to actually submit
-// (state-changing ones only — `status` and `verify-multisig` always run).
+// (state-changing ones only — `status` and `verify-multisig` always run),
+// and `--print-ix` to print the instruction (for a Squads proposal) instead.
 
 import * as anchor from "@coral-xyz/anchor";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
@@ -185,7 +211,8 @@ function parsePubkey(raw: string | undefined, label: string): PublicKey {
 async function main() {
   const rawArgs = process.argv.slice(2);
   const yes = rawArgs.includes("--yes");
-  const args = rawArgs.filter((a) => a !== "--yes");
+  const printIx = rawArgs.includes("--print-ix");
+  const args = rawArgs.filter((a) => a !== "--yes" && a !== "--print-ix");
   const [command, ...rest] = args;
 
   const program = loadProgram();
@@ -205,8 +232,23 @@ async function main() {
   console.log(`# config PDA: ${configPda.toBase58()}`);
   console.log();
 
-  async function confirmOrDryRun(describe: () => void, submit: () => Promise<string>) {
+  // Prints an instruction in the form the Squads app's transaction builder
+  // (and @sqds/multisig's vaultTransactionCreate) needs.
+  function printInstruction(ix: anchor.web3.TransactionInstruction) {
+    console.log("Instruction for a Squads proposal (signer = the vault):");
+    console.log(`  program: ${ix.programId.toBase58()}`);
+    ix.keys.forEach((k, i) => console.log(`  account ${i}: ${k.pubkey.toBase58()}${k.isSigner ? "  [signer]" : ""}${k.isWritable ? "  [writable]" : ""}`));
+    console.log(`  data (hex):    ${Buffer.from(ix.data).toString("hex")}`);
+    console.log(`  data (base58): ${anchor.utils.bytes.bs58.encode(ix.data)}`);
+  }
+
+  async function confirmOrDryRun(describe: () => void, submit: () => Promise<string>, builder?: any) {
     describe();
+    if (printIx && builder) {
+      console.log();
+      printInstruction(await builder.instruction());
+      return;
+    }
     if (!yes) {
       console.log();
       console.log("(dry run — nothing was submitted. Re-run with --yes to actually send this transaction.)");
@@ -247,32 +289,72 @@ async function main() {
       break;
     }
 
-    case "set-authorities": {
-      const newGovernanceAuthority = parsePubkey(rest[0], "newGovernanceAuthority");
-      const newEmergencyAuthority = parsePubkey(rest[1], "newEmergencyAuthority");
+    case "propose-governance-authority":
+    case "propose-emergency-authority": {
+      const isGov = command === "propose-governance-authority";
+      const newAuthority = parsePubkey(rest[0], isGov ? "newGovernanceAuthority" : "newEmergencyAuthority");
       const config = await (program.account as any).globalConfig.fetch(configPda);
+      const governance = config.governanceAuthority as PublicKey;
+      const settingsPda = pda([GOV_SETTINGS_SEED], program.programId);
+      const st: any = await (program.account as any).governanceSettings.fetch(settingsPda);
+      const id = Number(st.nextActionId);
+      const pending = actionPda(id);
+      const action = isGov ? { setGovernanceAuthority: { newAuthority } } : { setEmergencyAuthority: { newAuthority } };
+      const builder = program.methods
+        .proposeGovAction(action)
+        .accounts({ config: configPda, governanceAuthority: governance, settings: settingsPda, pending, payer: governance, systemProgram: SystemProgram.programId });
       await confirmOrDryRun(
         () => {
-          console.log("Would call set_authorities with:");
-          console.log(`  new_governance_authority: ${newGovernanceAuthority.toBase58()}`);
-          console.log(`  new_emergency_authority:  ${newEmergencyAuthority.toBase58()}`);
-          console.log(
-            `  governance_authority (signer, must == current governance_authority = ` +
-              `${(config.governanceAuthority as PublicKey).toBase58()}): ${wallet.toBase58()}`
-          );
-          if (!(config.governanceAuthority as PublicKey).equals(wallet)) {
-            console.log(
-              "  WARNING: this wallet is NOT the current governance_authority — if that authority is a " +
-                "Squads vault, submitting from here will fail. Use this subcommand's printed accounts/args " +
-                "to build the equivalent instruction inside a Squads proposal instead."
-            );
+          console.log(`Would propose governance action #${id}: ${isGov ? "SetGovernanceAuthority" : "SetEmergencyAuthority"}`);
+          console.log(`  new ${isGov ? "governance" : "emergency"} authority: ${newAuthority.toBase58()}`);
+          console.log(`  current governance (must sign):   ${governance.toBase58()}`);
+          console.log(`  current emergency:                ${(config.emergencyAuthority as PublicKey).toBase58()}`);
+          console.log(isGov
+            ? `  the new key can accept after ~${st.timelockDelaySecs.toString()}s (timelock) and within 7 days: accept-authority ${id}`
+            : `  no delay: the new key can accept right away: accept-authority ${id}`);
+          if (!governance.equals(wallet)) {
+            console.log("  NOTE: this wallet is not the governance authority — submitting from here will fail. If governance is a");
+            console.log("  Squads vault, re-run with --print-ix and put the instruction in a Squads proposal.");
           }
         },
-        () =>
-          program.methods
-            .setAuthorities(newGovernanceAuthority, newEmergencyAuthority)
-            .accounts({ config: configPda, governanceAuthority: wallet })
-            .rpc()
+        () => builder.rpc(),
+        builder
+      );
+      break;
+    }
+
+    case "accept-authority": {
+      const id = Number(rest[0]);
+      const pending = actionPda(id);
+      const a: any = await (program.account as any).pendingAction.fetch(pending);
+      const kind = Object.keys(a.action)[0];
+      if (kind !== "setGovernanceAuthority" && kind !== "setEmergencyAuthority") {
+        console.error(`Action #${id} is ${kind}, not an authority rotation.`);
+        process.exit(1);
+      }
+      const newAuthority = a.action[kind].newAuthority as PublicKey;
+      const status = a.executed ? "already accepted" : a.cancelled ? "CANCELLED" : `executable from ${new Date(Number(a.executeAfter) * 1000).toISOString()} for 7 days`;
+      const builder = program.methods.acceptAuthority().accounts({ config: configPda, newAuthority, pending });
+      if (!newAuthority.equals(wallet)) {
+        // The usual mainnet case: the new governance authority is the Squads vault.
+        console.log(`Action #${id} (${kind}) names ${newAuthority.toBase58()} — not this wallet, so nothing is sent.`);
+        console.log(`Status: ${status}. Proposed by ${(a.proposer as PublicKey).toBase58()} (must still be governance).`);
+        console.log();
+        printInstruction(await builder.instruction());
+        console.log();
+        console.log("If the new authority is a Squads vault (Squads app, after the timelock above):");
+        console.log("  1. New transaction -> transaction builder / 'add instruction' with the program, accounts and data above");
+        console.log("     (the vault is the only signer; no other signer may appear).");
+        console.log("  2. Propose it, collect the threshold of member approvals (2 of 3), then Execute.");
+        console.log("  3. Check: yarn governance status   (governance_authority must now be the vault)");
+        console.log("     and:   yarn governance verify-multisig <MULTISIG_PDA> 0");
+        console.log("If the new authority is a plain key (e.g. a new emergency key): run this command with that key as the wallet.");
+        break;
+      }
+      await confirmOrDryRun(
+        () => console.log(`Would accept action #${id} (${kind}) as ${newAuthority.toBase58()} — ${status}`),
+        () => builder.rpc(),
+        builder
       );
       break;
     }
@@ -293,16 +375,17 @@ async function main() {
     case "set-allowed-mint": {
       const mint = parsePubkey(rest[0], "mintPubkey");
       const enabled = parseBool(rest[1], "enabled");
+      const trustFreeze = rest[2] === "trust-freeze";
       const allowedMintPda = pda([ALLOWED_MINT_SEED, mint.toBuffer()], program.programId);
       await confirmOrDryRun(
         () => {
-          console.log(`Would call set_allowed_mint(${enabled}) for:`);
+          console.log(`Would call set_allowed_mint(${enabled}, trust_freeze_authority=${trustFreeze}) for:`);
           console.log(`  mint:         ${mint.toBase58()}`);
           console.log(`  allowed_mint: ${allowedMintPda.toBase58()}`);
         },
         () =>
           program.methods
-            .setAllowedMint(enabled)
+            .setAllowedMint(enabled, trustFreeze)
             .accounts({
               config: configPda,
               governanceAuthority: wallet,
@@ -428,18 +511,31 @@ async function main() {
     case "set-mint-policy": {
       const mint = parsePubkey(rest[0], "mint");
       const enabled = parseBool(rest[1], "enabled");
-      const reviewed = rest[2] === "reviewed";
+      const flags = rest.slice(2);
+      const reviewed = flags.includes("reviewed");
+      const trustFreeze = flags.includes("trust-freeze");
       const info = await provider.connection.getAccountInfo(mint);
       if (!info) { console.error("Mint not found on this cluster."); process.exit(1); }
       const tokenProgram = info.owner;
+      // SPL mint layout (both token programs): freeze_authority COption at bytes 46..82.
+      const freezeAuthority = info.data.length >= 82 && info.data.readUInt32LE(46) === 1 ? new PublicKey(info.data.subarray(50, 82)) : null;
       const mintPolicy = pda([MINT_POLICY_SEED, mint.toBuffer()], program.programId);
+      const config = await (program.account as any).globalConfig.fetch(configPda);
+      const governance = config.governanceAuthority as PublicKey;
+      const builder = program.methods
+        .setMintPolicy(enabled, reviewed, trustFreeze)
+        .accounts({ config: configPda, governanceAuthority: governance, mint, tokenProgram, mintPolicy, payer: governance, systemProgram: SystemProgram.programId });
       await confirmOrDryRun(
-        () => console.log(`Would call set_mint_policy(enabled=${enabled}, token_2022_reviewed=${reviewed}) for ${mint.toBase58()} (token program ${tokenProgram.toBase58()})`),
-        () =>
-          program.methods
-            .setMintPolicy(enabled, reviewed)
-            .accounts({ config: configPda, governanceAuthority: wallet, mint, tokenProgram, mintPolicy, payer: wallet, systemProgram: SystemProgram.programId })
-            .rpc()
+        () => {
+          console.log(`Would call set_mint_policy(enabled=${enabled}, token_2022_reviewed=${reviewed}, trust_freeze_authority=${trustFreeze}) for ${mint.toBase58()} (token program ${tokenProgram.toBase58()})`);
+          console.log(`  freeze authority: ${freezeAuthority ? freezeAuthority.toBase58() : "none"}`);
+          if (enabled && freezeAuthority && !trustFreeze) {
+            console.log("  WARNING: this mint has a freeze authority; the program refuses it (FreezeAuthorityNotTrusted) unless you");
+            console.log("  pass trust-freeze — only for issuers governance trusts not to freeze pool vaults (runbook Gate 8).");
+          }
+        },
+        () => builder.rpc(),
+        builder
       );
       break;
     }
@@ -477,17 +573,19 @@ async function main() {
       const st: any = await (program.account as any).governanceSettings.fetch(settingsPda);
       const id = Number(st.nextActionId);
       const pending = actionPda(id);
+      const config = await (program.account as any).globalConfig.fetch(configPda);
+      const governance = config.governanceAuthority as PublicKey;
+      const builder = program.methods
+        .proposeGovAction(action)
+        .accounts({ config: configPda, governanceAuthority: governance, settings: settingsPda, pending, payer: governance, systemProgram: SystemProgram.programId });
       await confirmOrDryRun(
         () => {
           console.log(`Would propose governance action #${id}:`);
           console.log(`  ${JSON.stringify(action, (_k, v) => (v instanceof PublicKey ? v.toBase58() : v))}`);
           console.log(`  executable after ~${st.timelockDelaySecs.toString()}s (timelock)`);
         },
-        () =>
-          program.methods
-            .proposeGovAction(action)
-            .accounts({ config: configPda, governanceAuthority: wallet, settings: settingsPda, pending, payer: wallet, systemProgram: SystemProgram.programId })
-            .rpc()
+        () => builder.rpc(),
+        builder
       );
       break;
     }
@@ -500,11 +598,18 @@ async function main() {
       const kind = Object.keys(a.action)[0];
       const body = a.action[kind];
       if (command === "cancel") {
+        const config = await (program.account as any).globalConfig.fetch(configPda);
+        const builder = program.methods.cancelGovAction().accounts({ config: configPda, governanceAuthority: config.governanceAuthority, pending });
         await confirmOrDryRun(
           () => console.log(`Would cancel action #${id} (${kind})`),
-          () => program.methods.cancelGovAction().accounts({ config: configPda, governanceAuthority: wallet, pending }).rpc()
+          () => builder.rpc(),
+          builder
         );
         break;
+      }
+      if (kind === "setGovernanceAuthority" || kind === "setEmergencyAuthority") {
+        console.error(`Action #${id} is an authority rotation: the new key accepts it with  accept-authority ${id}`);
+        process.exit(1);
       }
       const settingsPda = pda([GOV_SETTINGS_SEED], program.programId);
       let builder: any;

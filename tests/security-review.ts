@@ -12,6 +12,8 @@ import {
   TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotent,
   createCloseAccountInstruction,
+  AccountState,
+  createInitializeDefaultAccountStateInstruction,
   createInitializeMintCloseAuthorityInstruction,
   createInitializeMintInstruction,
   createInitializePermanentDelegateInstruction,
@@ -77,20 +79,20 @@ describe("security review 2026-11-10 (attack tests)", () => {
     } catch (e) { if (!String(e).includes("already in use")) throw e; }
   });
 
-  async function setPolicy(mint: PublicKey, tokenProgram: PublicKey, enabled: boolean, reviewed: boolean) {
-    return program.methods.setMintPolicy(enabled, reviewed)
+  async function setPolicy(mint: PublicKey, tokenProgram: PublicKey, enabled: boolean, reviewed: boolean, trustFreeze = false) {
+    return program.methods.setMintPolicy(enabled, reviewed, trustFreeze)
       .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint, tokenProgram, mintPolicy: mintPolicy(mint), payer: payer.publicKey, systemProgram: SystemProgram.programId })
       .rpc();
   }
 
   /** Creates a Token-2022 mint at `kp` with the given mint-level extensions. */
-  async function createToken2022Mint(kp: Keypair, exts: ExtensionType[], init: (mint: PublicKey) => anchor.web3.TransactionInstruction[], decimals = 6) {
+  async function createToken2022Mint(kp: Keypair, exts: ExtensionType[], init: (mint: PublicKey) => anchor.web3.TransactionInstruction[], decimals = 6, freezeAuthority: PublicKey | null = null) {
     const len = getMintLen(exts);
     const lamports = await conn.getMinimumBalanceForRentExemption(len);
     const tx = new Transaction().add(
       SystemProgram.createAccount({ fromPubkey: payer.publicKey, newAccountPubkey: kp.publicKey, space: len, lamports, programId: TOKEN_2022_PROGRAM_ID }),
       ...init(kp.publicKey),
-      createInitializeMintInstruction(kp.publicKey, decimals, payer.publicKey, null, TOKEN_2022_PROGRAM_ID)
+      createInitializeMintInstruction(kp.publicKey, decimals, payer.publicKey, freezeAuthority, TOKEN_2022_PROGRAM_ID)
     );
     await provider.sendAndConfirm(tx, [payer, kp]);
   }
@@ -132,7 +134,7 @@ describe("security review 2026-11-10 (attack tests)", () => {
   // ------------------------------------------------------------------
   async function initCpPool(mA: PublicKey, mB: PublicKey, tpA: PublicKey, tpB: PublicKey, feeBps: number, maxFeeBps: number, creator: Keypair = payer) {
     for (const m of [mA, mB]) {
-      await program.methods.setAllowedMint(true)
+      await program.methods.setAllowedMint(true, false)
         .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint: m, allowedMint: allowedMint(m), payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
     }
     const feed = LEGACY_POOLS.ratioOne;
@@ -252,15 +254,156 @@ describe("security review 2026-11-10 (attack tests)", () => {
   });
 
   // ------------------------------------------------------------------
-  // F-4 bricking governance with the default key
+  // Governance-action helpers (F-2, F-4, K-3)
   // ------------------------------------------------------------------
-  it("F-4: set_authorities refuses the all-zero key (no private key: governance would be bricked)", async () => {
-    const err = await expectThrows(() => program.methods.setAuthorities(PublicKey.default, emergencyAuthority.publicKey)
-      .accounts({ config: globalConfig, governanceAuthority: payer.publicKey }).rpc(), "default governance");
-    assert.equal(code(err), "InvalidAuthority");
-    const err2 = await expectThrows(() => program.methods.setAuthorities(payer.publicKey, PublicKey.default)
-      .accounts({ config: globalConfig, governanceAuthority: payer.publicKey }).rpc(), "default emergency");
-    assert.equal(code(err2), "InvalidAuthority");
+  async function proposeAs(action: any, gov: Keypair = payer) {
+    const s: any = await program.account.governanceSettings.fetch(settings);
+    const pending = pda(Buffer.from("gov_action"), u64le(s.nextActionId));
+    await program.methods.proposeGovAction(action)
+      .accounts({ config: globalConfig, governanceAuthority: gov.publicKey, settings, pending, payer: gov.publicKey, systemProgram: SystemProgram.programId })
+      .signers(gov === payer ? [] : [gov]).rpc();
+    return pending;
+  }
+  const accept = (pending: PublicKey, signer: Keypair) => program.methods.acceptAuthority()
+    .accounts({ config: globalConfig, newAuthority: signer.publicKey, pending })
+    .signers(signer === payer ? [] : [signer]).rpc();
+  const delayMs = async () => (Number(((await program.account.governanceSettings.fetch(settings)) as any).timelockDelaySecs) + 2) * 1000;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const authorities = async () => {
+    const c: any = await program.account.globalConfig.fetch(globalConfig);
+    return { gov: c.governanceAuthority.toBase58(), em: c.emergencyAuthority.toBase58() };
+  };
+
+  // ------------------------------------------------------------------
+  // F-4 bricking governance with the default key (now via K-3 rotation)
+  // ------------------------------------------------------------------
+  it("F-4: an authority rotation to the all-zero key, or to the other role's key, is refused", async () => {
+    for (const action of [
+      { setGovernanceAuthority: { newAuthority: PublicKey.default } },
+      { setEmergencyAuthority: { newAuthority: PublicKey.default } },
+    ]) assert.equal(code(await expectThrows(() => proposeAs(action), "default key")), "InvalidAuthority");
+    assert.equal(code(await expectThrows(() => proposeAs({ setGovernanceAuthority: { newAuthority: emergencyAuthority.publicKey } }), "gov = emergency")), "EmergencyCannotEqualGovernance");
+    assert.equal(code(await expectThrows(() => proposeAs({ setEmergencyAuthority: { newAuthority: payer.publicKey } }), "emergency = gov")), "EmergencyCannotEqualGovernance");
+  });
+
+  // ------------------------------------------------------------------
+  // K-3 two-step authority rotation
+  // ------------------------------------------------------------------
+  it("K-3: the old single-step set_authorities is gone", () => {
+    assert.isFalse(program.idl.instructions.some((ix: any) => ix.name === "setAuthorities" || ix.name === "set_authorities"));
+  });
+
+  it("K-3: a governance rotation to a key nobody controls cannot take effect (typo safety) and can be cancelled", async () => {
+    const before = await authorities();
+    const typo = Keypair.generate(); // stands for an address with no known private key
+    const pending = await proposeAs({ setGovernanceAuthority: { newAuthority: typo.publicKey } });
+    await sleep(await delayMs());
+    // Before K-3 the typo'd key became governance in the same instruction.
+    assert.equal(code(await expectThrows(() => accept(pending, payer), "accept by the old governance")), "Unauthorized");
+    const stranger = Keypair.generate(); await fund(stranger, 1);
+    assert.equal(code(await expectThrows(() => accept(pending, stranger), "accept by a stranger")), "Unauthorized");
+    assert.deepEqual(await authorities(), before, "nothing changed");
+    // Not executable through any permissionless execute_* either.
+    assert.equal(code(await expectThrows(() => program.methods.executeSettingsAction().accounts({ pending, settings }).rpc(), "execute")), "WrongActionKind");
+    await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending }).rpc();
+    assert.equal(code(await expectThrows(() => accept(pending, typo), "accept a cancelled rotation")), "ActionNotPending");
+  });
+
+  it("K-3: governance moves only after the timelock and the new key's signature; stale rotations die with the old governance", async () => {
+    const original = await authorities();
+    const newGov = Keypair.generate(); await fund(newGov, 2);
+    const pending = await proposeAs({ setGovernanceAuthority: { newAuthority: newGov.publicKey } });
+    // queued by the CURRENT governance, accepted only after it moved: stale
+    const strayEmergency = Keypair.generate(); await fund(strayEmergency, 1);
+    const stray = await proposeAs({ setEmergencyAuthority: { newAuthority: strayEmergency.publicKey } });
+    assert.equal(code(await expectThrows(() => accept(pending, newGov), "accept before the delay")), "TimelockNotElapsed");
+    await sleep(await delayMs());
+    await accept(pending, newGov);
+    try {
+      assert.deepEqual(await authorities(), { gov: newGov.publicKey.toBase58(), em: original.em });
+      assert.equal(code(await expectThrows(() => program.methods.setPoolCreationPaused(true)
+        .accounts({ config: globalConfig, governanceAuthority: payer.publicKey }).rpc(), "old governance")), "Unauthorized");
+      assert.equal(code(await expectThrows(() => accept(stray, strayEmergency), "stale emergency rotation")), "StaleAuthorityProposal");
+      // its own proposer (payer) is no longer governance either, so a replay is stale before it is "executed"
+      assert.equal(code(await expectThrows(() => accept(pending, newGov), "accept twice")), "StaleAuthorityProposal");
+    } finally {
+      // hand it back (same two steps, the other way round)
+      const back = await proposeAs({ setGovernanceAuthority: { newAuthority: payer.publicKey } }, newGov);
+      await sleep(await delayMs());
+      await accept(back, payer);
+    }
+    assert.deepEqual(await authorities(), original);
+    // `stray` was proposed by the governance key that is back in charge, so it
+    // is valid again: governance cancels what it no longer wants.
+    await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending: stray }).rpc();
+  });
+
+  it("K-3: the emergency key rotates without a delay, but still only with the new key's signature", async () => {
+    const original = await authorities();
+    const newEm = Keypair.generate(); await fund(newEm, 1);
+    const stranger = Keypair.generate(); await fund(stranger, 1);
+    const pending = await proposeAs({ setEmergencyAuthority: { newAuthority: newEm.publicKey } });
+    assert.equal(code(await expectThrows(() => accept(pending, stranger), "stranger")), "Unauthorized");
+    await accept(pending, newEm); // no timelock wait
+    assert.deepEqual(await authorities(), { gov: original.gov, em: newEm.publicKey.toBase58() });
+    // only the governance authority proposes rotations, never the emergency key
+    assert.equal(code(await expectThrows(() => proposeAs({ setEmergencyAuthority: { newAuthority: stranger.publicKey } }, newEm), "emergency proposes")), "Unauthorized");
+    const back = await proposeAs({ setEmergencyAuthority: { newAuthority: emergencyAuthority.publicKey } });
+    await accept(back, emergencyAuthority);
+    assert.deepEqual(await authorities(), original);
+  });
+
+  // ------------------------------------------------------------------
+  // K-1 freeze authority
+  // ------------------------------------------------------------------
+  it("K-1: a mint with a freeze authority is refused unless governance explicitly trusts it (USDC / USDT case)", async () => {
+    const freezer = Keypair.generate();
+    const f = await createMint(conn, payer, payer.publicKey, freezer.publicKey, 6);
+    const plain = await createMint(conn, payer, payer.publicKey, null, 6);
+    // Before K-1 this was enabled and the issuer could freeze a pool vault, stopping every withdrawal.
+    assert.equal(code(await expectThrows(() => setPolicy(f, TOKEN_PROGRAM_ID, true, false), "untrusted freeze authority")), "FreezeAuthorityNotTrusted");
+    await setPolicy(f, TOKEN_PROGRAM_ID, false, false); // disabling never needs the flag
+    await setPolicy(f, TOKEN_PROGRAM_ID, true, false, true); // explicit trust
+    await setPolicy(plain, TOKEN_PROGRAM_ID, true, false, false);
+    const p: any = await program.account.mintPolicy.fetch(mintPolicy(f));
+    assert.isTrue(p.enabled);
+    const params = { baseFee: FIXED_1PCT, dynamicFee: NO_DYNAMIC, collectFeeMode: 0, activationTs: new BN(0), maxPriceImpactBps: 5_000, oracle: NO_ORACLE };
+    const pool = v2Pool(f, plain, 100);
+    await program.methods.initializeV2Pool(params).accounts({
+      creator: payer.publicKey, config: globalConfig, settings, mintA: f, mintB: plain,
+      mintPolicyA: mintPolicy(f), mintPolicyB: mintPolicy(plain), pool,
+      vaultA: v2Vault(pool, f), vaultB: v2Vault(pool, plain), mintFeedA: null, mintFeedB: null,
+      tokenProgramA: TOKEN_PROGRAM_ID, tokenProgramB: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
+    }).rpc();
+    if (HAS_CP) {
+      const err = await expectThrows(() => program.methods.setAllowedMint(true, false)
+        .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint: f, allowedMint: allowedMint(f), payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc(), "CP/DLMM allowlist");
+      assert.equal(code(err), "FreezeAuthorityNotTrusted", String(err));
+      await program.methods.setAllowedMint(true, true)
+        .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint: f, allowedMint: allowedMint(f), payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
+    }
+  });
+
+  it("K-1: a Token-2022 mint whose accounts are born frozen (DefaultAccountState) cannot get a pool", async () => {
+    const kp = Keypair.generate();
+    await createToken2022Mint(kp, [ExtensionType.DefaultAccountState], (m) => [
+      createInitializeDefaultAccountStateInstruction(m, AccountState.Frozen, TOKEN_2022_PROGRAM_ID),
+    ], 6, payer.publicKey); // the token program requires a freeze authority for this
+    const m = kp.publicKey;
+    assert.equal(code(await expectThrows(() => setPolicy(m, TOKEN_2022_PROGRAM_ID, true, true), "no trust")), "FreezeAuthorityNotTrusted");
+    await setPolicy(m, TOKEN_2022_PROGRAM_ID, true, true, true); // even if governance trusts the issuer...
+    const b = await createMint(conn, payer, payer.publicKey, null, 6);
+    await setPolicy(b, TOKEN_PROGRAM_ID, true, false);
+    const params = { baseFee: FIXED_1PCT, dynamicFee: NO_DYNAMIC, collectFeeMode: 0, activationTs: new BN(0), maxPriceImpactBps: 5_000, oracle: NO_ORACLE };
+    const pool = v2Pool(m, b, 100);
+    const err = await expectThrows(() => program.methods.initializeV2Pool(params).accounts({
+      creator: payer.publicKey, config: globalConfig, settings, mintA: m, mintB: b,
+      mintPolicyA: mintPolicy(m), mintPolicyB: mintPolicy(b), pool,
+      vaultA: v2Vault(pool, m), vaultB: v2Vault(pool, b), mintFeedA: null, mintFeedB: null,
+      tokenProgramA: TOKEN_2022_PROGRAM_ID, tokenProgramB: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
+    }).rpc(), "pool with a born-frozen vault");
+    // ...the pool is refused: its vault would be frozen from the start.
+    assert.equal(code(err), "VaultFrozen", String(err));
   });
 
   // ------------------------------------------------------------------

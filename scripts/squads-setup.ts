@@ -3,7 +3,9 @@
 //
 // Creates a Squads v4 multisig (2-of-3 or 3-of-5 — the only two policies the
 // SWDMM spec allows) and prints the vault PDA that must become:
-//   1. GlobalConfig.governance_authority  (scripts/governance.ts set-authorities)
+//   1. GlobalConfig.governance_authority  (two steps, K-3: scripts/governance.ts
+//      propose-governance-authority, then the VAULT signs accept-authority
+//      through a Squads proposal after the timelock)
 //   2. the program's upgrade authority     (solana program set-upgrade-authority)
 // and verifies the result on-chain with `verify_governance_multisig`.
 //
@@ -79,9 +81,11 @@ async function main() {
     fs.writeFileSync(file, JSON.stringify(out, null, 2));
     console.log(`\nCreated. Details saved to ${file}`);
     console.log("\nNext steps (see docs/MAINNET_RUNBOOK.md):");
-    console.log(`  1. yarn governance set-authorities ${vaultPda.toBase58()} <emergencyAuthority> --yes`);
+    console.log(`  1. yarn governance propose-governance-authority ${vaultPda.toBase58()} --yes   (prints the action id)`);
     console.log(`  2. solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority ${vaultPda.toBase58()} --skip-new-upgrade-authority-signer-check`);
-    console.log(`  3. yarn governance verify-multisig ${multisigPda.toBase58()} 0`);
+    console.log(`  3. after the timelock: yarn governance accept-authority <ACTION_ID>  -> put the printed instruction in a Squads`);
+    console.log(`     proposal, 2 approvals, execute (the vault signs the accept)`);
+    console.log(`  4. yarn governance verify-multisig ${multisigPda.toBase58()} 0`);
     return;
   }
 

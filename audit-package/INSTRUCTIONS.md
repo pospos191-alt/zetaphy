@@ -10,29 +10,29 @@ Full build: 38 instructions. `v2-only` build (mainnet / audit scope): 23.
 | 3 | `remove_liquidity` | no (CP / DLMM) |
 | 4 | `swap` | no (CP / DLMM) |
 | 5 | `initialize_global_config` | yes |
-| 6 | `set_authorities` | yes |
-| 7 | `set_pool_creation_paused` | yes |
-| 8 | `set_allowed_mint` | no (CP / DLMM) |
-| 9 | `set_mint_feed` | yes |
-| 10 | `emergency_pause_pool` | no (CP / DLMM) |
-| 11 | `emergency_pause_dlmm_pool` | no (CP / DLMM) |
-| 12 | `governed_unpause_pool` | no (CP / DLMM) |
-| 13 | `governed_unpause_dlmm_pool` | no (CP / DLMM) |
-| 14 | `verify_governance_multisig` | yes |
-| 15 | `initialize_dlmm_pool` | no (CP / DLMM) |
-| 16 | `add_dlmm_liquidity` | no (CP / DLMM) |
-| 17 | `remove_dlmm_liquidity` | no (CP / DLMM) |
-| 18 | `swap_dlmm` | no (CP / DLMM) |
-| 19 | `initialize_governance_settings` | yes |
-| 20 | `propose_gov_action` | yes |
-| 21 | `cancel_gov_action` | yes |
-| 22 | `emergency_cancel_unpause` | yes |
-| 23 | `execute_unpause_pool` | no (CP / DLMM) |
-| 24 | `execute_unpause_dlmm_pool` | no (CP / DLMM) |
-| 25 | `execute_v2_pool_action` | yes |
-| 26 | `execute_settings_action` | yes |
-| 27 | `execute_withdraw_protocol_fees` | yes |
-| 28 | `set_mint_policy` | yes |
+| 6 | `set_pool_creation_paused` | yes |
+| 7 | `set_allowed_mint` | no (CP / DLMM) |
+| 8 | `set_mint_feed` | yes |
+| 9 | `emergency_pause_pool` | no (CP / DLMM) |
+| 10 | `emergency_pause_dlmm_pool` | no (CP / DLMM) |
+| 11 | `governed_unpause_pool` | no (CP / DLMM) |
+| 12 | `governed_unpause_dlmm_pool` | no (CP / DLMM) |
+| 13 | `verify_governance_multisig` | yes |
+| 14 | `initialize_dlmm_pool` | no (CP / DLMM) |
+| 15 | `add_dlmm_liquidity` | no (CP / DLMM) |
+| 16 | `remove_dlmm_liquidity` | no (CP / DLMM) |
+| 17 | `swap_dlmm` | no (CP / DLMM) |
+| 18 | `initialize_governance_settings` | yes |
+| 19 | `propose_gov_action` | yes |
+| 20 | `cancel_gov_action` | yes |
+| 21 | `emergency_cancel_unpause` | yes |
+| 22 | `execute_unpause_pool` | no (CP / DLMM) |
+| 23 | `execute_unpause_dlmm_pool` | no (CP / DLMM) |
+| 24 | `execute_v2_pool_action` | yes |
+| 25 | `execute_settings_action` | yes |
+| 26 | `execute_withdraw_protocol_fees` | yes |
+| 27 | `set_mint_policy` | yes |
+| 28 | `accept_authority` | yes |
 | 29 | `initialize_v2_pool` | yes |
 | 30 | `create_v2_position` | yes |
 | 31 | `add_v2_liquidity` | yes |

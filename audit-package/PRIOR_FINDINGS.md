@@ -15,7 +15,7 @@ text itself, so the mapping below is reconstructed from the commit and the tests
 | F-1 | **Token-2022 `MintCloseAuthority`.** A mint with supply 0 could be closed and re-created at the same address with a `PermanentDelegate` / `TransferHook` after passing the one-time extension gate (policy or pool creation), letting the delegate drain vaults. | `assert_mint_extensions_safe` refuses `MintCloseAuthority`; unknown extension types fail closed (now tested). | Yes |
 | F-2 | **Stale unpause proposals.** Execution is permissionless and actions never expired, so a matured, forgotten `Unpause*` could be executed seconds after a *new* emergency pause, undoing it mid-incident. | Actions expire 7 days after `execute_after` (`EXECUTION_GRACE_SECS`, `ActionExpired`); new `emergency_cancel_unpause` lets the emergency key cancel pending unpauses (only those). | Yes |
 | F-3 | **Pool squatting while creation is paused.** Governance itself was blocked by the pause, so "pause, then create the canonical pools" (runbook Gate 8) was impossible. | `creation_allowed`: governance may create pools while creation is paused. | Yes |
-| F-4 | **Bricking governance with the default key.** `set_authorities` / `initialize_global_config` accepted `Pubkey::default()` (no private key). | Both refuse the default key (`InvalidAuthority`). | Yes |
+| F-4 | **Bricking governance with the default key.** `set_authorities` / `initialize_global_config` accepted `Pubkey::default()` (no private key). | Both refuse the default key (`InvalidAuthority`). Since H-2 (below) rotation is propose + accept; the refusal is kept at both steps. | Yes |
 | F-5 | **CP slippage vs. transfer-fee mints.** CP `swap` / `remove_liquidity` checked `min_out` against the amount sent, not the amount the user received after a Token-2022 transfer fee. | Checked against the received amount. | No (CP compiled out; v2 refuses transfer-fee mints) |
 | F-6 | **Dead code.** A never-compiled `src/lib-1.rs` sat next to the program source (audit confusion). | Removed. | — |
 
@@ -48,7 +48,27 @@ share it with the auditor on request.
 | A-10 | **Error codes collided** (four enums at 6000). | Offsets 6000 / 6100 / 6200 / 6300 / 8000 / 8500. | Yes |
 | A-11 | CP payout rounded up (dust swaps drained LPs); DLMM active-bin deposit and edge-bin DoS. | Fixed. | No (CP / DLMM compiled out) |
 
-## 4. This audit-prep pass, 2026-11-11 (branch `claude/audit-ready`)
+## 4. Pre-audit hardening, 2026-11-11 (branch `claude/pre-audit-fixes`)
+
+Three known issues the owner decided to fix before the audit instead of accepting
+them (they were K-1, K-3 and K-5, and questions Q2, Q6, Q7). Behaviour change and
+IDL change; tests: `lib.rs` `tests::attack_*` / `authority_rotation_delays` /
+`gov_action_layout_is_backward_compatible`, `tests/security-review.ts` (K-1, K-3),
+`tests/v2-only.ts` (K-3, K-5, also against the `mainnet,v2-only` binary),
+`tests/z-squads-live-verification.ts` (a real Squads vault accepts governance).
+
+| ID | Issue | Change | In mainnet build? |
+|---|---|---|---|
+| H-1 (K-1) | **Freeze authority.** The program admitted mints whose issuer can freeze a pool vault (stopping every withdrawal), and Token-2022 `DefaultAccountState = Frozen` mints (vaults born frozen). | `set_mint_policy` / `set_allowed_mint` take `trust_freeze_authority`: a mint with a freeze authority is refused (`FreezeAuthorityNotTrusted`, 6020) unless governance sets it (USDC / USDT). `set_allowed_mint` now also runs the extension gate when enabling (so an allowlisted Token-2022 mint cannot be closed and re-created). Pool creation (v2, CP) refuses a frozen vault (`VaultFrozen`, 6021). `MintPolicyUpdated` reports the freeze authority. | Yes |
+| H-2 (K-3) | **Single-step authority rotation.** `set_authorities` changed both keys at once; a typo bricked governance. | `set_authorities` removed. New `GovAction::SetGovernanceAuthority` (timelocked) / `SetEmergencyAuthority` (no delay), applied only by the new `accept_authority` instruction signed by the new key; cancel via `cancel_gov_action`; 7-day expiry; `StaleAuthorityProposal` (8514) if the proposer is no longer governance. F-4's zero-key refusal kept (propose and accept). | Yes |
+| H-3 (K-5) | **Fee-tier squatting.** Anyone could create a launch pair first with bad, immutable parameters. | `mainnet` builds: `initialize_v2_pool` is governance-only (`GovernanceOnlyPoolCreation`, 8030). Non-mainnet builds unchanged (permissionless, pause switch). | Yes |
+
+Layout: `GlobalConfig`, `MintPolicy`, `SwdmmV2Pool`, `PendingAction` unchanged (the two
+`GovAction` variants are appended and no larger than the largest existing one, so
+`PendingAction` stays 95 + 8 bytes). Instruction count unchanged (23 in the mainnet
+build: −`set_authorities`, +`accept_authority`).
+
+## 5. This audit-prep pass, 2026-11-11 (branch `claude/audit-ready`)
 
 No behaviour change in the default build (IDL identical apart from doc strings).
 

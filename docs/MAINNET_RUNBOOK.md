@@ -5,7 +5,8 @@ SWDMM v2 pools) to mainnet. Every gate must be ticked, in order, by the
 people named in each step. Nothing here is automated on purpose: the CI
 workflow never deploys to mainnet.
 
-Status on 2026-09-29: gates 1–3 are done for the code in this repository;
+Status on 2026-09-29: gates 1–3 are done for the code in this repository
+(Gate 3 extended on 2026-11-11 with the freeze-authority check);
 gates 4–9 are not started. Gate 10 (DeFi listings) is prepared, not started.
 
 ## Gate 1 — Tests (done, keep green)
@@ -36,9 +37,13 @@ gates 4–9 are not started. Gate 10 (DeFi listings) is prepared, not started.
   ConfidentialTransfer, NonTransferable, MintCloseAuthority, and no
   extension type this build does not know) and must not carry a
   TransferFeeConfig (SWDMM v2 books nominal amounts).
-- The gate cannot see a mint's freeze authority: a frozen vault makes
-  every withdrawal of that pool fail (both sides). Review the freeze
-  authority of every mint before enabling it.
+- Freeze authority (2026-11-11, KNOWN_ISSUES K-1): a frozen vault makes
+  every withdrawal of that pool fail (both sides). `set_mint_policy`
+  refuses a mint that has a freeze authority (`FreezeAuthorityNotTrusted`)
+  unless governance passes `trust_freeze_authority` (`yarn governance
+  set-mint-policy <mint> true trust-freeze`) — only for issuers governance
+  trusts (Gate 8). Pool creation also refuses a vault that is born frozen
+  (Token-2022 `DefaultAccountState = Frozen`, `VaultFrozen`).
 - Negative tests: `tests/swdmm_v2.ts` ("mint policy" cases) and
   `tests/swd_amm.ts` (Token-2022 extension cases).
 
@@ -92,9 +97,10 @@ Use a private RPC (Helius / Triton / QuickNode) for every mainnet step.
 `scripts/deploy-mainnet.sh` runs gates 7 and 7b in the right order (preflight → verified build → cost estimate →
 deploy → IDL init → verify PDA + OtterSec job → governance bootstrap → hand IDL, governance and upgrade authority to
 the Squads vault → check). Dry run by default; `--execute` asks before every transaction. Cost from the current
-`mainnet,v2-only` build (793,080-byte .so, 2026-11-10): ~5.52 SOL program rent locked, the same again as a temporary
-buffer during deploy, ~0.10 SOL IDL — have ≥ ~11.2 SOL in the deployer (~5.66 SOL stays locked/spent). The full
-build (`--all-pools`, 1,279,336 bytes) needs ~17.9 SOL. Before running it, `declare_id!` and `[programs.mainnet]` must
+`mainnet,v2-only` build (806,640-byte .so, 2026-11-11): ~5.62 SOL program rent locked, the same again as a temporary
+buffer during deploy, ~0.10 SOL IDL — have ≥ ~11.4 SOL in the deployer (~5.76 SOL stays locked/spent). The full
+build (`--all-pools`, 1,294,360 bytes) needs ~18.1 SOL. (`scripts/deploy-mainnet.sh estimate` recomputes this from the
+real .so.) Before running it, `declare_id!` and `[programs.mainnet]` must
 hold the fresh program id, committed and pushed. The manual equivalent:
 
 ```bash
@@ -106,20 +112,37 @@ solana program deploy target/deploy/swd_amm.so --program-id <PROGRAM_KEYPAIR> \
 ANCHOR_PROVIDER_URL=<MAINNET_RPC> ANCHOR_WALLET=<DEPLOYER> \
   yarn ts-node --transpile-only scripts/squads-setup.ts create 2 <M1> <M2> <M3> --yes
 
-# 3. bootstrap governance (deployer is governance only for these two calls)
+# 3. bootstrap governance (deployer is governance until the vault accepts in step 5)
 yarn governance init-global-config <DEPLOYER_PUBKEY> <EMERGENCY> --yes
 yarn governance init-settings 86400 1000 <VAULT_PDA> --yes   # 24h, 10%, treasury = vault
 
-# 4. hand governance and upgrades to the Squads vault
-yarn governance set-authorities <VAULT_PDA> <EMERGENCY> --yes
+# 4. propose the vault as governance (two-step rotation, K-3) and hand over upgrades + IDL now
+yarn governance propose-governance-authority <VAULT_PDA> --yes   # note the action id N it prints
 solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority <VAULT_PDA> \
   --skip-new-upgrade-authority-signer-check --keypair <DEPLOYER> --url <MAINNET_RPC>
 
-# 5. prove it on-chain
-yarn governance verify-multisig <MULTISIG_PDA> 0     # prints threshold 2 of 3
-yarn governance status
-solana program show <PROGRAM_ID> --url <MAINNET_RPC>  # authority == VAULT_PDA
+# 5. after the 24 h timelock (and within 7 days): the VAULT accepts, through a Squads proposal
+solana transfer <VAULT_PDA> 0.02 --allow-unfunded-recipient   # rent for actions the vault proposes later
+yarn governance accept-authority <N>   # wallet is not the vault -> prints the instruction, sends nothing
+#   Squads app: new transaction -> add that instruction (program id, 3 accounts, data; the vault is the
+#   only signer) -> propose -> 2 of 3 approve -> execute.
+
+# 6. prove it on-chain
+yarn governance status                                 # governance_authority == VAULT_PDA
+yarn governance verify-multisig <MULTISIG_PDA> 0       # prints threshold 2 of 3
+yarn governance settings                               # nothing else pending from the deployer
+solana program show <PROGRAM_ID> --url <MAINNET_RPC>   # authority == VAULT_PDA
 ```
+
+Between steps 4 and 5 the deployer is still the governance authority (it can
+no longer upgrade the program). Keep its key offline and do not destroy it
+before step 6: if the 7-day accept window is missed, the deployer proposes again.
+Rotations later on work the same way: governance proposes
+(`propose-governance-authority`, timelocked, or `propose-emergency-authority`,
+no delay) and the new key signs `accept-authority <id>` (a vault through Squads;
+a new emergency key with its own wallet, which pays the fee). `cancel <id>`
+withdraws a pending rotation. A rotation can only be accepted while its
+proposer is still governance.
 
 From here on every governance instruction (mint policy, proposals,
 cancellations) is created as a Squads proposal and approved by 2 of 3
@@ -147,13 +170,34 @@ the upgrade authority is the Squads vault, the `upload` step's verify-PDA write 
 ## Gate 8 — Launch configuration
 
 - Allow the launch mints (`set-mint-policy <mint> true`, as Squads
-  proposals). Allow wSOL (`So11111111111111111111111111111111111111112`) if
+  proposals; `--print-ix` prints the instruction). Allow wSOL
+  (`So11111111111111111111111111111111111111112`, no freeze authority) if
   SOL pairs are wanted.
-- Keep `set-pool-creation-paused true` and create the canonical pools from
-  the governance vault (governance may create while creation is paused).
-  Pools are one per (mint_a, mint_b) [and fee tier for v2] with
-  creator-chosen, immutable bounds, so an open creation lets anyone squat a
-  pair with bad parameters.
+- Mints with a freeze authority (K-1) need `trust-freeze`. Pass it only for
+  issuers governance trusts not to freeze pool vaults; record each decision.
+  The two expected ones are classic SPL Token mints (6 decimals) whose
+  issuers hold a freeze authority:
+
+  | Token | Mainnet mint |
+  |---|---|
+  | USDC (Circle) | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
+  | USDT (Tether) | `Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB` |
+
+  Before the proposal, check on-chain that the address is the issuer's
+  (`spl-token display <mint> --url <MAINNET_RPC>`: owner = Token program,
+  decimals 6, a freeze authority set) and compare with the issuer's own
+  documentation (circle.com, tether.to). Beware look-alike addresses with
+  the same prefix (e.g. `Es9vMFrz…Y2HbFzAu1cuN6pS` is **not** the USDT
+  mint). Not re-checked on-chain when this was written (2026-11-11, no
+  mainnet RPC in the build environment). The dry run of
+  `set-mint-policy` prints the freeze authority it found.
+- Pool creation (K-5): on the `mainnet` build only the governance authority
+  can create SWDMM v2 pools (`GovernanceOnlyPoolCreation`), so the vault
+  creates every launch pool through a Squads proposal. The creator also makes
+  the first, price-setting deposit, so the vault must hold that initial
+  liquidity (both tokens) and do the first `add_v2_liquidity` the same way;
+  its position can later be transferred (`transfer_v2_position`) or locked.
+  `set-pool-creation-paused` no longer matters for v2 on mainnet.
 - Point test-ui (or the production UI) at the mainnet RPC and the mainnet
   program id; remove the devnet banner only after gates 4–7.
 
@@ -162,6 +206,10 @@ the upgrade authority is the Squads vault, the `upload` step's verify-PDA write 
 - Monitoring: alert on `V2PoolPaused`, `GovActionProposed`,
   `GovActionExecuted`, large `V2Swapped` price impact, and upgrade-authority
   changes.
+- Lost or compromised emergency key: governance proposes
+  `propose-emergency-authority <NEW>` (no delay) and the new key runs
+  `accept-authority <id>` at once; meanwhile cancel any unpause the old key
+  might block.
 - Incident: the emergency authority pauses (`emergency-pause-v2-pool`,
   `emergency-pause-pool`); only the multisig can unpause, and only after
   the timelock (`propose-unpause-*` → wait → `execute`). Execution is
