@@ -594,7 +594,7 @@ jobs:
       - name: Set up Go (the version setup-node.sh pins)
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.14'
+          go-version: '1.26.11'
           cache: false
 
       - name: Pinned Cosmos EVM source + the ZETAPHY patches (as on the server)
@@ -719,7 +719,7 @@ jobs:
       - name: Set up Go (the version setup-node.sh pins)
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.14'
+          go-version: '1.26.11'
           cache: false
 
       - name: Pinned Cosmos EVM source + the ZETAPHY patches

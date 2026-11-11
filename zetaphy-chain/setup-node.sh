@@ -42,7 +42,7 @@ DENOM="azetaphy"                   # 1 ZETAPHY = 10^18 azetaphy
 MONIKER="${MONIKER:-zetaphy-validator-0}"
 COSMOS_EVM_TAG="v0.7.3"
 COSMOS_EVM_COMMIT="c3ae9067a7eadcdea55a5192226916deb44c71c4"
-GO_VERSION="1.25.14"               # last Go 1.25 patch release; the patched evmd/go.mod requires it (security fixes)
+GO_VERSION="1.26.11"               # Go 1.26 patch release the patched evmd/go.mod requires (security fixes)
 # IBC rate limits: ibc-apps rate-limiting, ported to ibc-go v11 by the patch below.
 RATELIMIT_MOD="github.com/cosmos/ibc-apps/modules/rate-limiting/v10@v10.7.0"
 RATELIMIT_SUM="h1:5X2o/xT1x1fltUrkhvDCOpFaRJK5/1M36/SCh873VOc="
@@ -1633,14 +1633,19 @@ index 9fdd8ef..e6ff55d 100644
  	if err != nil {
  		return servertypes.ExportedApp{}, err
 diff --git a/evmd/go.mod b/evmd/go.mod
-index e503386..c142ecc 100644
+index e503386..f20f59b 100644
 --- a/evmd/go.mod
 +++ b/evmd/go.mod
-@@ -1,23 +1,27 @@
+@@ -1,23 +1,32 @@
  module github.com/cosmos/evm/evmd
  
 -go 1.25.9
-+go 1.25.14
++go 1.26.11
++
++// Go 1.26 rejects extra colons in a URL host by default; wasmd checks
++// MsgStoreAndInstantiateContract and legacy proposal sources with
++// url.ParseRequestURI, so keep Go 1.25's parse for the same accept/reject.
++godebug urlstrictcolons=0
  
  require (
  	cosmossdk.io/api v1.0.0
@@ -1668,13 +1673,13 @@ index e503386..c142ecc 100644
  	github.com/onsi/ginkgo/v2 v2.23.4
  	github.com/onsi/gomega v1.38.0
  	github.com/spf13/cast v1.10.0
-@@ -25,12 +29,13 @@ require (
+@@ -25,12 +34,13 @@ require (
  	github.com/spf13/pflag v1.0.10
  	github.com/spf13/viper v1.21.0
  	github.com/stretchr/testify v1.11.1
 -	golang.org/x/sync v0.20.0
 -	google.golang.org/grpc v1.80.0
-+	golang.org/x/sync v0.22.0
++	golang.org/x/sync v0.23.0
 +	google.golang.org/grpc v1.83.2
 +	google.golang.org/protobuf v1.36.11
  )
@@ -1685,7 +1690,7 @@ index e503386..c142ecc 100644
  	cloud.google.com/go v0.123.0 // indirect
  	cloud.google.com/go/auth v0.20.0 // indirect
  	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-@@ -46,7 +51,7 @@ require (
+@@ -46,7 +56,7 @@ require (
  	github.com/99designs/keyring v1.2.2 // indirect
  	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
  	github.com/DataDog/zstd v1.5.7 // indirect
@@ -1694,7 +1699,7 @@ index e503386..c142ecc 100644
  	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.56.0 // indirect
  	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.56.0 // indirect
  	github.com/Microsoft/go-winio v0.6.2 // indirect
-@@ -117,6 +122,7 @@ require (
+@@ -117,6 +127,7 @@ require (
  	github.com/desertbit/timer v1.0.1 // indirect
  	github.com/dgraph-io/badger/v4 v4.9.1 // indirect
  	github.com/dgraph-io/ristretto/v2 v2.4.0 // indirect
@@ -1702,7 +1707,7 @@ index e503386..c142ecc 100644
  	github.com/dlclark/regexp2 v1.7.0 // indirect
  	github.com/dop251/goja v0.0.0-20230605162241-28ee0ee714f3 // indirect
  	github.com/dunglas/httpsfv v1.1.0 // indirect
-@@ -139,7 +145,7 @@ require (
+@@ -139,7 +150,7 @@ require (
  	github.com/go-kit/kit v0.13.0 // indirect
  	github.com/go-kit/log v0.2.1 // indirect
  	github.com/go-logfmt/logfmt v0.6.1 // indirect
@@ -1711,7 +1716,7 @@ index e503386..c142ecc 100644
  	github.com/go-logr/stdr v1.2.2 // indirect
  	github.com/go-ole/go-ole v1.3.0 // indirect
  	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-@@ -154,6 +160,7 @@ require (
+@@ -154,6 +165,7 @@ require (
  	github.com/google/btree v1.1.3 // indirect
  	github.com/google/flatbuffers v25.2.10+incompatible // indirect
  	github.com/google/go-cmp v0.7.0 // indirect
@@ -1719,7 +1724,7 @@ index e503386..c142ecc 100644
  	github.com/google/orderedcode v0.0.1 // indirect
  	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
  	github.com/google/s2a-go v0.1.9 // indirect
-@@ -164,8 +171,7 @@ require (
+@@ -164,8 +176,7 @@ require (
  	github.com/gorilla/mux v1.8.1 // indirect
  	github.com/gorilla/websocket v1.5.3 // indirect
  	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
@@ -1729,7 +1734,7 @@ index e503386..c142ecc 100644
  	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
  	github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72 // indirect
  	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-@@ -191,7 +197,7 @@ require (
+@@ -191,7 +202,7 @@ require (
  	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
  	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
  	github.com/jmhodges/levigo v1.0.0 // indirect
@@ -1738,7 +1743,7 @@ index e503386..c142ecc 100644
  	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
  	github.com/koron/go-ssdp v0.0.6 // indirect
  	github.com/kr/pretty v0.3.1 // indirect
-@@ -235,12 +241,13 @@ require (
+@@ -235,12 +246,13 @@ require (
  	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
  	github.com/oasisprotocol/curve25519-voi v0.0.0-20251114093237-2ab5a27a1729 // indirect
  	github.com/oklog/run v1.2.0 // indirect
@@ -1754,7 +1759,7 @@ index e503386..c142ecc 100644
  	github.com/pion/ice/v4 v4.0.10 // indirect
  	github.com/pion/interceptor v0.1.40 // indirect
  	github.com/pion/logging v0.2.4 // indirect
-@@ -263,24 +270,25 @@ require (
+@@ -263,24 +275,25 @@ require (
  	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
  	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
  	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
@@ -1787,7 +1792,7 @@ index e503386..c142ecc 100644
  	github.com/stretchr/objx v0.5.3 // indirect
  	github.com/subosito/gotenv v1.6.0 // indirect
  	github.com/supranational/blst v0.3.16 // indirect
-@@ -303,36 +311,36 @@ require (
+@@ -303,36 +316,36 @@ require (
  	github.com/zondax/ledger-go v1.0.1 // indirect
  	go.etcd.io/bbolt v1.4.3 // indirect
  	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -1850,7 +1855,7 @@ index e503386..c142ecc 100644
  	go.uber.org/automaxprocs v1.6.0 // indirect
  	go.uber.org/dig v1.19.0 // indirect
  	go.uber.org/fx v1.24.0 // indirect
-@@ -340,24 +348,23 @@ require (
+@@ -340,24 +353,23 @@ require (
  	go.uber.org/multierr v1.11.0 // indirect
  	go.uber.org/zap v1.27.1 // indirect
  	go.yaml.in/yaml/v2 v2.4.4 // indirect
@@ -1861,22 +1866,22 @@ index e503386..c142ecc 100644
 -	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 -	golang.org/x/mod v0.34.0 // indirect
 -	golang.org/x/net v0.53.0 // indirect
-+	golang.org/x/crypto v0.55.0 // indirect
++	golang.org/x/crypto v0.57.0 // indirect
 +	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
-+	golang.org/x/mod v0.38.0 // indirect
-+	golang.org/x/net v0.58.0 // indirect
++	golang.org/x/mod v0.41.0 // indirect
++	golang.org/x/net v0.60.0 // indirect
  	golang.org/x/oauth2 v0.36.0 // indirect
 -	golang.org/x/sys v0.43.0 // indirect
 -	golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c // indirect
 -	golang.org/x/term v0.42.0 // indirect
 -	golang.org/x/text v0.36.0 // indirect
-+	golang.org/x/sys v0.47.0 // indirect
-+	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
-+	golang.org/x/term v0.45.0 // indirect
-+	golang.org/x/text v0.41.0 // indirect
++	golang.org/x/sys v0.48.0 // indirect
++	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
++	golang.org/x/term v0.46.0 // indirect
++	golang.org/x/text v0.42.0 // indirect
  	golang.org/x/time v0.15.0 // indirect
 -	golang.org/x/tools v0.43.0 // indirect
-+	golang.org/x/tools v0.48.0 // indirect
++	golang.org/x/tools v0.49.0 // indirect
  	google.golang.org/api v0.276.0 // indirect
  	google.golang.org/genproto v0.0.0-20260414002931-afd174a4e478 // indirect
 -	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
@@ -1887,7 +1892,7 @@ index e503386..c142ecc 100644
  	gopkg.in/yaml.v2 v2.4.0 // indirect
  	gopkg.in/yaml.v3 v3.0.1 // indirect
  	gotest.tools/v3 v3.5.2 // indirect
-@@ -372,6 +379,10 @@ replace (
+@@ -372,6 +384,10 @@ replace (
  	// use cosmos fork of keyring
  	github.com/99designs/keyring => github.com/cosmos/keyring v1.2.0
  	github.com/cosmos/evm => ../
@@ -1899,7 +1904,7 @@ index e503386..c142ecc 100644
  	// branch: release/1.17
  	github.com/ethereum/go-ethereum => github.com/cosmos/go-ethereum v1.17.2-cosmos-0
 diff --git a/evmd/go.sum b/evmd/go.sum
-index 92d6f82..8d4789f 100644
+index 92d6f82..16b731a 100644
 --- a/evmd/go.sum
 +++ b/evmd/go.sum
 @@ -1,5 +1,5 @@
@@ -2234,8 +2239,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/crypto v0.18.0/go.mod h1:R0j02AL6hcrfOiy9T4ZYp/rcWeMxM3L6QYxlOuEG1mg=
 -golang.org/x/crypto v0.50.0 h1:zO47/JPrL6vsNkINmLoo/PH1gcxpls50DNogFvB5ZGI=
 -golang.org/x/crypto v0.50.0/go.mod h1:3muZ7vA7PBCE6xgPX7nkzzjiUq87kRItoJQM1Yo8S+Q=
-+golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
-+golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
++golang.org/x/crypto v0.57.0 h1:3ZVCjf8Ggz7zneR/EHRVx68Ctf+2pmIMP2UFhh9cC6M=
++golang.org/x/crypto v0.57.0/go.mod h1:Fdz0i5U6CoizGwLda9DttjSk6qlZo25zYNtR+ycvuZA=
  golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
  golang.org/x/exp v0.0.0-20190306152737-a1d7652674e8/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
  golang.org/x/exp v0.0.0-20200331195152-e8c3332aa8e5/go.mod h1:4M0jN8W1tt0AVLNr8HDosyJCDCDuyL9N9+3m7wDWgKw=
@@ -2252,8 +2257,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/mod v0.8.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
 -golang.org/x/mod v0.34.0 h1:xIHgNUUnW6sYkcM5Jleh05DvLOtwc6RitGHbDk4akRI=
 -golang.org/x/mod v0.34.0/go.mod h1:ykgH52iCZe79kzLLMhyCUzhMci+nQj+0XkbXpNYtVjY=
-+golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=
-+golang.org/x/mod v0.38.0/go.mod h1:V6Xz0pq8TQ3dGqVQ1FVHuelZpAL0uNhSkk9ogYP3c40=
++golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=
++golang.org/x/mod v0.41.0/go.mod h1:Ek9pY8RKWXwsWvd3rQiHYtMqkjSUV+s1Rj7j4H5Ur6o=
  golang.org/x/net v0.0.0-20180719180050-a680a1efc54d/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
  golang.org/x/net v0.0.0-20180724234803-3673e40ba225/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
  golang.org/x/net v0.0.0-20180826012351-8a410e7b638d/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
@@ -2263,8 +2268,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/net v0.20.0/go.mod h1:z8BVo6PvndSri0LbOE3hAn0apkU+1YvI6E70E9jsnvY=
 -golang.org/x/net v0.53.0 h1:d+qAbo5L0orcWAr0a9JweQpjXF19LMXJE8Ey7hwOdUA=
 -golang.org/x/net v0.53.0/go.mod h1:JvMuJH7rrdiCfbeHoo3fCQU24Lf5JJwT9W3sJFulfgs=
-+golang.org/x/net v0.58.0 h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=
-+golang.org/x/net v0.58.0/go.mod h1:YwCddHnFlT7eLQqVprV19OnhLGtc5xOKgE0RyqgfWAU=
++golang.org/x/net v0.60.0 h1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=
++golang.org/x/net v0.60.0/go.mod h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=
  golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
  golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
  golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
@@ -2274,8 +2279,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 -golang.org/x/sync v0.20.0 h1:e0PTpb7pjO8GAtTs2dQ6jYa5BWYlMuX047Dco/pItO4=
 -golang.org/x/sync v0.20.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
-+golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
-+golang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
++golang.org/x/sync v0.23.0 h1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=
++golang.org/x/sync v0.23.0/go.mod h1:sUUOizhqBxiL6pEWpqNLUiaJn1ShEbZ6BBqskPbjZm0=
  golang.org/x/sys v0.0.0-20180823144017-11551d06cbcc/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
  golang.org/x/sys v0.0.0-20180830151530-49385e6e1522/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
  golang.org/x/sys v0.0.0-20180905080454-ebe1bf3edb33/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
@@ -2287,10 +2292,10 @@ index 92d6f82..8d4789f 100644
 -golang.org/x/sys v0.43.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
 -golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c h1:6a8FdnNk6bTXBjR4AGKFgUKuo+7GnR3FX5L7CbveeZc=
 -golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c/go.mod h1:TpUTTEp9frx7rTdLpC9gFG9kdI7zVLFTFFlqaH2Cncw=
-+golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
-+golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
-+golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 h1:RJhm5l6Fo4rmEIcndxDllNhhf/fAx8qIm4t6A7vpm2A=
-+golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959/go.mod h1:LV7u5Oco+Z/g6XI7PqN+EUUUGGkEcmB1uj2ceI0fOVg=
++golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
++golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
++golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 h1:ZUSxONxc981v7AW7QUg+I9WwZzSTTJ019ENBYr5pV/Q=
++golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5/go.mod h1:LVehoXe41cL5SCVQilsV7Gg6BNG+Js6P9PhSbYTIUkQ=
  golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
  golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
  golang.org/x/term v0.5.0/go.mod h1:jMB1sMXY+tzblOD4FWmEbocvup2/aLOaQEp7JmGp78k=
@@ -2300,8 +2305,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/term v0.16.0/go.mod h1:yn7UURbUtPyrVJPGPq404EukNFxcm/foM+bV/bfcDsY=
 -golang.org/x/term v0.42.0 h1:UiKe+zDFmJobeJ5ggPwOshJIVt6/Ft0rcfrXZDLWAWY=
 -golang.org/x/term v0.42.0/go.mod h1:Dq/D+snpsbazcBG5+F9Q1n2rXV8Ma+71xEjTRufARgY=
-+golang.org/x/term v0.45.0 h1:NwWyBmoJCbfTHpxrWoZ9C6/VxOf7ic219I8xZZFdrf0=
-+golang.org/x/term v0.45.0/go.mod h1:9aqxs0blBcrm/n0L9QW0aRVD+ktan8ssZromtqJC43w=
++golang.org/x/term v0.46.0 h1:3+OXuTbaKDgwk8jTi3aSLHRlmWqHEUDUtxnbFigO4YE=
++golang.org/x/term v0.46.0/go.mod h1:+K02xbkittuwc0Am4abfA3Fc+XRGXkvBXNO88NCXPoc=
  golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
  golang.org/x/text v0.3.2/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
  golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
@@ -2311,8 +2316,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
 -golang.org/x/text v0.36.0 h1:JfKh3XmcRPqZPKevfXVpI1wXPTqbkE5f7JA92a55Yxg=
 -golang.org/x/text v0.36.0/go.mod h1:NIdBknypM8iqVmPiuco0Dh6P5Jcdk8lJL0CUebqK164=
-+golang.org/x/text v0.41.0 h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=
-+golang.org/x/text v0.41.0/go.mod h1:jvf1O8ajNzZqhSrQBPbutR/EB83Cc0CFrezNQIwbb5M=
++golang.org/x/text v0.42.0 h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=
++golang.org/x/text v0.42.0/go.mod h1:ojzP1Z+2QtioaF8DTtO8K5q7JWVVYwZKenzujK0Zd0E=
  golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
  golang.org/x/time v0.0.0-20191024005414-555d28b269f0/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
  golang.org/x/time v0.15.0 h1:bbrp8t3bGUeFOx08pvsMYRTCVSMk89u4tKbNOZbp88U=
@@ -2322,8 +2327,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/tools v0.6.0/go.mod h1:Xwgl3UAJ/d3gWutnCtw505GrjyAbvKui8lOU390QaIU=
 -golang.org/x/tools v0.43.0 h1:12BdW9CeB3Z+J/I/wj34VMl8X+fEXBxVR90JeMX5E7s=
 -golang.org/x/tools v0.43.0/go.mod h1:uHkMso649BX2cZK6+RpuIPXS3ho2hZo4FVwfoy1vIk0=
-+golang.org/x/tools v0.48.0 h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=
-+golang.org/x/tools v0.48.0/go.mod h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=
++golang.org/x/tools v0.49.0 h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=
++golang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=
  golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
  golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
  golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
