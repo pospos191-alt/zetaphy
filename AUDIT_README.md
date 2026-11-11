@@ -50,7 +50,7 @@ Results on the prepared branch (2026-11-11, local, after the pre-audit hardening
 
 | Check | Result |
 |---|---|
-| `cargo test -p swd_amm` (full / `v2-only` / `mainnet,v2-only`) | 62+4 / 43+4 / 43+4 passed (lib re-run after the internal-review fixes; the localnet, fuzz, LiteSVM and Kani rows below were NOT re-run after them) |
+| `cargo test -p swd_amm` (full / `v2-only` / `mainnet,v2-only`) | 62+4 / 43+4 / 43+4 passed (lib counts after the internal-review fixes of 2026-11-11; the other rows are from the run before them — after the fixes, CI run 455 (`security.yml`) and the `amm-formal.yml` run on the same branch passed every step) |
 | `cargo clippy -p swd_amm --features v2-only` | clean except one warning inside Anchor-generated code (K-21) |
 | TS localnet, full build (8 suites) | 55 passed, 6 skipped (v2-only checks) |
 | TS localnet, `v2-only` build (`v2-only.ts`, `swdmm_v2.ts`, `security-review.ts`) | 27 passed, 1 skipped (CP-only F-5) |

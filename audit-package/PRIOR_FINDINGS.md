@@ -71,10 +71,10 @@ build: −`set_authorities`, +`accept_authority`).
 ## 4b. Internal mainnet-readiness review, 2026-11-11
 
 A second read of the mainnet scope found no way to take LP funds. Five smaller points
-were fixed. Verified here with `cargo test -p swd_amm --lib` (all three feature sets) and
-clippy only: **the localnet TS suites, LiteSVM run, fuzz corpus and Kani proofs were
-updated where needed but not re-run after these changes** (no Anchor / SBF toolchain in
-that session) — re-run `audit-package/tools/verify-all.sh` before freezing the commit.
+were fixed. Verified in CI on the fix branch: `security.yml` run 455 (cargo tests, full
+localnet suite, `v2-only` suites, LiteSVM runs, the `mainnet,v2-only` binary with
+`tests/v2-only.ts`) and `amm-formal.yml` (libFuzzer targets, Kani) all passed. Re-run
+`audit-package/tools/verify-all.sh` on the frozen commit as usual.
 
 | ID | Issue | Change |
 |---|---|---|
