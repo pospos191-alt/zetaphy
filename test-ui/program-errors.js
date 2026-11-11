@@ -99,7 +99,7 @@ export const PROGRAM_ERRORS = {
   8511: ["UseTimelockedUnpause","Instant unpause is disabled: use the timelocked propose/execute flow","timelock"],
   8512: ["MathOverflow","Math overflow","math"],
   8513: ["ActionExpired","This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again","timelock"],
-  8514: ["StaleAuthorityProposal","This authority rotation was proposed by an earlier governance authority: propose it again","timelock"],
+  8514: ["StaleAuthorityProposal","This governance action was proposed by an earlier governance authority: propose it again","timelock"],
 };
 
 const BY_NAME = Object.fromEntries(Object.entries(PROGRAM_ERRORS).map(([c, [n]]) => [n, Number(c)]));
