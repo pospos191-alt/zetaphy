@@ -1,0 +1,7 @@
+# Reviewed dependency downgrades (audit/tools/no-downgrade.js, workflow no-downgrade.yml).
+# Empty by default: a pull request that lowers any version pin fails unless a line here allows it.
+# One line per downgrade, with the reason (required), reviewed like code:
+#   <key> <from> -> <to>  # <why this is safe, and when it goes back up>
+# The key is what the failing check prints, e.g.
+#   setup:GO_VERSION 1.26.11 -> 1.26.10  # 1.26.11 breaks arm64 linking (link to issue); revert when 1.26.12 is out
+# '*' may stand for <from> or <to>. Remove the line once the version is back up.

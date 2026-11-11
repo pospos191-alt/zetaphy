@@ -15,7 +15,7 @@
 set -uo pipefail
 ROOT=$(cd "$1" && pwd); OUT=$2; TIER=${3:-fast}
 mkdir -p "$OUT/raw/go"; OUT=$(cd "$OUT" && pwd)
-STATICCHECK_VERSION=v0.7.0 # = 2026.1 (2026.2 needs Go 1.26; the chain pins Go 1.25.14)
+STATICCHECK_VERSION=v0.7.0 # = 2026.1, checked on Go 1.26.11 (the chain's pin)
 GOSEC_VERSION=v2.22.8
 GOVULNCHECK_VERSION=v1.1.4
 status() { echo "$1" >> "$OUT/raw/go/status.txt"; echo "go-scan: $1"; }

@@ -30,6 +30,11 @@
 #   zetaphy-chain-arm64 same trigger — the server build (make install +
 #                 libwasmvm check) on an aarch64 runner (Oracle ARM VMs),
 #                 and the CosmWasm/PQ fork tests there. ~15 min.
+#   zetaphy-chain-attacks same trigger — anti-rollback / anti-takeover attacks
+#                 on real devnets (zetaphy-chain/test-anti-rollback.sh, docs/
+#                 ANTI-ROLLBACK-CHAIN.md): builds zetaphyd and the binary from
+#                 before the zetaphy-guard upgrade, runs them side by side
+#                 before the upgrade height, then each attack. ~25 min.
 #
 # Free-tier budget: GitHub Free gives private repos 2,000 Actions minutes a
 # month. The `changes` job runs each test job ONLY when its own files changed
@@ -158,7 +163,7 @@ jobs:
           out neuro '^zetaphy-neuro/'
           out verify '^(zetaphy-verify/|zetaphy-neuro/src/)'
           out network '^(zetaphy-network/|zetaphy-neuro/src/|zetaphy-chain/horcrux/|zetaphy-chain/join-validator\.sh$)'
-          out wallet '^(zetaphy-wallet/|zetaphy-network/src/pqtx\.js$|zetaphy-neuro/src/(fingerprint|bytecode)\.js$|zetaphy-chain/wallets/)'
+          out wallet '^(zetaphy-wallet/|zetaphy-network/src/(pqtx|pqcert|vaccine)\.js$|zetaphy-neuro/src/(fingerprint|bytecode)\.js$|zetaphy-chain/wallets/)'
           out explorer '^(zetaphy-explorer/|zetaphy-network/src/((pqcert|pqtx|vaccine)\.js|starklc/.*)$)'
           out dex '^(zetaphy-dex/|zetaphy-network/(src/vaccine\.js|artifacts/ThreatRegistry\.json)$)'
           out nft '^(zetaphy-nft/|zetaphy-network/(src/vaccine\.js|artifacts/ThreatRegistry\.json)$)'
@@ -200,7 +205,7 @@ jobs:
         working-directory: test-ui/tests
         run: |
           npm install --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright
 
       - name: Page smoke test (page must finish starting up with no errors)
         working-directory: test-ui/tests
@@ -250,7 +255,7 @@ jobs:
         run: npm test
 
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright-core
 
       - name: Browser test (web page, RPC answered locally)
         run: npm run test:web
@@ -379,7 +384,7 @@ jobs:
           git diff --exit-code -- vendor/
 
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright-core
 
       - name: Browser test (create key, encrypt/unlock, send to a mocked RPC)
         run: npm test
@@ -413,7 +418,7 @@ jobs:
           git diff --exit-code -- vendor/
 
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright-core
 
       - name: Unit and browser tests
         run: npm test
@@ -450,7 +455,7 @@ jobs:
         run: npm test
 
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright-core
 
       - name: Browser test (swap page)
         run: npm run test:web
@@ -485,7 +490,7 @@ jobs:
         run: npm test
 
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright-core
 
       - name: Browser test (marketplace)
         run: npm run test:e2e
@@ -522,7 +527,7 @@ jobs:
         run: npm test
 
       - name: Install Chromium
-        run: npx playwright-core install --with-deps chromium
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/install-chromium.sh" playwright-core
 
       - name: Browser test (every tab, mocked node)
         run: npm run test:e2e
@@ -570,7 +575,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.chain == 'true' || needs.changes.outputs.dlmm == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60  # took 43.5 min on Go 1.25.14 and over 45 on Go 1.26.11
     env:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
@@ -594,7 +599,7 @@ jobs:
       - name: Set up Go (the version setup-node.sh pins)
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.14'
+          go-version: '1.26.11'
           cache: false
 
       - name: Pinned Cosmos EVM source + the ZETAPHY patches (as on the server)
@@ -719,7 +724,7 @@ jobs:
       - name: Set up Go (the version setup-node.sh pins)
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.14'
+          go-version: '1.26.11'
           cache: false
 
       - name: Pinned Cosmos EVM source + the ZETAPHY patches
@@ -747,6 +752,52 @@ jobs:
       - name: Fork tests on aarch64 (PQ, security core, CosmWasm)
         working-directory: ${{ env.SRC }}/evmd
         run: go test -tags=test -run 'EVMCall|PQ|QDay|Threat|Security|Wasm|Future|Immune|Breaker|Guard|Anomaly|AI|Upgrade|ModelAt|Firewall' .
+
+  # Anti-rollback / anti-takeover attacks on real devnets (docs/ANTI-ROLLBACK-CHAIN.md).
+  # Its own job (the zetaphy-chain job is near its timeout). The "old" binary is
+  # built from setup-node.sh as it was just before the zetaphy-guard upgrade was
+  # added, so it is the binary a node runs before the upgrade.
+  zetaphy-chain-attacks:
+    name: zetaphy-chain-attacks (old/new binaries, downgrade, rollback, governance attacks)
+    needs: changes
+    if: needs.changes.outputs.chain == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SRC: ${{ github.workspace }}/../cosmos-evm
+      OLD_SRC: ${{ github.workspace }}/../cosmos-evm-old
+    steps:
+      - name: Checkout (with history, for the pre-upgrade setup-node.sh)
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Go (the version setup-node.sh pins)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.11'
+          cache: false
+
+      - name: Build zetaphyd (this setup-node.sh) and the one from before zetaphy-guard
+        run: |
+          tag=$(sed -n 's/^COSMOS_EVM_TAG="\(.*\)"/\1/p' zetaphy-chain/setup-node.sh)
+          commit=$(sed -n 's/^COSMOS_EVM_COMMIT="\(.*\)"/\1/p' zetaphy-chain/setup-node.sh)
+          git clone -q --depth 1 --branch "$tag" https://github.com/cosmos/evm.git "$SRC"
+          [ "$(git -C "$SRC" rev-parse HEAD)" = "$commit" ]
+          cp -a "$SRC" "$OLD_SRC"
+          bash zetaphy-chain/setup-node.sh --patch-source "$SRC"
+          (cd "$SRC/evmd" && go build -o "$RUNNER_TEMP/zetaphyd" ./cmd/evmd)
+          added=$(git log --format=%H -n 1 -S'ZetaphyGuardUpgradeName = "zetaphy-guard"' -- zetaphy-chain/setup-node.sh)
+          [ -n "$added" ] || { echo "::error::no commit adds zetaphy-guard"; exit 1; }
+          git show "$added^:zetaphy-chain/setup-node.sh" > "$RUNNER_TEMP/setup-node-old.sh"
+          ! grep -q 'ZetaphyGuardUpgradeName' "$RUNNER_TEMP/setup-node-old.sh"
+          echo "old binary: setup-node.sh of $added^"
+          bash "$RUNNER_TEMP/setup-node-old.sh" --patch-source "$OLD_SRC"
+          (cd "$OLD_SRC/evmd" && go build -o "$RUNNER_TEMP/zetaphyd-old" ./cmd/evmd)
+
+      - name: Attacks on real devnets (each must be refused or detected)
+        run: bash zetaphy-chain/test-anti-rollback.sh "$RUNNER_TEMP/zetaphyd" "$RUNNER_TEMP/zetaphyd-old" "$RUNNER_TEMP/attacks"
 
   program:
     name: program (cargo test + anchor test)

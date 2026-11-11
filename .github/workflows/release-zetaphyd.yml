@@ -7,6 +7,9 @@
 # They can install this binary instead: setup-node.sh takes it through
 # ZETAPHYD_BIN=<file> (see zetaphy-chain/README.md, "Prebuilt chain binary").
 # Anyone can rebuild from the same sources and compare the hash.
+# Signed (L1-3, docs/ANTI-ROLLBACK-OFFCHAIN.md): the sign job attests every binary, SHA256SUMS and RELEASE.json with
+# Sigstore (keyless, GitHub OIDC); nodes check them with zetaphy-chain/verify-release.sh before installing, which also
+# refuses a release older than the installed one.
 name: release-zetaphyd
 
 on:
@@ -42,7 +45,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.14'
+          go-version: '1.26.11'
           cache: false
 
       - name: Pinned Cosmos EVM source + the ZETAPHY patch
@@ -71,16 +74,85 @@ jobs:
           path: ${{ runner.temp }}/out/zetaphyd-linux-${{ matrix.arch }}
           retention-days: 7
 
-  release:
+  # Signing (L1-3, docs/ANTI-ROLLBACK-OFFCHAIN.md): its own job, the only one that may get a GitHub OIDC token.
+  # It writes SHA256SUMS and RELEASE.json (what this release is: setup-node.sh fingerprint, commit, its position on
+  # main, the chain-upgrade handlers it carries) and signs ONE Sigstore build-provenance attestation (keyless, free)
+  # over every binary, SHA256SUMS and RELEASE.json. The bundle is published with the release, so a node can check it
+  # offline-ish (cosign) or with gh: zetaphy-chain/verify-release.sh. It cannot publish anything (no contents: write).
+  sign:
     needs: build
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write      # Sigstore keyless signing (Fulcio certificate for this workflow run)
+      attestations: write  # stores the attestation on GitHub (gh attestation verify finds it there)
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0   # RELEASE.json counts the commits on main (the release's position, for anti-rollback)
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          pattern: zetaphyd-linux-*
+          merge-multiple: true
+
+      - name: SHA256SUMS and RELEASE.json
+        run: |
+          short=$(sha256sum zetaphy-chain/setup-node.sh | cut -c1-12)
+          # the chain-upgrade handlers this binary carries (zetaphy-v2, ..., zetaphy-firewall): a binary missing
+          # one the chain already ran is a rollback, whatever its date says
+          upgrades=$(grep -oE '^\+const Zetaphy[A-Za-z0-9]*UpgradeName = "[^"]+"' zetaphy-chain/setup-node.sh \
+            | sed -E 's/.*= "([^"]+)"/\1/' | sort -u | jq -R . | jq -cs .)
+          jq -n --arg tag "zetaphyd-$short" --arg setup "$(sha256sum zetaphy-chain/setup-node.sh | cut -d' ' -f1)" \
+            --arg commit "$GITHUB_SHA" --arg ref "$GITHUB_REF" --arg repo "$GITHUB_REPOSITORY" \
+            --argjson seq "$(git rev-list --count "$GITHUB_SHA")" --argjson time "$(git log -1 --format=%ct "$GITHUB_SHA")" \
+            --argjson upgrades "$upgrades" --arg run "$GITHUB_RUN_ID" \
+            '{schema: "zetaphy-release/v1", tag: $tag, repository: $repo, setup_node_sha256: $setup, commit: $commit, ref: $ref,
+              main_commits: $seq, commit_time: $time, upgrades: $upgrades, workflow_run: $run}' > out/RELEASE.json
+          cat out/RELEASE.json
+          cd out
+          sha256sum zetaphyd-linux-* RELEASE.json > SHA256SUMS
+          cat SHA256SUMS
+
+      # One signed build provenance over all files. Anyone can check:
+      #   gh attestation verify zetaphyd-linux-amd64 --repo pospos191-alt/zetaphy \
+      #     --signer-workflow pospos191-alt/zetaphy/.github/workflows/release-zetaphyd.yml --source-ref refs/heads/main
+      - id: attest
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: |
+            out/zetaphyd-linux-*
+            out/SHA256SUMS
+            out/RELEASE.json
+
+      - name: Keep the Sigstore bundle next to the files
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          cp "$BUNDLE" out/zetaphyd-provenance.sigstore.json
+          ls -l out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-release
+          path: |
+            out/zetaphyd-linux-*
+            out/SHA256SUMS
+            out/RELEASE.json
+            out/zetaphyd-provenance.sigstore.json
+          retention-days: 7
+
+  release:
+    needs: sign
+    runs-on: ubuntu-24.04
     # Publishing is gated by the environment release (main only; required reviewer recommended:
-    # docs/SECRETS-HARDENING.md). The build job above needs no environment.
+    # docs/SECRETS-HARDENING.md). The build and sign jobs above need no environment.
     environment: release
     permissions:
-      contents: write
-      id-token: write      # signs the provenance (Sigstore, keyless)
-      attestations: write
+      contents: write      # creates / updates the release; no OIDC token here (signing is the sign job's)
     steps:
       - uses: actions/checkout@v5
         with:
@@ -88,15 +160,8 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
+          name: signed-release
           path: out
-          merge-multiple: true
-
-      # Signed provenance for each binary: proves it was built by this
-      # workflow from this commit (not uploaded by hand). Anyone can check:
-      #   gh attestation verify zetaphyd-linux-amd64 --repo pospos191-alt/zetaphy
-      - uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
-        with:
-          subject-path: out/zetaphyd-linux-*
 
       - name: Publish the release (setup-node.sh fingerprint as the tag)
         env:
@@ -105,8 +170,8 @@ jobs:
           short=$(sha256sum zetaphy-chain/setup-node.sh | cut -c1-12)
           tag="zetaphyd-$short"
           cd out
-          sha256sum zetaphyd-linux-* > SHA256SUMS
-          cat SHA256SUMS
+          sha256sum -c SHA256SUMS
+          [ "$(jq -r .tag RELEASE.json)" = "$tag" ]
           {
             echo "zetaphyd built by GitHub Actions from \`zetaphy-chain/setup-node.sh\` $short (commit ${GITHUB_SHA})."
             echo
@@ -117,10 +182,14 @@ jobs:
             cat SHA256SUMS
             echo '```'
             echo
-            echo "Signed build provenance (Sigstore): \`gh attestation verify zetaphyd-linux-amd64 --repo ${GITHUB_REPOSITORY}\`"
+            echo "Signed (Sigstore build provenance over the binaries, SHA256SUMS and RELEASE.json; bundle: zetaphyd-provenance.sigstore.json)."
+            echo "Verify before installing (checks the signature is this repository's release workflow on main, the hashes, and refuses an older release):"
+            echo "\`bash zetaphy-chain/verify-release.sh --dir <download dir> --arch amd64\` (docs/ANTI-ROLLBACK-OFFCHAIN.md)"
           } > notes.md
+          files=(zetaphyd-linux-* SHA256SUMS RELEASE.json zetaphyd-provenance.sigstore.json)
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" zetaphyd-linux-* SHA256SUMS --clobber
+            # a release published before signing existed gets the signed files added (same tag, --clobber)
+            gh release upload "$tag" "${files[@]}" --clobber
           else
-            gh release create "$tag" zetaphyd-linux-* SHA256SUMS --title "zetaphyd $short" --notes-file notes.md --target "$GITHUB_SHA"
+            gh release create "$tag" "${files[@]}" --title "zetaphyd $short" --notes-file notes.md --target "$GITHUB_SHA"
           fi

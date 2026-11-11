@@ -42,7 +42,7 @@ DENOM="azetaphy"                   # 1 ZETAPHY = 10^18 azetaphy
 MONIKER="${MONIKER:-zetaphy-validator-0}"
 COSMOS_EVM_TAG="v0.7.3"
 COSMOS_EVM_COMMIT="c3ae9067a7eadcdea55a5192226916deb44c71c4"
-GO_VERSION="1.25.14"               # last Go 1.25 patch release; the patched evmd/go.mod requires it (security fixes)
+GO_VERSION="1.26.11"               # Go 1.26 patch release the patched evmd/go.mod requires (security fixes)
 # IBC rate limits: ibc-apps rate-limiting, ported to ibc-go v11 by the patch below.
 RATELIMIT_MOD="github.com/cosmos/ibc-apps/modules/rate-limiting/v10@v10.7.0"
 RATELIMIT_SUM="h1:5X2o/xT1x1fltUrkhvDCOpFaRJK5/1M36/SCh873VOc="
@@ -265,16 +265,31 @@ fi
 # binary must be able to run its next block. The 2026-11-05 testnet halt at block
 # 239468 ("upgrade handler is missing for zetaphy-v5") was a binary without the
 # handler of an upgrade the chain had completed. A binary too old to have
-# upgrade-check is refused too. UPGRADE_CHECK=0 skips it (e.g. a deliberate rollback).
+# upgrade-check is refused too. There is no silent skip: only
+# ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<height> installs a refused binary, on purpose
+# (e.g. a planned rollback, docs/ANTI-ROLLBACK-CHAIN.md). It must name this node's
+# chain and a height at most 100 blocks below its current one (the refusal prints
+# the value), and each use is logged to the journal (logger -t zetaphy-setup) and
+# to $LOG. The binary itself checks again at every start (zetaphy_antirollback.go).
 if [ -n "$new_bin" ]; then
   rpc=$(sed -n '/^\[rpc\]/,/^\[/ s/^laddr = "tcp:\/\/[^:]*:\([0-9]*\)"$/\1/p' "$NODE_HOME/config/config.toml" 2>/dev/null | head -1 || true)
-  if [ "${UPGRADE_CHECK:-1}" != 0 ] && [ -f "$NODE_HOME/config/genesis.json" ] \
-    && curl -fsS -m 5 "http://127.0.0.1:${rpc:-26657}/status" >/dev/null 2>&1; then
+  [ -z "${UPGRADE_CHECK:-}" ] || echo "UPGRADE_CHECK is no longer honored; the check always runs (ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<height> overrides it on purpose)"
+  if [ -f "$NODE_HOME/config/genesis.json" ] && st=$(curl -fsS -m 5 "http://127.0.0.1:${rpc:-26657}/status" 2>/dev/null); then
     chk=$(mktemp /tmp/zetaphyd-check.XXXXXX) && install -m 755 "$new_bin" "$chk"
     if ! as_node "cd ~ && '$chk' upgrade-check --node tcp://127.0.0.1:${rpc:-26657} --home '$NODE_HOME'"; then
       rm -f "$chk"
-      echo "refused: this zetaphyd cannot run the next block of the chain this node runs; $BIN was not changed (UPGRADE_CHECK=0 skips the check)"
-      exit 1
+      net=$(echo "$st" | jq -r '.result.node_info.network // empty'); cur=$(echo "$st" | jq -r '.result.sync_info.latest_block_height // 0')
+      allow=${ZETAPHY_ALLOW_DOWNGRADE:-}; ah=${allow##*:}
+      if [ -n "$allow" ] && [ -n "$net" ] && [ "${allow%:*}" = "$net" ] && [[ "$ah" =~ ^[0-9]+$ ]] && [ "$ah" -le "$cur" ] && [ $((cur - ah)) -le 100 ]; then
+        msg="ZETAPHY_ALLOW_DOWNGRADE=$allow: installing a zetaphyd that FAILED upgrade-check on $net at block $cur (deliberate override by $(id -un), sha256 $(sha256sum "$new_bin" | cut -c1-16))"
+        logger -t zetaphy-setup -p user.crit "$msg" 2>/dev/null || true
+        echo "WARNING: $msg"
+      else
+        [ -z "$allow" ] || echo "ZETAPHY_ALLOW_DOWNGRADE=$allow does not match this node ($net at block $cur): ignored"
+        echo "refused: this zetaphyd cannot run the next block of the chain this node runs; $BIN was not changed"
+        echo "(only on purpose, e.g. a planned rollback: ZETAPHY_ALLOW_DOWNGRADE=$net:$cur; docs/ANTI-ROLLBACK-CHAIN.md)"
+        exit 1
+      fi
     fi
     rm -f "$chk"
   fi
@@ -489,6 +504,9 @@ WorkingDirectory=/home/$NODE_USER
 ExecStart=$START
 Restart=always
 RestartSec=5
+# 78: the start guard refused (downgraded binary or rolled-back signing state,
+# docs/ANTI-ROLLBACK-CHAIN.md); restarting would not change that.
+RestartPreventExitStatus=78
 LimitNOFILE=65535
 Environment=GOMEMLIMIT=$((mem_kb * 6 / 10 / 1024))MiB
 NoNewPrivileges=true
@@ -1244,7 +1262,7 @@ index 0000000..62d63ad
 +	return pk.UnmarshalBinary(bytes.Clone(m.Key)) == nil
 +}
 diff --git a/evmd/app.go b/evmd/app.go
-index 204345c..a23e85a 100644
+index 204345c..f05dd71 100644
 --- a/evmd/app.go
 +++ b/evmd/app.go
 @@ -14,6 +14,10 @@ import (
@@ -1269,13 +1287,14 @@ index 204345c..a23e85a 100644
  	"github.com/cosmos/evm/x/vm"
  	evmkeeper "github.com/cosmos/evm/x/vm/keeper"
  	vmrunner "github.com/cosmos/evm/x/vm/runner"
-@@ -179,6 +187,19 @@ type EVMD struct {
+@@ -179,6 +187,20 @@ type EVMD struct {
  	IBCKeeper      *ibckeeper.Keeper // IBC Keeper must be a pointer in the app, so we can SetRouter on it correctly
  	TransferKeeper *transferkeeper.Keeper
  	CallbackKeeper ibccallbackskeeper.ContractKeeper
 +	// ZETAPHY: per-denom, per-channel IBC flow limits set by governance
 +	RateLimitKeeper *ratelimitkeeper.Keeper
-+	pqHome          string // ZETAPHY: node home, for the ML-DSA vote key file
++	pqHome          string             // ZETAPHY: node home, for the ML-DSA vote key file
++	signRec         *zetaphySignRecord // ZETAPHY: config/zetaphy_sign_state.json (zetaphy_antirollback.go)
 +	// ZETAPHY security core (zetaphy_security.go)
 +	secPrecompile *securityPrecompile
 +	// ZETAPHY v5 (zetaphy_future.go)
@@ -1289,7 +1308,7 @@ index 204345c..a23e85a 100644
  
  	// Cosmos EVM keepers
  	FeeMarketKeeper feemarketkeeper.Keeper
-@@ -238,9 +259,11 @@ func NewExampleApp(
+@@ -238,9 +260,11 @@ func NewExampleApp(
  		govtypes.StoreKey, consensusparamtypes.StoreKey,
  		upgradetypes.StoreKey, feegrant.StoreKey, evidencetypes.StoreKey, authzkeeper.StoreKey,
  		// ibc keys
@@ -1302,7 +1321,36 @@ index 204345c..a23e85a 100644
  	)
  	oKeys := storetypes.NewObjectStoreKeys(banktypes.ObjectStoreKey, evmtypes.ObjectKey)
  
-@@ -487,6 +510,12 @@ func NewExampleApp(
+@@ -275,6 +299,9 @@ func NewExampleApp(
+ 		keys:              keys,
+ 		oKeys:             oKeys,
+ 	}
++	// ZETAPHY: the chain guard's circuit breaker on every routed message (zetaphy_chainguard.go);
++	// set before any service is registered, so hybrid handlers get it too.
++	app.MsgServiceRouter().SetCircuit(zetaphyCircuit{app})
+ 
+ 	// removed x/params: no ParamsKeeper initialization
+ 
+@@ -367,7 +394,8 @@ func NewExampleApp(
+ 	// register the staking hooks
+ 	// NOTE: stakingKeeper above is passed by reference, so that it will contain these hooks
+ 	app.StakingKeeper.SetHooks(
+-		stakingtypes.NewMultiStakingHooks(app.DistrKeeper.Hooks(), app.SlashingKeeper.Hooks()),
++		stakingtypes.NewMultiStakingHooks(app.DistrKeeper.Hooks(), app.SlashingKeeper.Hooks(),
++			powerCapHooks{app}), // ZETAPHY: voting-power cap (zetaphy_chainguard.go)
+ 	)
+ 
+ 	app.AuthzKeeper = authzkeeper.NewKeeper(
+@@ -412,7 +440,7 @@ func NewExampleApp(
+ 		app.AccountKeeper,
+ 		app.BankKeeper,
+ 		app.DistrKeeper,
+-		app.MsgServiceRouter(),
++		govGuardRouter{app: app, next: app.MsgServiceRouter()}, // ZETAPHY: the constitution, checked when a proposal runs (zetaphy_chainguard.go)
+ 		govConfig,
+ 		authAddr,
+ 		govkeeper.NewDefaultCalculateVoteResultsAndVotingPower(app.StakingKeeper),
+@@ -487,6 +515,12 @@ func NewExampleApp(
  
  	// enable virtual fee collection
  	app.EVMKeeper.EnableVirtualFeeCollection()
@@ -1315,7 +1363,7 @@ index 204345c..a23e85a 100644
  
  	app.Erc20Keeper = erc20keeper.NewKeeper(
  		keys[erc20types.StoreKey],
-@@ -530,9 +559,38 @@ func NewExampleApp(
+@@ -530,9 +564,38 @@ func NewExampleApp(
  	callbacksMiddleware.SetUnderlyingApplication(transferStack)
  	transferStack = callbacksMiddleware
  
@@ -1354,7 +1402,7 @@ index 204345c..a23e85a 100644
  
  	// Create static IBC router, add transfer route, then set and seal it
  	ibcRouter := porttypes.NewRouter()
-@@ -570,7 +628,7 @@ func NewExampleApp(
+@@ -570,7 +633,7 @@ func NewExampleApp(
  		slashing.NewAppModule(appCodec, app.SlashingKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, nil, app.interfaceRegistry),
  		distr.NewAppModule(appCodec, app.DistrKeeper, app.AccountKeeper, app.BankKeeper, app.StakingKeeper, nil),
  		staking.NewAppModule(appCodec, app.StakingKeeper, app.AccountKeeper, app.BankKeeper, nil),
@@ -1363,7 +1411,7 @@ index 204345c..a23e85a 100644
  		evidence.NewAppModule(app.EvidenceKeeper),
  		authzmodule.NewAppModule(appCodec, app.AuthzKeeper, app.AccountKeeper, app.BankKeeper, app.interfaceRegistry),
  		consensus.NewAppModule(appCodec, app.ConsensusParamsKeeper),
-@@ -579,10 +637,13 @@ func NewExampleApp(
+@@ -579,10 +642,13 @@ func NewExampleApp(
  		ibc.NewAppModule(app.IBCKeeper),
  		ibctm.NewAppModule(tmLightClientModule),
  		transferModule,
@@ -1377,7 +1425,7 @@ index 204345c..a23e85a 100644
  	)
  
  	// BasicModuleManager defines the module BasicManager which is in charge of setting up basic,
-@@ -598,6 +659,8 @@ func NewExampleApp(
+@@ -598,6 +664,8 @@ func NewExampleApp(
  			ibctransfertypes.ModuleName: transfer.AppModuleBasic{},
  		},
  	)
@@ -1386,7 +1434,7 @@ index 204345c..a23e85a 100644
  	app.BasicModuleManager.RegisterLegacyAminoCodec(legacyAmino)
  	app.BasicModuleManager.RegisterInterfaces(interfaceRegistry)
  
-@@ -618,7 +681,7 @@ func NewExampleApp(
+@@ -618,7 +686,7 @@ func NewExampleApp(
  		minttypes.ModuleName,
  
  		// IBC modules
@@ -1395,7 +1443,7 @@ index 204345c..a23e85a 100644
  
  		// Cosmos EVM BeginBlockers
  		erc20types.ModuleName, feemarkettypes.ModuleName,
-@@ -631,6 +694,7 @@ func NewExampleApp(
+@@ -631,6 +699,7 @@ func NewExampleApp(
  		authz.ModuleName, feegrant.ModuleName,
  		consensusparamtypes.ModuleName,
  		vestingtypes.ModuleName,
@@ -1403,7 +1451,7 @@ index 204345c..a23e85a 100644
  	)
  
  	// NOTE: the feemarket module should go last in order of end blockers that are actually doing something,
-@@ -645,12 +709,13 @@ func NewExampleApp(
+@@ -645,12 +714,13 @@ func NewExampleApp(
  		evmtypes.ModuleName, erc20types.ModuleName, feemarkettypes.ModuleName,
  
  		// no-ops
@@ -1418,7 +1466,7 @@ index 204345c..a23e85a 100644
  	)
  
  	// NOTE: The genutils module must occur after staking so that pools are
-@@ -670,9 +735,10 @@ func NewExampleApp(
+@@ -670,9 +740,10 @@ func NewExampleApp(
  		feemarkettypes.ModuleName,
  		erc20types.ModuleName,
  
@@ -1430,7 +1478,7 @@ index 204345c..a23e85a 100644
  	}
  	app.ModuleManager.SetOrderInitGenesis(genesisModuleOrder...)
  	app.ModuleManager.SetOrderExportGenesis(genesisModuleOrder...)
-@@ -684,10 +750,14 @@ func NewExampleApp(
+@@ -684,10 +755,14 @@ func NewExampleApp(
  	if err = app.ModuleManager.RegisterServices(app.configurator); err != nil {
  		panic(fmt.Sprintf("failed to register services in module manager: %s", err.Error()))
  	}
@@ -1445,7 +1493,7 @@ index 204345c..a23e85a 100644
  
  	autocliv1.RegisterQueryServer(app.GRPCQueryRouter(), runtimeservices.NewAutoCLIQueryService(app.ModuleManager.Modules))
  
-@@ -730,6 +800,10 @@ func NewExampleApp(
+@@ -730,6 +805,10 @@ func NewExampleApp(
  	if err := app.configureEVMMempool(appOpts, logger); err != nil {
  		panic(fmt.Sprintf("failed to configure EVM mempool: %s", err.Error()))
  	}
@@ -1456,7 +1504,7 @@ index 204345c..a23e85a 100644
  
  	// In v0.46, the SDK introduces _postHandlers_. PostHandlers are like
  	// antehandlers, but are run _after_ the `runMsgs` execution. They are also
-@@ -751,6 +825,13 @@ func NewExampleApp(
+@@ -751,6 +830,13 @@ func NewExampleApp(
  	// upgrade.
  	app.setPostHandler()
  
@@ -1470,7 +1518,7 @@ index 204345c..a23e85a 100644
  	// At startup, after all modules have been registered, check that all prot
  	// annotations are correct.
  	protoFiles, err := proto.MergedRegistry()
-@@ -777,6 +858,7 @@ func NewExampleApp(
+@@ -777,6 +863,7 @@ func NewExampleApp(
  
  		// set global evm variables from KV store
  		vmModule.HydrateGlobals(ctx)
@@ -1478,7 +1526,7 @@ index 204345c..a23e85a 100644
  	}
  
  	vmrunner.SetRunner(bApp, txnrunner.NewSTMRunner(
-@@ -807,12 +889,14 @@ func (app *EVMD) setAnteHandler(txConfig client.TxConfig, maxGasWanted uint64) {
+@@ -807,12 +894,14 @@ func (app *EVMD) setAnteHandler(txConfig client.TxConfig, maxGasWanted uint64) {
  		MaxTxGasWanted:         maxGasWanted,
  		DynamicFeeChecker:      true,
  		PendingTxListener:      app.onPendingTx,
@@ -1494,7 +1542,7 @@ index 204345c..a23e85a 100644
  }
  
  func (app *EVMD) onPendingTx(hash common.Hash) {
-@@ -842,7 +926,23 @@ func (app *EVMD) Name() string { return app.BaseApp.Name() }
+@@ -842,7 +931,23 @@ func (app *EVMD) Name() string { return app.BaseApp.Name() }
  
  // BeginBlocker application updates every begin block
  func (app *EVMD) BeginBlocker(ctx sdk.Context) (sdk.BeginBlock, error) {
@@ -1519,7 +1567,7 @@ index 204345c..a23e85a 100644
  }
  
  // EndBlocker application updates every end block
-@@ -869,10 +969,24 @@ func (app *EVMD) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci
+@@ -869,10 +974,24 @@ func (app *EVMD) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci
  		panic(err)
  	}
  
@@ -1547,10 +1595,18 @@ index 204345c..a23e85a 100644
  }
  
 diff --git a/evmd/cmd/evmd/cmd/root.go b/evmd/cmd/evmd/cmd/root.go
-index 4da3349..93deb15 100644
+index 4da3349..dda7f9e 100644
 --- a/evmd/cmd/evmd/cmd/root.go
 +++ b/evmd/cmd/evmd/cmd/root.go
-@@ -22,6 +22,8 @@ import (
+@@ -2,6 +2,7 @@ package cmd
+ 
+ import (
+ 	"errors"
++	"fmt"
+ 	"os"
+ 
+ 	"github.com/spf13/cast"
+@@ -22,6 +23,8 @@ import (
  	"github.com/cosmos/evm/utils"
  	"github.com/cosmos/evm/x/vm/types"
  
@@ -1559,7 +1615,7 @@ index 4da3349..93deb15 100644
  	"cosmossdk.io/log/v2"
  	confixcmd "cosmossdk.io/tools/confix/cmd"
  	"github.com/cosmos/cosmos-sdk/store/v2"
-@@ -174,6 +176,9 @@ func initRootCmd(rootCmd *cobra.Command, evmApp *evmd.EVMD) {
+@@ -174,6 +177,9 @@ func initRootCmd(rootCmd *cobra.Command, evmApp *evmd.EVMD) {
  		pruning.Cmd(sdkAppCreator, defaultNodeHome),
  		snapshot.Cmd(sdkAppCreator),
  		NewTestnetCmd(evmApp.BasicModuleManager, banktypes.GenesisBalancesIterator{}, appCreator{}),
@@ -1569,7 +1625,29 @@ index 4da3349..93deb15 100644
  	)
  
  	// add Cosmos EVM' flavored TM commands to start server, etc.
-@@ -204,7 +209,9 @@ func initRootCmd(rootCmd *cobra.Command, evmApp *evmd.EVMD) {
+@@ -184,6 +190,21 @@ func initRootCmd(rootCmd *cobra.Command, evmApp *evmd.EVMD) {
+ 		addModuleInitFlags,
+ 	)
+ 
++	// ZETAPHY: the start guard runs for `start` only (zetaphy_antirollback.go).
++	for _, c := range rootCmd.Commands() {
++		if c.Name() != "start" {
++			continue
++		}
++		prev := c.PreRunE
++		c.PreRunE = func(cmd *cobra.Command, args []string) error {
++			evmd.ZetaphyStarting = true
++			if prev != nil {
++				return prev(cmd, args)
++			}
++			return nil
++		}
++	}
++
+ 	// add Cosmos EVM key commands
+ 	rootCmd.AddCommand(
+ 		cosmosevmcmd.KeyCommands(defaultNodeHome, true),
+@@ -204,7 +225,9 @@ func initRootCmd(rootCmd *cobra.Command, evmApp *evmd.EVMD) {
  	}
  }
  
@@ -1580,7 +1658,7 @@ index 4da3349..93deb15 100644
  
  func queryCommand() *cobra.Command {
  	cmd := &cobra.Command{
-@@ -223,6 +230,7 @@ func queryCommand() *cobra.Command {
+@@ -223,6 +246,7 @@ func queryCommand() *cobra.Command {
  		authcmd.QueryTxCmd(),
  		sdkserver.QueryBlockCmd(),
  		sdkserver.QueryBlockResultsCmd(),
@@ -1588,15 +1666,38 @@ index 4da3349..93deb15 100644
  	)
  
  	cmd.PersistentFlags().String(flags.FlagChainID, "", "The network chain ID")
-@@ -249,6 +257,8 @@ func txCommand() *cobra.Command {
+@@ -249,6 +273,8 @@ func txCommand() *cobra.Command {
  		authcmd.GetEncodeCommand(),
  		authcmd.GetDecodeCommand(),
  		authcmd.GetSimulateCmd(),
 +		evmd.PQVoteKeyCmd(), evmd.QuantumLockCmd(), evmd.PQEvidenceProposalCmd(), // ZETAPHY
-+		evmd.SecurityProposalCmd(), evmd.QDayCommitCmd(), evmd.QDayRevealCmd(), evmd.IBCHoldCancelCmd(), // ZETAPHY security core
++		evmd.SecurityProposalCmd(), evmd.QDayCommitCmd(), evmd.QDayRevealCmd(), evmd.IBCHoldCancelCmd(), evmd.CircuitCmd(), // ZETAPHY security core, chain guard
  	)
  
  	cmd.PersistentFlags().String(flags.FlagChainID, "", "The network chain ID")
+@@ -305,11 +331,21 @@ func newApp(
+ 		baseapp.SetChainID(chainID),
+ 	}
+ 
+-	return evmd.NewExampleApp(
++	app := evmd.NewExampleApp(
+ 		logger, db, true,
+ 		appOpts,
+ 		baseappOptions...,
+ 	)
++	// ZETAPHY: `start` refuses a downgraded binary or a rolled-back signing
++	// state before CometBFT starts (zetaphy_antirollback.go).
++	if evmd.ZetaphyStarting {
++		if err := app.ZetaphyStartGuard(appOpts); err != nil {
++			logger.Error(err.Error())
++			fmt.Fprintln(os.Stderr, err.Error())
++			os.Exit(78) // EX_CONFIG
++		}
++	}
++	return app
+ }
+ 
+ // appExport creates a new application (optionally at a given height) and exports state.
 diff --git a/evmd/config/permissions.go b/evmd/config/permissions.go
 index 312b521..6b8033d 100644
 --- a/evmd/config/permissions.go
@@ -1633,14 +1734,19 @@ index 9fdd8ef..e6ff55d 100644
  	if err != nil {
  		return servertypes.ExportedApp{}, err
 diff --git a/evmd/go.mod b/evmd/go.mod
-index e503386..c142ecc 100644
+index e503386..f20f59b 100644
 --- a/evmd/go.mod
 +++ b/evmd/go.mod
-@@ -1,23 +1,27 @@
+@@ -1,23 +1,32 @@
  module github.com/cosmos/evm/evmd
  
 -go 1.25.9
-+go 1.25.14
++go 1.26.11
++
++// Go 1.26 rejects extra colons in a URL host by default; wasmd checks
++// MsgStoreAndInstantiateContract and legacy proposal sources with
++// url.ParseRequestURI, so keep Go 1.25's parse for the same accept/reject.
++godebug urlstrictcolons=0
  
  require (
  	cosmossdk.io/api v1.0.0
@@ -1668,13 +1774,13 @@ index e503386..c142ecc 100644
  	github.com/onsi/ginkgo/v2 v2.23.4
  	github.com/onsi/gomega v1.38.0
  	github.com/spf13/cast v1.10.0
-@@ -25,12 +29,13 @@ require (
+@@ -25,12 +34,13 @@ require (
  	github.com/spf13/pflag v1.0.10
  	github.com/spf13/viper v1.21.0
  	github.com/stretchr/testify v1.11.1
 -	golang.org/x/sync v0.20.0
 -	google.golang.org/grpc v1.80.0
-+	golang.org/x/sync v0.22.0
++	golang.org/x/sync v0.23.0
 +	google.golang.org/grpc v1.83.2
 +	google.golang.org/protobuf v1.36.11
  )
@@ -1685,7 +1791,7 @@ index e503386..c142ecc 100644
  	cloud.google.com/go v0.123.0 // indirect
  	cloud.google.com/go/auth v0.20.0 // indirect
  	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-@@ -46,7 +51,7 @@ require (
+@@ -46,7 +56,7 @@ require (
  	github.com/99designs/keyring v1.2.2 // indirect
  	github.com/DataDog/datadog-go v4.8.3+incompatible // indirect
  	github.com/DataDog/zstd v1.5.7 // indirect
@@ -1694,7 +1800,7 @@ index e503386..c142ecc 100644
  	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.56.0 // indirect
  	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.56.0 // indirect
  	github.com/Microsoft/go-winio v0.6.2 // indirect
-@@ -117,6 +122,7 @@ require (
+@@ -117,6 +127,7 @@ require (
  	github.com/desertbit/timer v1.0.1 // indirect
  	github.com/dgraph-io/badger/v4 v4.9.1 // indirect
  	github.com/dgraph-io/ristretto/v2 v2.4.0 // indirect
@@ -1702,7 +1808,7 @@ index e503386..c142ecc 100644
  	github.com/dlclark/regexp2 v1.7.0 // indirect
  	github.com/dop251/goja v0.0.0-20230605162241-28ee0ee714f3 // indirect
  	github.com/dunglas/httpsfv v1.1.0 // indirect
-@@ -139,7 +145,7 @@ require (
+@@ -139,7 +150,7 @@ require (
  	github.com/go-kit/kit v0.13.0 // indirect
  	github.com/go-kit/log v0.2.1 // indirect
  	github.com/go-logfmt/logfmt v0.6.1 // indirect
@@ -1711,7 +1817,7 @@ index e503386..c142ecc 100644
  	github.com/go-logr/stdr v1.2.2 // indirect
  	github.com/go-ole/go-ole v1.3.0 // indirect
  	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-@@ -154,6 +160,7 @@ require (
+@@ -154,6 +165,7 @@ require (
  	github.com/google/btree v1.1.3 // indirect
  	github.com/google/flatbuffers v25.2.10+incompatible // indirect
  	github.com/google/go-cmp v0.7.0 // indirect
@@ -1719,7 +1825,7 @@ index e503386..c142ecc 100644
  	github.com/google/orderedcode v0.0.1 // indirect
  	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
  	github.com/google/s2a-go v0.1.9 // indirect
-@@ -164,8 +171,7 @@ require (
+@@ -164,8 +176,7 @@ require (
  	github.com/gorilla/mux v1.8.1 // indirect
  	github.com/gorilla/websocket v1.5.3 // indirect
  	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
@@ -1729,7 +1835,7 @@ index e503386..c142ecc 100644
  	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
  	github.com/hashicorp/aws-sdk-go-base/v2 v2.0.0-beta.72 // indirect
  	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-@@ -191,7 +197,7 @@ require (
+@@ -191,7 +202,7 @@ require (
  	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
  	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
  	github.com/jmhodges/levigo v1.0.0 // indirect
@@ -1738,7 +1844,7 @@ index e503386..c142ecc 100644
  	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
  	github.com/koron/go-ssdp v0.0.6 // indirect
  	github.com/kr/pretty v0.3.1 // indirect
-@@ -235,12 +241,13 @@ require (
+@@ -235,12 +246,13 @@ require (
  	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
  	github.com/oasisprotocol/curve25519-voi v0.0.0-20251114093237-2ab5a27a1729 // indirect
  	github.com/oklog/run v1.2.0 // indirect
@@ -1754,7 +1860,7 @@ index e503386..c142ecc 100644
  	github.com/pion/ice/v4 v4.0.10 // indirect
  	github.com/pion/interceptor v0.1.40 // indirect
  	github.com/pion/logging v0.2.4 // indirect
-@@ -263,24 +270,25 @@ require (
+@@ -263,24 +275,25 @@ require (
  	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
  	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
  	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
@@ -1787,7 +1893,7 @@ index e503386..c142ecc 100644
  	github.com/stretchr/objx v0.5.3 // indirect
  	github.com/subosito/gotenv v1.6.0 // indirect
  	github.com/supranational/blst v0.3.16 // indirect
-@@ -303,36 +311,36 @@ require (
+@@ -303,36 +316,36 @@ require (
  	github.com/zondax/ledger-go v1.0.1 // indirect
  	go.etcd.io/bbolt v1.4.3 // indirect
  	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
@@ -1850,7 +1956,7 @@ index e503386..c142ecc 100644
  	go.uber.org/automaxprocs v1.6.0 // indirect
  	go.uber.org/dig v1.19.0 // indirect
  	go.uber.org/fx v1.24.0 // indirect
-@@ -340,24 +348,23 @@ require (
+@@ -340,24 +353,23 @@ require (
  	go.uber.org/multierr v1.11.0 // indirect
  	go.uber.org/zap v1.27.1 // indirect
  	go.yaml.in/yaml/v2 v2.4.4 // indirect
@@ -1861,22 +1967,22 @@ index e503386..c142ecc 100644
 -	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
 -	golang.org/x/mod v0.34.0 // indirect
 -	golang.org/x/net v0.53.0 // indirect
-+	golang.org/x/crypto v0.55.0 // indirect
++	golang.org/x/crypto v0.57.0 // indirect
 +	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
-+	golang.org/x/mod v0.38.0 // indirect
-+	golang.org/x/net v0.58.0 // indirect
++	golang.org/x/mod v0.41.0 // indirect
++	golang.org/x/net v0.60.0 // indirect
  	golang.org/x/oauth2 v0.36.0 // indirect
 -	golang.org/x/sys v0.43.0 // indirect
 -	golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c // indirect
 -	golang.org/x/term v0.42.0 // indirect
 -	golang.org/x/text v0.36.0 // indirect
-+	golang.org/x/sys v0.47.0 // indirect
-+	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
-+	golang.org/x/term v0.45.0 // indirect
-+	golang.org/x/text v0.41.0 // indirect
++	golang.org/x/sys v0.48.0 // indirect
++	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
++	golang.org/x/term v0.46.0 // indirect
++	golang.org/x/text v0.42.0 // indirect
  	golang.org/x/time v0.15.0 // indirect
 -	golang.org/x/tools v0.43.0 // indirect
-+	golang.org/x/tools v0.48.0 // indirect
++	golang.org/x/tools v0.49.0 // indirect
  	google.golang.org/api v0.276.0 // indirect
  	google.golang.org/genproto v0.0.0-20260414002931-afd174a4e478 // indirect
 -	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
@@ -1887,7 +1993,7 @@ index e503386..c142ecc 100644
  	gopkg.in/yaml.v2 v2.4.0 // indirect
  	gopkg.in/yaml.v3 v3.0.1 // indirect
  	gotest.tools/v3 v3.5.2 // indirect
-@@ -372,6 +379,10 @@ replace (
+@@ -372,6 +384,10 @@ replace (
  	// use cosmos fork of keyring
  	github.com/99designs/keyring => github.com/cosmos/keyring v1.2.0
  	github.com/cosmos/evm => ../
@@ -1899,7 +2005,7 @@ index e503386..c142ecc 100644
  	// branch: release/1.17
  	github.com/ethereum/go-ethereum => github.com/cosmos/go-ethereum v1.17.2-cosmos-0
 diff --git a/evmd/go.sum b/evmd/go.sum
-index 92d6f82..8d4789f 100644
+index 92d6f82..16b731a 100644
 --- a/evmd/go.sum
 +++ b/evmd/go.sum
 @@ -1,5 +1,5 @@
@@ -2234,8 +2340,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/crypto v0.18.0/go.mod h1:R0j02AL6hcrfOiy9T4ZYp/rcWeMxM3L6QYxlOuEG1mg=
 -golang.org/x/crypto v0.50.0 h1:zO47/JPrL6vsNkINmLoo/PH1gcxpls50DNogFvB5ZGI=
 -golang.org/x/crypto v0.50.0/go.mod h1:3muZ7vA7PBCE6xgPX7nkzzjiUq87kRItoJQM1Yo8S+Q=
-+golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
-+golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
++golang.org/x/crypto v0.57.0 h1:3ZVCjf8Ggz7zneR/EHRVx68Ctf+2pmIMP2UFhh9cC6M=
++golang.org/x/crypto v0.57.0/go.mod h1:Fdz0i5U6CoizGwLda9DttjSk6qlZo25zYNtR+ycvuZA=
  golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
  golang.org/x/exp v0.0.0-20190306152737-a1d7652674e8/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
  golang.org/x/exp v0.0.0-20200331195152-e8c3332aa8e5/go.mod h1:4M0jN8W1tt0AVLNr8HDosyJCDCDuyL9N9+3m7wDWgKw=
@@ -2252,8 +2358,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/mod v0.8.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
 -golang.org/x/mod v0.34.0 h1:xIHgNUUnW6sYkcM5Jleh05DvLOtwc6RitGHbDk4akRI=
 -golang.org/x/mod v0.34.0/go.mod h1:ykgH52iCZe79kzLLMhyCUzhMci+nQj+0XkbXpNYtVjY=
-+golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=
-+golang.org/x/mod v0.38.0/go.mod h1:V6Xz0pq8TQ3dGqVQ1FVHuelZpAL0uNhSkk9ogYP3c40=
++golang.org/x/mod v0.41.0 h1:qJmnOUb4YB+FsEuM3HcWucdZASCPGhsX6uljO6pog0c=
++golang.org/x/mod v0.41.0/go.mod h1:Ek9pY8RKWXwsWvd3rQiHYtMqkjSUV+s1Rj7j4H5Ur6o=
  golang.org/x/net v0.0.0-20180719180050-a680a1efc54d/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
  golang.org/x/net v0.0.0-20180724234803-3673e40ba225/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
  golang.org/x/net v0.0.0-20180826012351-8a410e7b638d/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
@@ -2263,8 +2369,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/net v0.20.0/go.mod h1:z8BVo6PvndSri0LbOE3hAn0apkU+1YvI6E70E9jsnvY=
 -golang.org/x/net v0.53.0 h1:d+qAbo5L0orcWAr0a9JweQpjXF19LMXJE8Ey7hwOdUA=
 -golang.org/x/net v0.53.0/go.mod h1:JvMuJH7rrdiCfbeHoo3fCQU24Lf5JJwT9W3sJFulfgs=
-+golang.org/x/net v0.58.0 h1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=
-+golang.org/x/net v0.58.0/go.mod h1:YwCddHnFlT7eLQqVprV19OnhLGtc5xOKgE0RyqgfWAU=
++golang.org/x/net v0.60.0 h1:79p50tfZlm0J9YfoDsSi639qSXNGVwEzOPLCxM2FsYU=
++golang.org/x/net v0.60.0/go.mod h1:2DA/G1UfVbCpQPeWTmMPGY7Cs2PkBkwu743bVX5PIVg=
  golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
  golang.org/x/oauth2 v0.0.0-20190226205417-e64efc72b421/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
  golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d/go.mod h1:gOpvHmFTYa4IltrdGE7lF6nIHvwfUNPOp7c8zoXwtLw=
@@ -2274,8 +2380,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/sync v0.1.0/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 -golang.org/x/sync v0.20.0 h1:e0PTpb7pjO8GAtTs2dQ6jYa5BWYlMuX047Dco/pItO4=
 -golang.org/x/sync v0.20.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
-+golang.org/x/sync v0.22.0 h1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=
-+golang.org/x/sync v0.22.0/go.mod h1:9xrNwdLfx4jkKbNva9FpL6vEN7evnE43NNNJQ2LF3+0=
++golang.org/x/sync v0.23.0 h1:KameEIfc1IkluZyXWLn39Wd4tURc6GbCiISGiZm2bQk=
++golang.org/x/sync v0.23.0/go.mod h1:sUUOizhqBxiL6pEWpqNLUiaJn1ShEbZ6BBqskPbjZm0=
  golang.org/x/sys v0.0.0-20180823144017-11551d06cbcc/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
  golang.org/x/sys v0.0.0-20180830151530-49385e6e1522/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
  golang.org/x/sys v0.0.0-20180905080454-ebe1bf3edb33/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
@@ -2287,10 +2393,10 @@ index 92d6f82..8d4789f 100644
 -golang.org/x/sys v0.43.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
 -golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c h1:6a8FdnNk6bTXBjR4AGKFgUKuo+7GnR3FX5L7CbveeZc=
 -golang.org/x/telemetry v0.0.0-20260311193753-579e4da9a98c/go.mod h1:TpUTTEp9frx7rTdLpC9gFG9kdI7zVLFTFFlqaH2Cncw=
-+golang.org/x/sys v0.47.0 h1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=
-+golang.org/x/sys v0.47.0/go.mod h1:4GL1E5IUh+htKOUEOaiffhrAeqysfVGipDYzABqnCmw=
-+golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 h1:RJhm5l6Fo4rmEIcndxDllNhhf/fAx8qIm4t6A7vpm2A=
-+golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959/go.mod h1:LV7u5Oco+Z/g6XI7PqN+EUUUGGkEcmB1uj2ceI0fOVg=
++golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
++golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
++golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 h1:ZUSxONxc981v7AW7QUg+I9WwZzSTTJ019ENBYr5pV/Q=
++golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5/go.mod h1:LVehoXe41cL5SCVQilsV7Gg6BNG+Js6P9PhSbYTIUkQ=
  golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
  golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
  golang.org/x/term v0.5.0/go.mod h1:jMB1sMXY+tzblOD4FWmEbocvup2/aLOaQEp7JmGp78k=
@@ -2300,8 +2406,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/term v0.16.0/go.mod h1:yn7UURbUtPyrVJPGPq404EukNFxcm/foM+bV/bfcDsY=
 -golang.org/x/term v0.42.0 h1:UiKe+zDFmJobeJ5ggPwOshJIVt6/Ft0rcfrXZDLWAWY=
 -golang.org/x/term v0.42.0/go.mod h1:Dq/D+snpsbazcBG5+F9Q1n2rXV8Ma+71xEjTRufARgY=
-+golang.org/x/term v0.45.0 h1:NwWyBmoJCbfTHpxrWoZ9C6/VxOf7ic219I8xZZFdrf0=
-+golang.org/x/term v0.45.0/go.mod h1:9aqxs0blBcrm/n0L9QW0aRVD+ktan8ssZromtqJC43w=
++golang.org/x/term v0.46.0 h1:3+OXuTbaKDgwk8jTi3aSLHRlmWqHEUDUtxnbFigO4YE=
++golang.org/x/term v0.46.0/go.mod h1:+K02xbkittuwc0Am4abfA3Fc+XRGXkvBXNO88NCXPoc=
  golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
  golang.org/x/text v0.3.2/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
  golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
@@ -2311,8 +2417,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
 -golang.org/x/text v0.36.0 h1:JfKh3XmcRPqZPKevfXVpI1wXPTqbkE5f7JA92a55Yxg=
 -golang.org/x/text v0.36.0/go.mod h1:NIdBknypM8iqVmPiuco0Dh6P5Jcdk8lJL0CUebqK164=
-+golang.org/x/text v0.41.0 h1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=
-+golang.org/x/text v0.41.0/go.mod h1:jvf1O8ajNzZqhSrQBPbutR/EB83Cc0CFrezNQIwbb5M=
++golang.org/x/text v0.42.0 h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=
++golang.org/x/text v0.42.0/go.mod h1:ojzP1Z+2QtioaF8DTtO8K5q7JWVVYwZKenzujK0Zd0E=
  golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
  golang.org/x/time v0.0.0-20191024005414-555d28b269f0/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
  golang.org/x/time v0.15.0 h1:bbrp8t3bGUeFOx08pvsMYRTCVSMk89u4tKbNOZbp88U=
@@ -2322,8 +2428,8 @@ index 92d6f82..8d4789f 100644
  golang.org/x/tools v0.6.0/go.mod h1:Xwgl3UAJ/d3gWutnCtw505GrjyAbvKui8lOU390QaIU=
 -golang.org/x/tools v0.43.0 h1:12BdW9CeB3Z+J/I/wj34VMl8X+fEXBxVR90JeMX5E7s=
 -golang.org/x/tools v0.43.0/go.mod h1:uHkMso649BX2cZK6+RpuIPXS3ho2hZo4FVwfoy1vIk0=
-+golang.org/x/tools v0.48.0 h1:3+hClM1aLL5mjMKm5ovokw9epgRXPuu2tILgismM6RE=
-+golang.org/x/tools v0.48.0/go.mod h1:08xX0orndb/F7jJxGDicx061tyd5pcMto75YMAXr6lk=
++golang.org/x/tools v0.49.0 h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=
++golang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=
  golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
  golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
  golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
@@ -2657,6 +2763,388 @@ index 0000000..ac86d04
 +	}
 +	z, _ := m.eval(features)
 +	return sigmoidBps(z), true
++}
+diff --git a/evmd/zetaphy_antirollback.go b/evmd/zetaphy_antirollback.go
+new file mode 100644
+index 0000000..0abdec1
+--- /dev/null
++++ b/evmd/zetaphy_antirollback.go
+@@ -0,0 +1,376 @@
++package evmd
++
++// ZETAPHY anti-rollback start guard (docs/ANTI-ROLLBACK-CHAIN.md).
++//
++// `zetaphyd start` runs two checks on the node's own files before CometBFT
++// opens its databases, joins the network or signs anything. A refusal exits
++// with a message that says what is wrong and how to override it on purpose.
++// Nothing here is part of consensus: it reads local files and the committed
++// state, and writes one file outside the chain data.
++//
++//  1. Downgrade guard (L1-1). The committed x/upgrade state says which upgrade
++//     the chain completed last and which plan is scheduled; the binary must be
++//     able to run the next block under x/upgrade's rules (zetaphyUpgradeCheck,
++//     the same rules as `zetaphyd upgrade-check`). x/upgrade itself checks the
++//     last completed upgrade only at the first block it executes, after the
++//     node has connected and voted; this refuses before.
++//
++//  2. Signing-state guard (L1-2). For a validator with a local key (not a
++//     remote signer), data/priv_validator_state.json must not be behind what
++//     this validator has signed already:
++//       - the highest height whose commit in the local block store carries
++//         this validator's signature (the newest 1,000 blocks are looked at);
++//       - the sign record config/zetaphy_sign_state.json: the height of every
++//         precommit this node extended (ExtendVote, called just before CometBFT
++//         signs it), kept outside data/ so that putting back an old copy of
++//         data/ (snapshot, backup) does not roll it back too. It is tied to the
++//         chain id and to the sha256 of genesis.json: a new chain in the same
++//         home does not inherit it.
++//     A state file that is behind is what restoring an old snapshot leaves; a
++//     validator started on it can sign a second, different block at a height
++//     it signed before (double sign, slashed and tombstoned).
++//
++// Override: ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<height>, where height is the
++// node's last committed block height (the refusal message prints both). It
++// must match exactly, so it is good for one start on that state only; it is
++// logged at error level on every use. On an override of guard 2 the sign
++// record is reset to the state file's height.
++
++import (
++	"crypto/sha256"
++	"encoding/hex"
++	"encoding/json"
++	"errors"
++	"fmt"
++	"os"
++	"path/filepath"
++	"strconv"
++	"strings"
++	"sync"
++
++	"github.com/spf13/cast"
++
++	cmtcfg "github.com/cometbft/cometbft/config"
++	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
++	cmtstore "github.com/cometbft/cometbft/store"
++	cmttypes "github.com/cometbft/cometbft/types"
++
++	"github.com/cosmos/cosmos-sdk/client/flags"
++	servertypes "github.com/cosmos/cosmos-sdk/server/types"
++	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
++)
++
++// ZetaphyAllowDowngradeEnv names the deliberate override of both start checks.
++const ZetaphyAllowDowngradeEnv = "ZETAPHY_ALLOW_DOWNGRADE"
++
++// zetaphySignStateFn: the sign record, in config/ (not data/).
++const zetaphySignStateFn = "zetaphy_sign_state.json"
++
++// zetaphySignScanBlocks: how many of the newest blocks guard 2 looks at.
++const zetaphySignScanBlocks = 1000
++
++// ZetaphyStarting is set by the start command (cmd/evmd/cmd/root.go) so the
++// app creator runs the start guard for `start` only (not for export,
++// rollback, snapshots, ...).
++var ZetaphyStarting bool
++
++type zetaphySignState struct {
++	ChainID       string `json:"chain_id"`
++	GenesisSHA256 string `json:"genesis_sha256"`
++	Height        int64  `json:"height"`
++}
++
++// zetaphySignRecord keeps config/zetaphy_sign_state.json up to date from
++// ExtendVote. Written only when the height grows.
++type zetaphySignRecord struct {
++	mu      sync.Mutex
++	path    string
++	genFile string
++	loaded  bool
++	st      zetaphySignState
++}
++
++func newZetaphySignRecord(home string) *zetaphySignRecord {
++	return &zetaphySignRecord{
++		path:    filepath.Join(home, "config", zetaphySignStateFn),
++		genFile: filepath.Join(home, "config", "genesis.json"),
++	}
++}
++
++func fileSHA256(p string) (string, error) {
++	bz, err := os.ReadFile(filepath.Clean(p))
++	if err != nil {
++		return "", err
++	}
++	s := sha256.Sum256(bz)
++	return hex.EncodeToString(s[:]), nil
++}
++
++func readSignState(p string) (zetaphySignState, bool) {
++	var st zetaphySignState
++	bz, err := os.ReadFile(filepath.Clean(p))
++	if err != nil || json.Unmarshal(bz, &st) != nil {
++		return zetaphySignState{}, false
++	}
++	return st, true
++}
++
++func writeSignState(p string, st zetaphySignState) error {
++	bz, err := json.Marshal(st)
++	if err != nil {
++		return err
++	}
++	tmp := p + ".tmp"
++	if err := os.WriteFile(tmp, bz, 0o600); err != nil {
++		return err
++	}
++	return os.Rename(tmp, p)
++}
++
++// note records that this node extended (and is about to sign) a precommit
++// at height h of chain chainID. Errors only make the record older, which
++// the block-store check partly covers; they never stop the node.
++func (r *zetaphySignRecord) note(chainID string, h int64) {
++	if r == nil {
++		return
++	}
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	if !r.loaded {
++		gen, err := fileSHA256(r.genFile)
++		if err != nil {
++			return
++		}
++		r.loaded = true
++		st, ok := readSignState(r.path)
++		if !ok || st.ChainID != chainID || st.GenesisSHA256 != gen {
++			st = zetaphySignState{ChainID: chainID, GenesisSHA256: gen}
++		}
++		r.st = st
++	}
++	if h <= r.st.Height || chainID != r.st.ChainID {
++		return
++	}
++	r.st.Height = h
++	_ = writeSignState(r.path, r.st)
++}
++
++// ---- the checks
++
++// zetaphyOverride: "<chain-id>:<height>" from the environment, matched
++// against this node. ok reports a matching override; err a set but wrong one.
++func zetaphyOverride(chainID string, height int64) (ok bool, err error) {
++	v := strings.TrimSpace(os.Getenv(ZetaphyAllowDowngradeEnv))
++	if v == "" {
++		return false, nil
++	}
++	i := strings.LastIndex(v, ":")
++	if i <= 0 {
++		return false, fmt.Errorf("%s=%q: want <chain-id>:<height>", ZetaphyAllowDowngradeEnv, v)
++	}
++	h, perr := strconv.ParseInt(v[i+1:], 10, 64)
++	if perr != nil || v[:i] != chainID || h != height {
++		return false, fmt.Errorf("%s=%q does not match this node (chain %s at committed height %d); it is ignored", ZetaphyAllowDowngradeEnv, v, chainID, height)
++	}
++	return true, nil
++}
++
++// zetaphyDowngradeCheck is guard 1 on the committed state.
++func (app *EVMD) zetaphyDowngradeCheck() error {
++	h := app.LastBlockHeight()
++	if h == 0 {
++		return nil // nothing committed yet
++	}
++	ctx := app.NewUncachedContext(false, cmtproto.Header{Height: h, ChainID: app.ChainID()})
++	last, _, err := app.UpgradeKeeper.GetLastCompletedUpgrade(ctx)
++	if err != nil {
++		return fmt.Errorf("reading the completed upgrades: %w", err)
++	}
++	var plan *upgradetypes.Plan
++	if p, err := app.UpgradeKeeper.GetUpgradePlan(ctx); err == nil && p.Name != "" {
++		if !(p.ShouldExecute(h+1) && app.UpgradeKeeper.IsSkipHeight(p.Height)) {
++			plan = &p
++		}
++	}
++	return zetaphyUpgradeCheck(last, plan, h, app.UpgradeKeeper.HasHandler)
++}
++
++type zetaphyPVFiles struct {
++	key, state, remote, dbBackend, dbDir, genesis string
++}
++
++func zetaphyPVConfig(home string, opts servertypes.AppOptions) zetaphyPVFiles {
++	c := cmtcfg.DefaultConfig()
++	get := func(k, def string) string {
++		if opts != nil {
++			if v := cast.ToString(opts.Get(k)); v != "" {
++				return v
++			}
++		}
++		return def
++	}
++	abs := func(p string) string {
++		if filepath.IsAbs(p) {
++			return p
++		}
++		return filepath.Join(home, p)
++	}
++	return zetaphyPVFiles{
++		key:       abs(get("priv_validator_key_file", c.PrivValidatorKey)),
++		state:     abs(get("priv_validator_state_file", c.PrivValidatorState)),
++		remote:    get("priv_validator_laddr", ""),
++		dbBackend: get("db_backend", c.DBBackend),
++		dbDir:     abs(get("db_dir", c.DBPath)),
++		genesis:   abs(get("genesis_file", c.Genesis)),
++	}
++}
++
++// pvStateHeight reads the height of data/priv_validator_state.json
++// (CometBFT writes int64 as a JSON string).
++func pvStateHeight(p string) (int64, bool, error) {
++	bz, err := os.ReadFile(filepath.Clean(p))
++	if errors.Is(err, os.ErrNotExist) {
++		return 0, false, nil
++	}
++	if err != nil {
++		return 0, false, err
++	}
++	var s struct {
++		Height json.RawMessage `json:"height"`
++	}
++	if err := json.Unmarshal(bz, &s); err != nil {
++		return 0, false, fmt.Errorf("%s: %w", p, err)
++	}
++	h, err := strconv.ParseInt(strings.Trim(string(s.Height), `"`), 10, 64)
++	if err != nil {
++		return 0, false, fmt.Errorf("%s: height: %w", p, err)
++	}
++	return h, true, nil
++}
++
++// blockStoreSignedHeight: the highest height, among the newest
++// zetaphySignScanBlocks of the local block store, whose commit has a
++// signature of addr. 0 when none (or no block store yet).
++func blockStoreSignedHeight(f zetaphyPVFiles, addr []byte) (int64, error) {
++	if _, err := os.Stat(filepath.Join(f.dbDir, "blockstore.db")); err != nil {
++		return 0, nil //nolint:nilerr // no block store: a new node
++	}
++	c := cmtcfg.DefaultConfig()
++	c.DBBackend, c.DBPath = f.dbBackend, f.dbDir
++	db, err := cmtcfg.DefaultDBProvider(&cmtcfg.DBContext{ID: "blockstore", Config: c})
++	if err != nil {
++		return 0, fmt.Errorf("opening the block store: %w", err)
++	}
++	bs := cmtstore.NewBlockStore(db)
++	defer bs.Close()
++	top, base := bs.Height(), bs.Base()
++	signed := func(cm *cmttypes.Commit) bool {
++		if cm == nil {
++			return false
++		}
++		for _, s := range cm.Signatures {
++			if s.BlockIDFlag == cmttypes.BlockIDFlagCommit && string(s.ValidatorAddress) == string(addr) {
++				return true
++			}
++		}
++		return false
++	}
++	if top > 0 && signed(bs.LoadSeenCommit(top)) {
++		return top, nil
++	}
++	for h := top; h >= base && h > 0 && top-h < zetaphySignScanBlocks; h-- {
++		if signed(bs.LoadBlockCommit(h)) { // the commit of h, stored with block h+1
++			return h, nil
++		}
++	}
++	return 0, nil
++}
++
++// zetaphySignCheck is guard 2. It returns the heights it compared (for the
++// override path) and the refusal, if any.
++func (app *EVMD) zetaphySignCheck(home string, f zetaphyPVFiles) (pvH, signedH int64, why string, err error) {
++	if f.remote != "" {
++		app.Logger().Info("ZETAPHY start guard: remote signer (priv_validator_laddr); its own state protects it, not checked here")
++		return 0, 0, "", nil
++	}
++	addr, err := pqConsAddrFile(f.key)
++	if err != nil {
++		return 0, 0, "", nil //nolint:nilerr // no key file: not a validator node
++	}
++	pvH, exists, err := pvStateHeight(f.state)
++	if err != nil {
++		return 0, 0, "", err
++	}
++	bsH, err := blockStoreSignedHeight(f, addr)
++	if err != nil {
++		return 0, 0, "", err
++	}
++	signedH, why = bsH, fmt.Sprintf("the block store has this validator's signature at height %d", bsH)
++	if gen, gerr := fileSHA256(f.genesis); gerr == nil {
++		if st, ok := readSignState(filepath.Join(home, "config", zetaphySignStateFn)); ok &&
++			st.ChainID == app.ChainID() && st.GenesisSHA256 == gen && st.Height > signedH {
++			signedH, why = st.Height, fmt.Sprintf("config/%s says this node signed a precommit at height %d", zetaphySignStateFn, st.Height)
++		}
++	}
++	if signedH > 0 && (!exists || pvH < signedH) {
++		state := fmt.Sprintf("is at height %d", pvH)
++		if !exists {
++			state = "is missing"
++		}
++		return pvH, signedH, fmt.Sprintf("%s %s, but %s: an old copy of the signing state (restored snapshot?) would let this validator sign the same height twice (double sign)", f.state, state, why), nil
++	}
++	return pvH, signedH, "", nil
++}
++
++func pqConsAddrFile(p string) ([]byte, error) {
++	pv, err := os.ReadFile(filepath.Clean(p))
++	if err != nil {
++		return nil, err
++	}
++	var k struct{ Address string }
++	if err := json.Unmarshal(pv, &k); err != nil {
++		return nil, err
++	}
++	a, err := hex.DecodeString(k.Address)
++	if err == nil && len(a) == 0 {
++		err = errors.New("no address")
++	}
++	return a, err
++}
++
++// ZetaphyStartGuard runs both checks (the start command calls it through
++// the app creator, before CometBFT starts). nil: start.
++func (app *EVMD) ZetaphyStartGuard(opts servertypes.AppOptions) error {
++	home := cast.ToString(opts.Get(flags.FlagHome))
++	chainID, h := app.ChainID(), app.LastBlockHeight()
++	override, oerr := zetaphyOverride(chainID, h)
++	if oerr != nil {
++		app.Logger().Error("ZETAPHY start guard: " + oerr.Error())
++	}
++	hint := fmt.Sprintf("only if you mean it (e.g. a planned rollback): start once with %s=%s:%d", ZetaphyAllowDowngradeEnv, chainID, h)
++
++	if err := app.zetaphyDowngradeCheck(); err != nil {
++		if !override {
++			return fmt.Errorf("ZETAPHY start guard: refused to start: %w. Install the binary the chain needs; %s", err, hint)
++		}
++		app.Logger().Error("ZETAPHY START GUARD OVERRIDDEN (" + ZetaphyAllowDowngradeEnv + "): starting a binary that fails the downgrade check: " + err.Error())
++	}
++	if home == "" {
++		return nil
++	}
++	f := zetaphyPVConfig(home, opts)
++	pvH, _, why, err := app.zetaphySignCheck(home, f)
++	if err != nil {
++		return fmt.Errorf("ZETAPHY start guard: refused to start: cannot check the signing state: %w", err)
++	}
++	if why != "" {
++		if !override {
++			return fmt.Errorf("ZETAPHY start guard: refused to start: %s. Put back the newest %s (never an older one); %s", why, filepath.Base(f.state), hint)
++		}
++		app.Logger().Error("ZETAPHY START GUARD OVERRIDDEN (" + ZetaphyAllowDowngradeEnv + "): " + why + "; the sign record is reset to the state file's height")
++		if gen, gerr := fileSHA256(f.genesis); gerr == nil {
++			_ = writeSignState(filepath.Join(home, "config", zetaphySignStateFn), zetaphySignState{ChainID: chainID, GenesisSHA256: gen, Height: pvH})
++		}
++	}
++	return nil
 +}
 diff --git a/evmd/zetaphy_breaker.go b/evmd/zetaphy_breaker.go
 new file mode 100644
@@ -3006,6 +3494,889 @@ index 0000000..69f3dd0
 +	}
 +	write()
 +	return true
++}
+diff --git a/evmd/zetaphy_chainguard.go b/evmd/zetaphy_chainguard.go
+new file mode 100644
+index 0000000..8de09fa
+--- /dev/null
++++ b/evmd/zetaphy_chainguard.go
+@@ -0,0 +1,877 @@
++package evmd
++
++// ZETAPHY chain guard ("zetaphy-guard" upgrade; docs/ANTI-ROLLBACK-CHAIN.md).
++//
++// Four protocol rules against crypto downgrade and takeover, all kept in the
++// zetaphypq store (no new store) and set by governance through MsgSetFuture:
++//
++//   - Signature algorithms (T): an on-chain list of the account signature
++//     algorithms this binary knows (secp256k1, eth_secp256k1, mldsa44) with a
++//     version that only goes up. Governance may retire an algorithm (its
++//     signatures are refused from then on, in Cosmos txs, multisig sub-keys
++//     and Ethereum txs) and may enable one that is not retired; a retired
++//     algorithm can never be enabled again, and mldsa44 (the only
++//     post-quantum one) cannot be retired. Once Q-day has passed, MsgSetQDay
++//     is refused: it could only bring ECDSA back. Quantum locks stay as they
++//     are: no message unlocks one, and control only moves to another ML-DSA-44
++//     account (checkPQController).
++//   - Voting-power cap (S): no delegation or self-bond may take a validator
++//     above max_bps of the active set's power (default 3333, under 1/3),
++//     checked only while the active set has at least 4 validators, so a 1-,
++//     2- or 3-validator chain (the testnet, CI devnets) is never refused.
++//     Staking hooks see every path (Cosmos messages, authz, the staking
++//     precompile, gentxs). Only additions are checked: undelegating from, or
++//     slashing, a validator above the cap is never blocked.
++//   - Circuit breaker (S): governance names a circuit authority, which must be
++//     a multisig account (threshold >= 2 of >= 2 keys, checked from its
++//     on-chain public key when it acts); it or governance trips or resets
++//     message types. A tripped type fails in every path the message router
++//     serves (top-level txs, authz MsgExec, governance proposals, ICA), and
++//     is refused at CheckTx. Governance, upgrade, unjail and the chain's own
++//     consensus messages (certificates, vote extensions, vote keys,
++//     MsgSetFuture) can never be tripped, so governance can always reset it.
++//   - Constitution (P): off by default. When governance turns it on, the
++//     values in force become floors (or ceilings) that later proposals cannot
++//     cross, checked when a proposal is submitted (Cosmos txs) and again when
++//     it executes (every path): no wasm sudo (arbitrary contract state and
++//     balances); no higher inflation, max supply or lower blocks-per-year
++//     (arbitrary mint); no change of the bond, mint or EVM denom (rewrites
++//     balances); no shorter unbonding, voting periods, Q-day reveal delay or
++//     IBC hold delay, no lower quorum, thresholds or double-sign slash
++//     (timelocks and guards); no higher or removed power cap; and the
++//     constitution itself cannot be turned off.
++//
++// Activation: "zetaphy-guard" sets key 0x40 to the upgrade height + 1 (a new
++// chain may carry 0x40 in genesis). Below it every path above returns
++// exactly what the binary without it returned, reading 0x40 without gas, so
++// the upgrade may run early (zetaphyEarlyUpgrades) and a mixed old/new
++// validator set agrees on every block before the height. It needs v5
++// (MsgSetFuture).
++
++import (
++	"bytes"
++	"context"
++	"encoding/json"
++	"fmt"
++	"sort"
++	"strings"
++	"time"
++
++	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
++	gogoproto "github.com/cosmos/gogoproto/proto"
++
++	errorsmod "cosmossdk.io/errors"
++	sdkmath "cosmossdk.io/math"
++
++	"github.com/cosmos/cosmos-sdk/baseapp"
++	"github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
++	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
++	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
++	sdk "github.com/cosmos/cosmos-sdk/types"
++	errortypes "github.com/cosmos/cosmos-sdk/types/errors"
++	"github.com/cosmos/cosmos-sdk/types/module"
++	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
++	"github.com/cosmos/cosmos-sdk/x/authz"
++	govv1 "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
++	minttypes "github.com/cosmos/cosmos-sdk/x/mint/types"
++	slashingtypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
++	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
++	upgradetypes "github.com/cosmos/cosmos-sdk/x/upgrade/types"
++
++	"github.com/cosmos/evm/crypto/ethsecp256k1"
++	"github.com/cosmos/evm/crypto/mldsa44"
++	evmtypes "github.com/cosmos/evm/x/vm/types"
++)
++
++// ZetaphyGuardUpgradeName turns the chain guard on for a running chain.
++const ZetaphyGuardUpgradeName = "zetaphy-guard"
++
++// Keys of the zetaphypq store used by the chain guard.
++var (
++	guardHeightKey   = []byte{0x40} // height (8) from which the chain guard applies
++	sigAlgosKey      = []byte{0x41} // sigAlgos (JSON)
++	powerCapKey      = []byte{0x42} // max share of the active set's power, bps (8); absent: powerCapDefaultBps
++	circuitAuthKey   = []byte{0x43} // circuit authority (20)
++	circuitTripPfx   = byte(0x44)   // || message type URL -> height it was tripped (8)
++	constitutionKey  = []byte{0x45} // constitution (JSON)
++	powerStashPfx    = byte(0x46)   // || validator (20) -> its tokens before a delegation change (scratch, never committed)
++	powerCapDefault  = uint64(3333)
++	circuitTripMax   = 32
++	sigAlgoMLDSA44   = "mldsa44"
++	sigAlgoEth       = "eth_secp256k1"
++	sigAlgoSecp      = "secp256k1"
++	sigAlgosKnown    = []string{sigAlgoEth, sigAlgoMLDSA44, sigAlgoSecp} // sorted
++	sigAlgosPQ       = map[string]bool{sigAlgoMLDSA44: true}
++	circuitProtected = []string{"/cosmos.gov.", "/cosmos.upgrade.", "/zetaphy.pq.v1.MsgSetFuture", "/zetaphy.pq.v1.MsgPQCertificate",
++		"/zetaphy.pq.v1.MsgZXVotes", "/zetaphy.pq.v1.MsgPQVoteKey", "/cosmos.slashing.v1beta1.MsgUnjail", "/cosmos.consensus."}
++)
++
++// guardKeyKnown: chain-guard prefixes a genesis may carry (not the scratch 0x46).
++func guardKeyKnown(p byte) bool { return p >= 0x40 && p <= 0x45 }
++
++// Errors of the chain guard (codespace "zetaphy").
++var (
++	ErrSigAlgo      = errorsmod.Register("zetaphy", 41, "signature algorithm retired")
++	ErrPowerCap     = errorsmod.Register("zetaphy", 42, "voting power cap")
++	ErrCircuit      = errorsmod.Register("zetaphy", 43, "circuit breaker")
++	ErrConstitution = errorsmod.Register("zetaphy", 44, "constitution")
++)
++
++func (app *EVMD) guardHeight(ctx sdk.Context) int64 {
++	return int64(readU64(app.secRaw(ctx).Get(guardHeightKey))) // #nosec G115 -- block heights
++}
++
++func (app *EVMD) setGuardHeight(ctx sdk.Context, h int64) {
++	ctx.KVStore(app.GetKey(pqStoreKey)).Set(guardHeightKey, u64(uint64(h))) // #nosec G115 -- block heights
++}
++
++// guardActive: this block runs with the chain guard (read without gas).
++func (app *EVMD) guardActive(ctx sdk.Context) bool {
++	a := app.guardHeight(ctx)
++	return a > 0 && ctx.BlockHeight() >= a && app.futV5(ctx, ctx.BlockHeight())
++}
++
++// registerZetaphyGuard (from registerZetaphyUpgrades): "zetaphy-guard" makes
++// the chain guard exist from the block after the upgrade. No store is added.
++func (app *EVMD) registerZetaphyGuard() {
++	app.UpgradeKeeper.SetUpgradeHandler(ZetaphyGuardUpgradeName,
++		func(c context.Context, _ upgradetypes.Plan, fromVM module.VersionMap) (module.VersionMap, error) {
++			ctx := sdk.UnwrapSDKContext(c)
++			if a := app.guardHeight(ctx); a == 0 || a > ctx.BlockHeight()+1 {
++				app.setGuardHeight(ctx, ctx.BlockHeight()+1)
++			}
++			ctx.Logger().Info("ZETAPHY chain guard scheduled (algorithm list, power cap, circuit breaker; constitution off)", "from_height", ctx.BlockHeight()+1)
++			return app.ModuleManager.RunMigrations(c, app.Configurator(), fromVM)
++		})
++}
++
++// ---- governance kinds of MsgSetFuture
++
++// setGuardKind handles the chain-guard kinds; done is false for any other
++// kind (setFuture goes on as before). Called only while guardActive.
++func (app *EVMD) setGuardKind(ctx sdk.Context, m *MsgSetFuture) (done bool, res gogoproto.Message, err error) {
++	gov := m.Authority == govAuthority()
++	switch m.Kind {
++	case "sig-algos", "power-cap", "circuit-authority", "constitution":
++		if !gov {
++			return true, nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "only governance can change chain-guard settings")
++		}
++	case "circuit-trip", "circuit-reset":
++		if !gov {
++			if err := app.checkCircuitAuthority(ctx, m.Authority); err != nil {
++				return true, nil, err
++			}
++		}
++	default:
++		return false, nil, nil
++	}
++	switch m.Kind {
++	case "sig-algos":
++		err = app.setSigAlgos(ctx, m.Data)
++	case "power-cap":
++		err = app.setPowerCap(ctx, m.Data)
++	case "circuit-authority":
++		err = app.setCircuitAuthority(ctx, m.Data)
++	case "circuit-trip", "circuit-reset":
++		err = app.setCircuit(ctx, m.Kind == "circuit-trip", m.Data)
++	case "constitution":
++		err = app.setConstitution(ctx, m.Data)
++	}
++	if err != nil {
++		return true, nil, err
++	}
++	ctx.EventManager().EmitEvent(sdk.NewEvent("zetaphy_guard_set", sdk.NewAttribute("kind", m.Kind),
++		sdk.NewAttribute("authority", m.Authority), sdk.NewAttribute("data", string(m.Data))))
++	return true, &MsgPQResponse{}, nil
++}
++
++// ---- T: signature algorithms
++
++type sigAlgos struct {
++	Version uint64   `json:"version"`
++	Enabled []string `json:"enabled"`
++	Retired []string `json:"retired"`
++}
++
++func (app *EVMD) sigAlgos(ctx sdk.Context) sigAlgos {
++	var s sigAlgos
++	if bz := app.secRaw(ctx).Get(sigAlgosKey); len(bz) == 0 || json.Unmarshal(bz, &s) != nil {
++		return sigAlgos{Enabled: append([]string{}, sigAlgosKnown...), Retired: []string{}}
++	}
++	return s
++}
++
++func strIn(xs []string, x string) bool {
++	for _, y := range xs {
++		if y == x {
++			return true
++		}
++	}
++	return false
++}
++
++func sortedSet(xs []string) []string {
++	out := []string{}
++	for _, x := range xs {
++		if !strIn(out, x) {
++			out = append(out, x)
++		}
++	}
++	sort.Strings(out)
++	return out
++}
++
++// setSigAlgos: {"version": current+1, "enable": [...], "retire": [...]}.
++func (app *EVMD) setSigAlgos(ctx sdk.Context, data []byte) error {
++	var in struct {
++		Version uint64   `json:"version"`
++		Enable  []string `json:"enable"`
++		Retire  []string `json:"retire"`
++	}
++	if err := futJSON(data, &in); err != nil {
++		return err
++	}
++	cur := app.sigAlgos(ctx)
++	if in.Version != cur.Version+1 {
++		return errorsmod.Wrapf(ErrSigAlgo, "version must be %d (the list only moves forward, one version at a time)", cur.Version+1)
++	}
++	if len(in.Enable)+len(in.Retire) == 0 {
++		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "sig-algos: nothing to enable or retire")
++	}
++	en, ret := append([]string{}, cur.Enabled...), append([]string{}, cur.Retired...)
++	for _, a := range in.Enable {
++		switch {
++		case !strIn(sigAlgosKnown, a):
++			return errorsmod.Wrapf(errortypes.ErrInvalidRequest, "sig-algos: %q is not an algorithm this binary can verify (%s)", a, strings.Join(sigAlgosKnown, ", "))
++		case strIn(cur.Retired, a) || strIn(in.Retire, a):
++			return errorsmod.Wrapf(ErrSigAlgo, "%q is retired and can never be enabled again", a)
++		}
++		en = append(en, a)
++	}
++	for _, a := range in.Retire {
++		switch {
++		case !strIn(sigAlgosKnown, a):
++			return errorsmod.Wrapf(errortypes.ErrInvalidRequest, "sig-algos: unknown algorithm %q", a)
++		case sigAlgosPQ[a]:
++			return errorsmod.Wrapf(ErrSigAlgo, "%q is the chain's post-quantum algorithm (quantum locks and Q-day rely on it); it cannot be retired", a)
++		}
++		ret = append(ret, a)
++		for i := 0; i < len(en); i++ {
++			if en[i] == a {
++				en = append(en[:i], en[i+1:]...)
++				i--
++			}
++		}
++	}
++	next := sigAlgos{Version: in.Version, Enabled: sortedSet(en), Retired: sortedSet(ret)}
++	pq := false
++	for _, a := range next.Enabled {
++		pq = pq || sigAlgosPQ[a]
++	}
++	if !pq {
++		return errorsmod.Wrap(ErrSigAlgo, "at least one post-quantum algorithm must stay enabled")
++	}
++	bz, _ := json.Marshal(next)
++	ctx.KVStore(app.GetKey(pqStoreKey)).Set(sigAlgosKey, bz)
++	return nil
++}
++
++// sigAlgoOf: the algorithm of an account key (multisig: each sub-key).
++func sigAlgoOf(pk cryptotypes.PubKey) []string {
++	switch k := pk.(type) {
++	case *ethsecp256k1.PubKey:
++		return []string{sigAlgoEth}
++	case *secp256k1.PubKey:
++		return []string{sigAlgoSecp}
++	case *mldsa44.PubKey:
++		return []string{sigAlgoMLDSA44}
++	case *multisig.LegacyAminoPubKey:
++		var out []string
++		for _, sub := range k.GetPubKeys() {
++			out = append(out, sigAlgoOf(sub)...)
++		}
++		return out
++	}
++	return nil
++}
++
++// sigAlgoCheckTx is the algorithm rule in the ante handler (after the normal
++// checks, so every signer's public key is on its account).
++func (app *EVMD) sigAlgoCheckTx(ctx sdk.Context, tx sdk.Tx) error {
++	s := app.sigAlgos(ctx)
++	if len(s.Retired) == 0 {
++		return nil
++	}
++	msgs := append([]sdk.Msg{}, tx.GetMsgs()...)
++	for i := 0; i < len(msgs); i++ {
++		switch m := msgs[i].(type) {
++		case *evmtypes.MsgEthereumTx:
++			if strIn(s.Retired, sigAlgoEth) {
++				return errorsmod.Wrapf(ErrSigAlgo, "%s is retired (list version %d): Ethereum transactions are refused", sigAlgoEth, s.Version)
++			}
++		case *authz.MsgExec:
++			inner, err := m.GetMessages()
++			if err != nil {
++				return err
++			}
++			msgs = append(msgs, inner...)
++		}
++	}
++	st, ok := tx.(authsigning.SigVerifiableTx)
++	if !ok {
++		return nil
++	}
++	signers, err := st.GetSigners()
++	if err != nil {
++		return err
++	}
++	for _, a := range signers {
++		acc := app.AccountKeeper.GetAccount(ctx, a)
++		if acc == nil || acc.GetPubKey() == nil {
++			continue
++		}
++		for _, alg := range sigAlgoOf(acc.GetPubKey()) {
++			if strIn(s.Retired, alg) {
++				return errorsmod.Wrapf(ErrSigAlgo, "%s signs with %s, which is retired (list version %d); a migrated account acts through its ML-DSA-44 controller", sdk.AccAddress(a), alg, s.Version)
++			}
++		}
++	}
++	return nil
++}
++
++// qdayGuard: once Q-day has passed, MsgSetQDay could only bring ECDSA back
++// (unschedule it, or move it later), so it is refused.
++func (app *EVMD) qdayGuard(ctx sdk.Context) error {
++	if !app.guardActive(ctx) || !app.qdayActive(ctx) {
++		return nil
++	}
++	q, _ := app.qdayParams(ctx)
++	return errorsmod.Wrapf(ErrSigAlgo, "Q-day passed at block %d: it cannot be unscheduled or moved, ECDSA stays untrusted", q)
++}
++
++// ---- S: voting-power cap
++
++func (app *EVMD) powerCapBps(ctx sdk.Context) uint64 {
++	v := app.secRaw(ctx).Get(powerCapKey)
++	if len(v) != 8 {
++		return powerCapDefault
++	}
++	return readU64(v)
++}
++
++// setPowerCap: {"max_bps": 1..10000, or 0 to turn the cap off}.
++func (app *EVMD) setPowerCap(ctx sdk.Context, data []byte) error {
++	var in struct {
++		MaxBps uint64 `json:"max_bps"`
++	}
++	if err := futJSON(data, &in); err != nil {
++		return err
++	}
++	if in.MaxBps > 10000 {
++		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "power-cap: max_bps is 0 (off) to 10000")
++	}
++	ctx.KVStore(app.GetKey(pqStoreKey)).Set(powerCapKey, u64(in.MaxBps))
++	return nil
++}
++
++func powerStashKey(val []byte) []byte { return append([]byte{powerStashPfx}, val...) }
++
++// powerCapHooks: staking hooks that refuse a delegation change taking a
++// validator above the cap. The tokens before the change are kept in a
++// scratch key (gasless, deleted in the same message) so that only additions
++// are checked.
++type powerCapHooks struct{ app *EVMD }
++
++var _ stakingtypes.StakingHooks = powerCapHooks{}
++
++func (h powerCapHooks) on(ctx sdk.Context) bool {
++	return h.app.guardActive(ctx) && h.app.powerCapBps(ctx) > 0
++}
++
++func (h powerCapHooks) stash(c context.Context, val sdk.ValAddress) error {
++	ctx := sdk.UnwrapSDKContext(c)
++	if !h.on(ctx) {
++		return nil
++	}
++	v, err := h.app.StakingKeeper.GetValidator(ctx, val)
++	if err != nil {
++		return nil //nolint:nilerr // a validator the staking keeper is about to refuse
++	}
++	bz, err := v.Tokens.Marshal()
++	if err != nil {
++		return err
++	}
++	h.app.secRaw(ctx).Set(powerStashKey(val), bz)
++	return nil
++}
++
++func (h powerCapHooks) BeforeDelegationCreated(c context.Context, _ sdk.AccAddress, val sdk.ValAddress) error {
++	return h.stash(c, val)
++}
++
++func (h powerCapHooks) BeforeDelegationSharesModified(c context.Context, _ sdk.AccAddress, val sdk.ValAddress) error {
++	return h.stash(c, val)
++}
++
++func (h powerCapHooks) BeforeDelegationRemoved(c context.Context, _ sdk.AccAddress, val sdk.ValAddress) error {
++	if raw := h.app.secRaw(sdk.UnwrapSDKContext(c)); raw.Has(powerStashKey(val)) { // never touch the store otherwise
++		raw.Delete(powerStashKey(val))
++	}
++	return nil
++}
++
++func (h powerCapHooks) AfterDelegationModified(c context.Context, _ sdk.AccAddress, val sdk.ValAddress) error {
++	ctx := sdk.UnwrapSDKContext(c)
++	raw := h.app.secRaw(ctx)
++	before := raw.Get(powerStashKey(val))
++	if before == nil {
++		return nil
++	}
++	raw.Delete(powerStashKey(val))
++	if !h.on(ctx) {
++		return nil
++	}
++	var was sdkmath.Int
++	if err := was.Unmarshal(before); err != nil {
++		return err
++	}
++	return h.app.powerCapCheck(ctx, val, was)
++}
++
++// powerCapCheck: val's tokens grew from was; refuse if it is now above the cap
++// of an active set of at least 4 validators.
++func (app *EVMD) powerCapCheck(ctx sdk.Context, val sdk.ValAddress, was sdkmath.Int) error {
++	v, err := app.StakingKeeper.GetValidator(ctx, val)
++	if err != nil || !v.Tokens.GT(was) {
++		return nil //nolint:nilerr // no growth: nothing to check
++	}
++	set, err := app.StakingKeeper.GetLastValidators(ctx)
++	if err != nil {
++		return err
++	}
++	if len(set) < 4 {
++		return nil
++	}
++	total, in := sdkmath.ZeroInt(), false
++	for _, s := range set {
++		if s.GetOperator() == v.GetOperator() {
++			in = true
++			total = total.Add(v.Tokens)
++			continue
++		}
++		total = total.Add(s.Tokens)
++	}
++	if !in {
++		total = total.Add(v.Tokens)
++	}
++	capBps := app.powerCapBps(ctx)
++	if total.IsPositive() && v.Tokens.MulRaw(10000).GT(total.Mul(sdkmath.NewIntFromUint64(capBps))) {
++		share := v.Tokens.MulRaw(10000).Quo(total)
++		return errorsmod.Wrapf(ErrPowerCap, "validator %s would hold %s bps of the active set's power (cap %d bps, %d validators): delegate to another validator", v.GetOperator(), share, capBps, len(set))
++	}
++	return nil
++}
++
++func (powerCapHooks) AfterValidatorCreated(context.Context, sdk.ValAddress) error   { return nil }
++func (powerCapHooks) BeforeValidatorModified(context.Context, sdk.ValAddress) error { return nil }
++func (powerCapHooks) AfterValidatorRemoved(context.Context, sdk.ConsAddress, sdk.ValAddress) error {
++	return nil
++}
++func (powerCapHooks) AfterValidatorBonded(context.Context, sdk.ConsAddress, sdk.ValAddress) error {
++	return nil
++}
++func (powerCapHooks) AfterValidatorBeginUnbonding(context.Context, sdk.ConsAddress, sdk.ValAddress) error {
++	return nil
++}
++func (powerCapHooks) BeforeValidatorSlashed(context.Context, sdk.ValAddress, sdkmath.LegacyDec) error {
++	return nil
++}
++func (powerCapHooks) AfterUnbondingInitiated(context.Context, uint64) error { return nil }
++
++// ---- S: circuit breaker
++
++func circuitTripKey(typeURL string) []byte { return append([]byte{circuitTripPfx}, typeURL...) }
++
++// setCircuitAuthority: {"address":"zetaphy1…"} ("" removes it).
++func (app *EVMD) setCircuitAuthority(ctx sdk.Context, data []byte) error {
++	var in struct {
++		Address string `json:"address"`
++	}
++	if err := futJSON(data, &in); err != nil {
++		return err
++	}
++	st := ctx.KVStore(app.GetKey(pqStoreKey))
++	if in.Address == "" {
++		st.Delete(circuitAuthKey)
++		return nil
++	}
++	a, err := pqAddr(in.Address)
++	if err != nil || len(a) != 20 {
++		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "circuit-authority: address: a zetaphy1… or 0x… account, or \"\"")
++	}
++	if isGovAddr(in.Address) {
++		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "circuit-authority: governance can always trip and reset; name a multisig")
++	}
++	st.Set(circuitAuthKey, a)
++	return nil
++}
++
++// checkCircuitAuthority: signer is the circuit authority, and it is a
++// multisig (threshold >= 2 of >= 2 distinct keys), never a single key.
++func (app *EVMD) checkCircuitAuthority(ctx sdk.Context, signer string) error {
++	a, err := pqAddr(signer)
++	auth := app.secRaw(ctx).Get(circuitAuthKey)
++	if err != nil || auth == nil || !bytes.Equal(a, auth) {
++		return errorsmod.Wrap(errortypes.ErrUnauthorized, "only governance or the circuit authority can trip or reset the circuit breaker")
++	}
++	acc := app.AccountKeeper.GetAccount(ctx, a)
++	var pk cryptotypes.PubKey
++	if acc != nil {
++		pk = acc.GetPubKey()
++	}
++	ms, ok := pk.(*multisig.LegacyAminoPubKey)
++	if !ok || ms.Threshold < 2 || len(ms.GetPubKeys()) < 2 {
++		return errorsmod.Wrap(ErrCircuit, "the circuit authority must be a multisig with a threshold of at least 2 (a single key cannot trip the breaker)")
++	}
++	seen := map[string]bool{}
++	for _, k := range ms.GetPubKeys() {
++		if seen[string(k.Bytes())] {
++			return errorsmod.Wrap(ErrCircuit, "the circuit authority's multisig repeats a key")
++		}
++		seen[string(k.Bytes())] = true
++	}
++	return nil
++}
++
++func circuitIsProtected(typeURL string) bool {
++	for _, p := range circuitProtected {
++		if typeURL == p || (strings.HasSuffix(p, ".") && strings.HasPrefix(typeURL, p)) {
++			return true
++		}
++	}
++	return false
++}
++
++// setCircuit: {"msgs":["/cosmos.bank.v1beta1.MsgSend", ...]}.
++func (app *EVMD) setCircuit(ctx sdk.Context, trip bool, data []byte) error {
++	var in struct {
++		Msgs []string `json:"msgs"`
++	}
++	if err := futJSON(data, &in); err != nil {
++		return err
++	}
++	if len(in.Msgs) == 0 || len(in.Msgs) > circuitTripMax {
++		return errorsmod.Wrapf(errortypes.ErrInvalidRequest, "circuit: 1 to %d message type URLs", circuitTripMax)
++	}
++	st := ctx.KVStore(app.GetKey(pqStoreKey))
++	for _, u := range in.Msgs {
++		if !trip {
++			st.Delete(circuitTripKey(u))
++			continue
++		}
++		if app.MsgServiceRouter().HandlerByTypeURL(u) == nil {
++			return errorsmod.Wrapf(errortypes.ErrInvalidRequest, "circuit: %q is not a message this chain routes", u)
++		}
++		if circuitIsProtected(u) {
++			return errorsmod.Wrapf(ErrCircuit, "%s cannot be tripped (governance, upgrades and the chain's consensus messages stay available)", u)
++		}
++		st.Set(circuitTripKey(u), u64(uint64(ctx.BlockHeight()))) // #nosec G115 -- block heights
++	}
++	return nil
++}
++
++// zetaphyCircuit is the message router's circuit breaker (baseapp.CircuitBreaker).
++type zetaphyCircuit struct{ app *EVMD }
++
++func (c zetaphyCircuit) IsAllowed(goCtx context.Context, typeURL string) (bool, error) {
++	ctx := sdk.UnwrapSDKContext(goCtx)
++	if !c.app.guardActive(ctx) || !c.app.secRaw(ctx).Has(circuitTripKey(typeURL)) {
++		return true, nil
++	}
++	return false, errorsmod.Wrapf(ErrCircuit, "%s is tripped by the circuit breaker", typeURL)
++}
++
++// circuitCheckTx refuses tripped messages at CheckTx (they would fail in the
++// block anyway; this keeps them out of it).
++func (app *EVMD) circuitCheckTx(ctx sdk.Context, tx sdk.Tx) error {
++	c := zetaphyCircuit{app}
++	msgs := append([]sdk.Msg{}, tx.GetMsgs()...)
++	for i := 0; i < len(msgs); i++ {
++		if ok, err := c.IsAllowed(ctx, sdk.MsgTypeURL(msgs[i])); !ok {
++			return err
++		}
++		if ex, ok := msgs[i].(*authz.MsgExec); ok {
++			inner, err := ex.GetMessages()
++			if err != nil {
++				return err
++			}
++			msgs = append(msgs, inner...)
++		}
++	}
++	return nil
++}
++
++// ---- P: constitution
++
++type constitution struct {
++	Enabled               bool          `json:"enabled"`
++	Since                 int64         `json:"since"`
++	UnbondingTime         time.Duration `json:"unbonding_time"`
++	BondDenom             string        `json:"bond_denom"`
++	VotingPeriod          time.Duration `json:"voting_period"`
++	ExpeditedVotingPeriod time.Duration `json:"expedited_voting_period"`
++	Quorum                string        `json:"quorum"`
++	Threshold             string        `json:"threshold"`
++	VetoThreshold         string        `json:"veto_threshold"`
++	ExpeditedThreshold    string        `json:"expedited_threshold"`
++	MintDenom             string        `json:"mint_denom"`
++	InflationMax          string        `json:"inflation_max"`
++	InflationMin          string        `json:"inflation_min"`
++	InflationRateChange   string        `json:"inflation_rate_change"`
++	BlocksPerYear         uint64        `json:"blocks_per_year"`
++	MaxSupply             string        `json:"max_supply"`
++	SlashDoubleSign       string        `json:"slash_fraction_double_sign"`
++	EvmDenom              string        `json:"evm_denom"`
++	PowerCapBps           uint64        `json:"power_cap_bps"`
++	QDayRevealDelay       int64         `json:"qday_reveal_delay"`
++	HoldDelaySeconds      uint64        `json:"ibc_hold_delay_seconds"`
++}
++
++func (app *EVMD) constitution(ctx sdk.Context) (constitution, bool) {
++	var c constitution
++	bz := app.secRaw(ctx).Get(constitutionKey)
++	if len(bz) == 0 || json.Unmarshal(bz, &c) != nil {
++		return constitution{}, false
++	}
++	return c, c.Enabled
++}
++
++func durOf(d *time.Duration) time.Duration {
++	if d == nil {
++		return 0
++	}
++	return *d
++}
++
++// setConstitution: {"enabled":true}. The values in force become the floors.
++// Once on, it cannot be changed or turned off by governance.
++func (app *EVMD) setConstitution(ctx sdk.Context, data []byte) error {
++	var in struct {
++		Enabled bool `json:"enabled"`
++	}
++	if err := futJSON(data, &in); err != nil {
++		return err
++	}
++	if _, on := app.constitution(ctx); on {
++		return errorsmod.Wrap(ErrConstitution, "the constitution is in force: governance cannot change or turn it off")
++	}
++	if !in.Enabled {
++		return errorsmod.Wrap(errortypes.ErrInvalidRequest, "constitution: it is off already")
++	}
++	sp, err := app.StakingKeeper.GetParams(ctx)
++	if err != nil {
++		return err
++	}
++	gp, err := app.GovKeeper.Params.Get(ctx)
++	if err != nil {
++		return err
++	}
++	mp, err := app.MintKeeper.Params.Get(ctx)
++	if err != nil {
++		return err
++	}
++	slp, err := app.SlashingKeeper.GetParams(ctx)
++	if err != nil {
++		return err
++	}
++	_, qdelay := app.qdayParams(ctx)
++	c := constitution{
++		Enabled: true, Since: ctx.BlockHeight(),
++		UnbondingTime: sp.UnbondingTime, BondDenom: sp.BondDenom,
++		VotingPeriod: durOf(gp.VotingPeriod), ExpeditedVotingPeriod: durOf(gp.ExpeditedVotingPeriod),
++		Quorum: gp.Quorum, Threshold: gp.Threshold, VetoThreshold: gp.VetoThreshold, ExpeditedThreshold: gp.ExpeditedThreshold,
++		MintDenom: mp.MintDenom, InflationMax: mp.InflationMax.String(), InflationMin: mp.InflationMin.String(),
++		InflationRateChange: mp.InflationRateChange.String(), BlocksPerYear: mp.BlocksPerYear, MaxSupply: mp.MaxSupply.String(),
++		SlashDoubleSign: slp.SlashFractionDoubleSign.String(),
++		EvmDenom:        app.EVMKeeper.GetParams(ctx).EvmDenom,
++		PowerCapBps:     app.powerCapBps(ctx), QDayRevealDelay: qdelay,
++		HoldDelaySeconds: readU64(app.secRaw(ctx).Get(holdParamsKey)),
++	}
++	bz, _ := json.Marshal(c)
++	ctx.KVStore(app.GetKey(pqStoreKey)).Set(constitutionKey, bz)
++	return nil
++}
++
++func decLess(a, floor string) bool { // a < floor (unparsable counts as crossing)
++	x, err1 := sdkmath.LegacyNewDecFromStr(a)
++	f, err2 := sdkmath.LegacyNewDecFromStr(floor)
++	return err1 != nil || (err2 == nil && x.LT(f))
++}
++
++func decMore(a, ceil string) bool { // a > ceil
++	x, err1 := sdkmath.LegacyNewDecFromStr(a)
++	c, err2 := sdkmath.LegacyNewDecFromStr(ceil)
++	return err1 != nil || (err2 == nil && x.GT(c))
++}
++
++func violates(what string) error {
++	return errorsmod.Wrapf(ErrConstitution, "%s (the constitution is in force; docs/ANTI-ROLLBACK-CHAIN.md)", what)
++}
++
++// constitutionCheck: nil unless the constitution is on and msg (a governance
++// proposal's message) crosses one of its limits.
++func (app *EVMD) constitutionCheck(ctx sdk.Context, msg sdk.Msg) error {
++	if !app.guardActive(ctx) {
++		return nil
++	}
++	c, on := app.constitution(ctx)
++	if !on {
++		return nil
++	}
++	switch m := msg.(type) {
++	case *wasmtypes.MsgSudoContract:
++		return violates("governance may not run a contract's sudo entry point (it can rewrite any contract state and balance)")
++	case *stakingtypes.MsgUpdateParams:
++		if m.Params.UnbondingTime < c.UnbondingTime {
++			return violates(fmt.Sprintf("unbonding_time %s is below its floor %s", m.Params.UnbondingTime, c.UnbondingTime))
++		}
++		if m.Params.BondDenom != c.BondDenom {
++			return violates("the bond denom cannot change")
++		}
++	case *govv1.MsgUpdateParams:
++		p := m.Params
++		switch {
++		case durOf(p.VotingPeriod) < c.VotingPeriod:
++			return violates(fmt.Sprintf("voting_period %s is below its floor %s", durOf(p.VotingPeriod), c.VotingPeriod))
++		case durOf(p.ExpeditedVotingPeriod) < c.ExpeditedVotingPeriod:
++			return violates(fmt.Sprintf("expedited_voting_period %s is below its floor %s", durOf(p.ExpeditedVotingPeriod), c.ExpeditedVotingPeriod))
++		case decLess(p.Quorum, c.Quorum), decLess(p.Threshold, c.Threshold), decLess(p.VetoThreshold, c.VetoThreshold),
++			decLess(p.ExpeditedThreshold, c.ExpeditedThreshold):
++			return violates("quorum and thresholds cannot go below their floors")
++		}
++	case *minttypes.MsgUpdateParams:
++		p := m.Params
++		maxSupplyUp := false
++		if ms, ok := sdkmath.NewIntFromString(c.MaxSupply); ok && !ms.IsZero() {
++			maxSupplyUp = p.MaxSupply.IsZero() || p.MaxSupply.GT(ms)
++		}
++		switch {
++		case p.MintDenom != c.MintDenom:
++			return violates("the mint denom cannot change")
++		case decMore(p.InflationMax.String(), c.InflationMax), decMore(p.InflationMin.String(), c.InflationMin),
++			decMore(p.InflationRateChange.String(), c.InflationRateChange), p.BlocksPerYear < c.BlocksPerYear, maxSupplyUp:
++			return violates("no new mint: inflation, its rate of change and max supply cannot rise, blocks_per_year cannot fall")
++		}
++	case *slashingtypes.MsgUpdateParams:
++		if decLess(m.Params.SlashFractionDoubleSign.String(), c.SlashDoubleSign) {
++			return violates("slash_fraction_double_sign cannot go below its floor")
++		}
++	case *evmtypes.MsgUpdateParams:
++		if m.Params.EvmDenom != c.EvmDenom {
++			return violates("the EVM denom cannot change")
++		}
++	case *MsgSetQDay:
++		d := int64(m.RevealDelay) // #nosec G115 -- bounded by QDayMaxRevealDelay in setQDay
++		if d == 0 {
++			d = QDayDefaultRevealDelay
++		}
++		if d < c.QDayRevealDelay {
++			return violates(fmt.Sprintf("the Q-day reveal delay %d is below its floor %d", d, c.QDayRevealDelay))
++		}
++	case *MsgSetIBCHold:
++		if m.DelaySeconds < c.HoldDelaySeconds {
++			return violates(fmt.Sprintf("the IBC hold delay %d s is below its floor %d s", m.DelaySeconds, c.HoldDelaySeconds))
++		}
++	case *MsgSetFuture:
++		switch m.Kind {
++		case "constitution":
++			return violates("the constitution cannot be changed or turned off")
++		case "power-cap":
++			var in struct {
++				MaxBps uint64 `json:"max_bps"`
++			}
++			if err := json.Unmarshal(m.Data, &in); err == nil && c.PowerCapBps > 0 && (in.MaxBps == 0 || in.MaxBps > c.PowerCapBps) {
++				return violates(fmt.Sprintf("the voting-power cap cannot be removed or raised above %d bps", c.PowerCapBps))
++			}
++		}
++	case *authz.MsgExec:
++		inner, err := m.GetMessages()
++		if err != nil {
++			return err
++		}
++		for _, x := range inner {
++			if err := app.constitutionCheck(ctx, x); err != nil {
++				return err
++			}
++		}
++	}
++	return nil
++}
++
++// constitutionCheckTx: proposals that break the constitution are refused at
++// submission (Cosmos txs; any other path is caught at execution).
++func (app *EVMD) constitutionCheckTx(ctx sdk.Context, tx sdk.Tx) error {
++	msgs := append([]sdk.Msg{}, tx.GetMsgs()...)
++	for i := 0; i < len(msgs); i++ {
++		switch m := msgs[i].(type) {
++		case *govv1.MsgSubmitProposal:
++			inner, err := m.GetMsgs()
++			if err != nil {
++				return err
++			}
++			for _, x := range inner {
++				if err := app.constitutionCheck(ctx, x); err != nil {
++					return err
++				}
++			}
++		case *authz.MsgExec:
++			inner, err := m.GetMessages()
++			if err != nil {
++				return err
++			}
++			msgs = append(msgs, inner...)
++		}
++	}
++	return nil
++}
++
++// guardCheckTx: the chain-guard rules of the ante handler (pqLockAnte).
++func (app *EVMD) guardCheckTx(ctx sdk.Context, tx sdk.Tx) error {
++	if !app.guardActive(ctx) {
++		return nil
++	}
++	if err := app.circuitCheckTx(ctx, tx); err != nil {
++		return err
++	}
++	if err := app.sigAlgoCheckTx(ctx, tx); err != nil {
++		return err
++	}
++	return app.constitutionCheckTx(ctx, tx)
++}
++
++// govGuardRouter is the router governance executes proposals through: the
++// constitution is checked on each message right before it runs.
++type govGuardRouter struct {
++	app  *EVMD
++	next baseapp.MessageRouter
++}
++
++func (r govGuardRouter) wrap(h baseapp.MsgServiceHandler) baseapp.MsgServiceHandler {
++	if h == nil {
++		return nil
++	}
++	return func(ctx sdk.Context, msg sdk.Msg) (*sdk.Result, error) {
++		if err := r.app.constitutionCheck(ctx, msg); err != nil {
++			return nil, err
++		}
++		return h(ctx, msg)
++	}
++}
++
++func (r govGuardRouter) Handler(msg sdk.Msg) baseapp.MsgServiceHandler {
++	return r.wrap(r.next.Handler(msg))
++}
++
++func (r govGuardRouter) HandlerByTypeURL(u string) baseapp.MsgServiceHandler {
++	return r.wrap(r.next.HandlerByTypeURL(u))
 +}
 diff --git a/evmd/zetaphy_cosmwasm.go b/evmd/zetaphy_cosmwasm.go
 new file mode 100644
@@ -4164,10 +5535,10 @@ index 0000000..f22790b
 +}
 diff --git a/evmd/zetaphy_future.go b/evmd/zetaphy_future.go
 new file mode 100644
-index 0000000..a2fe62b
+index 0000000..861956f
 --- /dev/null
 +++ b/evmd/zetaphy_future.go
-@@ -0,0 +1,308 @@
+@@ -0,0 +1,313 @@
 +package evmd
 +
 +// ZETAPHY v5: protocol-level protection research, all off until governance
@@ -4319,6 +5690,11 @@ index 0000000..a2fe62b
 +}
 +
 +func (app *EVMD) setFuture(ctx sdk.Context, m *MsgSetFuture) (gogoproto.Message, error) {
++	if app.guardActive(ctx) { // ZETAPHY chain guard kinds (zetaphy_chainguard.go); before it, every kind runs as before
++		if done, res, err := app.setGuardKind(ctx, m); done {
++			return res, err
++		}
++	}
 +	if m.Authority != govAuthority() {
 +		return nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "only governance can change v5 settings")
 +	}
@@ -8153,10 +9529,10 @@ index 0000000..34df4b6
 +}
 diff --git a/evmd/zetaphy_pqguard.go b/evmd/zetaphy_pqguard.go
 new file mode 100644
-index 0000000..9689315
+index 0000000..6084338
 --- /dev/null
 +++ b/evmd/zetaphy_pqguard.go
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,538 @@
 +package evmd
 +
 +// ZETAPHY post-quantum guards.
@@ -8358,6 +9734,10 @@ index 0000000..9689315
 +				return newCtx, errorsmod.Wrapf(errortypes.ErrUnauthorized, "%s is quantum-locked: only its ML-DSA-44 controller can act for it", sdk.AccAddress(s))
 +			}
 +		}
++		// ZETAPHY chain guard (zetaphy_chainguard.go): circuit breaker, retired algorithms, constitution.
++		if err := app.guardCheckTx(newCtx, tx); err != nil {
++			return newCtx, err
++		}
 +		// ZETAPHY security core (zetaphy_security.go): Q-day, then the threat gate.
 +		if app.qdayActive(ctx) {
 +			if err := app.qdayCheckTx(ctx, tx); err != nil {
@@ -8525,6 +9905,9 @@ index 0000000..9689315
 +// on a devnet); a node that is down is ordinary downtime.
 +func (app *EVMD) setPQVoteHandlers(home string) {
 +	app.pqHome = home // for the proposer's own certificate entry (pqOwnEntry)
++	if home != "" {
++		app.signRec = newZetaphySignRecord(home) // the start guard's sign record (zetaphy_antirollback.go)
++	}
 +	seedFile := filepath.Join(home, "config", pqVoteSeedFn)
 +	app.SetExtendVoteHandler(func(ctx sdk.Context, req *abci.RequestExtendVote) (*abci.ResponseExtendVote, error) {
 +		var want []byte
@@ -8543,10 +9926,14 @@ index 0000000..9689315
 +			sk, pub, err := pqVoteSeed(f)
 +			if err == nil && (want == nil || bytes.Equal(pub, want)) {
 +				sig, err := pqSign(sk, pqVoteMsg(ctx.ChainID(), req.Height, req.Hash))
++				if err == nil {
++					app.signRec.note(ctx.ChainID(), req.Height) // a local key is about to sign this precommit
++				}
 +				return &abci.ResponseExtendVote{VoteExtension: append(sig, payload...)}, err
 +			}
 +		}
 +		if want == nil {
++			app.signRec.note(ctx.ChainID(), req.Height)
 +			return &abci.ResponseExtendVote{VoteExtension: payload}, nil
 +		}
 +		app.Logger().Error("ZETAPHY: no ML-DSA vote key here matches the one registered for this validator; stopping so as not to send a vote the chain rejects. Put the right key in " + seedFile)
@@ -8686,10 +10073,10 @@ index 0000000..9689315
 +}
 diff --git a/evmd/zetaphy_qday.go b/evmd/zetaphy_qday.go
 new file mode 100644
-index 0000000..bb88122
+index 0000000..4165ad2
 --- /dev/null
 +++ b/evmd/zetaphy_qday.go
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,306 @@
 +package evmd
 +
 +// ZETAPHY Q-day: the day ECDSA (secp256k1) stops being trusted.
@@ -8778,6 +10165,9 @@ index 0000000..bb88122
 +func (app *EVMD) setQDay(ctx sdk.Context, m *MsgSetQDay) (gogoproto.Message, error) {
 +	if m.Authority != govAuthority() {
 +		return nil, errorsmod.Wrap(errortypes.ErrUnauthorized, "only governance can schedule Q-day")
++	}
++	if err := app.qdayGuard(ctx); err != nil { // ZETAPHY chain guard: no way back to ECDSA (zetaphy_chainguard.go)
++		return nil, err
 +	}
 +	if m.Height != 0 && int64(m.Height) <= ctx.BlockHeight() { // #nosec G115 -- compared, not stored
 +		return nil, errorsmod.Wrapf(errortypes.ErrInvalidRequest, "Q-day must be a future block (now %d), or 0 to unschedule it", ctx.BlockHeight())
@@ -10099,10 +11489,10 @@ index 0000000..2835e0e
 +}
 diff --git a/evmd/zetaphy_seccli.go b/evmd/zetaphy_seccli.go
 new file mode 100644
-index 0000000..aafe6de
+index 0000000..f632dcb
 --- /dev/null
 +++ b/evmd/zetaphy_seccli.go
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,241 @@
 +package evmd
 +
 +// zetaphyd commands for the security core (gov.sh wraps the proposals):
@@ -10114,9 +11504,16 @@ index 0000000..aafe6de
 +//	tx qday-commit <commitment hex>
 +//	tx qday-reveal <owner> <controller> <salt hex> <signature hex>
 +//	tx ibc-hold-cancel <id>
++//	tx security-proposal sig-algos '{"version":1,"retire":["secp256k1"]}'
++//	tx security-proposal power-cap <max-bps, 0 = off>
++//	tx security-proposal circuit-authority <multisig zetaphy1… | ->
++//	tx security-proposal circuit-trip|circuit-reset <type URL>[,<type URL>...]
++//	tx security-proposal constitution on
++//	tx circuit trip|reset <type URL>[,...] --from <the circuit authority (multisig)>
 +
 +import (
 +	"encoding/hex"
++	"encoding/json"
 +	"fmt"
 +	"os"
 +	"path/filepath"
@@ -10245,14 +11642,21 @@ index 0000000..aafe6de
 +		return &MsgSetIBCHoldRule{Authority: gov, Denom: args[1], MinAmount: min, SupplyBps: bps}, title, nil
 +	case "ai-model", "immune", "breaker", "breaker-rearm", "model-epochs", "invariant-firewall": // ZETAPHY v5 (zetaphy_future.go), firewall (zetaphy_firewall.go)
 +		return futProposalMsg(args, func(f string) ([]byte, error) { return os.ReadFile(filepath.Clean(f)) })
++	case "sig-algos", "power-cap", "circuit-authority", "circuit-trip", "circuit-reset", "constitution": // chain guard (zetaphy_chainguard.go)
++		if len(args) != 2 {
++			return nil, "", fmt.Errorf("%s takes one argument", args[0])
++		}
++		data, title, err := guardProposalData(args[0], args[1])
++		return &MsgSetFuture{Authority: gov, Kind: args[0], Data: data}, title, err
 +	}
-+	return nil, "", fmt.Errorf("unknown proposal %q: qday, threat-gate, ibc-hold, ibc-hold-rule, ai-model, immune, breaker, breaker-rearm, model-epochs or invariant-firewall", args[0])
++	return nil, "", fmt.Errorf("unknown proposal %q: qday, threat-gate, ibc-hold, ibc-hold-rule, ai-model, immune, breaker, breaker-rearm, model-epochs, invariant-firewall, "+
++		"sig-algos, power-cap, circuit-authority, circuit-trip, circuit-reset or constitution", args[0])
 +}
 +
 +// SecurityProposalCmd: zetaphyd tx security-proposal <kind> ... --deposit ... --from <key>.
 +func SecurityProposalCmd() *cobra.Command {
 +	cmd := &cobra.Command{
-+		Use:   "security-proposal qday|threat-gate|ibc-hold|ibc-hold-rule|ai-model|immune|breaker|breaker-rearm|model-epochs|invariant-firewall <args>",
++		Use:   "security-proposal qday|threat-gate|ibc-hold|ibc-hold-rule|ai-model|immune|breaker|breaker-rearm|model-epochs|invariant-firewall|sig-algos|power-cap|circuit-authority|circuit-trip|circuit-reset|constitution <args>",
 +		Short: "Propose a ZETAPHY security-core setting (Q-day, threat gate, IBC large-transfer hold, v5: AI model, immune system, bridge breaker, Neuro model registry)",
 +		Args:  cobra.RangeArgs(2, 4),
 +		RunE: func(cmd *cobra.Command, args []string) error {
@@ -10282,6 +11686,53 @@ index 0000000..aafe6de
 +	cmd.Flags().String("deposit", "", "initial deposit, e.g. 1000000000000000000000azetaphy")
 +	flags.AddTxFlagsToCmd(cmd)
 +	return cmd
++}
++
++// guardProposalData: MsgSetFuture data of the chain-guard kinds (zetaphy_chainguard.go).
++func guardProposalData(kind, arg string) ([]byte, string, error) {
++	switch kind {
++	case "sig-algos":
++		if !json.Valid([]byte(arg)) {
++			return nil, "", fmt.Errorf(`sig-algos: JSON, e.g. '{"version":1,"retire":["secp256k1"]}'`)
++		}
++		return []byte(arg), "Signature algorithm list " + arg, nil
++	case "power-cap":
++		n, err := strconv.ParseUint(arg, 10, 64)
++		if err != nil || n > 10000 {
++			return nil, "", fmt.Errorf("power-cap <max-bps 0..10000, 0 = off>")
++		}
++		bz, _ := json.Marshal(map[string]uint64{"max_bps": n})
++		return bz, fmt.Sprintf("Voting-power cap: %d bps per validator (with 4+ validators)", n), nil
++	case "circuit-authority":
++		if arg == "-" {
++			arg = ""
++		}
++		bz, _ := json.Marshal(map[string]string{"address": arg})
++		return bz, "Circuit breaker authority " + arg, nil
++	case "circuit-trip", "circuit-reset":
++		bz, _ := json.Marshal(map[string][]string{"msgs": strings.Split(arg, ",")})
++		return bz, strings.Replace(kind, "circuit-", "Circuit breaker ", 1) + ": " + arg, nil
++	case "constitution":
++		if arg != "on" {
++			return nil, "", fmt.Errorf("constitution on (it cannot be turned off)")
++		}
++		return []byte(`{"enabled":true}`), "Constitution: governance limits in force (cannot be turned off)", nil
++	}
++	return nil, "", fmt.Errorf("unknown kind %q", kind)
++}
++
++// CircuitCmd: zetaphyd tx circuit trip|reset <type URL>[,...] --from <circuit authority>.
++// The authority is a multisig: build with --generate-only, sign with each key
++// (tx sign --multisig), combine with tx multisign and broadcast.
++func CircuitCmd() *cobra.Command {
++	return secTxCmd("circuit trip|reset <type URL>[,<type URL>...]", "Trip or reset the chain guard's circuit breaker (the circuit authority, a multisig)", 2,
++		func(from string, a []string) (sdk.Msg, error) {
++			if a[0] != "trip" && a[0] != "reset" {
++				return nil, fmt.Errorf("trip or reset")
++			}
++			data, _, err := guardProposalData("circuit-"+a[0], a[1])
++			return &MsgSetFuture{Authority: from, Kind: "circuit-" + a[0], Data: data}, err
++		})
 +}
 diff --git a/evmd/zetaphy_secprecompile.go b/evmd/zetaphy_secprecompile.go
 new file mode 100644
@@ -10842,10 +12293,10 @@ index 0000000..2092b0d
 +}
 diff --git a/evmd/zetaphy_upgrade.go b/evmd/zetaphy_upgrade.go
 new file mode 100644
-index 0000000..674091e
+index 0000000..aca6016
 --- /dev/null
 +++ b/evmd/zetaphy_upgrade.go
-@@ -0,0 +1,174 @@
+@@ -0,0 +1,175 @@
 +package evmd
 +
 +// ZETAPHY v2 activation height.
@@ -10954,6 +12405,7 @@ index 0000000..674091e
 +	app.registerZetaphyV4()       // "zetaphy-v4": CosmWasm (zetaphy_cosmwasm.go)
 +	app.registerZetaphyV5()       // "zetaphy-v5": immune system, AI precompile, breaker, account guard (zetaphy_future.go)
 +	app.registerZetaphyFirewall() // "zetaphy-firewall": the node-level invariant firewall (zetaphy_firewall.go)
++	app.registerZetaphyGuard()    // "zetaphy-guard": algorithm list, power cap, circuit breaker, constitution (zetaphy_chainguard.go)
 +
 +	info, err := app.UpgradeKeeper.ReadUpgradeInfoFromDisk()
 +	if err != nil {
@@ -10984,10 +12436,10 @@ index 0000000..674091e
 +	for _, e := range in {
 +		k, err1 := hex.DecodeString(e.Key)
 +		v, err2 := hex.DecodeString(e.Value)
-+		if err1 != nil || err2 != nil || len(k) == 0 || (k[0] != 1 && k[0] != 2 && k[0] != pqEvidenceKey[0] && k[0] != pqActivationKey[0] && !secKeyKnown(k[0]) && !futKeyKnown(k[0])) {
++		if err1 != nil || err2 != nil || len(k) == 0 || (k[0] != 1 && k[0] != 2 && k[0] != pqEvidenceKey[0] && k[0] != pqActivationKey[0] && !secKeyKnown(k[0]) && !futKeyKnown(k[0]) && !guardKeyKnown(k[0])) {
 +			return nil, fmt.Errorf("zetaphypq genesis: bad entry %q", e.Key)
 +		}
-+		if (k[0] == pqActivationKey[0] || k[0] == secV3Key[0] || k[0] == futV5Key[0] || k[0] == firewallHeightKey[0]) && (len(k) != 1 || len(v) != 8) {
++		if (k[0] == pqActivationKey[0] || k[0] == secV3Key[0] || k[0] == futV5Key[0] || k[0] == firewallHeightKey[0] || k[0] == guardHeightKey[0]) && (len(k) != 1 || len(v) != 8) {
 +			return nil, fmt.Errorf("zetaphypq genesis: activation height: want key %02x and 8 bytes", k[0])
 +		}
 +		if k[0] == firewallKey[0] && (len(k) != 1 || len(v) != 20) {
@@ -11022,10 +12474,10 @@ index 0000000..674091e
 +}
 diff --git a/evmd/zetaphy_upgradecheck.go b/evmd/zetaphy_upgradecheck.go
 new file mode 100644
-index 0000000..dad44dc
+index 0000000..8812e4b
 --- /dev/null
 +++ b/evmd/zetaphy_upgradecheck.go
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,187 @@
 +package evmd
 +
 +// ZETAPHY: `zetaphyd upgrade-check`, the pre-flight for every binary swap.
@@ -11080,6 +12532,7 @@ index 0000000..dad44dc
 +	ZetaphyV4UpgradeName,
 +	ZetaphyV5UpgradeName,
 +	ZetaphyFirewallUpgradeName,
++	ZetaphyGuardUpgradeName,
 +}
 +
 +// zetaphyLastDone: the last completed upgrade among the x/upgrade "done" keys
@@ -11214,10 +12667,10 @@ index 0000000..dad44dc
 +}
 diff --git a/evmd/zetaphy_upgradeguard.go b/evmd/zetaphy_upgradeguard.go
 new file mode 100644
-index 0000000..0a553d1
+index 0000000..b38b6e3
 --- /dev/null
 +++ b/evmd/zetaphy_upgradeguard.go
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,80 @@
 +package evmd
 +
 +// ZETAPHY: upgrades whose binary may run before the upgrade height.
@@ -11257,6 +12710,9 @@ index 0000000..0a553d1
 +	// only sets 0x33; every firewall path checks it (zetaphy_firewall.go).
 +	// One entry per block (no gofmt alignment): gov.sh greps "<Name>: true,".
 +	ZetaphyFirewallUpgradeName: true,
++
++	// only sets 0x40; every chain-guard path checks it (zetaphy_chainguard.go).
++	ZetaphyGuardUpgradeName: true,
 +}
 +
 +// zetaphyUpgradeModule is x/upgrade with one change in PreBlock: a scheduled,

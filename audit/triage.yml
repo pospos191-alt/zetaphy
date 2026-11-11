@@ -2034,3 +2034,13 @@ findings:
     reason: "ExploitMarket.withdraw pays owed[msg.sender] to msg.sender only, zeroed before the call with nothing written after it; a failed send reverts. Pull payout, as the triaged AuditNetwork / AuditRunners withdraws."
     decided_by: pospos191 (owner, confirmed 2026-11-04 "ยืนยัน triage"; proposed by claude-agent, PR #115 triage by reading the code)
     date: 2026-11-04
+  - id: aderyn:eth-send-unchecked-address:zetaphy-network/contracts/ZetaphyBounty.sol:51ae9e73d320
+    status: false-positive
+    reason: "ZetaphyBounty.withdraw pays owed[msg.sender] to msg.sender only (credited only to reporters by execute/abandon), zeroed with owedTotal before the call, nonReentrant; a failed send reverts. No caller-chosen recipient. Pull payout, as the triaged EconomicBounds / ExploitMarket withdraws."
+    decided_by: pospos191 (owner, confirmed 2026-11-11 "ยืนยัน triage"; proposed by claude-agent, PR #159 triage by reading the code)
+    date: 2026-11-11
+  - id: aderyn:reentrancy-state-change:zetaphy-network/contracts/ZetaphyBounty.sol:572a815c02ed
+    status: false-positive
+    reason: "ZetaphyBounty.proveExploit: the only call before the writes is IExploitVerifier.verify, declared view (STATICCALL: it cannot write state or re-enter with writes), to a verifier set only by committee threshold + timelock; the writes record the result of that check."
+    decided_by: pospos191 (owner, confirmed 2026-11-11 "ยืนยัน triage"; proposed by claude-agent, PR #159 triage by reading the code)
+    date: 2026-11-11

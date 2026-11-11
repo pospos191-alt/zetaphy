@@ -1,0 +1,80 @@
+# L1-4: no dependency downgrades (docs/ANTI-ROLLBACK-OFFCHAIN.md). Free, standard library only.
+#
+# Compares the version pins of the base commit with the head commit and FAILS when any of them goes down:
+#   - zetaphy-chain/setup-node.sh: GO_VERSION, *_VERSION, *_TAG, and every go.mod diff embedded in its patch
+#     (evmd/go.mod, the root go.mod: go directive, require and replace targets; a patched pin dropped from the
+#     patch falls back to the older upstream one and counts as a downgrade)
+#   - plain go.mod files, `go-version:` in workflows, top-level package-lock.json packages, Cargo.lock crates.
+# A downgrade passes only when audit/allow-downgrade.txt lists it with a reason (reviewed in the same PR; empty
+# by default). An attacker who rolls a dependency back to a version with a known hole has to say so in that file.
+name: no-downgrade
+
+on:
+  pull_request:
+    paths:
+      - 'zetaphy-chain/setup-node.sh'
+      - '**/go.mod'
+      - '**/package-lock.json'
+      - '**/Cargo.lock'
+      - '.github/workflows/**'
+      - 'audit/allow-downgrade.txt'
+      - 'audit/tools/no-downgrade*'
+      - 'audit/tools/fixtures/no-downgrade/**'
+  push:
+    branches: [main]
+    paths:
+      - 'zetaphy-chain/setup-node.sh'
+      - '**/go.mod'
+      - '**/package-lock.json'
+      - '**/Cargo.lock'
+      - '.github/workflows/**'
+      - 'audit/allow-downgrade.txt'
+      - 'audit/tools/no-downgrade*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: no-downgrade-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  no-downgrade:
+    name: no dependency downgrades
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit tests of the check (fixtures; mutation test - a deliberate downgrade must fail)
+        run: node --test audit/tools/no-downgrade.test.js
+
+      - name: Base vs head
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; else base="$PUSH_BEFORE"; fi
+          if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "::notice::no base commit to compare with (new branch or first push): nothing to check"
+            exit 0
+          fi
+          # the allowlist of the HEAD side is the one being reviewed in this change
+          set +e
+          node audit/tools/no-downgrade.js --base-ref "$base" --head-ref HEAD --allow audit/allow-downgrade.txt > "$RUNNER_TEMP/no-downgrade.txt" 2>&1
+          status=$?
+          set -e
+          cat "$RUNNER_TEMP/no-downgrade.txt"
+          { echo '### No dependency downgrades'; echo '```'; tail -n 60 "$RUNNER_TEMP/no-downgrade.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

@@ -87,11 +87,11 @@ function bytesToHex(bytes) {
   abytes(bytes);
   if (hasHexBuiltin)
     return bytes.toHex();
-  let hex = "";
+  let hex2 = "";
   for (let i = 0; i < bytes.length; i++) {
-    hex += hexes[bytes[i]];
+    hex2 += hexes[bytes[i]];
   }
-  return hex;
+  return hex2;
 }
 var asciis = { _0: 48, _9: 57, A: 65, F: 70, a: 97, f: 102 };
 function asciiToBase16(ch) {
@@ -103,28 +103,28 @@ function asciiToBase16(ch) {
     return ch - (asciis.a - 10);
   return;
 }
-function hexToBytes(hex) {
-  if (typeof hex !== "string")
-    throw new TypeError("hex string expected, got " + typeof hex);
+function hexToBytes(hex2) {
+  if (typeof hex2 !== "string")
+    throw new TypeError("hex string expected, got " + typeof hex2);
   if (hasHexBuiltin) {
     try {
-      return Uint8Array.fromHex(hex);
+      return Uint8Array.fromHex(hex2);
     } catch (error) {
       if (error instanceof SyntaxError)
         throw new RangeError(error.message);
       throw error;
     }
   }
-  const hl = hex.length;
+  const hl = hex2.length;
   const al = hl / 2;
   if (hl % 2)
     throw new RangeError("hex string expected, got unpadded hex of length " + hl);
   const array = new Uint8Array(al);
   for (let ai = 0, hi = 0; ai < al; ai++, hi += 2) {
-    const n1 = asciiToBase16(hex.charCodeAt(hi));
-    const n2 = asciiToBase16(hex.charCodeAt(hi + 1));
+    const n1 = asciiToBase16(hex2.charCodeAt(hi));
+    const n2 = asciiToBase16(hex2.charCodeAt(hi + 1));
     if (n1 === void 0 || n2 === void 0) {
-      const char = hex[hi] + hex[hi + 1];
+      const char = hex2[hi] + hex2[hi + 1];
       throw new RangeError('hex string expected, got non-hex character "' + char + '" at index ' + hi);
     }
     array[ai] = n1 * 16 + n2;
@@ -701,8 +701,8 @@ function bytesToHex2(b) {
   for (const x of b) s += x.toString(16).padStart(2, "0");
   return s;
 }
-function hexToBytes2(hex) {
-  const h = String(hex).replace(/^0x/i, "");
+function hexToBytes2(hex2) {
+  const h = String(hex2).replace(/^0x/i, "");
   if (h.length % 2 || /[^0-9a-fA-F]/.test(h)) throw new Error("invalid hex");
   const out = new Uint8Array(h.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(2 * i, 2 * i + 2), 16);
@@ -1228,7 +1228,7 @@ function pqClient(rpcCall, { chainId = CHAIN_ID, denom = DENOM, prefix = PREFIX 
     };
   }
   const gasPrice = async () => bumpGasPrice(BigInt(await rpcCall("eth_gasPrice", [])));
-  const balance = async (hex) => BigInt(await rpcCall("eth_getBalance", [hex, "latest"]));
+  const balance = async (hex2) => BigInt(await rpcCall("eth_getBalance", [hex2, "latest"]));
   async function quote({ publicKey, gasLimit = DEFAULT_GAS_LIMIT }) {
     const me = pqAddress(publicKey, prefix);
     const [acct, price, bal] = await Promise.all([account(me.bech32), gasPrice(), balance(me.hex)]);
@@ -1459,7 +1459,7 @@ var abytes2 = (value, length, title) => abytes(value, length, title);
 var anumber2 = anumber;
 var bytesToHex3 = bytesToHex;
 var concatBytes2 = (...arrays) => concatBytes(...arrays);
-var hexToBytes3 = (hex) => hexToBytes(hex);
+var hexToBytes3 = (hex2) => hexToBytes(hex2);
 var isBytes2 = isBytes;
 var randomBytes2 = (bytesLength) => randomBytes(bytesLength);
 var _0n2 = /* @__PURE__ */ BigInt(0);
@@ -1490,13 +1490,13 @@ function asafenumber(value, title = "") {
   }
 }
 function numberToHexUnpadded(num) {
-  const hex = abignumber(num).toString(16);
-  return hex.length & 1 ? "0" + hex : hex;
+  const hex2 = abignumber(num).toString(16);
+  return hex2.length & 1 ? "0" + hex2 : hex2;
 }
-function hexToNumber(hex) {
-  if (typeof hex !== "string")
-    throw new TypeError("hex string expected, got " + typeof hex);
-  return hex === "" ? _0n2 : BigInt("0x" + hex);
+function hexToNumber(hex2) {
+  if (typeof hex2 !== "string")
+    throw new TypeError("hex string expected, got " + typeof hex2);
+  return hex2 === "" ? _0n2 : BigInt("0x" + hex2);
 }
 function bytesToNumberBE(bytes) {
   return hexToNumber(bytesToHex(bytes));
@@ -1509,10 +1509,10 @@ function numberToBytesBE(n, len) {
   if (len === 0)
     throw new RangeError("zero length");
   n = abignumber(n);
-  const hex = n.toString(16);
-  if (hex.length > len * 2)
+  const hex2 = n.toString(16);
+  if (hex2.length > len * 2)
     throw new RangeError("number too large");
-  return hexToBytes(hex.padStart(len * 2, "0"));
+  return hexToBytes(hex2.padStart(len * 2, "0"));
 }
 function numberToBytesLE(n, len) {
   return numberToBytesBE(n, len).reverse();
@@ -3297,12 +3297,12 @@ var DER = {
       abignumber(num);
       if (num < _0n5)
         throw new E("integer: negative integers are not allowed");
-      let hex = numberToHexUnpadded(num);
-      if (Number.parseInt(hex[0], 16) & 8)
-        hex = "00" + hex;
-      if (hex.length & 1)
+      let hex2 = numberToHexUnpadded(num);
+      if (Number.parseInt(hex2[0], 16) & 8)
+        hex2 = "00" + hex2;
+      if (hex2.length & 1)
         throw new E("unexpected DER parsing assertion: unpadded hex");
-      return hex;
+      return hex2;
     },
     decode(data) {
       const { Err: E } = DER;
@@ -3496,8 +3496,8 @@ function weierstrass(params, extraOpts = {}) {
       P.assertValidity();
       return P;
     }
-    static fromHex(hex) {
-      return Point.fromBytes(hexToBytes3(hex));
+    static fromHex(hex2) {
+      return Point.fromBytes(hexToBytes3(hex2));
     }
     get x() {
       return this.toAffine().x;
@@ -3929,8 +3929,8 @@ function ecdsa(Point, hash, ecdsaOpts = {}) {
       const s = bytes.subarray(L, L * 2);
       return new Signature(Fn.fromBytes(r), Fn.fromBytes(s), recid);
     }
-    static fromHex(hex, format) {
-      return this.fromBytes(hexToBytes3(hex), format);
+    static fromHex(hex2, format) {
+      return this.fromBytes(hexToBytes3(hex2), format);
     }
     assertRecovery() {
       const { recovery } = this;
@@ -4142,8 +4142,8 @@ var Pointk1 = /* @__PURE__ */ weierstrass(secp256k1_CURVE, {
 var secp256k1 = /* @__PURE__ */ ecdsa(Pointk1, sha256);
 
 // ../zetaphy-neuro/src/bytecode.js
-function hexToBytes4(hex) {
-  const h = hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
+function hexToBytes4(hex2) {
+  const h = hex2.startsWith("0x") || hex2.startsWith("0X") ? hex2.slice(2) : hex2;
   if (h.length % 2 !== 0 || /[^0-9a-fA-F]/.test(h)) throw new Error("invalid hex");
   const out = new Uint8Array(h.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
@@ -4175,15 +4175,15 @@ async function codeFingerprint(codeHex) {
     }
   }
   const digest = await globalThis.crypto.subtle.digest("SHA-256", out);
-  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-  return `${FINGERPRINT_VERSION}:${hex}`;
+  const hex2 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${FINGERPRINT_VERSION}:${hex2}`;
 }
 
 // ../zetaphy-network/src/vaccine.js
 var enc = new TextEncoder();
 var toHex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-function fromHex(hex) {
-  const h = /^0x/i.test(hex) ? hex.slice(2) : hex;
+function fromHex(hex2) {
+  const h = /^0x/i.test(hex2) ? hex2.slice(2) : hex2;
   if (h.length % 2 || /[^0-9a-fA-F]/.test(h)) throw new Error("invalid hex");
   const out = new Uint8Array(h.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(2 * i, 2 * i + 2), 16);
@@ -4219,8 +4219,8 @@ var SEL_IMPLEMENTATION = selector("implementation()");
 var MINIMAL_PROXY = [/^0x363d3d373d3d3d363d73([0-9a-f]{40})5af43d82803e903d91602b57fd5bf3$/i, /^0x365f5f375f5f365f73([0-9a-f]{40})5af43d5f5f3e5f3d91602a57fd5bf3$/i];
 var PROXY_DEPTH = 3;
 var word = (v) => BigInt(v).toString(16).padStart(64, "0");
-function wordAddress(hex) {
-  const b = typeof hex === "string" ? fromHex(hex) : null;
+function wordAddress(hex2) {
+  const b = typeof hex2 === "string" ? fromHex(hex2) : null;
   if (!b || b.length < 32) throw new Error("not a word");
   const w = toHex(b.slice(0, 32));
   if (!/^0{24}/.test(w) || /^0{64}$/.test(w)) return null;
@@ -4246,7 +4246,7 @@ var strWords = (str) => {
   const h = toHex(enc.encode(str));
   return word(h.length / 2) + h.padEnd(64 * Math.ceil(h.length / 64), "0");
 };
-var keccakHex = (hex) => "0x" + toHex(keccak_256(fromHex(hex)));
+var keccakHex = (hex2) => "0x" + toHex(keccak_256(fromHex(hex2)));
 var codeKey = (codeHashHex) => keccakHex(word(64) + codeHashHex.replace(/^0x/, "").padStart(64, "0") + strWords("zetaphy.threat.code"));
 var addressKey = (chainId, address) => keccakHex(word(96) + word(chainId) + address.toLowerCase().slice(2).padStart(64, "0") + strWords("zetaphy.threat.address"));
 var detailQueries = (key2) => ({
@@ -4266,14 +4266,14 @@ function abiString(b, at) {
 }
 var wordAddr = (b, at) => "0x" + toHex(b.slice(at + 12, at + 32));
 var ZERO_HASH = "0x" + "0".repeat(64);
-function readEvidence(hex) {
-  const b = fromHex(hex);
+function readEvidence(hex2) {
+  const b = fromHex(hex2);
   if (b.length < 128) throw new Error("not an evidenceOf answer");
   const reportHash = "0x" + toHex(b.slice(0, 32));
   return { reportHash: reportHash === ZERO_HASH ? null : reportHash, uri: plainText(abiString(b, 32), 200), by: wordAddr(b, 64), at: Number(BigInt("0x" + toHex(b.slice(96, 128)))) };
 }
-function readResponse(hex) {
-  const b = fromHex(hex);
+function readResponse(hex2) {
+  const b = fromHex(hex2);
   if (b.length < 160) throw new Error("not a responseOf answer");
   const chainId = BigInt("0x" + toHex(b.slice(96, 128)));
   return {
@@ -4285,8 +4285,377 @@ function readResponse(hex) {
     assigned: chainId === 0n
   };
 }
+
+// ../zetaphy-network/src/pqcert.js
+var CERT_TYPE_URL = "/zetaphy.pq.v1.MsgPQCertificate";
+var VOTE_KEY_STORE_PATH = "/store/zetaphypq/key";
+var ADDRESS_BYTES = 20;
+var ATTESTATION_BYTES = ADDRESS_BYTES + SIGNATURE_BYTES;
+var VOTE_PREFIX = "zetaphy/pq-vote\0";
+var utf82 = (s) => new TextEncoder().encode(s);
+var upperHex = (b) => bytesToHex2(b).toUpperCase();
+function concat2(parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+var fromBase64 = (s) => Uint8Array.from(atob(s ?? ""), (c) => c.charCodeAt(0));
+function voteMessage(chainId, height, hash) {
+  const h = BigInt(height);
+  if (h < 0n || h >= 2n ** 64n) throw new Error("height out of range");
+  const be = new Uint8Array(8);
+  new DataView(be.buffer).setBigUint64(0, h);
+  return concat2([utf82(`${VOTE_PREFIX}${chainId}\0`), be, hash]);
+}
+function decodeVoteKeyEntry(value) {
+  if (!value || value.length < 8 + PUBLIC_KEY_BYTES) return null;
+  const since = new DataView(value.buffer, value.byteOffset, 8).getBigUint64(0);
+  const previousPubKey = value.length === 8 + 2 * PUBLIC_KEY_BYTES ? value.subarray(8 + PUBLIC_KEY_BYTES) : null;
+  return { since, pubKey: value.subarray(8, 8 + PUBLIC_KEY_BYTES), previousPubKey };
+}
+function voteKeyAt(entry, h) {
+  if (!entry || !entry.pubKey) return null;
+  if (entry.since == null || BigInt(entry.since) < BigInt(h)) return entry.pubKey;
+  return entry.previousPubKey ?? null;
+}
+function readVarint(buf, i) {
+  let v = 0n;
+  for (let shift = 0n; shift < 70n; shift += 7n) {
+    if (i >= buf.length) throw new Error("truncated varint");
+    const b = buf[i++];
+    v |= BigInt(b & 127) << shift;
+    if (b < 128) return [BigInt.asUintN(64, v), i];
+  }
+  throw new Error("varint too long");
+}
+function protoFields(buf) {
+  const out = [];
+  for (let i = 0; i < buf.length; ) {
+    let key2, value;
+    [key2, i] = readVarint(buf, i);
+    const field = Number(key2 >> 3n), wire = Number(key2 & 7n);
+    if (field === 0) throw new Error("field number 0");
+    if (wire === 0) [value, i] = readVarint(buf, i);
+    else if (wire === 1 || wire === 5) {
+      const n = wire === 1 ? 8 : 4;
+      if (i + n > buf.length) throw new Error("truncated fixed field");
+      value = buf.subarray(i, i + n);
+      i += n;
+    } else if (wire === 2) {
+      let len;
+      [len, i] = readVarint(buf, i);
+      if (len > BigInt(buf.length - i)) throw new Error("truncated field");
+      value = buf.subarray(i, i + Number(len));
+      i += Number(len);
+    } else throw new Error(`unsupported wire type ${wire}`);
+    out.push({ field, wire, value });
+  }
+  return out;
+}
+function last(fields, field, wire) {
+  let v;
+  for (const f of fields) {
+    if (f.field !== field) continue;
+    if (f.wire !== wire) throw new Error(`field ${field}: wrong wire type`);
+    v = f.value;
+  }
+  return v;
+}
+function decodeCertificate(txBytes) {
+  const body = last(protoFields(txBytes), 1, 2);
+  if (!body) return null;
+  const msgs = protoFields(body).filter((f) => f.field === 1);
+  if (msgs.length !== 1 || msgs[0].wire !== 2) return null;
+  const any = protoFields(msgs[0].value);
+  const typeUrl = new TextDecoder().decode(last(any, 1, 2) ?? new Uint8Array());
+  if (typeUrl !== CERT_TYPE_URL) return null;
+  const m = protoFields(last(any, 2, 2) ?? new Uint8Array());
+  return {
+    signer: new TextDecoder().decode(last(m, 1, 2) ?? new Uint8Array()),
+    height: last(m, 2, 0) ?? 0n,
+    attestations: last(m, 3, 2) ?? new Uint8Array()
+  };
+}
+var leafHash = (b) => sha256(concat2([Uint8Array.of(0), b]));
+var innerHash = (l, r) => sha256(concat2([Uint8Array.of(1), l, r]));
+function merkleRoot(items) {
+  if (items.length === 0) return sha256(new Uint8Array());
+  if (items.length === 1) return leafHash(items[0]);
+  let k = 1;
+  while (k * 2 < items.length) k *= 2;
+  return innerHash(merkleRoot(items.slice(0, k)), merkleRoot(items.slice(k)));
+}
+var pbVarint = (field, v) => BigInt(v ?? 0) === 0n ? new Uint8Array() : concat2([varint(field << 3), varint(v)]);
+var pbBytes = (field, b) => b.length ? concat2([varint(field << 3 | 2), varint(b.length), b]) : new Uint8Array();
+var pbMessage = (field, b) => concat2([varint(field << 3 | 2), varint(b.length), b]);
+var hex = (s) => hexToBytes2(s ?? "");
+function timestampBytes(t) {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/.exec(String(t));
+  if (!m) throw new Error(`unsupported time ${t}`);
+  const ms = Date.parse(`${m[1]}Z`);
+  if (!Number.isFinite(ms)) throw new Error(`unsupported time ${t}`);
+  return concat2([pbVarint(1, BigInt(ms / 1e3)), pbVarint(2, Number((m[2] ?? "").padEnd(9, "0")))]);
+}
+function headerHash(h) {
+  const blockId = (id2) => concat2([
+    pbBytes(1, hex(id2?.hash)),
+    pbMessage(2, concat2([pbVarint(1, BigInt(id2?.parts?.total ?? 0)), pbBytes(2, hex(id2?.parts?.hash))]))
+  ]);
+  return merkleRoot([
+    concat2([pbVarint(1, BigInt(h.version?.block ?? 0)), pbVarint(2, BigInt(h.version?.app ?? 0))]),
+    pbBytes(1, utf82(h.chain_id ?? "")),
+    pbVarint(1, BigInt(h.height)),
+    timestampBytes(h.time),
+    blockId(h.last_block_id),
+    ...[
+      "last_commit_hash",
+      "data_hash",
+      "validators_hash",
+      "next_validators_hash",
+      "consensus_hash",
+      "app_hash",
+      "last_results_hash",
+      "evidence_hash",
+      "proposer_address"
+    ].map((k) => pbBytes(1, hex(h[k])))
+  ]);
+}
+var txsHash = (txs) => merkleRoot(txs.map((t) => sha256(t)));
+function cometClient(url, { timeoutMs = 2e4 } = {}) {
+  let id2 = 0;
+  return async (method, params = {}) => {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id2, method, params }),
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+    } catch (e) {
+      throw new Error(`cannot reach CometBFT RPC ${url}: ${e.cause?.message ?? e.message}`);
+    }
+    let body;
+    try {
+      body = await res.json();
+    } catch {
+      throw new Error(`${url} is not a CometBFT RPC (HTTP ${res.status})`);
+    }
+    if (body?.error) throw new Error(`${method}: ${body.error.data || body.error.message}`);
+    if (!res.ok || !body || !("result" in body)) throw new Error(`${url} is not a CometBFT RPC (HTTP ${res.status})`);
+    return body.result;
+  };
+}
+var asRpc = (cometRpc) => typeof cometRpc === "function" ? cometRpc : cometClient(String(cometRpc));
+var NOT_YET = /must be less than or equal to the current blockchain height/;
+async function getBlock(rpc, height) {
+  const r = await rpc("block", { height: String(height) });
+  if (!r?.block?.header || !r.block_id?.hash) throw new Error(`block ${height}: unexpected answer from the node`);
+  return r;
+}
+async function getValidators(rpc, height) {
+  rpc = asRpc(rpc);
+  const out = [];
+  for (let page = 1; ; page++) {
+    const r = await rpc("validators", { height: String(height), page: String(page), per_page: "100" });
+    const vs = r?.validators ?? [];
+    for (const v of vs) out.push({ address: String(v.address).toUpperCase(), power: BigInt(v.voting_power) });
+    if (!vs.length || out.length >= Number(r.total ?? 0)) break;
+  }
+  if (new Set(out.map((v) => v.address)).size !== out.length) throw new Error(`validators at ${height}: the node listed a validator twice`);
+  return out;
+}
+async function getVoteKeyEntry(rpc, address, height) {
+  rpc = asRpc(rpc);
+  const r = await rpc("abci_query", { path: VOTE_KEY_STORE_PATH, data: `02${address}`, height: String(height), prove: false });
+  const resp = r?.response;
+  if (!resp) throw new Error("abci_query: unexpected answer from the node");
+  if (resp.code) throw new Error(`abci_query ${VOTE_KEY_STORE_PATH} at ${height}: ${resp.log || `code ${resp.code}`}`);
+  if (resp.height != null && String(resp.height) !== "0" && String(resp.height) !== String(height)) {
+    throw new Error(`abci_query: asked for state ${height}, the node answered for ${resp.height}`);
+  }
+  return decodeVoteKeyEntry(fromBase64(resp.value));
+}
+async function mapLimit(items, n, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  }));
+  return out;
+}
+function parsePinnedKeys(pin) {
+  if (!pin || typeof pin !== "object") throw new Error("pinned keys: not a JSON object");
+  const map = pin.validators ?? pin;
+  if (!map || typeof map !== "object" || Array.isArray(map)) throw new Error('pinned keys: no "validators" map');
+  const key2 = (v, what, addr) => {
+    if (v == null || v === "") return null;
+    const b = hexToBytes2(v);
+    if (b.length !== PUBLIC_KEY_BYTES) throw new Error(`pinned keys: ${addr} ${what} is not ${PUBLIC_KEY_BYTES} bytes`);
+    return b;
+  };
+  const validators = Object.entries(map).map(([address, v]) => {
+    const a = String(address).replace(/^0x/i, "").toUpperCase();
+    if (!/^[0-9A-F]{40}$/.test(a)) throw new Error(`pinned keys: ${address} is not a 20-byte consensus address (hex)`);
+    if (!v || typeof v !== "object") throw new Error(`pinned keys: ${address}: expected { power, pubKey }`);
+    if (!/^\d+$/.test(String(v.power ?? "")) || BigInt(v.power) <= 0n) throw new Error(`pinned keys: ${address} needs a positive power`);
+    if (v.since != null && !/^\d+$/.test(String(v.since))) throw new Error(`pinned keys: ${address} since must be a block height`);
+    const pubKey = key2(v.pubKey, "pubKey", a);
+    return { address: a, power: BigInt(v.power), entry: pubKey ? { since: v.since == null ? null : BigInt(v.since), pubKey, previousPubKey: key2(v.previousPubKey, "previousPubKey", a) } : null };
+  });
+  if (!validators.length) throw new Error("pinned keys: no validators");
+  if (new Set(validators.map((v) => v.address)).size !== validators.length) throw new Error("pinned keys: a validator is listed twice");
+  return { chainId: pin.validators ? pin.chainId ?? null : null, height: pin.validators && pin.height != null ? BigInt(pin.height) : null, validators };
+}
+var short = (a) => `${a.slice(0, 8)}\u2026`;
+async function verifyBlock(cometRpc, height, { chainId, pinnedKeys } = {}) {
+  const rpc = asRpc(cometRpc);
+  if (!/^\d+$/.test(String(height)) || BigInt(height) < 1n) throw new Error("height must be a block number (1 or more)");
+  const H = BigInt(height);
+  const problems = [];
+  const pin = pinnedKeys == null ? null : parsePinnedKeys(typeof pinnedKeys === "string" ? JSON.parse(pinnedKeys) : pinnedKeys);
+  const block = await getBlock(rpc, H).catch((e) => {
+    throw NOT_YET.test(e.message) ? new Error(`block ${H} is not committed yet (${e.message.replace(/^block: /, "")})`) : e;
+  });
+  const hash = String(block.block_id.hash).toUpperCase();
+  const header = block.block.header;
+  const hashBytes = hexToBytes2(hash);
+  let dataOk = hashBytes.length === 32;
+  if (!dataOk) problems.push(`the node's hash for block ${H} is not 32 bytes`);
+  if (String(header.height) !== String(H)) {
+    dataOk = false;
+    problems.push(`the node returned block ${header.height} for ${H}`);
+  }
+  try {
+    if (upperHex(headerHash(header)) !== hash) {
+      dataOk = false;
+      problems.push(`the node's header for block ${H} does not hash to ${hash}`);
+    }
+    const txs = (block.block.data?.txs ?? []).map(fromBase64);
+    if (upperHex(txsHash(txs)) !== String(header.data_hash).toUpperCase()) {
+      dataOk = false;
+      problems.push(`the node's txs for block ${H} do not match the header's data_hash`);
+    }
+  } catch (e) {
+    dataOk = false;
+    problems.push(`cannot check the header of block ${H}: ${e.message}`);
+  }
+  const expectedChain = chainId ?? pin?.chainId ?? header.chain_id;
+  if (header.chain_id !== expectedChain) {
+    dataOk = false;
+    problems.push(`block ${H} is on chain ${header.chain_id}, not ${expectedChain}`);
+  }
+  let vals;
+  if (pin) {
+    vals = pin.validators.map((v) => ({ address: v.address, power: v.power, key: voteKeyAt(v.entry, H) }));
+    try {
+      const nodeVals = await getValidators(rpc, H);
+      const pinned = new Map(pin.validators.map((v) => [v.address, v.power]));
+      const differ = nodeVals.filter((v) => pinned.get(v.address) !== v.power).length + pin.validators.filter((v) => !nodeVals.some((n) => n.address === v.address)).length;
+      if (differ) problems.push(`note: the node's validator set at ${H} differs from the pinned one in ${differ} validator(s); using the pin (re-export it from a trusted node if the set changed)`);
+    } catch {
+    }
+  } else {
+    const nodeVals = await getValidators(rpc, H);
+    const entries = await mapLimit(nodeVals, 8, (v) => getVoteKeyEntry(rpc, v.address, H));
+    vals = nodeVals.map((v, i) => ({ ...v, key: voteKeyAt(entries[i], H) }));
+  }
+  let total = 0n, unregistered = 0n;
+  const byAddr = /* @__PURE__ */ new Map();
+  for (const v of vals) {
+    total += v.power;
+    if (!v.key) unregistered += v.power;
+    byAddr.set(v.address, { address: v.address, power: v.power, hasKey: !!v.key, signed: false, key: v.key });
+  }
+  const need = 2n * total - 3n * unregistered;
+  const required = need < 0n ? 0n : need / 3n + 1n;
+  let signed = 0n, certificate = false, next = null;
+  const signers = [];
+  try {
+    next = await getBlock(rpc, H + 1n);
+  } catch (e) {
+    if (!NOT_YET.test(e.message)) throw e;
+    problems.push(`block ${H + 1n} is not committed yet, so block ${H} has no certificate yet`);
+  }
+  if (next) {
+    const tx0 = next.block.data?.txs?.[0];
+    let cert = null;
+    try {
+      cert = tx0 ? decodeCertificate(fromBase64(tx0)) : null;
+    } catch (e) {
+      problems.push(`block ${H + 1n}: its first tx is not valid protobuf (${e.message})`);
+    }
+    if (!cert) {
+      if (need >= 0n) problems.push(`block ${H + 1n} does not start with a vote certificate`);
+    } else if (cert.height !== H) {
+      problems.push(`the certificate in block ${H + 1n} is for height ${cert.height}, not ${H}: ignored`);
+    } else if (cert.attestations.length % ATTESTATION_BYTES) {
+      problems.push(`the certificate's attestations are ${cert.attestations.length} bytes, not a multiple of ${ATTESTATION_BYTES}: ignored`);
+    } else {
+      certificate = true;
+      const msg2 = voteMessage(expectedChain, H, hashBytes);
+      for (let i = 0; i < cert.attestations.length; i += ATTESTATION_BYTES) {
+        const addr = upperHex(cert.attestations.subarray(i, i + ADDRESS_BYTES));
+        const sig = cert.attestations.subarray(i + ADDRESS_BYTES, i + ATTESTATION_BYTES);
+        const v = byAddr.get(addr);
+        if (!v) {
+          problems.push(`${addr} signed but is not a validator at ${H}: ignored`);
+          continue;
+        }
+        if (!v.key) {
+          problems.push(`${addr} signed but has no vote key valid at ${H}: ignored`);
+          continue;
+        }
+        if (v.signed) {
+          problems.push(`${addr} is in the certificate more than once: counted once`);
+          continue;
+        }
+        let good = false;
+        try {
+          good = ml_dsa44.verify(sig, msg2, v.key);
+        } catch {
+          good = false;
+        }
+        if (!good) {
+          problems.push(`${addr}: the ML-DSA-44 signature does not verify for block ${H} (${short(hash)}) on ${expectedChain}`);
+          continue;
+        }
+        v.signed = true;
+        signed += v.power;
+        signers.push({ address: addr, power: v.power });
+      }
+    }
+  }
+  const ruleOk = need < 0n || 3n * signed > need;
+  if (!ruleOk && next) problems.push(`signed power ${signed} is not enough: needs at least ${required} (more than 2/3 of ${total} minus ${unregistered} without a key)`);
+  return {
+    height: Number(H),
+    hash,
+    chainId: expectedChain,
+    totalPower: total,
+    unregisteredPower: unregistered,
+    signedPower: signed,
+    required,
+    ok: ruleOk && dataOk && next != null,
+    // Validators with more than 2/3 of ALL the power signed (not only of those with a key).
+    pqMajority: ruleOk && dataOk && next != null && 3n * signed > 2n * total,
+    signers,
+    validators: [...byAddr.values()].map(({ key: key2, ...v }) => v),
+    problems,
+    keysFrom: pin ? "pinned" : "node",
+    certificate
+  };
+}
 export {
   ADDRESS_PREFIX,
+  CERT_TYPE_URL,
   CHAIN_ID,
   DEFAULT_DEPLOY_GAS_LIMIT,
   DEFAULT_EVM_GAS_LIMIT,
@@ -4332,8 +4701,10 @@ export {
   bytesToHex2 as bytesToHex,
   codeFingerprint,
   codeKey,
+  cometClient,
   consentCall,
   createAddress,
+  decodeCertificate,
   detailQueries,
   encodeAny,
   encodeAuthInfo,
@@ -4356,6 +4727,7 @@ export {
   encodeTxRaw,
   formatZeta,
   fromBech32,
+  headerHash,
   hexToBytes2 as hexToBytes,
   keccak_256,
   messageFromIntent,
@@ -4388,6 +4760,9 @@ export {
   toBech32,
   toChecksumHex,
   txHashOf,
+  txsHash,
   validatorAddress,
-  varint
+  varint,
+  verifyBlock,
+  voteMessage
 };

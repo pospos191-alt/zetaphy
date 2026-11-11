@@ -111,7 +111,7 @@ func restartLastDone(t *testing.T, app *EVMD) (string, int64) {
 
 // Every upgrade a ZETAPHY chain may have completed keeps its handler.
 func TestUpgradeNamesKeepEveryHandler(t *testing.T) {
-	require.Equal(t, []string{"v0.6.0-to-v0.7.0", "zetaphy-v2", "zetaphy-v3", "zetaphy-v4", "zetaphy-v5", "zetaphy-firewall"}, zetaphyUpgradeNames,
+	require.Equal(t, []string{"v0.6.0-to-v0.7.0", "zetaphy-v2", "zetaphy-v3", "zetaphy-v4", "zetaphy-v5", "zetaphy-firewall", "zetaphy-guard"}, zetaphyUpgradeNames,
 		"append new upgrades; never drop one a running chain may have completed")
 	app, _ := pqApp(t)
 	for _, n := range zetaphyUpgradeNames {
@@ -133,6 +133,7 @@ func TestUpgradeRestartAfterEveryUpgrade(t *testing.T) {
 			require.Equal(t, name, last)
 			require.Equal(t, h, at)
 			require.NoError(t, zetaphyUpgradeCheck(last, nil, h, app.UpgradeKeeper.HasHandler), "upgrade-check agrees")
+			require.NoError(t, app.ZetaphyStartGuard(simtestutil.AppOptionsMap{flags.FlagHome: home}), "the start guard agrees")
 			require.NoError(t, restartFirstBlock(t, app, h+1), "the first block after the restart")
 		})
 	}
@@ -154,6 +155,7 @@ func TestUpgradeRestartWithoutHandlerStops(t *testing.T) {
 	last, _ := restartLastDone(t, app)
 	require.Equal(t, name, last, "the highest height wins, as in GetLastCompletedUpgrade")
 	require.ErrorContains(t, zetaphyUpgradeCheck(last, nil, h, app.UpgradeKeeper.HasHandler), `no handler for "zetaphy-v99"`)
+	require.ErrorContains(t, app.ZetaphyStartGuard(simtestutil.AppOptionsMap{flags.FlagHome: home}), `refused to start`, "the start guard refuses before CometBFT starts")
 	require.ErrorContains(t, restartFirstBlock(t, app, h+1), "upgrade handler is missing for zetaphy-v99 upgrade plan")
 }
 

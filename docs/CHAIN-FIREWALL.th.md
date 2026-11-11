@@ -168,7 +168,7 @@ gcloud compute disks snapshot zetaphy-node-0 --zone <ZONE> --snapshot-names zeta
 sudo -u zetaphy -H bash -c '
 set -euo pipefail
 GO=$(command -v go || echo /usr/local/go/bin/go)
-export PATH=$(dirname "$GO"):$PATH GOTOOLCHAIN=go1.25.14
+export PATH=$(dirname "$GO"):$PATH GOTOOLCHAIN=go1.26.11
 [ "$(free -m | awk "/Mem:/{print \$2}")" -lt 3000 ] && export GOFLAGS=-p=1 GOGC=50   # VM เล็ก: คอมไพล์ทีละตัว
 src=$HOME/src/evm-firewall
 rm -rf "$src"                                                                         # [เปลี่ยนไฟล์] (เฉพาะโฟลเดอร์นี้)
@@ -227,7 +227,10 @@ for f in registerZetaphyV4 registerZetaphyV5 registerZetaphyFirewall; do echo "$
 ```
 
 `setup-node.sh` (และ `zetaphy-validator update`) รัน `upgrade-check` เองก่อนเปลี่ยนไบนารีของโหนดที่รันอยู่ และปฏิเสธไบนารีที่ไม่ผ่าน
-(`UPGRADE_CHECK=0` ข้ามการตรวจ เช่น ตอนตั้งใจ rollback)
+ไม่มีทางข้ามแบบเงียบอีกแล้ว (`UPGRADE_CHECK=0` ไม่มีผล) มีแค่ `ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<height>` ที่ต้องเป็น chain id
+ของโหนดนี้และความสูงที่ต่ำกว่าความสูงปัจจุบันไม่เกิน 100 บล็อก (ข้อความปฏิเสธพิมพ์ค่าให้) จึงจะติดตั้งไบนารีที่ไม่ผ่านได้แบบตั้งใจ
+และทุกครั้งที่ใช้จะถูกบันทึกลง journal (`journalctl -t zetaphy-setup`) ไบนารีที่มี chain guard ยังตรวจเองอีกทุกครั้งที่เริ่ม
+(`zetaphyd start` ปฏิเสธก่อนเข้าเครือข่าย) ดู [ANTI-ROLLBACK-CHAIN.th.md](ANTI-ROLLBACK-CHAIN.th.md)
 
 ### 4. ติดตั้ง **[เปลี่ยนไฟล์]** (รีสตาร์ตโหนด เชนเดินต่อ)
 
@@ -284,6 +287,23 @@ curl -s "localhost:26657/block_results?height=$h" | jq '[.result.finalize_block_
   ตามข้างบน เฉพาะกรณีที่ไบนารีใหม่เองมีปัญหา (crash, app-hash error) ให้หยุด `zetaphyd` แล้วใส่สำเนาข้อมูล (หรือ snapshot)
   จากขั้นที่ 2 กับไบนารีเก่ากลับ บล็อกที่สร้างหลังสำเนาจะหายไป (testnet ที่มี validator ตัวเดียว) ถ้าไม่มีทั้งสองอย่าง
   ทางออกคือไปข้างหน้า: ไบนารีที่แก้แล้ว
+  นี่คือการถอยเชนแบบตั้งใจ ซึ่ง start guard ([ANTI-ROLLBACK-CHAIN.th.md](ANTI-ROLLBACK-CHAIN.th.md)) จะปฏิเสธจนกว่าคุณจะยืนยัน:
+  โหนดที่เริ่มบน `data/` ที่เก่ากว่า (`priv_validator_state.json` เก่ากว่า) ความสูงที่มันเคยเซ็นแล้ว จะหยุดด้วย
+  `ZETAPHY start guard: refused to start ... double sign` บน testnet ที่มี validator ตัวเดียว ซึ่งบล็อกหลังสำเนาถูกทิ้งไปด้วย
+  ให้เริ่มครั้งเดียวด้วยค่าที่ข้อความปฏิเสธพิมพ์ (chain id และความสูงของสำเนา) บนเชนที่มี validator อื่นห้ามทำเด็ดขาด
+  ให้ใส่ `priv_validator_state.json` ล่าสุดกลับแทน:
+  ```bash
+  sudo systemctl stop zetaphyd
+  sudo -u zetaphy cp -a /home/zetaphy/.zetaphy/data/priv_validator_state.json /home/zetaphy/pvs.before-rollback.json  # [เปลี่ยนไฟล์] เก็บไฟล์ล่าสุดไว้
+  sudo -u zetaphy bash -c 'rm -rf ~/.zetaphy/data && cp -a ~/.zetaphy/data.pre-firewall ~/.zetaphy/data'          # [เปลี่ยนไฟล์]
+  sudo install -m 755 /usr/local/bin/zetaphyd.pre-firewall /usr/local/bin/zetaphyd                                 # [เปลี่ยนไฟล์]
+  sudo systemctl start zetaphyd; journalctl -u zetaphyd -n 20 --no-pager | grep 'start guard' || echo started        # [อ่าน]
+  # เฉพาะเมื่อพิมพ์ "refused to start" (testnet ที่มี validator ตัวเดียวเท่านั้น):
+  sudo systemctl set-environment ZETAPHY_ALLOW_DOWNGRADE=<chain-id>:<ความสูงจากข้อความ>
+  sudo systemctl restart zetaphyd && sudo systemctl unset-environment ZETAPHY_ALLOW_DOWNGRADE
+  ```
+  rollback ที่ชุด handler เหมือนเดิม (ไบนารีที่ใช้อยู่มี handler ของทุก upgrade ที่สถานะที่กู้คืนทำไปแล้ว) ผ่านการตรวจ downgrade
+  เอง ต้องใช้ override เฉพาะการตรวจสถานะการเซ็น ไบนารีจากก่อน chain guard ไม่มีการตรวจทั้งสองอย่าง
 - เก็บกวาดเมื่อเสร็จ **[เปลี่ยนไฟล์]**: `sudo -u zetaphy rm -rf /home/zetaphy/src/evm-firewall /home/zetaphy/setup-node-firewall.sh`
 
 ## ข้อจำกัด
