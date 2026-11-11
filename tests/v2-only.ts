@@ -72,9 +72,9 @@ describe("v2-only build (reduced mainnet scope)", function () {
       "initializeGovernanceSettings", "proposeGovAction", "cancelGovAction", "emergencyCancelUnpause",
       "executeV2PoolAction", "executeSettingsAction", "executeWithdrawProtocolFees", "setMintPolicy",
       "initializeV2Pool", "createV2Position", "addV2Liquidity", "removeV2Liquidity", "claimV2Fees",
-      "lockV2Liquidity", "transferV2Position", "closeV2Position", "swapV2", "emergencyPauseV2Pool",
+      "lockV2Liquidity", "transferV2Position", "closeV2Position", "swapV2", "emergencyPauseV2Pool", "emergencyPauseV2Pools",
     ]) assert.isTrue(names.has(n), `${n} missing`);
-    assert.equal(names.size, 23);
+    assert.equal(names.size, 24);
   });
 
   it("the binary refuses a CP instruction discriminator (not just the IDL)", async () => {

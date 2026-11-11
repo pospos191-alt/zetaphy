@@ -668,6 +668,32 @@ pub(crate) fn emergency_pause_v2_pool(ctx: Context<EmergencyPauseV2Pool>, swap: 
     Ok(())
 }
 
+/// Pauses many pools in one transaction (2026-11-11, internal review): an
+/// incident that touches every pool should not need one transaction per
+/// pool. Same rights and effect as `emergency_pause_v2_pool`; the pools are
+/// the remaining accounts (all writable). `Account::try_from` checks that
+/// each one is owned by this program and carries the SwdmmV2Pool
+/// discriminator, and only this program can create such an account.
+pub(crate) fn emergency_pause_v2_pools<'info>(
+    ctx: Context<'_, '_, 'info, 'info, EmergencyPauseV2Pools<'info>>,
+    swap: bool,
+    deposit: bool,
+    withdraw: bool,
+) -> Result<()> {
+    require!(swap || deposit || withdraw, GovernanceError::EmergencyPauseRequestEmpty);
+    require!(!ctx.remaining_accounts.is_empty(), GovernanceError::EmergencyPauseRequestEmpty);
+    for ai in ctx.remaining_accounts.iter() {
+        require!(ai.is_writable, anchor_lang::error::ErrorCode::ConstraintMut);
+        let mut p: Account<'info, SwdmmV2Pool> = Account::try_from(ai)?;
+        if swap { p.swap_paused = true; }
+        if deposit { p.deposit_paused = true; }
+        if withdraw { p.withdraw_paused = true; }
+        emit!(V2PoolPaused { pool: p.key(), swap_paused: p.swap_paused, deposit_paused: p.deposit_paused, withdraw_paused: p.withdraw_paused });
+        p.exit(&crate::ID)?;
+    }
+    Ok(())
+}
+
 /// Called by timelock.rs after a WithdrawV2ProtocolFees action matured.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn withdraw_protocol_fees<'info>(
@@ -1044,6 +1070,16 @@ pub struct EmergencyPauseV2Pool<'info> {
         bump = pool.bump
     )]
     pub pool: Box<Account<'info, SwdmmV2Pool>>,
+}
+
+/// The pools to pause are the remaining accounts.
+#[derive(Accounts)]
+pub struct EmergencyPauseV2Pools<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
+    #[account(constraint = emergency_authority.key() == config.emergency_authority @ GovernanceError::Unauthorized)]
+    pub emergency_authority: Signer<'info>,
 }
 
 // ---------------------------------------------------------------------

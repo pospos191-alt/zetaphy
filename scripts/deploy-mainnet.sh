@@ -228,7 +228,7 @@ handover() {
   info "   the vault must be the only signer), propose, 2 of 3 members approve, execute."
   info "4. yarn governance status          -> governance_authority == $SQUADS_VAULT"
   info "   yarn governance verify-multisig <MULTISIG_PDA> 0   -> threshold 2 of 3"
-  info "   yarn governance settings        -> no other pending action from the deployer (cancel any via Squads)"
+  info "   yarn governance settings        -> actions the deployer queued are stale now (they can no longer execute)"
   info "5. Retire the deployer key. If step 3 is missed for 7 days the proposal expires: propose again (step 1 of handover)."
 }
 

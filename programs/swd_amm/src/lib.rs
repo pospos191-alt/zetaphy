@@ -383,6 +383,17 @@ pub mod swd_amm {
     pub fn emergency_pause_v2_pool(ctx: Context<EmergencyPauseV2Pool>, pause_swap: bool, pause_deposit: bool, pause_withdraw: bool) -> Result<()> {
         swdmm_v2::emergency_pause_v2_pool(ctx, pause_swap, pause_deposit, pause_withdraw)
     }
+
+    /// `emergency_pause_v2_pool` for many pools at once: the pools are the
+    /// remaining accounts (writable).
+    pub fn emergency_pause_v2_pools<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EmergencyPauseV2Pools<'info>>,
+        pause_swap: bool,
+        pause_deposit: bool,
+        pause_withdraw: bool,
+    ) -> Result<()> {
+        swdmm_v2::emergency_pause_v2_pools(ctx, pause_swap, pause_deposit, pause_withdraw)
+    }
 }
 
 
@@ -686,6 +697,24 @@ mod tests {
         // forever — e.g. right after a later emergency pause.
         assert!(timelock::check_execution_window(after + timelock::EXECUTION_GRACE_SECS + 1, after).is_err());
         assert!(timelock::check_execution_window(i64::MAX, i64::MAX - 1).is_err(), "no overflow panic");
+    }
+
+    /// Internal review 2026-11-11: a matured action queued by a governance
+    /// key that has since been replaced (e.g. the deployer's SetTreasury)
+    /// must not be executable — execution is permissionless.
+    #[test]
+    fn attack_action_of_a_replaced_governance_is_stale() {
+        let old_gov = Pubkey::new_unique();
+        let mut c = governance::GlobalConfig {
+            governance_authority: old_gov,
+            emergency_authority: Pubkey::new_unique(),
+            pool_creation_paused: false,
+            bump: 255,
+        };
+        assert!(timelock::check_proposer_is_governance(&old_gov, &c).is_ok());
+        c.governance_authority = Pubkey::new_unique(); // the vault accepted
+        assert!(timelock::check_proposer_is_governance(&old_gov, &c).is_err());
+        assert!(timelock::check_proposer_is_governance(&c.governance_authority, &c).is_ok());
     }
 
     #[test]

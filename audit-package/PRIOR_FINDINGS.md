@@ -68,6 +68,22 @@ Layout: `GlobalConfig`, `MintPolicy`, `SwdmmV2Pool`, `PendingAction` unchanged (
 `PendingAction` stays 95 + 8 bytes). Instruction count unchanged (23 in the mainnet
 build: −`set_authorities`, +`accept_authority`).
 
+## 4b. Internal mainnet-readiness review, 2026-11-11
+
+A second read of the mainnet scope found no way to take LP funds. Five smaller points
+were fixed. Verified here with `cargo test -p swd_amm --lib` (all three feature sets) and
+clippy only: **the localnet TS suites, LiteSVM run, fuzz corpus and Kani proofs were
+updated where needed but not re-run after these changes** (no Anchor / SBF toolchain in
+that session) — re-run `audit-package/tools/verify-all.sh` before freezing the commit.
+
+| ID | Issue | Change |
+|---|---|---|
+| R-1 | **Actions of a replaced governance stayed executable.** Only authority rotations checked the proposer; a matured `SetTreasury`, `WithdrawV2ProtocolFees`, `SetTimelockDelay`, … queued by an earlier governance (the deployer before handover, or a leaked key that was rotated away) could still be executed by anyone until the new governance cancelled it. Protocol fees and settings only, never LP funds. | `take_ready` now requires `pending.proposer == config.governance_authority` (`StaleAuthorityProposal`, 8514) for every execute. **Account change:** `execute_v2_pool_action`, `execute_settings_action`, `execute_withdraw_protocol_fees` (and the CP / DLMM unpause executes) take the `GlobalConfig` account first. |
+| R-2 | **Protocol-fee withdrawal ignored a withdraw pause.** If the incident is a fee-accounting bug, a matured `WithdrawV2ProtocolFees` could still move tokens out of the vault. | `execute_withdraw_protocol_fees` fails with `WithdrawPaused` (8025) while `pool.withdraw_paused`; the action stays pending (it can still expire). |
+| R-3 | **One transaction per pool to pause.** | New `emergency_pause_v2_pools` (emergency authority): pools are the remaining accounts. Same effect as `emergency_pause_v2_pool`; no layout change, nothing added to the swap path. Mainnet build: 24 instructions. |
+| R-4 | **`oracle::deviation_bps` overflowed** for a Q64.64 pool price above ~2^114 (`MathOverflow` on every swap of an oracle-guarded pool with an extreme raw price ratio). | Divide first when the product would overflow, saturate at `u64::MAX`. |
+| R-5 | **A non-`mainnet` build on mainnet** (5 s timelock, open pool creation) was caught only by reading an event. | `scripts/governance.ts init-settings` on mainnet first simulates the init with a 5-second delay and refuses to continue unless the program rejects it (`InvalidTimelockDelay`). |
+
 ## 5. This audit-prep pass, 2026-11-11 (branch `claude/audit-ready`)
 
 No behaviour change in the default build (IDL identical apart from doc strings).

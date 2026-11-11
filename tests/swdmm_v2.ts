@@ -328,9 +328,9 @@ describe("SWDMM v2 pools", () => {
     assert.equal(code(await expectThrows(() => swap(pool, trader, ta, tb, 1_000_000, true), "paused")), "SwapPaused");
 
     const pending = await propose({ unpauseV2Pool: { pool, swap: true, deposit: false, withdraw: false } });
-    assert.equal(code(await expectThrows(() => program.methods.executeV2PoolAction().accounts({ pending, pool }).rpc(), "early")), "TimelockNotElapsed");
+    assert.equal(code(await expectThrows(() => program.methods.executeV2PoolAction().accounts({ config: globalConfig, pending, pool }).rpc(), "early")), "TimelockNotElapsed");
     await waitDelay();
-    await program.methods.executeV2PoolAction().accounts({ pending, pool }).rpc();
+    await program.methods.executeV2PoolAction().accounts({ config: globalConfig, pending, pool }).rpc();
     await swap(pool, trader, ta, tb, 1_000_000, true);
 
     // protocol fees -> treasury (payer) via timelock
@@ -340,9 +340,29 @@ describe("SWDMM v2 pools", () => {
     const w = await propose({ withdrawV2ProtocolFees: { pool } });
     await waitDelay();
     const before = await bal(taP);
-    await program.methods.executeWithdrawProtocolFees()
-      .accounts({ pending: w, settings, pool, mintA: p.mintA, mintB: p.mintB, vaultA: p.vaultA, vaultB: p.vaultB, treasuryTokenA: taP, treasuryTokenB: tbP, tokenProgramA: TOKEN_PROGRAM_ID, tokenProgramB: TOKEN_PROGRAM_ID })
+    const withdrawFees = () => program.methods.executeWithdrawProtocolFees()
+      .accounts({ config: globalConfig, pending: w, settings, pool, mintA: p.mintA, mintB: p.mintB, vaultA: p.vaultA, vaultB: p.vaultB, treasuryTokenA: taP, treasuryTokenB: tbP, tokenProgramA: TOKEN_PROGRAM_ID, tokenProgramB: TOKEN_PROGRAM_ID })
       .rpc();
+
+    // Internal review 2026-11-11: the batch pause (pools = remaining accounts)
+    // and a withdraw pause that also stops the protocol-fee withdrawal.
+    const pauseMany = (signer: Keypair, pools: PublicKey[]) => program.methods.emergencyPauseV2Pools(false, false, true)
+      .accounts({ config: globalConfig, emergencyAuthority: signer.publicKey })
+      .remainingAccounts(pools.map((pubkey) => ({ pubkey, isSigner: false, isWritable: true })))
+      .signers([signer]).rpc();
+    assert.equal(code(await expectThrows(() => pauseMany(trader, [pool]), "batch pause by a stranger")), "Unauthorized");
+    assert.equal(code(await expectThrows(() => pauseMany(emergencyAuthority, []), "batch pause of nothing")), "EmergencyPauseRequestEmpty");
+    await expectThrows(() => pauseMany(emergencyAuthority, [settings]), "batch pause of an account that is not a pool");
+    await pauseMany(emergencyAuthority, [pool]);
+    const paused: any = await program.account.swdmmV2Pool.fetch(pool);
+    assert.deepEqual([paused.swapPaused, paused.depositPaused, paused.withdrawPaused], [false, false, true]);
+    assert.equal(code(await expectThrows(withdrawFees, "protocol-fee withdrawal during a withdraw pause")), "WithdrawPaused");
+    assert.equal(await bal(taP), before);
+    const unpause = await propose({ unpauseV2Pool: { pool, swap: false, deposit: false, withdraw: true } });
+    await waitDelay();
+    await program.methods.executeV2PoolAction().accounts({ config: globalConfig, pending: unpause, pool }).rpc();
+    // the withdrawal action stayed pending (the refused attempt reverted)
+    await withdrawFees();
     assert.equal((await bal(taP)) - before, feeA);
     const p2: any = await program.account.swdmmV2Pool.fetch(pool);
     assert.equal(p2.protocolFeeA.toString(), "0");
@@ -353,10 +373,10 @@ describe("SWDMM v2 pools", () => {
     const c = await propose({ setProtocolFeeShare: { bps: 500 } });
     await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending: c }).rpc();
     await waitDelay();
-    assert.equal(code(await expectThrows(() => program.methods.executeSettingsAction().accounts({ pending: c, settings }).rpc(), "cancelled")), "ActionNotPending");
+    assert.equal(code(await expectThrows(() => program.methods.executeSettingsAction().accounts({ config: globalConfig, pending: c, settings }).rpc(), "cancelled")), "ActionNotPending");
     const ok = await propose({ setProtocolFeeShare: { bps: 1_500 } });
     await waitDelay();
-    await program.methods.executeSettingsAction().accounts({ pending: ok, settings }).rpc();
+    await program.methods.executeSettingsAction().accounts({ config: globalConfig, pending: ok, settings }).rpc();
     assert.equal(((await program.account.governanceSettings.fetch(settings)) as any).protocolFeeShareBps, 1_500);
     // a random signer cannot propose
     const rando = Keypair.generate(); await fund(rando, 1);

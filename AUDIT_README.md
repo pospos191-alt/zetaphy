@@ -7,7 +7,7 @@ program `programs/swd_amm` (SAWASDEE COIN / SWD). Owner's guide in Thai:
 | | |
 |---|---|
 | What | SWDMM v2 — a full-range constant-product AMM with Meteora-DAMM-v2-style fees and LP positions — plus Squads-governed, timelocked administration and an optional Pyth guard. Anchor 0.31.1 / Solana 3.1.10. |
-| Scope | The **mainnet build** `--features mainnet,v2-only`: 6 files, **2,600 nSLOC**, 23 instructions. Constant-product and DLMM pool types are compiled out (the full program is 4,820 nSLOC). → [SCOPE.md](audit-package/SCOPE.md) |
+| Scope | The **mainnet build** `--features mainnet,v2-only`: 6 files, **2,644 nSLOC**, 24 instructions. Constant-product and DLMM pool types are compiled out (the full program is 4,868 nSLOC). → [SCOPE.md](audit-package/SCOPE.md) |
 | Frozen commit | `________________________________________` (set when the engagement is booked) |
 | Status | Not audited. Not on mainnet. Internal review, attack tests, fuzzing and 6 Kani proofs done (below). Pre-audit hardening 2026-11-11: freeze-authority allowlist (K-1), two-step authority rotation (K-3), governance-only v2 pool creation on mainnet (K-5) — [PRIOR_FINDINGS.md](audit-package/PRIOR_FINDINGS.md) §4. |
 | Contact | GitHub private vulnerability reporting on `pospos191-alt/zetaphy`; engagement contact in the RFP email. |
@@ -50,7 +50,7 @@ Results on the prepared branch (2026-11-11, local, after the pre-audit hardening
 
 | Check | Result |
 |---|---|
-| `cargo test -p swd_amm` (full / `v2-only` / `mainnet,v2-only`) | 60+4 / 41+4 / 41+4 passed |
+| `cargo test -p swd_amm` (full / `v2-only` / `mainnet,v2-only`) | 62+4 / 43+4 / 43+4 passed (lib re-run after the internal-review fixes; the localnet, fuzz, LiteSVM and Kani rows below were NOT re-run after them) |
 | `cargo clippy -p swd_amm --features v2-only` | clean except one warning inside Anchor-generated code (K-21) |
 | TS localnet, full build (8 suites) | 55 passed, 6 skipped (v2-only checks) |
 | TS localnet, `v2-only` build (`v2-only.ts`, `swdmm_v2.ts`, `security-review.ts`) | 27 passed, 1 skipped (CP-only F-5) |

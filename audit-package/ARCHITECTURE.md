@@ -114,7 +114,7 @@ stateDiagram-v2
   [*] --> Pending: propose_gov_action (governance)<br/>execute_after = now + delay
   Pending --> Cancelled: cancel_gov_action (governance)
   Pending --> Cancelled: emergency_cancel_unpause<br/>(emergency key, UnpauseV2Pool only)
-  Pending --> Executed: execute_* (ANYONE)<br/>execute_after <= now <= execute_after + 7 days<br/>and action kind / target account match
+  Pending --> Executed: execute_* (ANYONE)<br/>execute_after <= now <= execute_after + 7 days,<br/>proposer is still governance,<br/>and action kind / target account match
   Pending --> Expired: now > execute_after + 7 days<br/>(stays on chain, can never execute)
   Executed --> [*]
   Cancelled --> [*]
@@ -124,7 +124,7 @@ stateDiagram-v2
 |---|---|---|
 | `UnpauseV2Pool { pool, swap, deposit, withdraw }` | `execute_v2_pool_action` | at least one flag; target pool must match |
 | `SetV2PoolParams { pool, max_price_impact_bps, dynamic_fee_enabled }` | `execute_v2_pool_action` | cap in (0, 50%]; enabling the dynamic fee re-validates its params and resets volatility state |
-| `WithdrawV2ProtocolFees { pool }` | `execute_withdraw_protocol_fees` | treasury token accounts must be owned by `settings.treasury` |
+| `WithdrawV2ProtocolFees { pool }` | `execute_withdraw_protocol_fees` | treasury token accounts must be owned by `settings.treasury`; refused while the pool's withdrawals are paused |
 | `SetProtocolFeeShare { bps }` | `execute_settings_action` | ≤ 2,000 (20% of the fee) |
 | `SetTimelockDelay { secs }` | `execute_settings_action` | 24 h–48 h on `mainnet` builds (5 s–48 h otherwise) |
 | `SetTreasury { treasury }` | `execute_settings_action` | not the default key |
