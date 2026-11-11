@@ -570,7 +570,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.chain == 'true' || needs.changes.outputs.dlmm == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60  # took 43.5 min on Go 1.25.14 and over 45 on Go 1.26.11
     env:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
