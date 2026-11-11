@@ -892,8 +892,11 @@ jobs:
       # Reduced mainnet / audit scope (AUDIT_README.md): SWDMM v2 + governance
       # only, CP and DLMM compiled out. Runs after the full suite so the
       # default build above is what everything else tested.
-      - name: v2-only — cargo test (unit tests without CP/DLMM)
-        run: cargo test -p swd_amm --features v2-only
+      - name: v2-only — cargo test (unit tests without CP/DLMM) + audit-package tables up to date
+        run: |
+          cargo test -p swd_amm --features v2-only
+          python3 audit-package/tools/gen_tables.py --check
+          python3 audit-package/tools/nsloc.py --v2-only
 
       - name: v2-only — build + v2 / governance / security suites (5s timelock)
         run: |
