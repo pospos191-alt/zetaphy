@@ -102,6 +102,22 @@ jobs:
             ~/.cargo/bin/anchor
           key: ${{ runner.os }}-verify-${{ env.SOLANA_VERIFY_VERSION }}-anchor-${{ env.ANCHOR_VERSION }}
 
+      # Anchor.toml pins [toolchain] solana_version, so `anchor idl build` runs `solana --version` first and fails with
+      # "No such file or directory (os error 2)" when the Solana CLI is missing (the program itself builds in Docker).
+      - name: Cache Solana CLI ${{ env.SOLANA_VERSION }}
+        id: solana-cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.local/share/solana/install
+          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI ${{ env.SOLANA_VERSION }} (for anchor idl build)
+        run: |
+          if [ "${{ steps.solana-cache.outputs.cache-hit }}" != "true" ]; then
+            sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
+          fi
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+
       - name: Install solana-verify ${{ env.SOLANA_VERIFY_VERSION }} and Anchor ${{ env.ANCHOR_VERSION }} (IDL only)
         run: |
           if ! solana-verify --version 2>/dev/null | grep -q "$SOLANA_VERIFY_VERSION"; then
