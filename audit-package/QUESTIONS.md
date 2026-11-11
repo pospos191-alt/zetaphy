@@ -17,9 +17,11 @@ because the signer chose it — or are there CPI/ownership subtleties)? Optional
 add-on: check `integrations/jupiter-amm-swd/src/quote.rs` matches `swap_v2` exactly
 (quote vs. execution mismatch).
 
-**Q2 — Authority rotation.** Should `set_authorities` become two-step
-(propose / accept) and / or timelocked (K-3)? Should the emergency key be rotatable
-by governance instantly (current behaviour)?
+**Q2 — Authority rotation.** *Changed before the audit (PRIOR_FINDINGS H-2):* rotation
+is now propose → `accept_authority` signed by the new key; governance rotation is
+timelocked, emergency rotation is not (the emergency key can only grief, and a
+compromised one must be replaceable fast). Is that split right, and is the stale-proposal
+rule (proposer must still be governance at accept) sufficient?
 
 **Q3 — Instant admin operations.** Is it acceptable that `set_mint_policy`,
 `set_mint_feed` and `set_pool_creation_paused` are instant (K-4), given they only
@@ -37,11 +39,14 @@ break v2 accounting or liveness — e.g. `DefaultAccountState`, `InterestBearing
 `MemoTransfer` on the user's account, `CpiGuard`, `GroupPointer`? Should the gate be an
 allow-list instead of a block-list?
 
-**Q6 — Freeze authority.** Should `set_mint_policy` refuse mints with a freeze
-authority (or `DefaultAccountState = Frozen`) unless explicitly overridden (K-1)?
+**Q6 — Freeze authority.** *Changed before the audit (H-1):* mints with a freeze
+authority need `trust_freeze_authority`, checked once at `set_mint_policy` (we argue the
+property cannot change afterwards — see `assert_freeze_authority_trusted`), and pools
+refuse born-frozen vaults. Does the "checked once" argument hold for both token programs?
 
-**Q7 — Fee-tier squatting.** Is "governance pauses creation and seeds canonical pools"
-enough, or should v2 pool creation be governance-only on mainnet (K-5)?
+**Q7 — Fee-tier squatting.** *Changed before the audit (H-3):* v2 pool creation is
+governance-only on `mainnet` builds. Anything left that a non-governance actor can fix
+for good about a pool?
 
 **Q8 — Dynamic fee and market-cap scheduler.** Can either be gamed beyond what K-6
 and K-7 describe (e.g. combining the per-slot impact reference with the volatility

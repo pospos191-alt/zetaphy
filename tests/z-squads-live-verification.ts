@@ -226,126 +226,83 @@ describe("squads multisig — live on-chain verification (Phase 2b)", () => {
     );
   });
 
-  it("succeeds end-to-end when governance_authority genuinely is the multisig's vault, restored via a REAL Squads-approved CPI", async () => {
+  // Runs one instruction as the Squads vault: vaultTransactionCreate ->
+  // proposalCreate -> proposalApprove -> vaultTransactionExecute, i.e. the
+  // exact flow 2-of-3 members follow on mainnet (here one member, threshold 1).
+  //
+  // BUG FIX (2026-09-24): `vaultTransactionCreate` is the ONE call of these
+  // four whose `creator` is a PublicKey (the others take a Signer); passing
+  // the Keypair crashed deep inside the SDK's compileToV0Message.
+  async function runAsVault(multisigPda: PublicKey, vaultPda: PublicKey, transactionIndex: bigint, ix: anchor.web3.TransactionInstruction) {
+    const transactionMessage = new TransactionMessage({
+      payerKey: vaultPda,
+      recentBlockhash: (await provider.connection.getLatestBlockhash()).blockhash,
+      instructions: [ix],
+    });
+    await sendAndConfirm(multisig.rpc.vaultTransactionCreate({
+      connection: provider.connection, feePayer: payer, multisigPda, transactionIndex,
+      creator: payer.publicKey, vaultIndex: 0, ephemeralSigners: 0, transactionMessage,
+    }));
+    await sendAndConfirm(multisig.rpc.proposalCreate({ connection: provider.connection, feePayer: payer, creator: payer, multisigPda, transactionIndex }));
+    await sendAndConfirm(multisig.rpc.proposalApprove({ connection: provider.connection, feePayer: payer, member: payer, multisigPda, transactionIndex }));
+    await sendAndConfirm(multisig.rpc.vaultTransactionExecute({ connection: provider.connection, feePayer: payer, multisigPda, transactionIndex, member: payer.publicKey }));
+  }
+
+  // Two-step authority rotation (2026-11-11, KNOWN_ISSUES K-3): this is the
+  // mainnet handover (scripts/deploy-mainnet.sh) end to end — the deployer
+  // proposes, the timelock passes, and the VAULT accepts through a real
+  // Squads proposal. Then the vault hands governance back the same way.
+  it("hands governance to a REAL Squads vault (propose -> timelock -> vault accepts via Squads) and back", async () => {
     await ensureGlobalConfig();
+    const settingsPda = PublicKey.findProgramAddressSync([Buffer.from("gov_settings")], program.programId)[0];
+    try {
+      await program.methods.initializeGovernanceSettings(new anchor.BN(5), 1_000, payer.publicKey)
+        .accounts({ config: globalConfigPda, governanceAuthority: payer.publicKey, settings: settingsPda, payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
+    } catch (e) { if (!String(e).includes("already in use")) throw e; }
+    const actionPda = async () => {
+      const st: any = await program.account.governanceSettings.fetch(settingsPda);
+      return { pending: PublicKey.findProgramAddressSync([Buffer.from("gov_action"), new anchor.BN(st.nextActionId).toArrayLike(Buffer, "le", 8)], program.programId)[0], delay: Number(st.timelockDelaySecs) };
+    };
+    const wait = (secs: number) => new Promise((r) => setTimeout(r, (secs + 2) * 1000));
 
     // Single-member, threshold-1 — still a completely real Squads v4
-    // multisig (Squads does not require more than one member); chosen so
-    // ONE signer (payer) can legitimately propose, approve, AND execute
-    // without simulating multiple independent parties inside a test.
+    // multisig; ONE signer (payer) can propose, approve and execute.
     const { multisigPda, vaultPda } = await createRealMultisig(1);
+    // the vault pays rent for the PendingAction it proposes in step 4
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: vaultPda, lamports: 100_000_000 })), [payer]);
 
     const before = await program.account.globalConfig.fetch(globalConfigPda);
     const originalGovernanceAuthority = before.governanceAuthority as PublicKey;
-    const originalEmergencyAuthority = before.emergencyAuthority as PublicKey;
 
-    // Step 1 — point governance_authority at the REAL vault PDA. Signed by
-    // the CURRENT governance_authority (payer, per this whole suite's
-    // shared convention): an ordinary direct call, nothing Squads-specific
-    // needed for this forward step.
-    await program.methods
-      .setAuthorities(vaultPda, originalEmergencyAuthority)
-      .accounts({ config: globalConfigPda, governanceAuthority: originalGovernanceAuthority })
-      .rpc();
+    // Step 1 — the current governance (payer) proposes the vault.
+    const toVault = await actionPda();
+    await program.methods.proposeGovAction({ setGovernanceAuthority: { newAuthority: vaultPda } })
+      .accounts({ config: globalConfigPda, governanceAuthority: payer.publicKey, settings: settingsPda, pending: toVault.pending, payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
+    await wait(toVault.delay);
 
-    // Step 2 — THE actual happy-path proof this file exists for:
-    // verify_governance_multisig must now succeed outright, no error.
-    await program.methods
-      .verifyGovernanceMultisig(0)
-      .accounts({ config: globalConfigPda, squadsMultisig: multisigPda })
-      .rpc();
+    // Step 2 — the vault accepts, through a real Squads proposal.
+    const acceptIx = await program.methods.acceptAuthority()
+      .accounts({ config: globalConfigPda, newAuthority: vaultPda, pending: toVault.pending }).instruction();
+    await runAsVault(multisigPda, vaultPda, 1n, acceptIx);
+    const mid = await program.account.globalConfig.fetch(globalConfigPda);
+    assert.isTrue((mid.governanceAuthority as PublicKey).equals(vaultPda), "the Squads-executed accept did not land");
 
-    // Step 3 — restore governance_authority back to its original value.
-    // governance_authority is now the vault PDA, which has no private key
-    // — only the Squads program itself can sign for it (invoke_signed with
-    // the vault's own seeds, during a transaction IT executes), so this
-    // MUST go through a genuine Squads propose -> approve -> execute flow
-    // rather than a plain signed call. This simultaneously proves the
-    // OTHER half of governance.rs's design (see its "DESIGN NOTE"): that a
-    // real Squads execute_transaction CPI can actually drive this
-    // program's governance instructions, which is the whole reason this
-    // program trusts a bare signature instead of re-checking Squads'
-    // threshold logic itself.
-    const restoreIx = await program.methods
-      .setAuthorities(originalGovernanceAuthority, originalEmergencyAuthority)
-      .accounts({ config: globalConfigPda, governanceAuthority: vaultPda })
-      .instruction();
+    // Step 3 — THE happy-path proof this file exists for.
+    await program.methods.verifyGovernanceMultisig(0).accounts({ config: globalConfigPda, squadsMultisig: multisigPda }).rpc();
 
-    const transactionIndex = 1n;
-    const innerMessage = new TransactionMessage({
-      payerKey: vaultPda,
-      recentBlockhash: (await provider.connection.getLatestBlockhash()).blockhash,
-      instructions: [restoreIx],
-    });
-
-    // BUG FIX (2026-09-24): the first real run crashed here with
-    // `TypeError: pubkey.toBase58 is not a function`, deep inside
-    // @sqds/multisig's OWN nested @solana/web3.js copy's
-    // `TransactionMessage.compileToV0Message` -> `CompiledKeys.compile`.
-    // Root cause (confirmed by reading the SDK's own .d.ts files, not
-    // guessed): `vaultTransactionCreate`'s RPC-level signature is the ONE
-    // exception among these four SDK calls that wants `creator: PublicKey`
-    // — every sibling here (`multisigCreateV2`, `proposalCreate`,
-    // `proposalApprove`) wants `creator`/`member: Signer` instead. This
-    // file originally passed `creator: payer` (a Keypair) here too, by
-    // analogy with the others; the SDK then threaded that Keypair straight
-    // into an `AccountMeta.pubkey` slot with no runtime check, and
-    // compileToV0Message crashed the first time it tried to call
-    // `.toBase58()` on it. Fixed below to `creator: payer.publicKey`. This
-    // was a real bug in this file, not a dual-package/version hazard —
-    // `feePayer: payer` (Signer) on the same call was already correct.
-    await sendAndConfirm(
-      multisig.rpc.vaultTransactionCreate({
-        connection: provider.connection,
-        feePayer: payer,
-        multisigPda,
-        transactionIndex,
-        creator: payer.publicKey,
-        vaultIndex: 0,
-        ephemeralSigners: 0,
-        transactionMessage: innerMessage,
-      })
-    );
-
-    await sendAndConfirm(
-      multisig.rpc.proposalCreate({
-        connection: provider.connection,
-        feePayer: payer,
-        creator: payer,
-        multisigPda,
-        transactionIndex,
-      })
-    );
-
-    await sendAndConfirm(
-      multisig.rpc.proposalApprove({
-        connection: provider.connection,
-        feePayer: payer,
-        member: payer,
-        multisigPda,
-        transactionIndex,
-      })
-    );
-
-    await sendAndConfirm(
-      multisig.rpc.vaultTransactionExecute({
-        connection: provider.connection,
-        feePayer: payer,
-        multisigPda,
-        transactionIndex,
-        member: payer.publicKey,
-      })
-    );
+    // Step 4 — hand back: the vault proposes (Squads), payer accepts.
+    const back = await actionPda();
+    const proposeIx = await program.methods.proposeGovAction({ setGovernanceAuthority: { newAuthority: originalGovernanceAuthority } })
+      .accounts({ config: globalConfigPda, governanceAuthority: vaultPda, settings: settingsPda, pending: back.pending, payer: vaultPda, systemProgram: SystemProgram.programId }).instruction();
+    await runAsVault(multisigPda, vaultPda, 2n, proposeIx);
+    await wait(back.delay);
+    await program.methods.acceptAuthority().accounts({ config: globalConfigPda, newAuthority: payer.publicKey, pending: back.pending }).rpc();
 
     const after = await program.account.globalConfig.fetch(globalConfigPda);
     assert.isTrue(
       (after.governanceAuthority as PublicKey).equals(originalGovernanceAuthority),
-      "restore-via-real-Squads-CPI did not land — governance_authority is still the vault PDA. " +
-        "This is a real problem: it means this run's shared GlobalConfig is now stuck, which will " +
-        "cascade into failures for any OTHER test file that happens to run after this one in the " +
-        "same `anchor test` invocation (this file is named to sort last specifically to minimize " +
-        "that blast radius, but re-run `anchor test` from scratch after investigating — it always " +
-        "starts a brand-new validator/ledger, so this cannot leak into the next run)."
+      "restore did not land — governance_authority is still the vault PDA, so this run's shared GlobalConfig " +
+        "is stuck for any later test file (re-run from scratch; every run starts a new validator)."
     );
   });
 });

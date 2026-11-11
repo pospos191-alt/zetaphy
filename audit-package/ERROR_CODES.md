@@ -27,6 +27,8 @@ lists only one of these enums (and numbers it from 6000), so use this table, not
 | 6017 | 0x1781 | SwdAmmError | UnsupportedMintExtension | This Token-2022 mint carries an extension this program does not yet support (transfer hook, confidential transfer, non-transferable, permanent delegate, mint close authority, or an extension this program does not know) | `lib.rs` | yes |
 | 6018 | 0x1782 | SwdAmmError | PriceImpactTooHigh | Price impact exceeds the 50% cap for a single swap | `lib.rs` | yes |
 | 6019 | 0x1783 | SwdAmmError | OracleFeedNotRegistered | Pyth feed ids must match the feeds governance registered for these mints (set_mint_feed) | `lib.rs` | yes |
+| 6020 | 0x1784 | SwdAmmError | FreezeAuthorityNotTrusted | This mint has a freeze authority: governance must explicitly trust it (trust_freeze_authority) to allow the mint | `lib.rs` | yes |
+| 6021 | 0x1785 | SwdAmmError | VaultFrozen | A new pool vault is frozen (e.g. Token-2022 DefaultAccountState = Frozen): the pool would be unusable | `lib.rs` | yes |
 | 6100 | 0x17d4 | DlmmError | BinStepTooHigh | bin_step_bps exceeds the maximum allowed | `dlmm.rs` | no |
 | 6101 | 0x17d5 | DlmmError | BinOutOfRange | Requested bin id falls outside this pool's fixed bin array range | `dlmm.rs` | no |
 | 6102 | 0x17d6 | DlmmError | InvalidBinRange | bin_id_upper must be >= bin_id_lower | `dlmm.rs` | no |
@@ -88,6 +90,7 @@ lists only one of these enums (and numbers it from 6000), so use this table, not
 | 8027 | 0x1f5b | SwdmmV2Error | MathOverflow | Math overflow | `swdmm_v2.rs` | yes |
 | 8028 | 0x1f5c | SwdmmV2Error | OracleFeedNotRegistered | Pyth feed ids must match the feeds governance registered for these mints (set_mint_feed) | `swdmm_v2.rs` | yes |
 | 8029 | 0x1f5d | SwdmmV2Error | PositionIndexMismatch | Position index must be v2_position_index(owner, nonce) | `swdmm_v2.rs` | yes |
+| 8030 | 0x1f5e | SwdmmV2Error | GovernanceOnlyPoolCreation | On a mainnet build only the governance authority can create SWDMM v2 pools | `swdmm_v2.rs` | yes |
 | 8500 | 0x2134 | TimelockError | InvalidTimelockDelay | Timelock delay is outside the allowed range for this build | `timelock.rs` | yes |
 | 8501 | 0x2135 | TimelockError | ProtocolFeeShareTooHigh | Protocol fee share exceeds the 20% maximum | `timelock.rs` | yes |
 | 8502 | 0x2136 | TimelockError | InvalidTreasury | Treasury cannot be the default pubkey | `timelock.rs` | yes |
@@ -102,3 +105,4 @@ lists only one of these enums (and numbers it from 6000), so use this table, not
 | 8511 | 0x213f | TimelockError | UseTimelockedUnpause | Instant unpause is disabled: use the timelocked propose/execute flow | `timelock.rs` | yes |
 | 8512 | 0x2140 | TimelockError | MathOverflow | Math overflow | `timelock.rs` | yes |
 | 8513 | 0x2141 | TimelockError | ActionExpired | This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again | `timelock.rs` | yes |
+| 8514 | 0x2142 | TimelockError | StaleAuthorityProposal | This authority rotation was proposed by an earlier governance authority: propose it again | `timelock.rs` | yes |

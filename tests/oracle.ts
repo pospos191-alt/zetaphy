@@ -193,7 +193,7 @@ describe("oracle guard + dynamic fee (Phase 3)", () => {
   async function ensureAllowlisted(mint: PublicKey) {
     const allowedMintPda = deriveAllowedMintPda(mint);
     await program.methods
-      .setAllowedMint(true)
+      .setAllowedMint(true, false)
       .accounts({
         config: globalConfigPda,
         governanceAuthority: payer.publicKey,

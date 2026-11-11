@@ -14,7 +14,8 @@
 #   idl        anchor idl init (IDL on-chain, so Solscan decodes instructions)
 #   verify     solana-verify: write the verify PDA + submit the remote job to OtterSec  -> "Verified" on explorers
 #   governance init GlobalConfig + GovernanceSettings (only the upgrade authority may, so BEFORE handover)
-#   handover   governance -> Squads vault, IDL authority -> vault, upgrade authority -> vault (LAST)
+#   handover   propose governance -> Squads vault, IDL authority -> vault, upgrade authority -> vault, then PRINT the
+#              Squads steps: after the timelock (24 h) the vault itself accepts governance (two-step rotation, K-3)
 #   check      read-only: program show, hashes, IDL fetch, governance status
 #
 # Usage:
@@ -208,12 +209,27 @@ handover() {
   local pid; pid=$(program_id)
   export ANCHOR_PROVIDER_URL="$RPC" ANCHOR_WALLET="$DEPLOYER_KEYPAIR"
   local yes=(); [ "$EXECUTE" -eq 1 ] && yes=(--yes)
-  run yarn -s governance set-authorities "$SQUADS_VAULT" "$EMERGENCY_AUTHORITY" "${yes[@]}"
+  # Governance moves in two steps (K-3): the deployer proposes the vault now (timelocked, 24 h on a mainnet build);
+  # the vault ACCEPTS later through a Squads proposal. The emergency key was set at init-global-config.
+  info "note the action id this prints (\"Would propose governance action #N\"); the vault accepts #N"
+  run yarn -s governance propose-governance-authority "$SQUADS_VAULT" "${yes[@]}"
   run anchor idl set-authority --program-id "$pid" --new-authority "$SQUADS_VAULT" \
     --provider.cluster "$RPC" --provider.wallet "$DEPLOYER_KEYPAIR"
   run solana program set-upgrade-authority "$pid" --new-upgrade-authority "$SQUADS_VAULT" \
     --skip-new-upgrade-authority-signer-check --keypair "$DEPLOYER_KEYPAIR" --upgrade-authority "$DEPLOYER_KEYPAIR" --url "$RPC"
-  info "Then: yarn governance verify-multisig <MULTISIG_PDA> 0   and retire the deployer key."
+  say "handover, part 2 — the Squads vault accepts governance (after ${TIMELOCK_SECS}s, within 7 days)"
+  info "Until then the deployer is still governance_authority: keep its key offline, use it for nothing else, and do"
+  info "not destroy it before step 4 (it must re-propose if the 7-day accept window is missed)."
+  info "1. Fund the vault with ~0.02 SOL (it pays rent for the PendingAction accounts it later proposes)."
+  info "2. Print the accept instruction (read-only; nothing is sent because the wallet is not the vault):"
+  info "     ANCHOR_PROVIDER_URL=\$RPC ANCHOR_WALLET=\$DEPLOYER_KEYPAIR yarn -s governance accept-authority <N>"
+  info "3. In the Squads app (multisig of vault $SQUADS_VAULT): new transaction -> add the printed instruction"
+  info "   (program $pid, accounts: GlobalConfig [writable], vault [signer], PendingAction #N [writable];"
+  info "   the vault must be the only signer), propose, 2 of 3 members approve, execute."
+  info "4. yarn governance status          -> governance_authority == $SQUADS_VAULT"
+  info "   yarn governance verify-multisig <MULTISIG_PDA> 0   -> threshold 2 of 3"
+  info "   yarn governance settings        -> no other pending action from the deployer (cancel any via Squads)"
+  info "5. Retire the deployer key. If step 3 is missed for 7 days the proposal expires: propose again (step 1 of handover)."
 }
 
 check() {
@@ -225,7 +241,8 @@ check() {
   [ -f "$SO" ] && ro solana-verify get-executable-hash "$SO" || true
   ro anchor idl fetch "$pid" --provider.cluster "$RPC" >/dev/null && info "IDL on-chain: ok" || info "IDL on-chain: not found"
   ANCHOR_PROVIDER_URL="$RPC" ANCHOR_WALLET="${DEPLOYER_KEYPAIR:-$HOME/.config/solana/id.json}" ro yarn -s governance status || true
-  info "Expected after handover: Authority == ${SQUADS_VAULT:-<vault>}, hashes equal, IDL present."
+  info "Expected after handover: Authority == ${SQUADS_VAULT:-<vault>}, hashes equal, IDL present;"
+  info "governance_authority == the vault only after the vault accepted (handover part 2)."
 }
 
 [ "$EXECUTE" -eq 1 ] && say "EXECUTE MODE — real mainnet transactions, each one asks first" || say "DRY RUN — nothing is sent (add --execute to run)"

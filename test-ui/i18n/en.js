@@ -1268,6 +1268,7 @@ export default {
     allow: "Allow",
     disallow: "Disallow",
     reviewed: "Token-2022 reviewed",
+    trustFreeze: "Trust its freeze authority (e.g. USDC/USDT)",
     actions: "Timelocked actions",
     noActions: "No actions yet.",
     execute: "Execute",

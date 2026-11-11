@@ -1268,6 +1268,7 @@ export default {
     allow: "許可",
     disallow: "不許可",
     reviewed: "Token-2022 審査済み",
+    trustFreeze: "凍結権限を信頼する（例: USDC/USDT）",
     actions: "タイムロック付き操作",
     noActions: "操作はまだありません。",
     execute: "実行",

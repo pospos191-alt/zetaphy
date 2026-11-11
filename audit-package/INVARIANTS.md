@@ -51,9 +51,11 @@ TypeScript localnet test (`tests/*.ts`). Details and run budgets:
 |---|---|---|
 | I-17 | A timelocked action executes at most once, only when `execute_after ≤ now ≤ execute_after + 7 days`, and only against the account named in the action. | U (`attack_stale_timelock_action_expires`), S (9,300 executed actions), T (`swdmm_v2.ts` governance tests, `security-review.ts` F-2) |
 | I-18 | On a `mainnet` build the timelock delay is always within 24 h–48 h (init and `SetTimelockDelay`). | Code (`validate_delay`), T (`v2-only.ts` with `SWD_MAINNET_BUILD=1`: a 5 s delay is refused) |
-| I-19 | Only the upgrade authority can initialise `GlobalConfig`; neither authority can be the default key; governance ≠ emergency. | T (`governance.ts`, `security-review.ts` F-4) |
+| I-19 | Only the upgrade authority can initialise `GlobalConfig`; neither authority can ever be the default key; governance ≠ emergency (at init, and at propose **and** accept of every rotation). | U (`attack_authority_rotation_bad_keys`), T (`governance.ts`, `security-review.ts` F-4) |
 | I-20 | The emergency authority can pause and cancel pending unpauses, and nothing else. | T (`swdmm_v2.ts`, `security-review.ts` F-2, `v2-only.ts`) |
 | I-21 | A `v2-only` binary contains no CP / DLMM instruction (IDL and dispatcher) and refuses to propose CP / DLMM unpauses. | T (`v2-only.ts`), CI IDL check |
+| I-24 | An authority changes only through `accept_authority`, signed by the new key named in a matured `SetGovernanceAuthority` / `SetEmergencyAuthority` action proposed by the **current** governance; a governance rotation waits for the timelock (24–48 h on `mainnet`), an emergency rotation does not; no `execute_*` instruction can apply a rotation. | U (`authority_rotation_delays`, `gov_action_layout_is_backward_compatible`), T (`security-review.ts` K-3 ×4, `v2-only.ts` K-3 incl. `mainnet` build, `z-squads-live-verification.ts`: a real Squads vault accepts) |
+| I-25 | On a `mainnet` build only the governance authority can create a SWDMM v2 pool. | U (`attack_v2_pool_squatting_mainnet_is_governance_only`), T (`v2-only.ts` K-5 with `SWD_MAINNET_BUILD=1`) |
 
 ## Token admission
 
@@ -61,6 +63,7 @@ TypeScript localnet test (`tests/*.ts`). Details and run budgets:
 |---|---|---|
 | I-22 | A v2 pool can only be created for two different mints that each have an enabled `MintPolicy` pinned to the mint's actual token program. | Code (`check_mint_policy`), T ("mint policy" cases) |
 | I-23 | A Token-2022 mint needs `token_2022_reviewed` and must not carry TransferHook, PermanentDelegate, ConfidentialTransferMint, NonTransferable, MintCloseAuthority, TransferFeeConfig, or any extension type this build does not know (fail closed). | U (`extension_gate_*`, `attack_extension_gate_refuses_mint_close_authority`), T (`security-review.ts` F-1) |
+| I-26 | A mint with a freeze authority can only be enabled (`MintPolicy`, and `AllowedMint` in the full build) with an explicit `trust_freeze_authority`; no pool is created with a vault that is already frozen. | U (`attack_freeze_authority_needs_explicit_trust`, `attack_frozen_vault_refuses_pool`), T (`security-review.ts` K-1 ×2) |
 
 ## How to re-check everything
 

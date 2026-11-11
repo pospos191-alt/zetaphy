@@ -1268,6 +1268,7 @@ export default {
     allow: "허용",
     disallow: "불허",
     reviewed: "Token-2022 검토됨",
+    trustFreeze: "동결 권한 신뢰 (예: USDC/USDT)",
     actions: "타임락 작업",
     noActions: "아직 작업이 없습니다.",
     execute: "실행",

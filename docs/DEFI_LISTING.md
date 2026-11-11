@@ -39,7 +39,7 @@ Already prepared in the repo:
 > trust model, invariants, known issues, questions), RFP emails and firm list in `audit-package/rfp/`, owner's guide
 > in Thai in `audit-package/README.th.md`. The "SWDMM v2 only" option below is now done: the Cargo feature `v2-only`
 > compiles CP and DLMM out, and the mainnet build (`--features mainnet,v2-only`, what `scripts/deploy-mainnet.sh`
-> builds) is **2,531 nSLOC** (full program 4,745). The numbers in 1.1–1.2 below are the earlier estimate.
+> builds) is **2,600 nSLOC** (full program 4,820; after the 2026-11-11 pre-audit hardening). The numbers in 1.1–1.2 below are the earlier estimate.
 
 Why: Jupiter says DEXes that don't use a standard audited program need their own audit, DefiLlama has a field for the
 audit link, and users and Solscan look at it. An AMM holds users' money — one bug can drain a pool permanently.
@@ -173,7 +173,7 @@ What the script does, in order (the order matters):
 8. **handover** — transfers governance, IDL authority and program upgrade authority to the Squads vault (**last step**)
 9. **check** — verifies: authority == vault, on-chain hash == built hash, IDL exists on-chain
 
-### Costs (v2-only mainnet build 2026-11-11: 793,096 bytes → ~11.2 SOL needed, ~5.66 SOL locked/spent; the table below is the earlier full build: 1,266,528 bytes — the real mainnet build may differ slightly; the script recomputes)
+### Costs (v2-only mainnet build 2026-11-11: 806,640 bytes after the pre-audit hardening → ~11.4 SOL needed, ~5.76 SOL locked/spent; the table below is the earlier full build: 1,266,528 bytes — the real mainnet build may differ slightly; the script recomputes)
 
 | Item | SOL |
 |---|---|

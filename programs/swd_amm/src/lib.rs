@@ -147,14 +147,6 @@ pub mod swd_amm {
         governance::initialize_global_config(ctx, governance_authority, emergency_authority)
     }
 
-    pub fn set_authorities(
-        ctx: Context<GovernanceOnly>,
-        new_governance_authority: Pubkey,
-        new_emergency_authority: Pubkey,
-    ) -> Result<()> {
-        governance::set_authorities(ctx, new_governance_authority, new_emergency_authority)
-    }
-
     pub fn set_pool_creation_paused(
         ctx: Context<GovernanceOnly>,
         paused: bool,
@@ -163,8 +155,8 @@ pub mod swd_amm {
     }
 
     #[cfg(not(feature = "v2-only"))]
-    pub fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool) -> Result<()> {
-        governance::set_allowed_mint(ctx, enabled)
+    pub fn set_allowed_mint(ctx: Context<SetAllowedMint>, enabled: bool, trust_freeze_authority: bool) -> Result<()> {
+        governance::set_allowed_mint(ctx, enabled, trust_freeze_authority)
     }
 
     pub fn set_mint_feed(ctx: Context<SetMintFeed>, pyth_feed_id: [u8; 32]) -> Result<()> {
@@ -332,8 +324,20 @@ pub mod swd_amm {
         timelock::execute_withdraw_protocol_fees(ctx)
     }
 
-    pub fn set_mint_policy(ctx: Context<SetMintPolicy>, enabled: bool, token_2022_reviewed: bool) -> Result<()> {
-        timelock::set_mint_policy(ctx, enabled, token_2022_reviewed)
+    pub fn set_mint_policy(
+        ctx: Context<SetMintPolicy>,
+        enabled: bool,
+        token_2022_reviewed: bool,
+        trust_freeze_authority: bool,
+    ) -> Result<()> {
+        timelock::set_mint_policy(ctx, enabled, token_2022_reviewed, trust_freeze_authority)
+    }
+
+    /// Second step of an authority rotation (2026-11-11, KNOWN_ISSUES K-3):
+    /// the NEW authority named in a matured `SetGovernanceAuthority` /
+    /// `SetEmergencyAuthority` action signs to take over.
+    pub fn accept_authority(ctx: Context<AcceptAuthority>) -> Result<()> {
+        timelock::accept_authority(ctx)
     }
 
     // -----------------------------------------------------------------
@@ -388,7 +392,8 @@ pub mod swd_amm {
 
 // Default offset (6000). Kept whole in every build so error numbers never
 // shift; in a `v2-only` build only `UnsupportedMintExtension` (the
-// Token-2022 gate below) can be returned. Other enums: DlmmError 6100,
+// Token-2022 gate below), `FreezeAuthorityNotTrusted` and `VaultFrozen`
+// (the freeze checks below) can be returned. Other enums: DlmmError 6100,
 // GovernanceError 6200, OracleError 6300, SwdmmV2Error 8000,
 // TimelockError 8500 (the Anchor 0.31 IDL lists only one enum; the full
 // table is in audit-package/ERROR_CODES.md).
@@ -434,6 +439,10 @@ pub enum SwdAmmError {
     PriceImpactTooHigh,
     #[msg("Pyth feed ids must match the feeds governance registered for these mints (set_mint_feed)")]
     OracleFeedNotRegistered,
+    #[msg("This mint has a freeze authority: governance must explicitly trust it (trust_freeze_authority) to allow the mint")]
+    FreezeAuthorityNotTrusted,
+    #[msg("A new pool vault is frozen (e.g. Token-2022 DefaultAccountState = Frozen): the pool would be unusable")]
+    VaultFrozen,
 }
 
 // ---------------------------------------------------------------------
@@ -526,6 +535,40 @@ fn assert_mint_extensions_safe(mint_ai: &AccountInfo) -> Result<()> {
     Ok(())
 }
 
+
+// ---------------------------------------------------------------------
+// Freeze authority (2026-11-11, KNOWN_ISSUES K-1)
+// ---------------------------------------------------------------------
+
+/// A mint's freeze authority can freeze a pool vault, which blocks every
+/// withdrawal, claim and swap of that pool. Governance must therefore
+/// enable such a mint EXPLICITLY (`trust_freeze_authority`, e.g. USDC /
+/// USDT, whose issuers have one); a mint without one passes.
+///
+/// Checked when governance enables the mint (`set_mint_policy`,
+/// `set_allowed_mint`), not again at pool creation, because the answer
+/// cannot change afterwards: the token programs never ADD a freeze
+/// authority to a mint that has none (`SetAuthority(FreezeAccount)` fails
+/// with `MintCannotFreeze`), classic SPL mints cannot be closed, and a
+/// Token-2022 mint can only be closed (and re-created at the same address)
+/// with the `MintCloseAuthority` extension, which the extension gate
+/// refuses at the same moment.
+pub(crate) fn assert_freeze_authority_trusted(
+    freeze_authority: &anchor_lang::solana_program::program_option::COption<Pubkey>,
+    trusted: bool,
+) -> Result<()> {
+    require!(freeze_authority.is_none() || trusted, SwdAmmError::FreezeAuthorityNotTrusted);
+    Ok(())
+}
+
+/// A vault created already frozen (Token-2022 `DefaultAccountState =
+/// Frozen`, which the token program only allows on a mint with a freeze
+/// authority, i.e. a trusted one) would make the new pool unusable; refuse
+/// the pool instead. Called right after the vaults are initialised.
+pub(crate) fn assert_vault_not_frozen(vault: &anchor_spl::token_interface::TokenAccount) -> Result<()> {
+    require!(!vault.is_frozen(), SwdAmmError::VaultFrozen);
+    Ok(())
+}
 
 // ---------------------------------------------------------------------
 // Unit tests (native `cargo test`, no validator). The CP math tests live in
@@ -659,5 +702,105 @@ mod tests {
         c.pool_creation_paused = true;
         assert!(!governance::creation_allowed(&c, &squatter));
         assert!(governance::creation_allowed(&c, &gov));
+    }
+
+    // -----------------------------------------------------------------
+    // Pre-audit hardening 2026-11-11 (KNOWN_ISSUES K-1, K-3, K-5).
+    // -----------------------------------------------------------------
+
+    fn config(gov: Pubkey, emergency: Pubkey, paused: bool) -> governance::GlobalConfig {
+        governance::GlobalConfig { governance_authority: gov, emergency_authority: emergency, pool_creation_paused: paused, bump: 255 }
+    }
+
+    /// ATTACK (K-1): a mint whose issuer can freeze the pool vault, enabled
+    /// without governance saying it trusts that issuer.
+    #[test]
+    fn attack_freeze_authority_needs_explicit_trust() {
+        let none = COption::None;
+        let some = COption::Some(Pubkey::new_unique());
+        assert!(assert_freeze_authority_trusted(&none, false).is_ok());
+        assert!(assert_freeze_authority_trusted(&none, true).is_ok());
+        assert_eq!(
+            assert_freeze_authority_trusted(&some, false).unwrap_err(),
+            error!(SwdAmmError::FreezeAuthorityNotTrusted)
+        );
+        assert!(assert_freeze_authority_trusted(&some, true).is_ok(), "USDC / USDT: trusted issuer");
+    }
+
+    /// ATTACK (K-1): a vault initialised frozen (Token-2022
+    /// DefaultAccountState = Frozen) must refuse the pool.
+    #[test]
+    fn attack_frozen_vault_refuses_pool() {
+        use anchor_lang::AccountDeserialize;
+        use anchor_spl::token_2022::spl_token_2022::state::{Account as SplAccount, AccountState};
+        let vault = |state: AccountState| {
+            let mut data = vec![0u8; SplAccount::LEN];
+            SplAccount { mint: Pubkey::new_unique(), owner: Pubkey::new_unique(), state, ..Default::default() }
+                .pack_into_slice(&mut data);
+            anchor_spl::token_interface::TokenAccount::try_deserialize(&mut &data[..]).unwrap()
+        };
+        assert!(assert_vault_not_frozen(&vault(AccountState::Initialized)).is_ok());
+        assert_eq!(assert_vault_not_frozen(&vault(AccountState::Frozen)).unwrap_err(), error!(SwdAmmError::VaultFrozen));
+    }
+
+    /// ATTACK (K-5): on a mainnet build a squatter cannot create a v2 pool
+    /// (and so cannot fix a launch pair's fee schedule for good), paused or
+    /// not; devnet builds keep permissionless creation.
+    #[test]
+    fn attack_v2_pool_squatting_mainnet_is_governance_only() {
+        let gov = Pubkey::new_unique();
+        let squatter = Pubkey::new_unique();
+        for paused in [false, true] {
+            let c = config(gov, Pubkey::new_unique(), paused);
+            assert_eq!(
+                swdmm_v2::check_v2_creator(&c, &squatter, true).unwrap_err(),
+                error!(SwdmmV2Error::GovernanceOnlyPoolCreation)
+            );
+            assert!(swdmm_v2::check_v2_creator(&c, &gov, true).is_ok());
+            assert!(swdmm_v2::check_v2_creator(&c, &gov, false).is_ok());
+            assert_eq!(swdmm_v2::check_v2_creator(&c, &squatter, false).is_ok(), !paused);
+        }
+        assert_eq!(swdmm_v2::V2_CREATION_GOVERNANCE_ONLY, cfg!(feature = "mainnet"));
+    }
+
+    /// ATTACK (K-3, F-4): rotations to the zero key or to the other role's
+    /// key are refused at propose (and again at accept).
+    #[test]
+    fn attack_authority_rotation_bad_keys() {
+        let (gov, em) = (Pubkey::new_unique(), Pubkey::new_unique());
+        let c = config(gov, em, false);
+        let g = |k| GovAction::SetGovernanceAuthority { new_authority: k };
+        let e = |k| GovAction::SetEmergencyAuthority { new_authority: k };
+        let check = |a: GovAction| timelock::check_authority_change(&c, &a);
+        assert_eq!(check(g(Pubkey::default())).unwrap_err(), error!(GovernanceError::InvalidAuthority));
+        assert_eq!(check(e(Pubkey::default())).unwrap_err(), error!(GovernanceError::InvalidAuthority));
+        assert_eq!(check(g(em)).unwrap_err(), error!(GovernanceError::EmergencyCannotEqualGovernance));
+        assert_eq!(check(e(gov)).unwrap_err(), error!(GovernanceError::EmergencyCannotEqualGovernance));
+        assert!(check(g(Pubkey::new_unique())).is_ok());
+        assert!(check(e(Pubkey::new_unique())).is_ok());
+        assert!(check(GovAction::SetTreasury { treasury: Pubkey::default() }).is_ok(), "other actions: not this check");
+    }
+
+    /// Governance rotation waits for the timelock; emergency rotation does not.
+    #[test]
+    fn authority_rotation_delays() {
+        let k = Pubkey::new_unique();
+        assert_eq!(timelock::action_delay(&GovAction::SetGovernanceAuthority { new_authority: k }, 86_400), 86_400);
+        assert_eq!(timelock::action_delay(&GovAction::SetEmergencyAuthority { new_authority: k }, 86_400), 0);
+        assert_eq!(timelock::action_delay(&GovAction::SetTreasury { treasury: k }, 86_400), 86_400);
+    }
+
+    /// The two GovAction variants were appended: earlier variants keep their
+    /// Borsh index and PendingAction keeps its 95-byte size (devnet
+    /// PendingAction accounts stay readable).
+    #[test]
+    fn gov_action_layout_is_backward_compatible() {
+        let k = Pubkey::new_unique();
+        let tag = |a: GovAction| a.try_to_vec().unwrap()[0];
+        assert_eq!(tag(GovAction::WithdrawV2ProtocolFees { pool: k }), 7);
+        assert_eq!(tag(GovAction::SetGovernanceAuthority { new_authority: k }), 8);
+        assert_eq!(tag(GovAction::SetEmergencyAuthority { new_authority: k }), 9);
+        assert_eq!(PendingAction::INIT_SPACE, 95);
+        assert_eq!(GovAction::INIT_SPACE, 36);
     }
 }

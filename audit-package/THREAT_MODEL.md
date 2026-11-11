@@ -13,10 +13,10 @@
 | Adversary | Capabilities | Goals to test |
 |---|---|---|
 | **Anonymous trader / LP** (main threat) | Any instruction with any accounts; multiple instructions per transaction; any number of transactions per slot; flash-loaned capital from other venues; can create mints, token accounts and pools; can post genuine Pyth updates. | Drain or skew a pool via rounding, ordering, fake / substituted accounts (wrong vault, mint, token program, position, pool, Pyth account), re-initialisation, PDA collisions, first-deposit manipulation, donation tricks, fee-growth or settle bugs, overflow / panic, dynamic-fee or scheduler gaming, same-slot multi-swap, sandwiching beyond slippage limits, griefing (DoS of a pool or a user's position). |
-| **Malicious pool creator** | Chooses all pool parameters. | Parameters that break invariants for later LPs (fees, activation, compounding mode, impact cap, oracle settings), first-deposit price games, pools that trap deposits. |
-| **Malicious mint issuer** | Owns a mint that governance admitted. | Token-2022 extension tricks (close + re-create, hooks, delegates, transfer fees, default frozen state), freeze authority (K-1), decimals. |
+| **Malicious pool creator** | Chooses all pool parameters (on a `mainnet` build only governance can create v2 pools, K-5; the full / devnet build is permissionless). | Parameters that break invariants for later LPs (fees, activation, compounding mode, impact cap, oracle settings), first-deposit price games, pools that trap deposits. |
+| **Malicious mint issuer** | Owns a mint that governance admitted. | Token-2022 extension tricks (close + re-create, hooks, delegates, transfer fees, default frozen state), freeze authority of a *trusted* mint (K-1), getting an untrusted freeze-authority mint admitted, decimals. |
 | **Compromised emergency key** | Pause any pool; cancel pending unpauses. | Anything beyond griefing would be a finding. |
-| **Compromised / careless governance** | Instant admin ops; timelocked ops after 24 h. | Any path from governance to LP funds; bypassing the timelock or its bounds; replaying / re-targeting a pending action; executing an expired or cancelled one. |
+| **Compromised / careless governance** | Instant admin ops; timelocked ops after 24 h. | Any path from governance to LP funds; bypassing the timelock or its bounds; replaying / re-targeting a pending action; executing an expired or cancelled one; an authority rotation that takes effect without the new key's signature or the timelock, or a stale rotation accepted later. |
 | **Front-runner at deploy** | Watches mempool / chain during deployment. | Take over `GlobalConfig` or settings before handover (A-1 fixed). |
 | **Oracle-level adversary** | Selects among genuine Pyth updates; cannot forge signatures. | Bypass or abuse the deviation guard (K-2). |
 
@@ -37,7 +37,7 @@
    collect modes, protocol share, compounding and `fee_per_liquidity` growth with
    locked liquidity.
 3. Position `settle()` ordering in add / remove / lock / claim / close.
-4. Timelock state machine (`take_ready`, `validate_action`, expiry, emergency cancel).
+4. Timelock state machine (`take_ready`, `validate_action`, expiry, emergency cancel) and the two-step rotation (`check_authority_change`, `action_delay`, `accept_authority`).
 5. The hand-written Pyth reader and the deviation guard maths (`oracle.rs`).
 6. Token-2022 admission (`check_mint_policy`, `assert_mint_extensions_safe`,
    `assert_no_transfer_fee`) and the effect of each *allowed* extension.

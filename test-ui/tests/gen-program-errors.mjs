@@ -20,6 +20,7 @@ const OVERRIDE = {
   NotASquadsMultisigAccount: "auth", MultisigAccountTooShort: "auth", EmergencyCannotEqualGovernance: "input",
   PriceConfidenceTooWide: "oracle", PriceVerificationNotFull: "oracle",
   TransferFeeMintNotSupported: "allow", UnsupportedMintExtension: "allow",
+  FreezeAuthorityNotTrusted: "allow", VaultFrozen: "allow", GovernanceOnlyPoolCreation: "auth", StaleAuthorityProposal: "timelock",
 };
 const CATS = [
   ["slippage", /Slippage|MinOut|MinAmount|PriceImpact|ImpactTooHigh|PriceLimit/i],

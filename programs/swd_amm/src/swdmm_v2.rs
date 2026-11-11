@@ -260,14 +260,13 @@ impl SwdmmV2Position {
 // ---------------------------------------------------------------------
 
 pub(crate) fn initialize_v2_pool(ctx: Context<InitializeV2Pool>, params: InitializeV2PoolParams) -> Result<()> {
-    // Governance may still create while creation is paused (anti-squatting, governance::creation_allowed).
-    require!(
-        crate::governance::creation_allowed(&ctx.accounts.config, &ctx.accounts.creator.key()),
-        SwdmmV2Error::PoolCreationPaused
-    );
+    check_v2_creator(&ctx.accounts.config, &ctx.accounts.creator.key(), V2_CREATION_GOVERNANCE_ONLY)?;
     require_keys_neq!(ctx.accounts.mint_a.key(), ctx.accounts.mint_b.key(), SwdmmV2Error::IdenticalMints);
     check_mint_policy(&ctx.accounts.mint_policy_a, &ctx.accounts.mint_a.to_account_info(), &ctx.accounts.token_program_a.key())?;
     check_mint_policy(&ctx.accounts.mint_policy_b, &ctx.accounts.mint_b.to_account_info(), &ctx.accounts.token_program_b.key())?;
+    // K-1: a vault born frozen (Token-2022 DefaultAccountState) = dead pool.
+    crate::assert_vault_not_frozen(&ctx.accounts.vault_a)?;
+    crate::assert_vault_not_frozen(&ctx.accounts.vault_b)?;
 
     require!(m::validate_base_fee(&params.base_fee.to_math()), SwdmmV2Error::InvalidBaseFee);
     require!(m::validate_dynamic_fee(&params.dynamic_fee.to_math()), SwdmmV2Error::InvalidDynamicFee);
@@ -700,6 +699,25 @@ pub(crate) fn withdraw_protocol_fees<'info>(
 // ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
+
+/// `mainnet` builds: only the governance authority may create SWDMM v2
+/// pools (2026-11-11, KNOWN_ISSUES K-5). A pool is one per (mint_a, mint_b,
+/// floor fee) PDA and its fee schedule, dynamic fee, collect mode,
+/// activation and impact cap are fixed at creation, so with open creation
+/// anyone could squat a launch pair with bad parameters for good. Devnet /
+/// localnet builds keep permissionless creation (with the pause switch) for
+/// testing.
+pub const V2_CREATION_GOVERNANCE_ONLY: bool = cfg!(feature = "mainnet");
+
+/// Who may create a v2 pool. Governance may also create while creation is
+/// paused (anti-squatting, governance::creation_allowed).
+pub fn check_v2_creator(config: &GlobalConfig, creator: &Pubkey, governance_only: bool) -> Result<()> {
+    if governance_only {
+        require_keys_eq!(*creator, config.governance_authority, SwdmmV2Error::GovernanceOnlyPoolCreation);
+    }
+    require!(crate::governance::creation_allowed(config, creator), SwdmmV2Error::PoolCreationPaused);
+    Ok(())
+}
 
 fn check_mint_policy(policy: &Account<MintPolicy>, mint_ai: &AccountInfo, token_program: &Pubkey) -> Result<()> {
     require!(policy.enabled, SwdmmV2Error::MintNotAllowed);
@@ -1190,4 +1208,6 @@ pub enum SwdmmV2Error {
     OracleFeedNotRegistered,
     #[msg("Position index must be v2_position_index(owner, nonce)")]
     PositionIndexMismatch,
+    #[msg("On a mainnet build only the governance authority can create SWDMM v2 pools")]
+    GovernanceOnlyPoolCreation,
 }

@@ -1268,6 +1268,7 @@ export default {
     allow: "Cho phép",
     disallow: "Không cho phép",
     reviewed: "Đã xem xét Token-2022",
+    trustFreeze: "Tin cậy quyền đóng băng (vd. USDC/USDT)",
     actions: "Thao tác có khóa thời gian",
     noActions: "Chưa có thao tác.",
     execute: "Thực hiện",

@@ -6,6 +6,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import BN from "bn.js";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { createMint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { assert } from "chai";
 
 const code = (e: any) => e?.error?.errorCode?.code ?? (String(e).match(/Error Code: (\w+)/) || [])[1];
@@ -23,6 +24,7 @@ const REMOVED = [
   "initializeDlmmPool", "addDlmmLiquidity", "removeDlmmLiquidity", "swapDlmm",
   "emergencyPausePool", "emergencyPauseDlmmPool", "governedUnpausePool", "governedUnpauseDlmmPool",
   "executeUnpausePool", "executeUnpauseDlmmPool", "setAllowedMint",
+  "setAuthorities", // replaced by propose (SetGovernance/EmergencyAuthority) + acceptAuthority, K-3
 ];
 // SWD_MAINNET_BUILD=1: the binary was built with `mainnet,v2-only`, whose
 // timelock must be 24h-48h (timelock.rs), so the set-up uses 24h and the
@@ -66,7 +68,7 @@ describe("v2-only build (reduced mainnet scope)", function () {
   it("the IDL has no constant-product / DLMM / allowlist instructions, and keeps every v2 + governance one", () => {
     for (const n of REMOVED) assert.isFalse(names.has(n), `${n} must not be in a v2-only build`);
     for (const n of [
-      "initializeGlobalConfig", "setAuthorities", "setPoolCreationPaused", "setMintFeed", "verifyGovernanceMultisig",
+      "initializeGlobalConfig", "acceptAuthority", "setPoolCreationPaused", "setMintFeed", "verifyGovernanceMultisig",
       "initializeGovernanceSettings", "proposeGovAction", "cancelGovAction", "emergencyCancelUnpause",
       "executeV2PoolAction", "executeSettingsAction", "executeWithdrawProtocolFees", "setMintPolicy",
       "initializeV2Pool", "createV2Position", "addV2Liquidity", "removeV2Liquidity", "claimV2Fees",
@@ -96,14 +98,86 @@ describe("v2-only build (reduced mainnet scope)", function () {
     }
   });
 
-  it("only the governance authority can pause pool creation; set_authorities is governance-only", async () => {
-    const stranger = Keypair.generate();
-    await provider.sendAndConfirm(new anchor.web3.Transaction().add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: stranger.publicKey, lamports: 100_000_000 })), [payer]);
+  const funded = async () => {
+    const k = Keypair.generate();
+    await provider.sendAndConfirm(new anchor.web3.Transaction().add(SystemProgram.transfer({ fromPubkey: payer.publicKey, toPubkey: k.publicKey, lamports: 100_000_000 })), [payer]);
+    return k;
+  };
+  async function propose(action: any, gov: Keypair = payer) {
+    const s: any = await program.account.governanceSettings.fetch(settings);
+    const pending = pda(Buffer.from("gov_action"), u64le(s.nextActionId));
+    await program.methods.proposeGovAction(action)
+      .accounts({ config: globalConfig, governanceAuthority: gov.publicKey, settings, pending, payer: gov.publicKey, systemProgram: SystemProgram.programId })
+      .signers(gov === payer ? [] : [gov]).rpc();
+    return pending;
+  }
+  const accept = (pending: PublicKey, signer: Keypair) => program.methods.acceptAuthority()
+    .accounts({ config: globalConfig, newAuthority: signer.publicKey, pending }).signers([signer]).rpc();
+
+  it("only the governance authority can pause pool creation or propose an authority rotation", async () => {
+    const stranger = await funded();
     const e1 = await expectThrows(() => program.methods.setPoolCreationPaused(true)
       .accounts({ config: globalConfig, governanceAuthority: stranger.publicKey }).signers([stranger]).rpc(), "stranger pause");
     assert.equal(code(e1), "Unauthorized", String(e1));
-    const e2 = await expectThrows(() => program.methods.setAuthorities(stranger.publicKey, stranger.publicKey)
-      .accounts({ config: globalConfig, governanceAuthority: stranger.publicKey }).signers([stranger]).rpc(), "stranger set_authorities");
+    const e2 = await expectThrows(() => propose({ setGovernanceAuthority: { newAuthority: stranger.publicKey } }, stranger), "stranger rotation");
     assert.equal(code(e2), "Unauthorized", String(e2));
+  });
+
+  it("K-3: a governance rotation waits for the build's timelock (24 h on mainnet); the emergency key rotates at once (two-step)", async () => {
+    const newGov = await funded();
+    const pending = await propose({ setGovernanceAuthority: { newAuthority: newGov.publicKey } });
+    const pa: any = await program.account.pendingAction.fetch(pending);
+    assert.equal(Number(pa.executeAfter) - Number(pa.createdAt), Number(((await program.account.governanceSettings.fetch(settings)) as any).timelockDelaySecs));
+    assert.equal(code(await expectThrows(() => accept(pending, newGov), "accept before the timelock")), "TimelockNotElapsed");
+    await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending }).rpc();
+
+    const newEm = await funded();
+    const p2 = await propose({ setEmergencyAuthority: { newAuthority: newEm.publicKey } });
+    await accept(p2, newEm);
+    let c: any = await program.account.globalConfig.fetch(globalConfig);
+    assert.equal(c.emergencyAuthority.toBase58(), newEm.publicKey.toBase58());
+    await accept(await propose({ setEmergencyAuthority: { newAuthority: emergencyAuthority.publicKey } }), emergencyAuthority);
+    c = await program.account.globalConfig.fetch(globalConfig);
+    assert.equal(c.emergencyAuthority.toBase58(), emergencyAuthority.publicKey.toBase58());
+    assert.equal(c.governanceAuthority.toBase58(), payer.publicKey.toBase58());
+  });
+
+  it(`K-5: v2 pool creation is ${MAINNET_BUILD ? "governance-only on this mainnet build" : "permissionless on this devnet build"}`, async () => {
+    const creator = await funded();
+    const mintPolicy = (m: PublicKey) => pda(Buffer.from("mint_policy"), m.toBuffer());
+    const mints: PublicKey[] = [];
+    for (let i = 0; i < 2; i++) {
+      const m = await createMint(provider.connection, payer, payer.publicKey, null, 6);
+      await program.methods.setMintPolicy(true, false, false)
+        .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint: m, tokenProgram: TOKEN_PROGRAM_ID, mintPolicy: mintPolicy(m), payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
+      mints.push(m);
+    }
+    const [a, b] = mints;
+    const u16le = (n: number) => { const x = Buffer.alloc(2); x.writeUInt16LE(n); return x; };
+    const pool = pda(Buffer.from("swdmm_v2_pool"), a.toBuffer(), b.toBuffer(), u16le(100));
+    const params = {
+      baseFee: { mode: 0, decay: 0, cliffFeeBps: 100, floorFeeBps: 100, numberOfPeriods: 0, periodFrequency: new BN(0), reductionFactor: new BN(0) },
+      dynamicFee: { enabled: false, maxDynamicFeeBps: 0, variableFeeControl: 0, filterPeriod: 0, decayPeriod: 0, reductionFactor: 0, maxVolatilityAccumulator: new BN(0) },
+      collectFeeMode: 0, activationTs: new BN(0), maxPriceImpactBps: 5_000,
+      oracle: { enabled: false, pythFeedIdA: Array(32).fill(0), pythFeedIdB: Array(32).fill(0), maxStalenessSecs: 0, maxDeviationBps: 0 },
+    };
+    const init = (who: Keypair) => program.methods.initializeV2Pool(params).accounts({
+      creator: who.publicKey, config: globalConfig, settings, mintA: a, mintB: b,
+      mintPolicyA: mintPolicy(a), mintPolicyB: mintPolicy(b), pool,
+      vaultA: pda(Buffer.from("swdmm_v2_vault"), pool.toBuffer(), a.toBuffer()),
+      vaultB: pda(Buffer.from("swdmm_v2_vault"), pool.toBuffer(), b.toBuffer()),
+      mintFeedA: null, mintFeedB: null,
+      tokenProgramA: TOKEN_PROGRAM_ID, tokenProgramB: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId,
+    }).signers(who === payer ? [] : [who]).rpc();
+    if (MAINNET_BUILD) {
+      // Before K-5 the first caller fixed this pair's fee schedule for good.
+      const err = await expectThrows(() => init(creator), "squatter on mainnet");
+      assert.equal(code(err), "GovernanceOnlyPoolCreation", String(err));
+      await init(payer);
+    } else {
+      await init(creator);
+    }
+    const p: any = await program.account.swdmmV2Pool.fetch(pool);
+    assert.equal(p.creator.toBase58(), (MAINNET_BUILD ? payer : creator).publicKey.toBase58());
   });
 });

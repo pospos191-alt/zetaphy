@@ -1268,6 +1268,7 @@ export default {
     allow: "อนุญาต",
     disallow: "ยกเลิก",
     reviewed: "ตรวจสอบ Token-2022 แล้ว",
+    trustFreeze: "เชื่อถือสิทธิ์ freeze ของเหรียญนี้ (เช่น USDC/USDT)",
     actions: "คำสั่งที่รอ timelock",
     noActions: "ยังไม่มีคำสั่ง",
     execute: "ดำเนินการ",
