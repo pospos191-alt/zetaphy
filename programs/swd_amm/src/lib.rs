@@ -65,7 +65,7 @@ impl anchor_lang::IdlBuild for BinLiquidityAmount {}
 #[cfg(not(feature = "mainnet"))]
 declare_id!("3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL");
 #[cfg(feature = "mainnet")]
-declare_id!("3B6BBGon6nVj7avJ92B8xJAMe5BocaUwNVu5MvkJrwLu");
+declare_id!("3acaVErTYMArMbfXwMTEQiefUHBZgAkPuVaBgo1ptkc4");
 
 // security.txt (2026-11-08): read by Solscan / Solana Explorer from the
 // deployed binary ("Security" tab) and by `query-security-txt`. Same
