@@ -78,10 +78,16 @@ contract PairHandler is Test {
         uint256 k = _k();
         uint256 s = _effectiveSupply();
         if (lastS != 0 && s != 0 && lastK != 0) {
-            // compare sqrt(k)/s with sqrt(lastK)/lastS using sqrt to stay in range
-            uint256 lhs = _sqrt(k) * lastS;
+            // compare sqrt(k)/s with sqrt(lastK)/lastS using sqrt to stay in range.
+            // Slack, in these cross-multiplied units: one LP wei at the current value (sqrt(k) * 1), as the
+            // comment above says, plus lastS + s for the two integer square roots. _effectiveSupply floors
+            // the protocol-fee share, so it can step up by one whole wei while k grew only a little; the
+            // old slack (lastS + s alone) was ~0.2 of a wei and the deep run (1000 x 100) hit that step
+            // (2026-11-10: relative drop 1.9e-23, swapExactOut). A real loss of value is far larger.
+            uint256 rootK = _sqrt(k);
+            uint256 lhs = rootK * lastS;
             uint256 rhs = _sqrt(lastK) * s;
-            if (lhs + lastS + s < rhs) shareValueDropped++;
+            if (lhs + rootK + lastS + s < rhs) shareValueDropped++;
         }
         _snap();
     }
