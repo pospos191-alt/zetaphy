@@ -10,6 +10,8 @@
 #
 # Triggers:
 #   push a tag program-vX.Y.Z   -> build + publish the Release program-vX.Y.Z (the tag must be on main's history)
+#   Run workflow on main with new_tag=program-vX.Y.Z -> build + publish that Release; the release creates the tag
+#                                  on the run's commit (for when tags cannot be pushed from where you work)
 #   Run workflow (manual)       -> build; optionally publish (only when run on a program-v* tag), and if a
 #                                  program id is given, print the exact solana-verify / OtterSec commands for it and
 #                                  compare its on-chain hash with this build
@@ -30,6 +32,10 @@ on:
         description: "Publish a GitHub Release (only when 'Use workflow from' is a program-v* tag)"
         type: boolean
         default: false
+      new_tag:
+        description: "Run on main only: publish a new Release with this tag (program-vX.Y.Z) on the run's commit (empty: none)"
+        type: string
+        default: ''
       program_id:
         description: "Deployed program id to print verification commands for (empty: skip)"
         type: string
@@ -114,7 +120,7 @@ jobs:
 
       - name: Verifiable build (both flavours) + IDL + hashes
         env:
-          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || inputs.new_tag || '' }}
           IDL_TARGET_DIR: ${{ runner.temp }}/idl-target
         run: |
           [ -n "$RELEASE_TAG" ] || unset RELEASE_TAG
@@ -169,7 +175,9 @@ jobs:
   publish:
     name: publish the GitHub Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/program-v') && (github.event_name == 'push' || inputs.publish)
+    if: >-
+      (startsWith(github.ref, 'refs/tags/program-v') && (github.event_name == 'push' || inputs.publish)) ||
+      (github.event_name == 'workflow_dispatch' && inputs.new_tag != '' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -183,9 +191,15 @@ jobs:
       - name: Create / update the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.new_tag || github.ref_name }}
+          NEW_TAG: ${{ inputs.new_tag || '' }}
           REPO: ${{ github.repository }}
         run: |
+          [[ "$TAG" =~ ^program-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::tag must look like program-v1.2.3"; exit 1; }
+          if [ -n "$NEW_TAG" ] && gh api "repos/$REPO/git/ref/tags/$NEW_TAG" >/dev/null 2>&1; then
+            # never move an existing tag: run the workflow on that tag instead
+            echo "::error::tag $NEW_TAG already exists; run the workflow on it with publish=true"; exit 1
+          fi
           cd dist/program
           sha256sum -c SHA256SUMS
           ex() { python3 -c 'import json,sys; b=json.load(open("release.json"))["builds"][sys.argv[1]]; print(b["executable_hash"])' "$1"; }
