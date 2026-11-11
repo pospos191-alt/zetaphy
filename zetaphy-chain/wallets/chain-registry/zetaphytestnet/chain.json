@@ -39,7 +39,7 @@
     "git_repo": "https://github.com/pospos191-alt/zetaphy-chain",
     "language": {
       "type": "go",
-      "version": "1.25.9"
+      "version": "1.25.14"
     },
     "sdk": {
       "type": "cosmos",

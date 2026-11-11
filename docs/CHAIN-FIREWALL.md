@@ -175,7 +175,7 @@ in a separate folder, as the node user. It does not touch the running node.
 sudo -u zetaphy -H bash -c '
 set -euo pipefail
 GO=$(command -v go || echo /usr/local/go/bin/go)
-export PATH=$(dirname "$GO"):$PATH GOTOOLCHAIN=go1.25.9
+export PATH=$(dirname "$GO"):$PATH GOTOOLCHAIN=go1.25.14
 [ "$(free -m | awk "/Mem:/{print \$2}")" -lt 3000 ] && export GOFLAGS=-p=1 GOGC=50   # small VM: one compile at a time
 src=$HOME/src/evm-firewall
 rm -rf "$src"                                                                         # [CHANGES FILES] (only this folder)
