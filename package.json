@@ -7,6 +7,8 @@
     "test": "node scripts/gen-pyth-fixtures.js && anchor test",
     "pretest:pyth-fixtures": "node scripts/gen-pyth-fixtures.js",
     "governance": "ts-node --transpile-only scripts/governance.ts",
+    "program-watch": "node scripts/program-watch.mjs",
+    "test:program-watch": "node --test scripts/program-watch.test.mjs",
     "localnet": "rm -rf .anchor/test-ledger && node scripts/gen-pyth-fixtures.js --publish-ahead-hours 24 && anchor localnet"
   },
   "devDependencies": {

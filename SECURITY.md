@@ -10,8 +10,11 @@ levels, rewards, rules, safe harbor and the disclosure timeline are in [`docs/BU
 There is no real-money reward yet: on the testnet, rewards are recognition only, and real amounts must be
 funded by a governance vote before mainnet.
 
-**Do not open a public issue.** Report privately through GitHub: the **Security → Report a vulnerability** tab. Details (scope, levels, rewards,
-rules, safe harbor, disclosure timeline) are in [`docs/BUG_BOUNTY.md`](docs/BUG_BOUNTY.md). There is no real reward money yet.
+**SWD AMM (Solana program, SWD web app, integrations):** same private channel; the program-specific scope, severity
+table (rewards scaled to TVL with a cap — draft, not funded yet) and safe harbor are in
+[`audit-package/BUG_BOUNTY.md`](audit-package/BUG_BOUNTY.md) (Thai summary: [`BUG_BOUNTY.th.md`](audit-package/BUG_BOUNTY.th.md)).
+E-mail: the program's embedded `security.txt` lists `security@sawasdeecoin.com`, but that mailbox is **not monitored
+yet** (the owner still has to set it up) — until this line changes, use GitHub private reporting.
 
 **ZETAPHY lock/mint bridge:** deployed CLOSED. It opens only when every gate in `zetaphy-network/README.md`
 (stage 3, "Opening the bridge") holds: a second independent lane (Hyperlane), an audit recorded on-chain, 10+ independent
@@ -205,6 +208,16 @@ have personally confirmed it — do not take "it looks right" as sufficient.**
 Unaudited draft, never deployed to mainnet. Its security history, attack-suite results and open risk
 decisions are kept privately by the team; report anything you find through the private channel above.
 Security details are kept separately for the team.
+
+**Is the deployed program this source code?** (added 2026-11-11) Every `program-v*` tag publishes a GitHub Release built
+reproducibly with `solana-verify` (pinned Docker image, `.github/workflows/verifiable-build.yml`): `swd_amm-devnet.so`
+and `swd_amm-mainnet.so` (`mainnet,v2-only`), their hashes, the IDL and Sigstore provenance. Anyone can check a deployed
+program against it: `bash scripts/verified-build.sh verify-command <PROGRAM_ID> <devnet|mainnet> <COMMIT>` prints the
+`solana-verify verify-from-repo` / OtterSec (`https://verify.osec.io/status/<PROGRAM_ID>`) commands, and
+`bash scripts/rollback-program.sh status` compares the on-chain bytes with every release. The `program-watch` workflow
+does that hourly (hash + upgrade authority) and alerts on any difference. After an incident the order is: emergency pause
+→ assess → roll back (or fix forward) through Squads with its time lock → verify the hash → unpause through the timelock:
+[`docs/PROGRAM_ROLLBACK.md`](docs/PROGRAM_ROLLBACK.md) (Thai: [`PROGRAM_ROLLBACK.th.md`](docs/PROGRAM_ROLLBACK.th.md)).
 
 ## ZETAPHY chain security core (Q-day, threat gate, IBC hold) — added 2026-10-21
 

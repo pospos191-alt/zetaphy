@@ -23,6 +23,8 @@ program `programs/swd_amm` (SAWASDEE COIN / SWD). Owner's guide in Thai:
 | [KNOWN_ISSUES.md](audit-package/KNOWN_ISSUES.md) | Known issues and accepted risks (K-1..K-21; K-1, K-3, K-5 now resolved / mitigated) — please don't re-report |
 | [THREAT_MODEL.md](audit-package/THREAT_MODEL.md) | Assets, adversaries, highest-value review targets |
 | [PRIOR_FINDINGS.md](audit-package/PRIOR_FINDINGS.md) | Internal findings F-1..F-6, fuzz bugs, earlier attack-suite fixes, pre-audit hardening H-1..H-3 |
+| [BUG_BOUNTY.md](audit-package/BUG_BOUNTY.md) | Bug bounty draft (Immunefi style): scope, severity / rewards (TVL-scaled, capped), rules, safe harbor |
+| `docs/PROGRAM_ROLLBACK.md` | Verifiable releases (`program-v*` tags, solana-verify), hourly on-chain hash / authority watch, rollback through Squads |
 | [QUESTIONS.md](audit-package/QUESTIONS.md) | Questions we want answered (incl. Jupiter routing / destination-account ownership) |
 | [INSTRUCTIONS.md](audit-package/INSTRUCTIONS.md), [ERROR_CODES.md](audit-package/ERROR_CODES.md) | Generated reference tables (the Anchor IDL lists only one error enum) |
 | `docs/SWDMM_V2.md`, `docs/FUZZING_FORMAL.md`, `docs/MAINNET_RUNBOOK.md` | Product spec, fuzz / formal methods report, deployment runbook |

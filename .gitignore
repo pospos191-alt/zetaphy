@@ -34,3 +34,6 @@ zetaphy-*/audit/cache/
 **/crytic-export/
 zetaphy-*/audit/invariants/echidna/corpus/
 zetaphy-*/audit/invariants/echidna/corpus-medusa/
+
+# scripts/verified-build.sh release output (published by .github/workflows/verifiable-build.yml)
+dist/program/
