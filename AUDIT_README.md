@@ -55,7 +55,8 @@ Results on the prepared branch (2026-11-11, local, after the pre-audit hardening
 | TS localnet, full build (8 suites) | 55 passed, 6 skipped (v2-only checks) |
 | TS localnet, `v2-only` build (`v2-only.ts`, `swdmm_v2.ts`, `security-review.ts`) | 27 passed, 1 skipped (CP-only F-5) |
 | TS localnet, `mainnet,v2-only` build (`v2-only.ts`) | 6 passed (5 s timelock refused, 24 h governance rotation, governance-only pool creation) |
-| `tests/z-squads-live-verification.ts` (needs the mainnet Squads clone) | rewritten for the two-step handover; not re-run locally (no mainnet RPC) — CI / `anchor test` |
+| `tests/z-squads-live-verification.ts` (needs the mainnet Squads clone) | 3 passed in CI (run 466, 2026-11-11): a real Squads v4 vault accepts governance through the timelock and hands it back |
+| Compute units, worst-case `swap_v2` (`tests/v2-only.ts` K-17, `mainnet,v2-only` binary, CI run 466) | about 35,200 of the default 200,000 (Token-2022 both sides + Pyth guard + dynamic fee) — KNOWN_ISSUES K-17 |
 | Fuzz regression (stable) | 28 passed |
 | LiteSVM stateful differential, `v2-only` and full `.so` | 60 seeds × 150 steps each, no violation |
 | Kani | 6 of 6 completing harnesses verified (14 SLOW harnesses not run — see FUZZING_FORMAL §5) |
