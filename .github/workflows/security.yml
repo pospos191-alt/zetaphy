@@ -915,7 +915,8 @@ jobs:
           python3 - <<'PY'
           import json
           names = {i["name"] for i in json.load(open("target/idl/swd_amm.json"))["instructions"]}
-          assert len(names) == 23, sorted(names)
+          assert len(names) == 24, sorted(names)
+          assert "emergency_pause_v2_pools" in names  # batch pause (internal review R-3)
           for gone in ("initialize_pool", "swap", "swap_dlmm", "initialize_dlmm_pool", "set_allowed_mint", "set_authorities"):
               assert gone not in names, gone
           assert "accept_authority" in names  # two-step authority rotation (K-3)
