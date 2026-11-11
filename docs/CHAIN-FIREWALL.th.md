@@ -168,7 +168,7 @@ gcloud compute disks snapshot zetaphy-node-0 --zone <ZONE> --snapshot-names zeta
 sudo -u zetaphy -H bash -c '
 set -euo pipefail
 GO=$(command -v go || echo /usr/local/go/bin/go)
-export PATH=$(dirname "$GO"):$PATH GOTOOLCHAIN=go1.25.9
+export PATH=$(dirname "$GO"):$PATH GOTOOLCHAIN=go1.25.14
 [ "$(free -m | awk "/Mem:/{print \$2}")" -lt 3000 ] && export GOFLAGS=-p=1 GOGC=50   # VM เล็ก: คอมไพล์ทีละตัว
 src=$HOME/src/evm-firewall
 rm -rf "$src"                                                                         # [เปลี่ยนไฟล์] (เฉพาะโฟลเดอร์นี้)
