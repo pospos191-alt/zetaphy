@@ -88,3 +88,30 @@ contract ModeInvariant {
         return true;
     }
 }
+
+interface IFwVault {
+    function withdrawBuggy(uint256 amount) external;
+}
+
+/// IBC callback entry points (cosmos/evm ICallbacks) that pay this contract out of ChainVault through
+/// its deliberate bug: a callback that breaks the vault's solvency invariant. The firewall must
+/// discard such a callback's state from the zetaphy-shield height on (zetaphy_shield_test.go).
+contract CallbackVaultBreaker {
+    IFwVault public immutable vault;
+    uint256 public immutable amount;
+
+    constructor(IFwVault v, uint256 a) {
+        vault = v;
+        amount = a;
+    }
+
+    function onPacketAcknowledgement(string memory, string memory, uint64, bytes memory, bytes memory) external {
+        vault.withdrawBuggy(amount);
+    }
+
+    function onPacketTimeout(string memory, string memory, uint64, bytes memory) external {
+        vault.withdrawBuggy(amount);
+    }
+
+    receive() external payable {}
+}

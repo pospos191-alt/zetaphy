@@ -84,9 +84,31 @@ chain and a height at most 100 blocks below its current one (the refusal prints 
 `user.crit` to the journal (`journalctl -t zetaphy-setup`) and to `/var/log/zetaphy-setup.log`. The installed binary
 still runs its own start guard.
 
+When the start guard refuses a binary `setup-node.sh` has just installed (exit 78, which systemd does not restart),
+the node does not stay down: `setup-node.sh` keeps the binary that ran before as `/usr/local/bin/zetaphyd.prev`, and
+the unit's `ExecStopPost` (`/usr/local/bin/zetaphy-start-guard-revert`, root) puts it back once, keeps the refused one
+as `zetaphyd.refused`, logs it at `user.crit` and starts the node again. A second refusal (a rolled-back signing state
+refuses every binary) leaves it stopped for the operator. The sign record names the validator key it is for
+(`cons_address`; a record of another key does not count) and is written with fsync before the rename (internal
+review 2026-11-12, Z-50).
+
 The setup scripts never write `priv_validator_state.json` from a backup: `zetaphy-validator backup` lists it as a
 file that stays on the machine, and `setup-horcrux.sh` only moves it forward (+2). The rollback procedure in
 [CHAIN-FIREWALL.md](CHAIN-FIREWALL.md#rollback) keeps a copy of the newest state file before it puts back old data.
+
+### Voted binary checksums (`Plan.Info`)
+
+`gov.sh propose-upgrade` writes the SHA-256 of each `zetaphyd` of the release into the plan's `info`, in cosmovisor's
+format (`{"binaries":{"linux/amd64":"<url>?checksum=sha256:<hex>","linux/arm64":"..."}}`, read from the release's
+`SHA256SUMS`; `FORCE=1` proposes without them). When `setup-node.sh` installs a prebuilt binary (`zetaphy-validator
+update`, or `upgrade-watch` when the chain stopped at a voted upgrade; both take only releases `verify-release.sh`
+accepted) and that binary carries the handler of the chain's scheduled plan (read from the node) or of the plan it
+stopped at (`data/upgrade-info.json`, written at each restart while halted), the binary's SHA-256 must be the pin for
+its platform. A plan that pins other binaries, or none for this platform, refuses the install; a plan without pins
+(older proposals) leaves the release signature as the only check, with a notice. The deliberate exception is
+`ZETAPHY_ALLOW_UNPINNED=<chain-id>:<upgrade name>`, logged at `user.crit` like the downgrade override (internal
+review 2026-11-10, Z-04). Builds from source (the chain's first node) are not compared: a local build does not
+reproduce the release's bytes; there the pinned `setup-node.sh` fingerprint is the check.
 
 ## T: no crypto downgrade
 
@@ -142,6 +164,16 @@ handler also refuses it at CheckTx.
 - **Never trippable**: `/cosmos.gov.*`, `/cosmos.upgrade.*`, `/cosmos.consensus.*`, `MsgUnjail`, and the chain's own
   `MsgSetFuture`, `MsgPQCertificate`, `MsgZXVotes`, `MsgPQVoteKey`, so governance can always reset it and blocks
   keep their certificates.
+- **From the `zetaphy-shield` height** (internal review 2026-11-12, Z-44, Z-46): every ZETAPHY message
+  (`/zetaphy.pq.v1.*`: quantum locks, Q-day commit/reveal, IBC hold cancel and the governance security settings)
+  and every IBC core client and channel message are never trippable either (a trip made earlier stops applying).
+  A trip by the circuit authority lapses after 100,000 blocks (~1 week) unless governance trips the same type itself,
+  which confirms it; after a reset, or after its trip lapsed, the authority waits another 100,000 blocks before it
+  may trip that type again (governance does not wait). The authority must sign the transaction itself: a trip or
+  reset that reaches it through `authz` `MsgExec` or a contract is refused.
+- **Limit: precompiles.** The breaker sits in the message router. EVM precompiles (staking, distribution, bank,
+  ICS-20) call the modules' keepers directly, so tripping `MsgDelegate` or `MsgTransfer` does not stop the same
+  action from a contract (internal review 2026-11-12, Z-45).
 
 ## P: the constitution (off by default)
 
@@ -162,6 +194,34 @@ It is off on this testnet so nothing current changes; it is meant to be turned o
 value was changed by this work. Limits: governance can still execute ordinary messages as the governance account
 (e.g. a `MsgEVMCall` to a contract it owns, as `gov.sh neuro` does) and can still vote a software upgrade to a binary
 without these rules; the contract-layer timelocks (`ZetaphyTimelock`, 48 h) are separate and unchanged.
+Not covered either (internal review 2026-11-12, Z-47): CosmWasm `MsgStoreCode`, `MsgMigrateContract` and
+`MsgUpdateAdmin` (a contract's admin can still migrate it), `MsgCommunityPoolSpend`, staking `max_validators`,
+consensus parameters, bank send-enabled flags and the gov `min_deposit`; and the power-cap floor applies only when the
+cap was on when the constitution was turned on. Voters must still read those proposals.
+
+## The `zetaphy-shield` upgrade
+
+Rules on the add-on protection layers (internal review 2026-11-10, Z-01..Z-03, and the circuit-breaker rules of
+internal review 2026-11-12, Z-44 and Z-46, in S2 above), from key `0x50` (upgrade height
++ 1; a new chain may carry it in genesis), in the existing `zetaphypq` store (no new store, so it is in
+`zetaphyEarlyUpgrades`). Below the height every path answers as before, reading `0x50` without gas.
+
+- **Code delegations.** An Ethereum tx carrying an EIP-7702 authorization signed by an account the account guard
+  protects (protected mode in force, or the anomaly hold opted in) is refused in the ante handler and at mempool
+  submission, whoever sends it. Turning the protection off waits its delay, as before.
+- **Every message.** The account guard and the threat gate read every message of a tx, authz `MsgExec` inner messages
+  included; a tx with more than 64 of them (the `MsgExec` itself counts) is refused instead of being checked in part.
+- **Firewall after every EVM-executing message.** See [CHAIN-FIREWALL.md](CHAIN-FIREWALL.md#after-every-evm-executing-message-zetaphy-shield).
+
+Checked: `TestShieldGuardOffBeforeHeight` (old message walk entry for entry, old answers, same gas with the height unset
+or ahead), `TestShieldUpgradeHandler`, `TestShieldGuardCodeDelegation` (also through the ante handler),
+`TestShieldGuardMessageLimit`, the three `TestShieldFirewall*` tests, `TestUpgradeRestartAfterEveryUpgrade` (now with
+`zetaphy-shield`), and devnet 3 of `test-anti-rollback.sh`: the binary without the upgrade and the new one agree on
+the app hash with 65-message txs before the height, the old one stops at it, and afterwards 65 messages are refused.
+
+Activation on the testnet: as for `zetaphy-guard` below (steps 1–4 with `zetaphy-shield`; the testnet has completed
+`zetaphy-guard`). `gov.sh propose-upgrade` now pins the release's binaries in the plan. Before voting, check that no
+tool sends more than 64 messages in one tx.
 
 ## The `zetaphy-guard` upgrade
 

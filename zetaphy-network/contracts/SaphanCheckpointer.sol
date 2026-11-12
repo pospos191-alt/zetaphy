@@ -17,7 +17,7 @@ interface ICheckpointMailbox {
 ///         the lockbox's ESCAPE_AFTER, holders can leave on the source chain (docs/SAPHAN-SAFETY.md).
 ///         No admin; everything it may do is fixed at deploy. Testnet only, not audited.
 contract SaphanCheckpointer {
-    bytes32 public constant HEARTBEAT_TAG = keccak256("saphan/heartbeat/v1");
+    bytes32 public constant HEARTBEAT_V2_TAG = keccak256("saphan/heartbeat/v2");
     uint64 public constant MIN_INTERVAL = 1 hours;
 
     ICheckpointMailbox public immutable mailbox;   // ZETAPHY's Mailbox
@@ -26,6 +26,7 @@ contract SaphanCheckpointer {
     ICheckpointToken public immutable token;       // token(X): its supply rides on every heartbeat (proof of reserves)
     uint64 public seq;
     uint64 public lastAt;
+    uint64 public lastHeight;                      // the ZETAPHY height the last heartbeat carried (the forced exit's snapshot)
 
     event Beat(uint64 indexed seq, bytes32 messageId);
 
@@ -40,9 +41,11 @@ contract SaphanCheckpointer {
         recipient = recipient_;
     }
 
-    /// The heartbeat body (192 bytes), as the lockbox reads it: with token(X)'s total supply now.
+    /// The heartbeat body (224 bytes), as the lockbox reads it: with token(X)'s total supply now and this block's
+    /// height. The height is the forced exit's snapshot (ZetaphyForcedExit): holders prove their balance in the state
+    /// the light client finalized at that height (app hash of header `height`, the state this block starts from).
     function body(uint64 n) public view returns (bytes memory) {
-        return abi.encode(HEARTBEAT_TAG, block.chainid, address(this), n, uint64(block.timestamp), token.totalSupply());
+        return abi.encode(HEARTBEAT_V2_TAG, block.chainid, address(this), n, uint64(block.timestamp), token.totalSupply(), uint64(block.number));
     }
 
     function quote() external view returns (uint256) { return mailbox.quoteDispatch(destinationDomain, recipient, body(seq + 1)); }
@@ -53,6 +56,7 @@ contract SaphanCheckpointer {
         uint64 n = seq + 1;
         seq = n;
         lastAt = uint64(block.timestamp);
+        lastHeight = uint64(block.number);
         bytes memory b = body(n);
         uint256 fee = mailbox.quoteDispatch(destinationDomain, recipient, b);
         if (msg.value != fee) revert Fee(fee);

@@ -8,6 +8,8 @@ The [invariant firewall](future/invariant-firewall.md) (SS1) lets a protocol reg
 (`holds(address) view returns (bool)`) in `InvariantFirewall`. The contract layer (`Firewalled.enforce`) only
 protects calls that enter the protocol through a `firewalled` function. **The node layer described here checks the
 invariants after every EVM transaction, whatever path the transaction took**, and reverts it if it broke one.
+From the `zetaphy-shield` upgrade on it also checks after every other message that can execute EVM code (IBC
+packets and callbacks, ICS-20 and ERC-20 conversions, CosmWasm; see [After every EVM-executing message](#after-every-evm-executing-message-zetaphy-shield)).
 The invariant becomes a chain rule instead of an opt-in modifier.
 
 | Piece | Where | Status |
@@ -16,6 +18,7 @@ The invariant becomes a chain rule instead of an opt-in modifier.
 | Pure logic: strict decoding, bounds, budget, answer rule, newly-broken rule | `evmd/zetaphy_firewall_core.go` (same patch) | real, unit-tested |
 | Wiring: `pqHooks.PostTxProcessing`, `MsgEVMCall`, `BeginBlocker`, `MsgSetFuture` kind, genesis, CLI, `zetaphyEarlyUpgrades` | `zetaphy_pqguard.go`, `zetaphy_pqcall.go`, `app.go`, `zetaphy_future.go`, `zetaphy_upgrade.go`, `zetaphy_seccli.go`, `zetaphy_upgradeguard.go` (same patch) | real |
 | Fork tests (13): the real `InvariantFirewall` + a vault with a buggy withdraw | `zetaphy-chain/fork-tests/evmd/zetaphy_firewall_test.go`, `zetaphy_firewall_core_test.go`, `testdata/firewall/` | real, in CI |
+| `zetaphy-shield`: the check after IBC packets, IBC callbacks and txs with EVM-capable messages (+ 3 fork tests) | `evmd/zetaphy_shield.go`, `zetaphy_ibchold.go`, `app.go` (same patch); `fork-tests/evmd/zetaphy_shield_test.go` | real, in CI |
 | Governance command | `gov.sh invariant-firewall <0x… \| ->` | real |
 
 It replaces the prototype that was under `zetaphy-chain/prototypes/invariant-firewall` (never compiled). The prototype
@@ -65,6 +68,24 @@ EVM tx (or MsgEVMCall) succeeds ──► pqHooks.PostTxProcessing / evmCall: fi
   calling it (a token pulled with `transferFrom` by an approved spender), so "touched" cannot be decided from the
   call target. The budget above bounds the cost.
 
+### After every EVM-executing message (`zetaphy-shield`)
+
+EVM code does not only run in EVM transactions and `MsgEVMCall`. IBC packets run it (the ERC-20 middleware converts
+received coins through the token contract; the callbacks middleware calls a contract on receive, acknowledgement
+and timeout), and so do ICS-20 transfers, the ERC-20 module's conversions and CosmWasm contracts (which can dispatch
+those). Before the `zetaphy-shield` upgrade these paths were not checked (internal review 2026-11-10, Z-03). From the shield height
+(key `0x50`, set by the upgrade handler to H+1) the same check (`firewallPostTx`, no gas charged) also runs:
+
+| Where | When it fails |
+|---|---|
+| each IBC callback into a contract (receive, acknowledgement, timeout; `shieldCallbacks` around the EVM callbacks keeper) | the callback's state is discarded and the packet goes on (a receive gets an error acknowledgement) |
+| each received packet, at the top of the ICS-20 stack (v1, v2, and held transfers when they are released) | error acknowledgement: IBC core discards everything the packet did, the sender is refunded |
+| each acknowledgement and timeout, at the top of the ICS-20 stack (v1, v2) | the message fails (fail-closed), the packet stays pending |
+| after the messages of a tx that has `MsgTransfer`, an ERC-20 module message or a CosmWasm message (also inside authz `MsgExec`): the SDK post handler | the tx fails and its messages' state is discarded |
+
+Governance, staking, bank and IBC client messages are not checked, so a misbehaving checker can never stop a vote.
+Below the shield height all of this is a no-op (same results and gas as before; `TestShieldGuardOffBeforeHeight`).
+
 ### Who decides what is checked
 
 Only protocols on the `InvariantFirewall` chain-layer list: the protocol's governance asks (`requestChain`), the
@@ -105,6 +126,7 @@ optimizer 200, cancun: `testdata/firewall/InvariantFirewall.bin`) and `ChainVaul
 | `TestFirewallSwitch` | governance only, a contract only, unknown JSON fields refused; before the upgrade the kind is refused and an address in the store is ignored; the upgrade sets H+1; genesis export/validation; the CLI. |
 | `TestFirewallUpgradeEarlyBinary` | the release with the handler runs before the voted height without stopping; the handler runs at the height; still off until governance names a contract. |
 | `TestFirewallSelectors`, `TestFirewallRegistryDecode` | the node's selectors and decoders against the real contract's answers; a checker with no code is a violation. |
+| `TestShieldFirewallIBCPackets`, `TestShieldFirewallIBCCallbacks`, `TestShieldFirewallPostHandler` (`zetaphy_shield_test.go`) | after the shield height: a packet, an IBC callback (through cosmos/evm's real callbacks keeper and a contract whose callbacks break the vault) or a tx with an EVM-capable message that breaks an invariant is refused and nothing leaves the vault; below the height the old behaviour. |
 | `zetaphy_firewall_core_test.go` (5) | strict decoding (sizes, offsets, duplicates, zero addresses, > 8 entries, caps 4,999 / 500,001 / 2³²), the answer rule, the 2,000,000 budget, the newly-broken rule, the stored set. |
 
 Run (as CI does, job "zetaphy-chain (patched node + PQ devnet)" and the arm64 job):
@@ -323,9 +345,12 @@ error (`raw_log` / `eth_getTransactionReceipt` status 0).
 
 ## Limits
 
-- **Not every path is an EVM transaction.** CosmWasm, bank and IBC messages are not checked. If one of them breaks
-  a protocol, the next EVM transaction in the same block is reverted (the protocol was fine at the check point),
-  until the next block's check point. Bounded to one block, but it is a griefing window if such a path exists.
+- **Before the `zetaphy-shield` height, only EVM transactions and `MsgEVMCall` are checked.** A message that runs
+  EVM code another way (IBC packets and callbacks, ERC-20 conversions, CosmWasm) is not checked there. The shield
+  closes this (section above); a chain that has not run it keeps the gap.
+- **Messages that run no EVM code are not checked** (bank, staking, governance, IBC client updates). A bank send can
+  still change a balance a checker reads (a donation); if that breaks a protocol, the next checked transaction of the
+  block is reverted, until the next block's check point.
 - **`eth_estimateGas` / `eth_call` do not run the hook**, so wallets cannot see a firewall revert in advance; the
   transaction fails on chain and pays its gas.
 - **Cost.** `PostTxProcessing` hooks do not charge gas in cosmos/evm. Every EVM transaction makes the node do up

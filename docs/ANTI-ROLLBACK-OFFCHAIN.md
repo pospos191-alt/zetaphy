@@ -9,6 +9,8 @@ the binaries nodes install, the dependencies we build them from, what a finder e
 | Item | Stops | Where | Tests |
 |---|---|---|---|
 | L1-3 signed releases | a node installing a binary that this repository's release workflow did not build from `main`, or an older one | `.github/workflows/release-zetaphyd.yml` (job `sign`), [`zetaphy-chain/verify-release.sh`](../zetaphy-chain/verify-release.sh) | `node --test audit/tools/verify-release.test.js` (workflow `verify-release.yml`) |
+| L1-3 installs only verified releases (internal review 2026-11-10, Z-04) | `install.sh validator`, `zetaphy-validator update` and the upgrade timer running a `setup-node.sh`, a `zetaphyd` or the script itself that no signed release vouches for | [`zetaphy-chain/join-validator.sh`](../zetaphy-chain/join-validator.sh) (`fetch_release`, `install_self`) | `node --test audit/tools/join-validator-release.test.js` (workflow `verify-release.yml`), `runner-install.yml` |
+| cloud-init pin is published (internal review 2026-11-10, Z-05) | `cloud-init.sh` on `main` pinning a `v/<sha256>.sh` that the public repository does not have (no node) | [`audit/tools/cloud-init-published.sh`](../audit/tools/cloud-init-published.sh), workflow `cloud-init-published.yml` | `node --test audit/tools/cloud-init-published.test.js` |
 | L1-4 no dependency downgrades | a pull request that quietly moves Go, a Go module, an npm or Cargo package back to an older (vulnerable) version | [`audit/tools/no-downgrade.js`](../audit/tools/no-downgrade.js), [`audit/allow-downgrade.txt`](../audit/allow-downgrade.txt), workflow `no-downgrade.yml` | `node --test audit/tools/no-downgrade.test.js` (incl. the mutation test) |
 | U bug bounty | an attack paying more than reporting it | [`ZetaphyBounty.sol`](../zetaphy-network/contracts/ZetaphyBounty.sol) | `test/zetaphybounty.test.js`, `audit/invariants/ZetaphyBounty.inv.t.sol` |
 | Q your own proof + forced exit | ZETAPHY's validators censoring, stopping or rolling back while bridged funds are locked on the source chain | [`ZetaphyForcedExit.sol`](../zetaphy-network/contracts/ZetaphyForcedExit.sol), `HyperlaneLockBoxV2.forcedPay`, [`src/forcedexit.js`](../zetaphy-network/src/forcedexit.js) | `test/forcedexit.test.js`, `audit/invariants/ForcedExit.inv.t.sol` |
@@ -21,14 +23,19 @@ the binaries nodes install, the dependencies we build them from, what a finder e
 
 - `RELEASE.json`: what the release is: `tag` (`zetaphyd-<first 12 hex of setup-node.sh's sha256>`), `setup_node_sha256`,
   `commit`, `ref` (`refs/heads/main`), `main_commits` (the commit's position on `main`: `git rev-list --count`),
-  `commit_time`, `upgrades` (the chain-upgrade handlers in the patch: `zetaphy-v2` … `zetaphy-guard`);
+  `commit_time`, `upgrades` (the chain-upgrade handlers in the patch: `zetaphy-v2` … `zetaphy-guard`), `scripts`
+  (the sha256 of `zetaphy-chain/join-validator.sh` and `verify-release.sh` at that commit; releases from before
+  this field lack it);
 - `SHA256SUMS` over the binaries and `RELEASE.json`;
 - one **Sigstore build-provenance attestation** (`actions/attest-build-provenance`, keyless: GitHub's OIDC token gets a
   short-lived Fulcio certificate naming this repository, the workflow file, the ref and the commit; free) over every
   binary, `SHA256SUMS` and `RELEASE.json`, and its bundle `zetaphyd-provenance.sigstore.json`.
 
-The job `release` (environment `release`, only `contents: write`) checks the hashes and publishes all of them. A release
-made before signing existed keeps its files; a re-run on the same tag adds the signed files (`--clobber`).
+The job `release` (environment `release`, only `contents: write`) checks the hashes and publishes all of them. **A tag
+is never reused for other signed files** (internal review 2026-11-12, Z-49): when the tag already has a `RELEASE.json`,
+the job stops with an error unless the published `SHA256SUMS` is byte-identical to the new one (then there is nothing
+to do). A new release always comes with a new `setup-node.sh`, so a new tag. Only a release made before signing
+existed (no `RELEASE.json`) gets the signed files added to its tag.
 
 ### `verify-release.sh`: what it checks
 
@@ -41,10 +48,27 @@ made before signing existed keeps its files; a re-run on the same tag adds the s
    with `--setup <file>` that file must be the `setup-node.sh` the release was built from.
 3. **No rollback**: against the record of the installed release (`/var/lib/zetaphy/installed-release.json`, written by
    `--record`): `main_commits` must not be lower (the same position must be the same commit), and every upgrade handler
-   of the installed release must be in the new one. Without a record yet: the highest `zetaphy-vN` named in the
-   installed binary must be in the new release. `ALLOW_ROLLBACK=1` accepts an older release on purpose (still printed).
-4. A release from before signing (no `RELEASE.json`) is refused; `ALLOW_UNSIGNED=1` accepts it with the binary's own
-   attestation only and no rollback check. Exit 0 = verified, 1 = refused, 2 = usage / tool missing.
+   of the installed release must be in the new one. Without a record yet: **every** upgrade handler name found in the
+   installed binary (`zetaphy-v2`, `zetaphy-v3`, ..., and the named ones such as `zetaphy-firewall`, `zetaphy-guard`,
+   `zetaphy-shield`: the script's `KNOWN_UPGRADES` plus every name the new release lists) must be in the new release,
+   not only the highest number. `ALLOW_ROLLBACK=1` accepts an older release on purpose (still printed).
+4. **`RELEASE.json` is required.** There is no unsigned path any more (`ALLOW_UNSIGNED` was removed, internal review
+   2026-11-12, Z-49): a folder without it is refused before any other check, so removing it cannot skip the rollback
+   check.
+5. **Freshness** (a signed but old release served instead of the newest): a warning when the release's commit is more
+   than `MAX_RELEASE_AGE_DAYS` (default 60) days old, and, when the newest published release's `RELEASE.json` can be
+   fetched (`LATEST_RELEASE_URL`, default `https://github.com/<repo>/releases/latest/download/RELEASE.json`; `OFFLINE=1`
+   skips it), a warning when that one is further along `main`. Offline, only the age is checked. The fetched file is
+   used for nothing else. `REQUIRE_FRESH=1` turns either warning into a refusal.
+
+Exit 0 = verified, 1 = refused, 2 = usage / tool missing.
+
+**After a start-guard revert** (the node refused the newly installed binary and went back to `$BIN.prev`), the record
+still names the newer release. `verify-release.sh --mark-refused` (run by the revert, or by hand with `sudo`) keeps that
+release's position on `main` as the floor (it is never lowered, so this opens no way back to an older release), adds
+it to `refused` (commit, position, binary sha256) and notes the binary that actually runs (`running_binary_sha256`).
+That exact release is then refused again (`RETRY_REFUSED=1` tries it on purpose); the next release must be at least
+as far along `main`. Recording a newer release keeps the `refused` history.
 
 `setup-node.sh`'s own `UPGRADE_CHECK` (the binary must run the next block of this node's chain) and the start guard
 still apply after install; this check runs before anything is installed.
@@ -54,8 +78,13 @@ still apply after install; this check runs before anything is installed.
 **[อ่าน]** = only reads; **[เปลี่ยนไฟล์]** = writes files (as in [CHAIN-FIREWALL.md](CHAIN-FIREWALL.md)).
 
 ```bash
-# [อ่าน] tools: gh (https://cli.github.com) or cosign; jq; both verifiers are free
-command -v gh cosign jq sha256sum
+# [อ่าน] tools: cosign (or gh), jq; both verifiers are free
+command -v cosign gh jq sha256sum
+# [เปลี่ยนไฟล์] cosign, if missing: its own release, checked against that release's checksum list (arm64: cosign-linux-arm64)
+cd /tmp && curl -fsSLO https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 \
+  && curl -fsSLO https://github.com/sigstore/cosign/releases/latest/download/cosign_checksums.txt
+grep ' cosign-linux-amd64$' cosign_checksums.txt | sha256sum -c -        # must print: cosign-linux-amd64: OK
+sudo install -m 755 cosign-linux-amd64 /usr/local/bin/cosign && cosign version | grep GitVersion
 # [เปลี่ยนไฟล์] download the release into its own folder (R = zetaphyd-<12 hex>, ARCH = amd64 or arm64)
 R=zetaphyd-<12 hex>; ARCH=amd64; D=/tmp/$R; mkdir -p $D && cd $D
 for f in zetaphyd-linux-$ARCH SHA256SUMS RELEASE.json zetaphyd-provenance.sigstore.json; do
@@ -64,22 +93,90 @@ for f in zetaphyd-linux-$ARCH SHA256SUMS RELEASE.json zetaphyd-provenance.sigsto
 C=$(jq -r .commit RELEASE.json)
 curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/$C/zetaphy-chain/verify-release.sh -o verify-release.sh
 curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/$C/zetaphy-chain/setup-node.sh -o setup.sh
-# [อ่าน] verify (gh needs `gh auth login` or GH_TOKEN, read-only; cosign needs nothing)
-bash verify-release.sh --dir $D --arch $ARCH --setup setup.sh
-# [อ่าน] the same with cosign instead of gh
+# [อ่าน] verify with cosign (needs no account or token)
 VERIFIER=cosign bash verify-release.sh --dir $D --arch $ARCH --setup setup.sh
+# [อ่าน] the same with gh (needs `gh auth login` or GH_TOKEN, read-only)
+VERIFIER=gh bash verify-release.sh --dir $D --arch $ARCH --setup setup.sh
 # [เปลี่ยนไฟล์] install as usual (zetaphy-chain/README.md, ZETAPHYD_BIN=$D/zetaphyd-linux-$ARCH), then record it:
-sudo bash verify-release.sh --dir $D --arch $ARCH --record     # writes /var/lib/zetaphy/installed-release.json
+sudo VERIFIER=cosign bash verify-release.sh --dir $D --arch $ARCH --record     # writes /var/lib/zetaphy/installed-release.json
 # [อ่าน] what is installed
 sudo cat /var/lib/zetaphy/installed-release.json | jq '{tag, commit, main_commits, upgrades}'
 ```
 
 Only "VERIFIED" at the end means every check passed. A `REFUSED:` line says which one did not; do not install.
+When cosign or gh refused, the lines above it (`----- cosign exited 1; its last lines:`) are the tool's own reason
+(wrong identity, no network, ...).
 
-**What only CI / the VM can show**: a real Sigstore signature exists only after the first run of `sign` on `main`. The
-tests (`audit/tools/verify-release.test.js`) run the script on fake release folders with stub `gh` / `cosign` that accept
-only the right identity, so they prove the hashes, the identity flags, the anti-rollback and the refusals, not
-Sigstore itself. After the first signed release, run the commands above once on a VM (or a laptop) to confirm.
+About cosign:
+
+- **Size limit.** cosign refuses to check a file over 128 MiB by default, and `zetaphyd` is larger (about 160 MB).
+  `verify-release.sh` sets `COSIGN_MAX_ATTACHMENT_SIZE=512MiB` for its cosign calls unless you set it yourself.
+- **Versions.** cosign v3 reads the Sigstore bundle without `--new-bundle-format` (and warns that the flag is
+  deprecated), so the script does not pass it; for cosign v2.4 to v2.x, which need it, it does. Checked against the
+  release `zetaphyd-fd0f272aa982` with cosign v3.1.4, v2.5.3 and v2.4.3 (all three: VERIFIED).
+- **No network to Sigstore's TUF host** (`tuf-repo-cdn.sigstore.dev`): cosign then cannot fetch the trusted root.
+  `COSIGN_TRUSTED_ROOT=<trusted_root.json>` passes a copy (`--trusted-root`), e.g. from
+  `https://raw.githubusercontent.com/sigstore/root-signing/main/targets/trusted_root.json`. Normal machines need nothing.
+
+**What only CI / the VM can show**: the tests (`audit/tools/verify-release.test.js`) run the script on fake release
+folders with stub `gh` / `cosign` / `curl` that accept only the right identity, so they prove the hashes, the identity
+flags, the anti-rollback (with and without a record), the refusals, the freshness warnings and the cosign handling
+(size limit, version flags, the tool's lines on refusal), not Sigstore itself. Run the commands above once on a VM (or a laptop) after each change to the signing.
+
+### Installs and upgrades take only verified releases (`join-validator.sh`)
+
+Internal review 2026-11-10, Z-04. `install.sh validator`, `zetaphy-validator update` and the 1-minute upgrade timer
+(`upgrade-watch`) all go through `fetch_release`:
+
+1. `setup-node.sh` at `REF` (default `main`) only names the release (`zetaphyd-<12 hex>`; `RELEASE_TAG=` pins
+   another one). Nothing downloaded runs yet; everything lands in `/usr/local/lib/zetaphy-validator/incoming`.
+2. The verifier is pinned in `join-validator.sh` itself: `verify-release.sh` by its sha256 (`VERIFY_RELEASE_SHA256`,
+   kept in step by a test) and cosign (`COSIGN_VERSION`, per-architecture sha256 from cosign's checksum list),
+   downloaded once and refused when the hash differs. `VERIFIER=gh` uses an installed, logged-in gh instead.
+3. `verify-release.sh` checks the release (signature, hashes, `setup-node.sh` is the one the release was built
+   from, not older than the installed release). Only then are the files moved into place and `setup-node.sh` run with
+   the verified binary; afterwards the record (`/var/lib/zetaphy/installed-release.json`) is written, so the next
+   update or upgrade cannot be older.
+4. `/usr/local/bin/zetaphy-validator` is the file that is running (`install.sh` saves it first). Through a pipe
+   (`curl ... | sudo bash`, no file) it is the copy at the signed release's commit whose sha256 `RELEASE.json`'s
+   `scripts` names; with a release that lacks that field, nothing is fetched and the message says to use `install.sh`.
+5. No signed release (an old one without `RELEASE.json`, or none yet): **refused**. `ALLOW_UNVERIFIED_INSTALL=1`
+   is the deliberate exception (the old SHA256SUMS-only or build-from-source way), logged to the journal
+   (`journalctl -t zetaphy-validator`) and to `/var/lib/zetaphy-validator/unverified-installs.log`. The upgrade timer
+   ignores it.
+
+The first download (`install.sh` and `join-validator.sh` from `main`) is where the trust starts. To pin it as well:
+verify a release as in "On the VM", then run the `join-validator.sh` of its commit, checked against `RELEASE.json`:
+
+```bash
+# [เปลี่ยนไฟล์] after VERIFIED above, in $D
+curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/$C/zetaphy-chain/join-validator.sh -o join-validator.sh
+echo "$(jq -r '.scripts["join-validator.sh"]' RELEASE.json)  join-validator.sh" | sha256sum -c -   # must print: OK
+sudo REF=$C RELEASE_TAG=$R MONIKER=your-name bash join-validator.sh install
+```
+
+Not covered here: a binary pinned by the governance-voted upgrade plan (`Plan.Info`) itself; the signed release
+of this repository's workflow on `main` is the anchor.
+
+### Publishing setup-node.sh (cloud-init): publish first, then move the pin
+
+Internal review 2026-11-10, Z-05. `cloud-init.sh` downloads `v/<sha256>.sh` from the public repository
+`pospos191-alt/zetaphy-chain` and stops when it is not there. Workflow `cloud-init-published.yml` asks the public
+repository (`audit/tools/cloud-init-published.sh`: `curl -fsI` on the pinned URL, then its sha256):
+
+| When | What it does |
+|---|---|
+| pull request touching `setup-node.sh` / `cloud-init.sh` | a warning only (the file may be published later, before the merge) |
+| push to `main`, every day, manual run | fails, and opens (or adds to) the issue "cloud-init.sh pins a setup-node.sh that is not published"; closes it once the file is there; a network error is only a warning |
+
+The order for the owner, every time `setup-node.sh` changes:
+
+1. In the pull request: `bash zetaphy-chain/pack-cloud-init.sh` (writes `cloud-init.sh` and `zetaphy-chain/public/`).
+2. **Publish first**: copy `zetaphy-chain/public/v/<sha256>.sh` into the public repository's `v/`, unchanged, and push
+   it (a file named by its own sha256 is never changed or deleted later). Check:
+   `curl -fsI https://raw.githubusercontent.com/pospos191-alt/zetaphy-chain/main/v/<sha256>.sh` answers 200.
+3. **Then** merge the pull request that moves the pin on `main`. `cloud-init-published` on `main` must pass.
+4. After the merge: copy the same file over the public `setup-node.sh` (the "latest" copy) and `README.md`.
 
 ## L1-4: no dependency downgrades
 
@@ -165,18 +262,26 @@ blocks the wallet holds proofs for count for "lower").
 The escape hatch (docs/SAPHAN-SAFETY.md) needs ZETAPHY's validators to sign an exit root. If they do not within
 **`FORCE_AFTER` (7 days) after escaping begins** (14 days without a heartbeat), holders exit on **their own proof**:
 
-- `prove(account, height, balance, proof)`: token(X)'s `balanceOf[account]` = `balance` in ZETAPHY's state at `height`,
-  whose app hash `StarkLightClient` finalized; IAVL path of key `0x02 || token || keccak256(account, 3)` and the
-  multistore path of `evm` (the proof code of the proven releases). Anyone may prove for anyone; money only goes to the
-  account. A **later finalized height replaces an earlier one** (anyone, until paid): a stale proof (a balance spent
-  since) is corrected by whoever holds a newer one, e.g. any archive node, within the 3-day challenge window.
-- `finalize(account)` after the window: the lockbox pays the account, pro rata against the last heartbeat's token(X)
-  supply (proof of reserves), once per address, never more owed in all than that supply. After the first forced payout
-  no exit root is accepted; an exit root that came in time closes the forced path.
-- `src/forcedexit.js forcedExitArgs({ proof, height, holder, token })` turns the wallet's stored `eth_getProof(token,
-  [slot], H)` answer (ICS23 ops) into `prove`'s arguments, after checking the key, the IAVL leaf spec and the `evm` store.
-  The proof at block H verifies against `appHashAt(H)`, the app hash in header H, which the PQ certificate in block H+1
-  certifies.
+- **One height for every claim** (internal review 2026-11-12, Z-43): each heartbeat (`SaphanCheckpointer`, 224-byte
+  body) carries ZETAPHY's block height next to the supply; the lockbox keeps it as `snapshotHeight`
+  (`SaphanCheckpointer.lastHeight()` on ZETAPHY is the same number). Claims are of exactly that height: no earlier one,
+  no later one. So each account counts once, in the same state the supply is of, and the claims add up to that state's
+  balances. The older 192-byte heartbeat (no height) still keeps the route alive but clears the snapshot: no forced
+  payout until a heartbeat with a height arrives.
+- `prove(account, snapshotHeight, balance, proof)`: token(X)'s `balanceOf[account]` = `balance` in ZETAPHY's state at
+  the snapshot height, whose app hash `StarkLightClient` finalized; IAVL path of key `0x02 || token || keccak256(account, 3)`
+  and the multistore path of `evm` (the proof code of the proven releases). Anyone may prove for anyone; money only goes
+  to the account. Once per account and snapshot. If a heartbeat came in between (ZETAPHY was back, then silent again),
+  a claim of the old snapshot is not paid; a proof at the new one replaces it.
+- `finalize(account)` after the 3-day window: the lockbox pays the account (`forcedPay` checks the height again), pro
+  rata against the last heartbeat's token(X) supply (proof of reserves), once per address, never more owed in all than
+  that supply. After the first forced payout no heartbeat or exit root is accepted, so the snapshot cannot move; an exit
+  root that came in time closes the forced path.
+- `src/forcedexit.js forcedExitArgs({ proof, height, holder, token, snapshotHeight })` turns an `eth_getProof(token,
+  [slot], H)` answer (ICS23 ops) into `prove`'s arguments, after checking the key, the IAVL leaf spec, the `evm` store
+  and (with `snapshotHeight`, from `ZetaphyForcedExit.snapshotHeight()`) that H is the snapshot height. The proof at
+  block H verifies against `appHashAt(H)`, the app hash in header H. Get it from any archive node at the snapshot height;
+  the wallet's own checkpoints are at other heights (see below).
 
 Governance names the forced exit once (`setForcedExit`, never while escaping), like the checkpointer. Not covered:
 releases queued on the lockbox and locks ZETAPHY never minted (the validators' exit root covers those).
@@ -188,10 +293,10 @@ releases queued on the lockbox and locks ZETAPHY never minted (the validators' e
    `zetaphy_storageProof(address, slot, height)` returning exactly those two ICS23 existence proofs and the header height.
 2. **`zetaphy_pqCertificate(height)`** on the EVM JSON-RPC (header H, block H+1's certificate tx, the validator set and
    vote keys at H), so wallets that only know the EVM RPC can keep the certificate without the CometBFT port.
-3. **A heartbeat that carries a finalized height** (SaphanCheckpointer body: add `block.number`), so the lockbox can set
-   a floor under the heights `prove` accepts (today any finalized height is accepted and stale claims rely on newer
-   proofs); and StarkLightClient finalizing ZETAPHY regularly on each source chain (its prover must run; without it,
-   `appHashAt` has nothing and forced exits cannot start).
+3. Done: the heartbeat carries its height and claims are pinned to it. Still needed: StarkLightClient finalizing
+   ZETAPHY on each source chain, at least every heartbeat's height (its prover must run; without the snapshot height in
+   `appHashAt`, forced exits cannot start), and the wallet keeping its own `eth_getProof` at the last heartbeat's height
+   (`SaphanCheckpointer.lastHeight()`), so a holder does not depend on an archive node.
 4. Optional: token(X) checkpoints of a balances root in state, so one proof covers every holder (no per-account
    challenge needed).
 
@@ -199,8 +304,10 @@ releases queued on the lockbox and locks ZETAPHY never minted (the validators' e
 
 ```
 node --test audit/tools/no-downgrade.test.js      # 19 pass (12 mutation cases: each deliberate downgrade fails)
-node --test audit/tools/verify-release.test.js    # 7 pass
-cd zetaphy-network && node --test test/zetaphybounty.test.js test/forcedexit.test.js   # 10 + 7 pass
-cd zetaphy-network && forge test --match-path 'audit/invariants/{ZetaphyBounty,ForcedExit}.inv.t.sol'   # 8 pass
+node --test audit/tools/verify-release.test.js    # 12 pass (Z-49: handler list without a record, no unsigned path, freshness; start-guard revert)
+node --test audit/tools/join-validator-release.test.js   # 9 pass (installs only verified releases)
+node --test audit/tools/cloud-init-published.test.js     # 7 pass (cloud-init pin is published)
+cd zetaphy-network && node --test test/zetaphybounty.test.js test/forcedexit.test.js   # 10 + 9 pass
+cd zetaphy-network && forge test --match-path 'audit/invariants/{ZetaphyBounty,ForcedExit}.inv.t.sol'   # 13 pass
 cd zetaphy-wallet && npm test                      # 40 pass (3 new: rollback alarm)
 ```

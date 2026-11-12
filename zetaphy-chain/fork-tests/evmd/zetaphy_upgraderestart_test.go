@@ -111,7 +111,7 @@ func restartLastDone(t *testing.T, app *EVMD) (string, int64) {
 
 // Every upgrade a ZETAPHY chain may have completed keeps its handler.
 func TestUpgradeNamesKeepEveryHandler(t *testing.T) {
-	require.Equal(t, []string{"v0.6.0-to-v0.7.0", "zetaphy-v2", "zetaphy-v3", "zetaphy-v4", "zetaphy-v5", "zetaphy-firewall", "zetaphy-guard"}, zetaphyUpgradeNames,
+	require.Equal(t, []string{"v0.6.0-to-v0.7.0", "zetaphy-v2", "zetaphy-v3", "zetaphy-v4", "zetaphy-v5", "zetaphy-firewall", "zetaphy-guard", "zetaphy-shield"}, zetaphyUpgradeNames,
 		"append new upgrades; never drop one a running chain may have completed")
 	app, _ := pqApp(t)
 	for _, n := range zetaphyUpgradeNames {

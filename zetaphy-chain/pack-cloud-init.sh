@@ -50,5 +50,5 @@ with post-quantum ML-DSA-44 accounts and vote signatures).
 
 Testnet only. No keys or secrets are in this repository.
 MD
-  echo "wrote cloud-init.sh ($(wc -c < cloud-init.sh) bytes); publish public/ to github.com/$PUBLIC_REPO"
+  echo "wrote cloud-init.sh ($(wc -c < cloud-init.sh) bytes); publish public/v/$sha.sh to github.com/$PUBLIC_REPO BEFORE merging this pin, then check: bash audit/tools/cloud-init-published.sh (docs/ANTI-ROLLBACK-OFFCHAIN.md, \"Publishing setup-node.sh\")"
 fi

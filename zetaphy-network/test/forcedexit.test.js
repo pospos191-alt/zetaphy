@@ -2,7 +2,8 @@
 // the escape hatch's exit root within FORCE_AFTER, each holder leaves the lockbox with the proof THEY hold: token(X)'s
 // balanceOf[holder] in a ZETAPHY state the light client finalized (IAVL + multistore proof, the same proof code as
 // proven releases). ZetaphyForcedExit checks it; HyperlaneLockBoxV2.forcedPay pays, pro rata against the last
-// heartbeat's supply. The newest finalized height wins, so a stale proof is corrected by a newer one.
+// heartbeat's supply. Every claim is of one height: the one the last heartbeat carried (snapshotHeight), the state
+// that supply is of; no other height counts (internal review 2026-11-12, Z-43).
 // The route is saphansafety.test.js's (one EVM plays both chains); the light client is KitLightClient (the real
 // StarkLightClient's STARK / ML-DSA checks are in starkbridge.test.js); the ZETAPHY state is helpers/starkbridge.js
 // zetaphyBlock: a real IAVL evm store and multistore.
@@ -118,7 +119,14 @@ beforeEach(async () => {
   zMailbox = await c.deployRaw(mailboxArt(), [ZETAPHY], 'gov');
 });
 
-/** alice 3 and bob 1 bridged in; a heartbeat says supply 4; then ZETAPHY goes silent. */
+/** The forced exit's snapshot: the ZETAPHY height the last heartbeat carried (a Number, for zetaphyState). */
+async function snapOf(r) {
+  const h = await r.lockbox.call('snapshotHeight');
+  assert.equal(await r.fe.call('snapshotHeight'), h);
+  return Number(h);
+}
+
+/** alice 3 and bob 1 bridged in; a heartbeat says supply 4 (at height S = r.S); then ZETAPHY goes silent. */
 async function stopped() {
   const r = await route();
   await r.lockbox.send('gov', 'setForcedExit', [r.fe.address]);
@@ -126,6 +134,9 @@ async function stopped() {
   await bridgeIn(r, 'bob', E);
   await beat(r);
   assert.equal(await r.lockbox.call('zetaphySupply'), 4n * E);
+  r.S = await snapOf(r);
+  assert.ok(r.S > 0, 'the heartbeat carried its height');
+  assert.equal(BigInt(r.S), await r.cp.call('lastHeight'), "the checkpointer's height is the lockbox's snapshot");
   return r;
 }
 
@@ -136,30 +147,33 @@ test('setForcedExit: governance only, never once escaping (it cannot be swapped 
   c.advance(14 * DAY + 1);
   assert.equal(await r.lockbox.call('escaping'), true);
   await assert.rejects(r.lockbox.send('gov', 'setForcedExit', [a('gov')]), /Escaping/);
-  await assert.rejects(r.lockbox.send('attacker', 'forcedPay', [a('attacker'), E]), /NotForcedExit/, 'only the forced exit contract');
+  await assert.rejects(r.lockbox.send('attacker', 'forcedPay', [a('attacker'), E, 1]), /NotForcedExit/, 'only the forced exit contract');
 });
 
 test('forced exit: validators silent past FORCE_AFTER; each holder proves its own balance at a finalized height and is paid once', async () => {
   const r = await stopped();
-  const proof = await zetaphyState(r, 500, { alice: 3n * E, bob: E });
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, proof('alice')]), /NotEscaping/, 'ZETAPHY is still alive');
+  const S = r.S;
+  const proof = await zetaphyState(r, S, { alice: 3n * E, bob: E });
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S, 3n * E, proof('alice')]), /NotEscaping/, 'ZETAPHY is still alive');
   c.advance(14 * DAY + 1);
   assert.equal(await r.lockbox.call('escaping'), true);
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, proof('alice')]), /TooSoon/, 'the validators get FORCE_AFTER to sign an exit root first');
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S, 3n * E, proof('alice')]), /TooSoon/, 'the validators get FORCE_AFTER to sign an exit root first');
   c.advance(7 * DAY);
-  // wrong balance, wrong account, unfinalized height: refused
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 500, 4n * E, proof('alice')]), /BadStateProof/);
-  await assert.rejects(r.fe.send('attacker', 'prove', [a('attacker'), 500, 3n * E, proof('alice')]), /BadStateProof/, "alice's proof is not the attacker's");
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 499, 3n * E, proof('alice')]), /Unknown|BadStateProof|revert/, 'a height the light client never finalized');
-  await r.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, proof('alice')]);
-  await r.fe.send('watcher', 'prove', [a('bob'), 500, E, proof('bob')]);   // anyone may prove for anyone: the money only goes to bob
+  // wrong balance, wrong account, another height: refused
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S, 4n * E, proof('alice')]), /BadStateProof/);
+  await assert.rejects(r.fe.send('attacker', 'prove', [a('attacker'), S, 3n * E, proof('alice')]), /BadStateProof/, "alice's proof is not the attacker's");
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S - 1, 3n * E, proof('alice')]), /WrongHeight/, 'not the snapshot height');
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 0, 3n * E, proof('alice')]), /WrongHeight/);
+  await r.fe.send('alice', 'prove', [a('alice'), S, 3n * E, proof('alice')]);
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S, 3n * E, proof('alice')]), /AlreadyProven/, 'once per account and snapshot');
+  await r.fe.send('watcher', 'prove', [a('bob'), S, E, proof('bob')]);   // anyone may prove for anyone: the money only goes to bob
   await assert.rejects(r.fe.send('alice', 'finalize', [a('alice')]), /TooSoon/, 'the challenge window');
   c.advance(3 * DAY);
   const before = await c.balance('alice');
   await r.fe.send('watcher', 'finalize', [a('alice')]);
   assert.equal((await c.balance('alice')) - before, 3n * E, 'fully backed: paid in full');
   await assert.rejects(r.fe.send('watcher', 'finalize', [a('alice')]), /Paid/);
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 600, 3n * E, proof('alice')]), /Paid/);
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S, 3n * E, proof('alice')]), /Paid/);
   const bobBefore = await c.balance('bob');
   await r.fe.send('watcher', 'finalize', [a('bob')]);
   assert.equal((await c.balance('bob')) - bobBefore, E);
@@ -171,8 +185,8 @@ test('forced exit: validators silent past FORCE_AFTER; each holder proves its ow
 test('after the first forced payout no exit root counts (and an exit root first closes the forced path)', async () => {
   const r = await stopped();
   c.advance(21 * DAY + 1);
-  const proof = await zetaphyState(r, 500, { alice: 3n * E });
-  await r.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, proof('alice')]);
+  const proof = await zetaphyState(r, r.S, { alice: 3n * E });
+  await r.fe.send('alice', 'prove', [a('alice'), r.S, 3n * E, proof('alice')]);
   c.advance(3 * DAY);
   await r.fe.send('alice', 'finalize', [a('alice')]);
   const owed = [[a('bob'), 4n * E]];
@@ -190,40 +204,78 @@ test('after the first forced payout no exit root counts (and an exit root first 
   const d2 = await r2.lockbox.call('exitDigest', [t2.root, t2.total]);
   await r2.lockbox.send('relayer', 'submitExitRoot', [t2.root, t2.total, OURS.slice(0, 2).map((w) => w.signMessageSync(getBytes(d2)))]);
   c.advance(7 * DAY);
-  const p2 = await zetaphyState(r2, 500, { alice: 3n * E });
-  await r2.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, p2('alice')]);
+  const p2 = await zetaphyState(r2, r2.S, { alice: 3n * E });
+  await r2.fe.send('alice', 'prove', [a('alice'), r2.S, 3n * E, p2('alice')]);
   c.advance(3 * DAY);
   await assert.rejects(r2.fe.send('alice', 'finalize', [a('alice')]), /ExitDone/);
 });
 
-test('rollback / stale proof: a later finalized height replaces an earlier one (anyone); an earlier one cannot replace a later one', async () => {
+test('Z-43: claims are pinned to the snapshot height: tokens moved across heights count once, a later (fabricated) height counts not at all', async () => {
   const r = await stopped();
+  const S = r.S;
   c.advance(21 * DAY + 1);
-  // at height 500 alice had 3; by height 700 she had sent 2 to carol (her old proof would overclaim)
-  const s500 = await zetaphyState(r, 500, { alice: 3n * E, bob: E });
-  const s700 = await zetaphyState(r, 700, { alice: E, bob: E, carol: 2n * E });
-  await r.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, s500('alice')]);
-  await r.fe.send('watcher', 'prove', [a('alice'), 700, E, s700('alice')]);      // the correction, by anyone with the newer state
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 500, 3n * E, s500('alice')]), /NotNewer/);
-  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), 700, E, s700('alice')]), /NotNewer/);
-  await r.fe.send('carol', 'prove', [a('carol'), 700, 2n * E, s700('carol')]);
-  await r.fe.send('bob', 'prove', [a('bob'), 700, E, s700('bob')]);
+  // the snapshot: alice 3, bob 1. Other finalized heights show other balances (before it, after it, and one far
+  // above it that is not ZETAPHY's state at all): none of them counts.
+  const sBefore = await zetaphyState(r, S - 1, { alice: 4n * E, bob: 0n });
+  const sSnap = await zetaphyState(r, S, { alice: 3n * E, bob: E, carol: 0n, attacker: 0n });
+  const sAfter1 = await zetaphyState(r, S + 1, { alice: 0n, bob: E, carol: 3n * E });
+  const sAfter2 = await zetaphyState(r, S + 2, { alice: 0n, bob: E, carol: 0n, attacker: 3n * E });
+  const sFake = await zetaphyState(r, S + 1000, { alice: 0n, bob: 0n, attacker: 4n * E });
+  for (const [h, st, who, v] of [[S - 1, sBefore, 'alice', 4n * E], [S + 1, sAfter1, 'carol', 3n * E], [S + 2, sAfter2, 'attacker', 3n * E], [S + 1000, sFake, 'attacker', 4n * E]]) {
+    await assert.rejects(r.fe.send('attacker', 'prove', [a(who), h, v, st(who)]), /WrongHeight/, `height ${h} is not the snapshot ${S}`);
+  }
+  // an older claim cannot be replaced by a later height either
+  await r.fe.send('alice', 'prove', [a('alice'), S, 3n * E, sSnap('alice')]);
+  await assert.rejects(r.fe.send('watcher', 'prove', [a('alice'), S + 1, 0n, sAfter1('alice')]), /WrongHeight/);
+  await r.fe.send('bob', 'prove', [a('bob'), S, E, sSnap('bob')]);
+  await r.fe.send('carol', 'prove', [a('carol'), S, 0n, sSnap('carol')]);
+  await r.fe.send('attacker', 'prove', [a('attacker'), S, 0n, sSnap('attacker')]);
   c.advance(3 * DAY);
-  for (const who of ['alice', 'carol', 'bob']) {
+  let paid = 0n;
+  for (const who of ['alice', 'bob', 'carol', 'attacker']) {
     const b0 = await c.balance(who);
     await r.fe.send('watcher', 'finalize', [a(who)]);
-    assert.equal((await c.balance(who)) - b0, { alice: E, carol: 2n * E, bob: E }[who]);
+    const got = (await c.balance(who)) - b0;
+    assert.equal(got, { alice: 3n * E, bob: E, carol: 0n, attacker: 0n }[who]);
+    paid += got;
   }
+  assert.equal(paid, 4n * E, 'exactly the supply at the snapshot, every honest holder paid in full');
+  assert.equal(await r.lockbox.call('forcedOwed'), 4n * E);
   assert.equal(await r.lockbox.call('locked'), 0n);
+});
+
+test('a heartbeat between two silences moves the snapshot: a claim of the old one is not paid, a proof at the new one replaces it', async () => {
+  const r = await stopped();
+  const S1 = r.S;
+  c.advance(21 * DAY + 1);
+  const s1 = await zetaphyState(r, S1, { alice: 3n * E, bob: E });
+  await r.fe.send('alice', 'prove', [a('alice'), S1, 3n * E, s1('alice')]);
+  c.mine(5);
+  await beat(r);                                   // ZETAPHY is back: the escape ends
+  assert.equal(await r.lockbox.call('escaping'), false);
+  const S2 = await snapOf(r);
+  assert.ok(S2 > S1);
+  c.advance(21 * DAY + 1);
+  c.advance(3 * DAY);
+  await assert.rejects(r.fe.send('watcher', 'finalize', [a('alice')]), /WrongHeight/, 'a claim of the old snapshot');
+  const s2 = await zetaphyState(r, S2, { alice: 2n * E, bob: 2n * E });
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), S1, 3n * E, s1('alice')]), /WrongHeight/);
+  await r.fe.send('alice', 'prove', [a('alice'), S2, 2n * E, s2('alice')]);
+  await assert.rejects(r.fe.send('watcher', 'finalize', [a('alice')]), /TooSoon/, 'a new proof, a new window');
+  c.advance(3 * DAY);
+  const b0 = await c.balance('alice');
+  await r.fe.send('watcher', 'finalize', [a('alice')]);
+  assert.equal((await c.balance('alice')) - b0, 2n * E);
 });
 
 test('the cap: never more owed in all than the last heartbeat\'s supply; pro rata when the backing is short', async () => {
   const r = await stopped();
   c.advance(21 * DAY + 1);
   // a (forged-looking but finalized) state that owes more than the supply: the lockbox refuses the overflow
-  const s = await zetaphyState(r, 900, { alice: 3n * E, attacker: 2n * E, bob: E });
-  await r.fe.send('alice', 'prove', [a('alice'), 900, 3n * E, s('alice')]);
-  await r.fe.send('attacker', 'prove', [a('attacker'), 900, 2n * E, s('attacker')]);
+  // (at the snapshot height itself: the cap still holds)
+  const s = await zetaphyState(r, r.S, { alice: 3n * E, attacker: 2n * E, bob: E });
+  await r.fe.send('alice', 'prove', [a('alice'), r.S, 3n * E, s('alice')]);
+  await r.fe.send('attacker', 'prove', [a('attacker'), r.S, 2n * E, s('attacker')]);
   c.advance(3 * DAY);
   await r.fe.send('watcher', 'finalize', [a('alice')]);
   await assert.rejects(r.fe.send('watcher', 'finalize', [a('attacker')]), /OverSupply/, 'only 1 of the 4 supply is left');
@@ -242,8 +294,9 @@ test('the cap: never more owed in all than the last heartbeat\'s supply; pro rat
   assert.equal(await r2.lockbox.call('locked'), E);
   const supply = await r2.lockbox.call('zetaphySupply');
   c.advance(21 * DAY + 1);
-  const st = await zetaphyState(r2, 50, { alice: E });
-  await r2.fe.send('alice', 'prove', [a('alice'), 50, E, st('alice')]);
+  const S2 = await snapOf(r2);
+  const st = await zetaphyState(r2, S2, { alice: E });
+  await r2.fe.send('alice', 'prove', [a('alice'), S2, E, st('alice')]);
   c.advance(3 * DAY);
   const b0 = await c.balance('alice');
   await r2.fe.send('watcher', 'finalize', [a('alice')]);
@@ -252,16 +305,20 @@ test('the cap: never more owed in all than the last heartbeat\'s supply; pro rat
   assert.equal(paid, E / 2n, 'owed 1 x pool 1 / supply 2');
 });
 
-test('a zero balance closes the claim without a payout; an account proven twice at the same height is refused', async () => {
+test('a zero balance clears the claim without a payout; an account proven twice at the same height is refused', async () => {
   const r = await stopped();
   c.advance(21 * DAY + 1);
-  const s = await zetaphyState(r, 10, { carol: 0n, alice: 3n * E });
-  await r.fe.send('carol', 'prove', [a('carol'), 10, 0n, s('carol')]);
+  const s = await zetaphyState(r, r.S, { carol: 0n, alice: 3n * E });
+  await r.fe.send('carol', 'prove', [a('carol'), r.S, 0n, s('carol')]);
+  await assert.rejects(r.fe.send('watcher', 'prove', [a('carol'), r.S, 0n, s('carol')]), /AlreadyProven/);
+  await r.fe.send('alice', 'prove', [a('alice'), r.S, 3n * E, s('alice')]);
+  await assert.rejects(r.fe.send('alice', 'prove', [a('alice'), r.S, 3n * E, s('alice')]), /AlreadyProven/);
   c.advance(3 * DAY);
   const ev = await r.fe.send('carol', 'finalize', [a('carol')]);
   assert.equal(ev.find((e) => e?.name === 'Finalized').args.paid, 0n);
   assert.equal(await r.lockbox.call('forced'), false, 'nothing paid: forced mode not even started');
   await assert.rejects(r.fe.send('carol', 'finalize', [a('bob')]), /NoClaim/);
+  await assert.rejects(r.fe.send('carol', 'finalize', [a('carol')]), /NoClaim/, 'cleared');
   assert.ok((await eth(r.lockbox.address)) >= 4n * E);
 });
 
@@ -286,26 +343,29 @@ test('the proof the wallet keeps: eth_getProof (ICS23 ops) at a certified block 
   const slot = balanceSlot(a('alice'));
   const value = getBytes(toBeHex(3n * E, 32));
   const entries = [{ key: storageKey(r.token, BigInt(slot)), value }, { key: storageKey(r.token, 2n), value: getBytes(toBeHex(4n * E, 32)) }];
-  const evm = buildIavl(entries, 41);
+  const S = r.S;
+  const evm = buildIavl(entries, S - 1);
   const stores = { acc: new Uint8Array(32).fill(1), bank: new Uint8Array(32).fill(2), evm: evm.root, zetaphypq: new Uint8Array(32).fill(3) };
   const appHash = multistoreRoot(stores);
-  await r.lc.send('gov', 'set', [42, '0x' + Buffer.from(appHash).toString('hex')]);
+  await r.lc.send('gov', 'set', [S, '0x' + Buffer.from(appHash).toString('hex')]);
   const p = evm.prove(storageKey(r.token, BigInt(slot)));
   const IAVL_LEAF = { hash: 1, prehashKey: 0, prehashValue: 1, length: 1 };
-  const answer = { // what the wallet stored (eth_getProof(token, [slot], 42))
+  const answer = { // eth_getProof(token, [slot], S): the node's answer at the snapshot height
     address: r.token, balance: '0x0', storageProof: [{ key: slot, value: toBeHex(3n * E), proof: [
       ics23({ key: p.key, value: p.value, leaf: { ...IAVL_LEAF, prefix: p.leafPrefix }, path: p.path }),
       ics23({ key: new TextEncoder().encode('evm'), value: evm.root, leaf: { hash: 1, prehashKey: 0, prehashValue: 1, length: 1, prefix: Uint8Array.of(0) }, path: multistoreProof(stores, 'evm') }),
     ] }],
   };
   assert.equal(decodeExistenceProof(answer.storageProof[0].proof[1]).path.length, multistoreProof(stores, 'evm').length);
-  const args = forcedExitArgs({ proof: answer, height: 42, holder: a('alice'), token: r.token });
+  const snapshotHeight = await r.fe.call('snapshotHeight');
+  const args = forcedExitArgs({ proof: answer, height: S, holder: a('alice'), token: r.token, snapshotHeight });
   assert.equal(args[2], 3n * E);
+  assert.throws(() => forcedExitArgs({ proof: answer, height: S + 1, holder: a('alice'), token: r.token, snapshotHeight }), /snapshot height/);
   await r.fe.send('watcher', 'prove', args);
   // wrong holder / token / a tampered balance are caught before anything is sent
-  assert.throws(() => forcedExitArgs({ proof: answer, height: 42, holder: a('bob'), token: r.token }), /not balanceOf/);
-  assert.throws(() => forcedExitArgs({ proof: answer, height: 42, holder: a('alice'), token: a('gov') }), /IAVL proof is for key/);
-  assert.throws(() => forcedExitArgs({ proof: { ...answer, storageProof: [{ ...answer.storageProof[0], value: toBeHex(9n * E) }] }, height: 42, holder: a('alice'), token: r.token }), /IAVL proof says/);
+  assert.throws(() => forcedExitArgs({ proof: answer, height: S, holder: a('bob'), token: r.token }), /not balanceOf/);
+  assert.throws(() => forcedExitArgs({ proof: answer, height: S, holder: a('alice'), token: a('gov') }), /IAVL proof is for key/);
+  assert.throws(() => forcedExitArgs({ proof: { ...answer, storageProof: [{ ...answer.storageProof[0], value: toBeHex(9n * E) }] }, height: S, holder: a('alice'), token: r.token }), /IAVL proof says/);
   c.advance(3 * DAY);
   const b0 = await c.balance('alice');
   await r.fe.send('watcher', 'finalize', [a('alice')]);

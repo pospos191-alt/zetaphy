@@ -236,10 +236,22 @@ Only one copy of the script runs at a time; a second one says so and exits. Anyo
 binary from the same sources (`.github/workflows/release-zetaphyd.yml`) and compare the hash.
 Each binary also has a signed build provenance (Sigstore), which shows it was built by that workflow
 from a commit of this repository and not uploaded by hand:
-`gh attestation verify zetaphyd-linux-$ARCH --repo pospos191-alt/zetaphy`
+`gh attestation verify zetaphyd-linux-$ARCH --repo pospos191-alt/zetaphy`. The full check before installing (signature
+of the release workflow on `main`, hashes, no older release than the installed one) is `verify-release.sh`, with cosign
+and no account: [docs/ANTI-ROLLBACK-OFFCHAIN.md](../docs/ANTI-ROLLBACK-OFFCHAIN.md), "On the VM".
 
 **Updating a running node** (keys and chain data kept; settings, rpc-guard and Caddy redone, node restarted):
 `curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo bash -s -- update`
+(it installs only a release that `verify-release.sh` accepts, and refuses otherwise).
+
+### Publishing setup-node.sh (owner): publish first, then move the pin
+
+`cloud-init.sh` downloads `v/<sha256>.sh` from the public repository `pospos191-alt/zetaphy-chain`, so that file must
+exist before `main` pins it: run `pack-cloud-init.sh` in the pull request, push `public/v/<sha256>.sh` (unchanged) to the
+public repository, check `curl -fsI https://raw.githubusercontent.com/pospos191-alt/zetaphy-chain/main/v/<sha256>.sh`,
+then merge; afterwards copy it over the public `setup-node.sh`. Workflow `cloud-init-published.yml` warns on pull
+requests and fails (with an issue) on `main` and daily while the pinned file is missing. Details:
+[docs/ANTI-ROLLBACK-OFFCHAIN.md](../docs/ANTI-ROLLBACK-OFFCHAIN.md), "Publishing setup-node.sh".
 
 ### Your own domain for the RPC
 

@@ -8,7 +8,10 @@
 #
 # Your own name:  ... | sudo MONIKER=my-name bash -s -- validator
 #
-#  1. downloads setup-node.sh and the zetaphyd that GitHub Actions built from it (SHA-256 checked)
+#  1. downloads setup-node.sh and the zetaphyd that GitHub Actions built and signed from it, and checks them with
+#     verify-release.sh (Sigstore signature of this repository's release workflow on main, SHA-256, no older
+#     release than the installed one) before anything of it runs as root; an unsigned or unverifiable release is
+#     refused (ALLOW_UNVERIFIED_INSTALL=1: a deliberate, logged exception; never for the upgrade timer)
 #  2. sets up a node of the running chain (JOIN=rpc.sawasdeecoin.com); its faucet sends this node 10 ZETAPHY
 #  3. a timer checks every 10 minutes: once the node has caught up and holds the coins, it stakes
 #     9 ZETAPHY and becomes a validator by itself; then the timer stops
@@ -36,6 +39,8 @@
 #                                     Off: AUTO_UPGRADE=0 at install/update, or systemctl disable --now zetaphy-upgrade.timer
 #   sudo zetaphy-validator preflight  can this machine run a validator? (changes nothing, except on WSL
 #                                     without systemd: it switches systemd on in /etc/wsl.conf)
+#   sudo zetaphy-validator download   only download and verify the signed release into /usr/local/lib/zetaphy-validator
+#                                     (RELEASE_TAG=zetaphyd-<12 hex> pins one; VERIFIER=gh uses gh instead of cosign)
 #
 # Testnet only. Keys are made on this machine and never printed or sent anywhere.
 set -euo pipefail
@@ -45,7 +50,18 @@ REF="${REF:-main}"
 JOIN="${JOIN:-rpc.sawasdeecoin.com}"
 STAKE="${STAKE:-9}"                                   # ZETAPHY staked; the faucet gives 10, the rest pays fees
 LIB="${LIB:-/usr/local/lib/zetaphy-validator}"        # setup-node.sh and the binary it was built from
-SELF_BIN=/usr/local/bin/zetaphy-validator
+SELF_BIN="${SELF_BIN:-/usr/local/bin/zetaphy-validator}"
+RELEASE_TAG="${RELEASE_TAG:-}"                       # pin a release (zetaphyd-<12 hex>); empty: setup-node.sh's at $REF
+RECORD_FILE="${RECORD_FILE:-/var/lib/zetaphy/installed-release.json}"   # verify-release.sh's anti-rollback record
+RAW_BASE="${RAW_BASE:-https://raw.githubusercontent.com}"   # (tests point these at stand-ins)
+DL_BASE="${DL_BASE:-https://github.com}"
+# What may run as root is checked against these pins first (internal review 2026-11-10, Z-04):
+# verify-release.sh of this same commit (a test keeps the hash in step with the file), and cosign, the free
+# Sigstore verifier, from its own release (hashes from that release's cosign_checksums.txt).
+VERIFY_RELEASE_SHA256="b409ec8407f91bad102136c5eee0bff540ac5e955001ff5e3cd43f64b75360b6"
+COSIGN_VERSION="v3.1.4"
+COSIGN_SHA256_amd64="424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa"
+COSIGN_SHA256_arm64="ade83b7aac62e131cacfe96d958948b2150cc9efec46a570a2649b8e27dedad2"
 NODE_USER="${NODE_USER:-zetaphy}"
 NODE_HOME="${NODE_HOME:-/home/$NODE_USER/.zetaphy}"
 KEYS_DIR="${KEYS_DIR:-/home/$NODE_USER/.zetaphy-genesis-keys}"
@@ -189,33 +205,172 @@ check_moniker() {
   [ -z "${MONIKER:-}" ] || [[ "$MONIKER" =~ ^[A-Za-z0-9._-]{1,40}$ ]] || die "MONIKER: use only letters, digits, . _ - (at most 40), e.g. MONIKER=my-node"
 }
 
-# setup-node.sh from $REPO@$REF and the zetaphyd GitHub Actions built from it
-# (release named after its SHA-256; the binary's SHA-256 checked). Sets binenv.
-fetch_release() {
-  local arch=$1
-  say "setup-node.sh and the prebuilt zetaphyd ($REPO@$REF)"
-  install -d -m 755 "$LIB"
-  curl -fsSL "https://raw.githubusercontent.com/$REPO/$REF/zetaphy-chain/setup-node.sh" -o "$LIB/setup-node.sh"
-  local s tag rel; s=$(sha256sum "$LIB/setup-node.sh" | cut -d' ' -f1); tag="zetaphyd-${s:0:12}"
-  rel="https://github.com/$REPO/releases/download/$tag"
-  rm -f "$LIB/SHA256SUMS" "$LIB/zetaphyd-linux-$arch"
-  binenv=()
-  if curl -fsSL "$rel/SHA256SUMS" -o "$LIB/SHA256SUMS" && curl -fsSL "$rel/zetaphyd-linux-$arch" -o "$LIB/zetaphyd-linux-$arch"; then
-    (cd "$LIB" && sha256sum -c --ignore-missing --quiet SHA256SUMS) || die "zetaphyd does not match the SHA-256 of release $tag: refused"
-    chmod 755 "$LIB/zetaphyd-linux-$arch"
-    binenv=(ZETAPHYD_BIN="$LIB/zetaphyd-linux-$arch")
-    echo "release $tag, zetaphyd-linux-$arch: SHA-256 ok"
-  else
-    echo "no prebuilt zetaphyd for setup-node.sh ${s:0:12} yet: building from source (15-60 minutes, needs 2 GB RAM or swap)"
+sha256() { sha256sum "$1" | cut -d' ' -f1; }
+get() { curl -fsSL --retry 3 "$1" -o "$2"; }
+
+# A deliberate exception to the signature check, logged where an operator looks later (journal + $STATE).
+unverified() {
+  local why="$1"
+  if [ "${ALLOW_UNVERIFIED_INSTALL:-0}" != 1 ]; then
+    die "$why: refused, nothing was installed.
+  Wait until the release workflow has published and signed the release for this setup-node.sh, or pin an existing
+  one: RELEASE_TAG=zetaphyd-<12 hex>. ALLOW_UNVERIFIED_INSTALL=1 runs it unchecked on purpose (logged; avoid)."
   fi
+  local msg="UNVERIFIED install on purpose (ALLOW_UNVERIFIED_INSTALL=1): $why; repo $REPO@$REF"
+  echo "WARNING: $msg" >&2
+  command -v logger >/dev/null 2>&1 && logger -t zetaphy-validator -p auth.warning "$msg" 2>/dev/null || true
+  install -d -m 700 "$STATE" && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $msg" >> "$STATE/unverified-installs.log"
 }
+
+# verify-release.sh (pinned by sha256 above) and, for VERIFIER=cosign (the default), cosign (pinned by sha256) in
+# $LIB. A copy already there, or next to this script, is used when it matches; otherwise it is downloaded and must match.
+verifier_ready() {
+  local arch=$1 vr="$LIB/verify-release.sh" here want c
+  if ! [ -f "$vr" ] || [ "$(sha256 "$vr")" != "$VERIFY_RELEASE_SHA256" ]; then
+    here="$(dirname "${BASH_SOURCE[0]:-/nonexistent}")/verify-release.sh"
+    if [ -f "$here" ] && [ "$(sha256 "$here")" = "$VERIFY_RELEASE_SHA256" ]; then
+      install -m 644 "$here" "$vr"
+    elif get "$RAW_BASE/$REPO/$REF/zetaphy-chain/verify-release.sh" "$vr.new" && [ "$(sha256 "$vr.new")" = "$VERIFY_RELEASE_SHA256" ]; then
+      chmod 644 "$vr.new"; mv "$vr.new" "$vr"
+    else
+      rm -f "$vr.new"
+      die "verify-release.sh at $REPO@$REF is not the one this script pins (${VERIFY_RELEASE_SHA256:0:12}): refused.
+  Run join-validator.sh and verify-release.sh of the same commit (REF=<commit>)."
+    fi
+  fi
+  case "${VERIFIER:-cosign}" in
+    gh) command -v gh >/dev/null || die "VERIFIER=gh: gh is not installed (https://cli.github.com)" ;;
+    cosign)
+      case "$arch" in amd64) want=$COSIGN_SHA256_amd64 ;; arm64) want=$COSIGN_SHA256_arm64 ;; *) die "no cosign pin for $arch" ;; esac
+      c="$LIB/bin/cosign"
+      if ! [ -x "$c" ] || [ "$(sha256 "$c")" != "$want" ]; then
+        install -d -m 755 "$LIB/bin"
+        echo "cosign $COSIGN_VERSION (the Sigstore verifier, free; SHA-256 pinned)"
+        get "$DL_BASE/sigstore/cosign/releases/download/$COSIGN_VERSION/cosign-linux-$arch" "$c.new" \
+          || { rm -f "$c.new"; die "could not download cosign $COSIGN_VERSION: refused (nothing was installed)"; }
+        [ "$(sha256 "$c.new")" = "$want" ] || { rm -f "$c.new"; die "cosign $COSIGN_VERSION does not match its pinned SHA-256: refused"; }
+        chmod 755 "$c.new"; mv "$c.new" "$c"
+      fi ;;
+    *) die "VERIFIER must be cosign or gh" ;;
+  esac
+}
+
+# verify-release.sh with the pinned verifier; extra arguments are passed on
+verify_release() {
+  PATH="$LIB/bin:$PATH" VERIFIER="${VERIFIER:-cosign}" bash "$LIB/verify-release.sh" --arch "$1" --repo "$REPO" \
+    --installed-bin "$ZETAPHYD" --record-file "$RECORD_FILE" "${@:2}"
+}
+
+# The signed release for setup-node.sh at $REPO@$REF (or RELEASE_TAG): setup-node.sh, zetaphyd, SHA256SUMS,
+# RELEASE.json and the Sigstore bundle are downloaded into $LIB/incoming and moved into $LIB only after
+# verify-release.sh passed (signature, hashes, setup-node.sh is the one the release was built from, not older than
+# the installed release). Sets binenv (ZETAPHYD_BIN=...) and RELEASE_VERIFIED.
+fetch_release() {
+  local arch=$1 in="$LIB/incoming" s tag rel f missing="" commit want
+  say "the signed release for this node ($REPO@$REF${RELEASE_TAG:+, $RELEASE_TAG})"
+  install -d -m 755 "$LIB"
+  rm -rf "$in"; install -d -m 700 "$in"
+  binenv=(); RELEASE_VERIFIED=""
+  get "$RAW_BASE/$REPO/$REF/zetaphy-chain/setup-node.sh" "$in/setup-node.sh" || die "could not download setup-node.sh from $REPO@$REF"
+  s=$(sha256 "$in/setup-node.sh")
+  tag="${RELEASE_TAG:-zetaphyd-${s:0:12}}"
+  [[ "$tag" =~ ^zetaphyd-[0-9a-f]{12}$ ]] || die "RELEASE_TAG must be zetaphyd-<12 hex>"
+  rel="$DL_BASE/$REPO/releases/download/$tag"
+  for f in RELEASE.json SHA256SUMS zetaphyd-provenance.sigstore.json; do
+    get "$rel/$f" "$in/$f" 2>/dev/null || { missing=$f; break; }
+  done
+  if [ -z "$missing" ]; then
+    # the binary (~160 MB): a copy already downloaded with the SHA-256 that SHA256SUMS lists is reused (the 1-minute
+    # upgrade timer retries a refused release; it is checked again every time, only not downloaded again)
+    want=$(awk -v f="zetaphyd-linux-$arch" '$2 == f || $2 == "*" f { print $1; exit }' "$in/SHA256SUMS")
+    if [[ "$want" =~ ^[0-9a-f]{64}$ ]] && [ -f "$LIB/zetaphyd-linux-$arch" ] && [ "$(sha256 "$LIB/zetaphyd-linux-$arch")" = "$want" ]; then
+      cp "$LIB/zetaphyd-linux-$arch" "$in/zetaphyd-linux-$arch"
+    elif [[ "$want" =~ ^[0-9a-f]{64}$ ]] && [ -f "$LIB/cache/$want" ] && [ "$(sha256 "$LIB/cache/$want")" = "$want" ]; then
+      cp "$LIB/cache/$want" "$in/zetaphyd-linux-$arch"
+    elif get "$rel/zetaphyd-linux-$arch" "$in/zetaphyd-linux-$arch" 2>/dev/null; then
+      if [[ "$want" =~ ^[0-9a-f]{64}$ ]] && [ "$(sha256 "$in/zetaphyd-linux-$arch")" = "$want" ]; then
+        rm -rf "$LIB/cache"; install -d -m 700 "$LIB/cache"; cp "$in/zetaphyd-linux-$arch" "$LIB/cache/$want"
+      fi
+    else
+      missing="zetaphyd-linux-$arch"
+    fi
+  fi
+  if [ -n "$missing" ]; then
+    unverified "no signed release $tag for setup-node.sh ${s:0:12} ($missing missing)"
+    # the old, unchecked way (logged above): setup-node.sh as downloaded, the binary against SHA256SUMS only
+    install -m 644 "$in/setup-node.sh" "$LIB/setup-node.sh"
+    [ -f "$in/SHA256SUMS" ] || get "$rel/SHA256SUMS" "$in/SHA256SUMS" 2>/dev/null || true
+    [ -f "$in/zetaphyd-linux-$arch" ] || get "$rel/zetaphyd-linux-$arch" "$in/zetaphyd-linux-$arch" 2>/dev/null || true
+    if [ -f "$in/SHA256SUMS" ] && [ -f "$in/zetaphyd-linux-$arch" ] && (cd "$in" && sha256sum -c --ignore-missing --quiet SHA256SUMS); then
+      install -m 755 "$in/zetaphyd-linux-$arch" "$LIB/zetaphyd-linux-$arch"
+      binenv=(ZETAPHYD_BIN="$LIB/zetaphyd-linux-$arch")
+      echo "release $tag, zetaphyd-linux-$arch: SHA-256 only, NOT signature-checked"
+    else
+      echo "no prebuilt zetaphyd for setup-node.sh ${s:0:12}: building from source, unchecked (15-60 minutes, needs 2 GB RAM or swap)"
+    fi
+    rm -rf "$in"
+    return 0
+  fi
+  verifier_ready "$arch"
+  # a pinned RELEASE_TAG may be another setup-node.sh than $REF's: take the one at the commit the release names
+  # (verify-release.sh then checks it is exactly the one the signed RELEASE.json was built from)
+  want=$(jq -r '.setup_node_sha256 // empty' "$in/RELEASE.json" 2>/dev/null || true)
+  commit=$(jq -r '.commit // empty' "$in/RELEASE.json" 2>/dev/null || true)
+  if [ -n "$want" ] && [ "$s" != "$want" ] && [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+    get "$RAW_BASE/$REPO/$commit/zetaphy-chain/setup-node.sh" "$in/setup-node.sh" || die "could not download setup-node.sh at $commit"
+  fi
+  verify_release "$arch" --dir "$in" --setup "$in/setup-node.sh" \
+    || die "release $tag did not verify (the REFUSED line above says why): refused, nothing was installed"
+  for f in setup-node.sh RELEASE.json SHA256SUMS zetaphyd-provenance.sigstore.json "zetaphyd-linux-$arch"; do mv -f "$in/$f" "$LIB/$f"; done
+  chmod 644 "$LIB/setup-node.sh"; chmod 755 "$LIB/zetaphyd-linux-$arch"
+  rm -rf "$in" "$LIB/cache"
+  binenv=(ZETAPHYD_BIN="$LIB/zetaphyd-linux-$arch")
+  RELEASE_VERIFIED=$tag
+  echo "release $tag, zetaphyd-linux-$arch: Sigstore signature and SHA-256 ok"
+}
+
+# After setup-node.sh installed a verified release: write verify-release.sh's record, so a later install must not
+# be older (the anti-rollback check of the next update / upgrade-watch).
+record_release() {
+  [ -n "${RELEASE_VERIFIED:-}" ] || return 0
+  verify_release "$1" --dir "$LIB" --record >/dev/null \
+    || echo "note: could not write the release record $RECORD_FILE (the next update compares with the installed binary instead)"
+}
+
+# This script as $SELF_BIN: the file that is running (install.sh hands over a file), or, when it came through a pipe
+# (curl ... | bash, so there is no file), the copy at the signed release's commit whose SHA-256 the signed
+# RELEASE.json names. Never an unchecked download.
+install_self() {
+  local src="${BASH_SOURCE[0]:-}" want commit
+  if [ -n "$src" ] && [ -f "$src" ]; then
+    [ "$src" -ef "$SELF_BIN" ] || install -m 755 "$src" "$SELF_BIN"
+    return 0
+  fi
+  want=$(jq -r '.scripts["join-validator.sh"] // empty' "$LIB/RELEASE.json" 2>/dev/null || true)
+  commit=$(jq -r '.commit // empty' "$LIB/RELEASE.json" 2>/dev/null || true)
+  if ! [[ "$want" =~ ^[0-9a-f]{64}$ && "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "zetaphy-validator: not installed from a pipe: the release names no signed copy of it. Run it from a file:
+  curl -fsSL $RAW_BASE/$REPO/main/install.sh | sudo bash -s -- validator   (install.sh saves it first)" >&2
+    return 1
+  fi
+  if get "$RAW_BASE/$REPO/$commit/zetaphy-chain/join-validator.sh" "$SELF_BIN.new" && [ "$(sha256 "$SELF_BIN.new")" = "$want" ]; then
+    chmod 755 "$SELF_BIN.new"; mv -f "$SELF_BIN.new" "$SELF_BIN"
+    echo "zetaphy-validator: the copy signed with release $(jq -r .tag "$LIB/RELEASE.json") (commit ${commit:0:12})"
+    return 0
+  fi
+  rm -f "$SELF_BIN.new"
+  echo "zetaphy-validator: the download does not match the SHA-256 the signed release names: not installed" >&2
+  return 1
+}
+
+detect_arch() { case "${ARCH:-$(uname -m)}" in x86_64|amd64) echo amd64 ;; aarch64|arm64) echo arm64 ;; *) die "unsupported CPU ${ARCH:-$(uname -m)}" ;; esac; }
 
 install_all() {
   [ "$(id -u)" = 0 ] || die "run with sudo"
   check_moniker
   [ -n "${DOWNLOAD_ONLY:-}" ] || platform
   packages
-  local arch; case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) die "unsupported CPU $(uname -m)" ;; esac
+  local arch; arch=$(detect_arch)
 
   binenv=()
   fetch_release "$arch"
@@ -228,14 +383,14 @@ install_all() {
     local menv=(); [ -n "${MONIKER:-}" ] && menv=(MONIKER="$MONIKER")
     env JOIN="$JOIN" "${binenv[@]}" "${menv[@]}" bash "$LIB/setup-node.sh" > /dev/null \
       || die "setup-node.sh failed: sudo tail -50 /var/log/zetaphy-setup.log"
+    record_release "$arch"
   fi
 
   open_p2p
   private_rpc
   say "becomes a validator by itself once synced and funded"
-  install -m 755 "${BASH_SOURCE[0]}" "$SELF_BIN" 2>/dev/null \
-    || curl -fsSL "https://raw.githubusercontent.com/$REPO/$REF/zetaphy-chain/join-validator.sh" -o "$SELF_BIN"
-  chmod 755 "$SELF_BIN"; install -d -m 700 "$STATE"
+  install_self || [ -x "$SELF_BIN" ] || die "zetaphy-validator could not be installed (see above)"
+  install -d -m 700 "$STATE"
   cat > /etc/systemd/system/zetaphy-become-validator.service <<EOF
 [Unit]
 Description=ZETAPHY: stake and become a validator once synced and funded
@@ -432,7 +587,7 @@ update_node() {
   [ "$(id -u)" = 0 ] || die "run with sudo"
   [ -f "$NODE_HOME/config/genesis.json" ] || die "no ZETAPHY node here: install first"
   packages
-  local arch; case "$(uname -m)" in x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; *) die "unsupported CPU $(uname -m)" ;; esac
+  local arch; arch=$(detect_arch)
   fetch_release "$arch"
   [ ${#binenv[@]} -gt 0 ] || die "no prebuilt zetaphyd for this setup-node.sh yet: try again later"
   # keep the public https name the node already has (rpc.example.com in its Caddyfile)
@@ -441,8 +596,9 @@ update_node() {
   env JOIN= "${binenv[@]}" ${host:+PUBLIC_HOST="$host"} bash "$LIB/setup-node.sh" > /dev/null \
     || die "setup-node.sh failed: sudo tail -50 /var/log/zetaphy-setup.log"
   # a validator that joined keeps its RPC to itself
+  record_release "$arch"
   [ -f "$NODE_HOME/config/seed-peer" ] && private_rpc
-  install -m 755 "${BASH_SOURCE[0]}" "$SELF_BIN" 2>/dev/null || true
+  install_self || echo "note: $SELF_BIN kept as it was"
   install_upgrade_timer
   say "updated: $("$ZETAPHYD" version 2>/dev/null)"
 }
@@ -450,7 +606,8 @@ update_node() {
 # ---- voted upgrades --------------------------------------------------------------------------
 # A voted upgrade stops the chain at its height on a node whose binary lacks the handler
 # ("UPGRADE "<name>" NEEDED at height: H"). The 1-minute timer below moves such a node to the
-# current release (SHA-256 checked, as update does), so it applies the upgrade and goes on.
+# current signed release (verified by verify-release.sh, as update does; never older than the installed one), so it
+# applies the upgrade and goes on.
 # Since zetaphy-v5 a binary with the handler may also be installed before the height: the chain
 # does not stop for it (evmd/zetaphy_upgradeguard.go).
 install_upgrade_timer() {
@@ -484,6 +641,7 @@ EOF
 
 upgrade_watch() {
   local line name h cur mark
+  unset ALLOW_UNVERIFIED_INSTALL   # the timer installs only signed, verified releases, whatever the environment says
   line=$($JOURNALCTL -u zetaphyd --since "-30min" --no-pager 2>/dev/null \
     | grep -o 'UPGRADE "[a-z0-9.-]*" NEEDED at height: [0-9]*' | tail -n 1 || true)
   [ -n "$line" ] || return 0
@@ -835,11 +993,13 @@ case "${1:-install}" in
   upgrade-watch) upgrade_watch ;;
   import-key) import_key ;;
   preflight) platform && echo "this machine can run a ZETAPHY validator" ;;
+  download) fetch_release "$(detect_arch)" ;;
+  self-install) install_self ;;
   status) status ;;
   address) echo "$(acc)  $(hexaddr)" ;;
   logs) journalctl -u zetaphy-become-validator -n "${2:-30}" --no-pager; tail -n 5 /var/log/zetaphy-setup.log 2>/dev/null || true ;;
   unjail) asn "$ZETAPHYD tx slashing unjail --from validator $K --home $NODE_HOME --node $NODE --chain-id zetaphy_77390-1 --gas auto --gas-adjustment 1.5 --gas-prices 1000000000$DENOM -y -o json" | jq -c '{code, txhash, raw_log}' ;;
   backup) if [ "${2:-}" = words ]; then backup_words; else backup; fi ;;
   secure) shift; secure "$@" ;;
-  *) sed -n '2,40p' "$0"; exit 1 ;;
+  *) sed -n '2,44p' "$0"; exit 1 ;;
 esac

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -16,14 +16,17 @@ function chain({ binaryKnows = [], releaseBuilt = true, force = false } = {}) {
   const exe = (name, body) => { writeFileSync(join(d, name), `#!/bin/bash\n${body}\n`); chmodSync(join(d, name), 0o755); };
   exe('curl', `
 for a in "$@"; do case "$a" in -fsSIL) exit ${releaseBuilt ? 0 : 22} ;; esac; done
-out=""; prev=""; for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done
-cp ${SETUP} "$out"`);
+out=""; prev=""; url=""; for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; case "$a" in http*) url="$a" ;; esac; prev="$a"; done
+case "$url" in
+  */SHA256SUMS) printf '%s  zetaphyd-linux-amd64\n%s  zetaphyd-linux-arm64\n' ${'a'.repeat(64)} ${'b'.repeat(64)} ;;
+  *) if [ -n "$out" ]; then cp ${SETUP} "$out"; else cat ${SETUP}; fi ;;
+esac`);
   exe('zetaphyd', `# handlers in this stand-in binary: ${binaryKnows.join(' ')}
 case "$*" in
   *" status"*|status*) echo '{"sync_info":{"latest_block_height":"1000"}}' ;;
   *"module-account gov"*) echo '{"account":{"value":{"address":"zetaphy10d07y265gmmuvt4z0w9aw880jnsr700jxqk2t7"}}}' ;;
   *"gov proposals"*) n=$(cat ${d}/n 2>/dev/null || echo 0); echo $((n+1)) > ${d}/n; [ "$n" = 0 ] && echo '{"proposals":[{"id":"2"}]}' || echo '{"proposals":[{"id":"3"}]}' ;;
-  *"submit-proposal"*) echo '{"code":0,"txhash":"AB"}' ;;
+  *"submit-proposal"*) f=""; for a in "$@"; do case "$a" in /*) [ -f "$a" ] && f="$a" ;; esac; done; [ -n "$f" ] && cp "$f" ${d}/proposal.json; echo '{"code":0,"txhash":"AB"}' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac`);
   const run = (...args) => {
@@ -33,7 +36,7 @@ esac`);
     });
     return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
   };
-  return { run };
+  return { run, dir: d };
 }
 
 test('the 2026-10-29 case: the binary already has "zetaphy-v5", which may run early: allowed, with the right advice', () => {
@@ -75,4 +78,15 @@ test('FORCE=1 skips the checks', () => {
   const f = chain({ releaseBuilt: false, force: true }).run('zetaphy-v99', '1500', 'x');
   assert.equal(f.code, 0, f.out);
   assert.match(f.out, /FORCE=1: upgrade checks skipped/);
+});
+
+test('the plan pins the release binaries (Plan.Info, cosmovisor format)', () => {
+  const c = chain({ binaryKnows: ['zetaphy-v5'] });
+  const r = c.run('zetaphy-v5', '1500', 'v5');
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /the plan pins: .*linux\/amd64.*a{64}/);
+  const p = JSON.parse(readFileSync(join(c.dir, 'proposal.json'), 'utf8'));
+  const info = JSON.parse(p.messages[0].plan.info);
+  assert.match(info.binaries['linux/amd64'], new RegExp(`/zetaphyd-linux-amd64\\?checksum=sha256:${'a'.repeat(64)}$`));
+  assert.match(info.binaries['linux/arm64'], new RegExp(`/zetaphyd-linux-arm64\\?checksum=sha256:${'b'.repeat(64)}$`));
 });

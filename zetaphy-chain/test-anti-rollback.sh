@@ -2,7 +2,8 @@
 # Anti-rollback / anti-takeover attacks on real devnets (docs/ANTI-ROLLBACK-CHAIN.md).
 # Every attack must be refused or detected; the script fails on the first one that is not.
 #
-#   bash test-anti-rollback.sh <new zetaphyd> <old zetaphyd (without zetaphy-guard)> [workdir]
+#   bash test-anti-rollback.sh <new zetaphyd> <old zetaphyd (without zetaphy-guard)> [workdir] [zetaphyd without zetaphy-shield]
+#   ONLY=3 runs devnet 3 alone (the second binary is then not used).
 #
 # Devnet 1: validators A (60%) and B (40%), both needed for a block, and a full node C.
 #   0. mixed binaries before the upgrade height: A runs the OLD binary, B and C the new
@@ -23,8 +24,15 @@
 #      the constitution off, is refused at submission
 # Devnet 2: four equal validators (25% each), chain guard on from genesis.
 #   8. attack: a delegation taking one validator above 33.33%: refused; a small one passes
+# Devnet 3 (with the 4th argument): A runs the binary without "zetaphy-shield", B and C the new one;
+# v5, the firewall and the chain guard on from genesis (as on the testnet).
+#   9. mixed binaries before the shield height: txs with 65 messages (bank sends, and inside an
+#      authz MsgExec) are accepted by both, and both report the same app hash
+#  10. the "zetaphy-shield" upgrade: B runs it early, A stops asking for it, switches, the chain goes on
+#  11. attack: a tx with more messages than the account guard and the threat gate read (65, or 64
+#      inside a MsgExec) is refused; 64 pass; the old binary is refused by upgrade-check
 set -euo pipefail
-NEW=$(readlink -f "$1"); OLD=$(readlink -f "$2"); W=${3:-$(mktemp -d)}
+NEW=$(readlink -f "$1"); OLD=$(readlink -f "$2"); W=${3:-$(mktemp -d)}; OLDS=${4:+$(readlink -f "$4")}
 D=azetaphy; CHAIN=zetaphy-ar-1
 pids() { for f in "$W"/*/*/pid; do [ -f "$f" ] && cat "$f"; done 2>/dev/null || true; }
 cleanup() { [ -n "${KEEP:-}" ] || for p in $(pids); do kill "$p" 2>/dev/null || true; done; }
@@ -117,6 +125,33 @@ PY
   for n in "${all[@]:1}"; do sed -i -E "s/^persistent_peers = .*/persistent_peers = \"$peer\"/" "$(node_dir "$n")/config/config.toml"; done
 }
 
+# multi <node> <n> [exec]: one tx with n one-unit bank sends from val<node> (inside one authz MsgExec
+# with "exec"), signed and broadcast; prints its code (log in $W/txlog)
+multi() {
+  local n=$1 k=$2 a d; a=$(addr "val$n" "$n"); d=$(node_dir "$n")
+  "$NEW" tx bank send "val$n" "$a" 1$D --from "val$n" --home "$d" --generate-only --keyring-backend test --chain-id "$CHAIN" \
+    --gas 3000000 --gas-prices "1000000000$D" -o json > "$W/one.json" 2>/dev/null
+  if [ -n "${3:-}" ]; then
+    jq --argjson k "$k" --arg g "$a" '.body.messages = [{"@type":"/cosmos.authz.v1beta1.MsgExec",grantee:$g,msgs:[range($k) as $i | .body.messages[0]]}]' "$W/one.json" > "$W/multi.json"
+  else
+    jq --argjson k "$k" '.body.messages = [range($k) as $i | .body.messages[0]]' "$W/one.json" > "$W/multi.json"
+  fi
+  "$NEW" tx sign "$W/multi.json" --from "val$n" --home "$d" --keyring-backend test --chain-id "$CHAIN" --node "tcp://127.0.0.1:$(port A)" -o json > "$W/multi.signed.json" 2>/dev/null
+  txok "$("$NEW" tx broadcast "$W/multi.signed.json" --node "tcp://127.0.0.1:$(port A)" -o json 2>&1 | tail -1)"
+}
+
+same_hash() { # same_hash <step> <node> <node>: the two report the same app hash at 5 common heights
+  local same=0 a b
+  for _ in $(seq 1 30); do
+    a=$(curl -s "127.0.0.1:$(port "$2")/abci_info" | jq -r '"\(.result.response.last_block_height) \(.result.response.last_block_app_hash)"')
+    b=$(curl -s "127.0.0.1:$(port "$3")/abci_info" | jq -r '"\(.result.response.last_block_height) \(.result.response.last_block_app_hash)"')
+    if [ "${a%% *}" = "${b%% *}" ]; then [ "$a" = "$b" ] || fail "$1: app hash differs at ${a%% *}: $2 $a, $3 $b"; same=$((same + 1)); fi
+    [ "$same" -ge 5 ] && { echo "$same heights, last $a"; return 0; }; sleep 1
+  done
+  fail "$1: could not compare app hashes"
+}
+
+if [ "${ONLY:-}" != 3 ]; then
 # =========================== devnet 1: mixed binaries, the upgrade, attacks 3-7
 GENESIS_EXTRA=""
 set -- 6000000000000000000000000$D 4000000000000000000000000$D
@@ -262,4 +297,48 @@ r=$("$NEW" tx staking delegate "$VA" 200000000000000000000000$D --from valB --ho
 [ "$(txok "$r")" = 0 ] || fail "8: a delegation to 28.6% was refused"
 moving 3 || fail "8: blocks stopped"
 ok "8 four validators: a delegation to 40% refused (cap 3333 bps), one to 28.6% accepted"
+for n in A B C D E; do stop $n; done
+fi
+
+# =========================== devnet 3: the zetaphy-shield upgrade (internal review 2026-11-10, Z-02)
+if [ -n "$OLDS" ]; then
+GENESIS_EXTRA='| .app_state.zetaphypq += [{"key":"33","value":"0000000000000001"},{"key":"40","value":"0000000000000001"}]'
+set -- 6000000000000000000000000$D 4000000000000000000000000$D
+mknet net3 33545 "$OLDS" "$@"
+VOTERS="A B"
+start A "$OLDS"; start B "$NEW"; start C "$NEW"
+wait_h 3 || fail "9: devnet 3 does not start"
+[ "$(multi A 65)" = 0 ] || fail "9: before the shield height a 65-message tx must be accepted as before: $(cat "$W/txlog")"
+[ "$(multi B 65 exec)" = 0 ] || fail "9: before the shield height a MsgExec with 65 messages must be accepted as before: $(cat "$W/txlog")"
+r=$(same_hash 9 A B)
+moving 3 || fail "9: blocks stopped with mixed binaries"
+grep -qiE 'wrong Block.Header.AppHash|CONSENSUS FAILURE' "$(node_dir A)/node.log" "$(node_dir B)/node.log" "$(node_dir C)/node.log" && fail "9: consensus failure"
+ok "9 mixed binaries without (A) / with (B, C) zetaphy-shield: 65-message txs accepted by both, same app hash at $r"
+
+UH=$(( $(hgt) + 25 ))
+GOV=$("$NEW" q auth module-account gov --node "tcp://127.0.0.1:$(port A)" -o json | jq -r '.account.value.address // .account.base_account.address')
+jq -n --arg gov "$GOV" --arg h "$UH" --arg d "10000000$D" '{messages:[{"@type":"/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade",authority:$gov,plan:{name:"zetaphy-shield",height:$h,info:""}}],metadata:"",deposit:$d,title:"zetaphy-shield",summary:"shield",expedited:false}' > "$W/upg.json"
+propose A tx gov submit-proposal "$W/upg.json" || fail "10: upgrade proposal"
+[ "$s" = PROPOSAL_STATUS_PASSED ] || fail "10: the upgrade proposal did not pass ($s)"
+wait_h $((UH - 1)) || fail "10: never reached $((UH - 1))"
+for _ in $(seq 1 60); do grep -q "UPGRADE \"zetaphy-shield\" NEEDED" "$(node_dir A)/node.log" && break; sleep 1; done
+grep -q "UPGRADE \"zetaphy-shield\" NEEDED" "$(node_dir A)/node.log" || fail "10: the old binary did not stop at the upgrade height"
+alive B || fail "10: B (new binary, installed early) stopped"
+stop A; start A "$NEW"
+wait_h $((UH + 5)) || fail "10: the chain did not go on after the upgrade"
+v=$(store_key 50 | base64 -d | od -An -tu8 --endian=big | tr -d ' ')
+[ "$v" = $((UH + 1)) ] || fail "10: shield height $v, want $((UH + 1))"
+ok "10 zetaphy-shield applied at $UH (old A stopped asking for it, new B ran it early), active from $v"
+
+[ "$(multi A 65)" != 0 ] || fail "11: a 65-message tx was accepted after the shield height"
+grep -q "at most 64 messages" "$W/txlog" || fail "11: refusal: $(cat "$W/txlog")"
+[ "$(multi B 64 exec)" != 0 ] || fail "11: a MsgExec with 64 inner messages (65 in all) was accepted"
+grep -q "at most 64 messages" "$W/txlog" || fail "11: refusal: $(cat "$W/txlog")"
+[ "$(multi A 64)" = 0 ] || fail "11: a 64-message tx was refused: $(cat "$W/txlog")"
+out=$("$OLDS" upgrade-check --node "tcp://127.0.0.1:$(port A)" --home "$(node_dir C)" 2>&1 || true)
+echo "$out" | grep -q 'REFUSED: this binary has no handler for "zetaphy-shield"' || fail "11: upgrade-check accepted the old binary: $out"
+moving 3 || fail "11: blocks stopped"
+ok "11 after zetaphy-shield: 65 messages (also 64 inside a MsgExec) refused, 64 accepted; the old binary refused by upgrade-check"
+for n in A B C; do stop $n; done
+fi
 echo "all anti-rollback attacks refused or detected"
