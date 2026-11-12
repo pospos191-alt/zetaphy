@@ -122,6 +122,18 @@ upgrade_preflight() {
   fi
 }
 
+# The plan's info: the SHA-256 of each zetaphyd of the release (cosmovisor format). setup-node.sh installs a
+# binary that carries this upgrade's handler only if it matches (internal review 2026-11-10, Z-04).
+upgrade_info() {
+  local sf tag sums
+  sf=$(mktemp)
+  curl -fsSL "$SETUP_URL" -o "$sf" || { unlink "$sf"; echo "cannot read $SETUP_URL for the release checksums" >&2; return 1; }
+  tag="zetaphyd-$(sha256sum "$sf" | cut -c1-12)"; unlink "$sf"
+  sums=$(curl -fsSL "$RELEASE_BASE/$tag/SHA256SUMS") || { echo "cannot read $RELEASE_BASE/$tag/SHA256SUMS" >&2; return 1; }
+  awk -v base="$RELEASE_BASE/$tag" '$2 ~ /^zetaphyd-linux-(amd64|arm64)$/ && $1 ~ /^[0-9a-f]{64}$/ {a=$2; sub("zetaphyd-","",a); sub("-","/",a); printf "%s\t%s/%s?checksum=sha256:%s\n", a, base, $2, $1}' <<<"$sums" \
+    | jq -Rn '[inputs | split("\t") | {(.[0]): .[1]}] | add | if . == null then error("no zetaphyd in SHA256SUMS") else {binaries: .} end | tojson' -r
+}
+
 submit() { # the tx that submits the proposal, e.g.: tx gov submit-proposal <file>
   local before id=""
   before=$($ZETAPHYD q gov proposals $QF 2>/dev/null | jq -r '[.proposals[]?.id | tonumber] | max // 0')
@@ -170,10 +182,15 @@ case "${1:-}" in
     now=$($ZETAPHYD --home "$NODE_HOME" --node "$NODE" status | jq -r '.sync_info.latest_block_height')
     [ "$height" -gt "$((now + 100))" ] || { echo "height must be well after the current block ($now) so the vote can finish"; exit 1; }
     upgrade_preflight "$name" "$height"
+    info=""
+    if [ "${FORCE:-}" != 1 ]; then
+      info=$(upgrade_info) || { echo "refused: the release checksums for the plan could not be read (FORCE=1 proposes without them)"; exit 1; }
+      echo "  the plan pins: $(jq -c '.binaries | map_values(sub(".*checksum=sha256:"; ""))' <<<"$info")"
+    fi
     gov=$($ZETAPHYD q auth module-account gov $QF | jq -r '.account.value.address')
     f=$(mktemp)
-    jq -n --arg gov "$gov" --arg name "$name" --arg h "$height" --arg d "$DEPOSIT" --arg s "$summary" \
-      '{messages:[{"@type":"/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade",authority:$gov,plan:{name:$name,height:$h,info:""}}],
+    jq -n --arg gov "$gov" --arg name "$name" --arg h "$height" --arg d "$DEPOSIT" --arg s "$summary" --arg info "$info" \
+      '{messages:[{"@type":"/cosmos.upgrade.v1beta1.MsgSoftwareUpgrade",authority:$gov,plan:{name:$name,height:$h,info:$info}}],
         metadata:"",deposit:$d,title:("Upgrade to " + $name),summary:$s,expedited:false}' > "$f"
     submit tx gov submit-proposal "$f"; rm -f "$f" ;;
   propose-text)

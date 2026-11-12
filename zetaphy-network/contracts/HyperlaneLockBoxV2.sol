@@ -82,8 +82,10 @@ interface IGuardOutbound {
 ///         names it once, like the checkpointer; never while escaping) pays each holder from what THEY prove: their
 ///         token(X) balance in a ZETAPHY state the light client finalized (the proof the wallet keeps). The pool is
 ///         `locked` at the first forced payout, the total the last heartbeat's token(X) supply (proof of reserves):
-///         pro rata if short, and never more owed in all than that supply. After the first forced payout no exit root
-///         is accepted (the two never mix).
+///         pro rata if short, and never more owed in all than that supply. Every claim is of ONE state: the ZETAPHY
+///         height the last heartbeat carried (snapshotHeight), the same state its supply is of, so each account counts
+///         once, at one height, and the claims add up to that state's balances (internal review 2026-11-12, Z-43).
+///         After the first forced payout no exit root is accepted (the two never mix).
 contract HyperlaneLockBoxV2 {
     struct Release {
         address to;
@@ -123,7 +125,8 @@ contract HyperlaneLockBoxV2 {
 
     // escape hatch
     uint64 public constant ESCAPE_AFTER = 14 days;
-    bytes32 public constant HEARTBEAT_TAG = keccak256("saphan/heartbeat/v1");
+    bytes32 public constant HEARTBEAT_TAG = keccak256("saphan/heartbeat/v1");      // 192-byte body, no height
+    bytes32 public constant HEARTBEAT_V2_TAG = keccak256("saphan/heartbeat/v2");   // 224-byte body, with ZETAPHY's height
     bytes32 public constant EXIT_TAG = keccak256("saphan/exit-root/v1");
     bytes32 public checkpointer;             // SaphanCheckpointer on ZETAPHY (zero: no heartbeat, no escape)
     address public proofVerifier;            // SaphanReleaseVerifier here (zero: no proof path)
@@ -142,6 +145,8 @@ contract HyperlaneLockBoxV2 {
     address public forcedExit;               // ZetaphyForcedExit here (zero: no forced exit)
     bool public forced;                      // forced mode began (exitRoot == FORCED_ROOT)
     uint256 public forcedOwed;               // what the forced payouts have owed so far (<= exitTotal)
+    // forced-exit snapshot (added at the end of storage)
+    uint64 public snapshotHeight;            // the ZETAPHY height the last heartbeat carried (zero: none; no forced exit)
 
     event Locked(uint256 indexed nonce, address indexed sender, address indexed to, uint256 amount);
     event Dispatched(uint256 indexed nonce, bytes32 messageId);
@@ -194,6 +199,7 @@ contract HyperlaneLockBoxV2 {
     error NotForcedExit();
     error TooSoon(uint64 at);
     error OverSupply(uint256 left);
+    error WrongHeight(uint64 snapshotHeight);
 
     constructor(ISaphanMailbox mailbox_, uint32 zetaphyDomain_, uint256 zetaphyChainId_, bytes32 recipient_, bytes32 remoteSender_,
         address hook_, ISaphanIsm ism_, address governance_, address guardian_, uint256 dailyLimit_, uint64 releaseDelay_)
@@ -298,18 +304,25 @@ contract HyperlaneLockBoxV2 {
         emit ReleaseQueued(id, n, from, to, amount, readyAt);
     }
 
-    /// Heartbeat body (192 bytes): abi.encode(HEARTBEAT_TAG, ZETAPHY's chain id, the checkpointer, seq, ZETAPHY time,
-    /// token(X)'s total supply on ZETAPHY). The supply is the proof of reserves: every heartbeat records it next to
-    /// `locked` (reserves(): what backs each bridged coin).
+    /// Heartbeat body (224 bytes): abi.encode(HEARTBEAT_V2_TAG, ZETAPHY's chain id, the checkpointer, seq, ZETAPHY time,
+    /// token(X)'s total supply on ZETAPHY, ZETAPHY's block height). The supply is the proof of reserves: every heartbeat
+    /// records it next to `locked` (reserves(): what backs each bridged coin). The height is the forced exit's
+    /// snapshot: claims are proven against the light client's app hash at exactly that height.
+    /// The older 192-byte body (HEARTBEAT_TAG, no height) still keeps the route alive, but clears the snapshot: no
+    /// forced payout until a heartbeat with a height comes.
     function _heartbeat(bytes32 sender, bytes calldata b) private {
-        if (b.length != 192) revert BadBody();
-        (bytes32 tag, uint256 chain, address src, uint64 seq, uint64 t, uint256 supply) = abi.decode(b, (bytes32, uint256, address, uint64, uint64, uint256));
-        if (tag != HEARTBEAT_TAG || chain != zetaphyChainId || bytes32(uint256(uint160(src))) != sender) revert WrongSource();
+        if (b.length != 192 && b.length != 224) revert BadBody();
+        // the first six words are the same in both bodies (static types); the v2 body adds the height as a seventh
+        (bytes32 tag, uint256 chain, address src, uint64 seq, uint64 t, uint256 supply) = abi.decode(b[:192], (bytes32, uint256, address, uint64, uint64, uint256));
+        uint64 height = b.length == 224 ? abi.decode(b[192:], (uint64)) : 0;
+        if (tag != (b.length == 224 ? HEARTBEAT_V2_TAG : HEARTBEAT_TAG) || (b.length == 224 && height == 0)) revert WrongSource();
+        if (chain != zetaphyChainId || bytes32(uint256(uint160(src))) != sender) revert WrongSource();
         if (seq <= lastBeat) revert Replay(bytes32(uint256(seq)));
         lastBeat = seq;
         lastHeard = uint64(block.timestamp);
         zetaphySupply = supply;
         supplyAt = uint64(block.timestamp);
+        snapshotHeight = height;
         emit Heartbeat(seq, t);
         emit Reserves(locked, supply);
     }
@@ -412,12 +425,15 @@ contract HyperlaneLockBoxV2 {
         return lastHeard + ESCAPE_AFTER + FORCE_AFTER;
     }
 
-    /// The route's ZetaphyForcedExit only: pays `to` its share of `owed` (a token(X) balance it proved). The first call
-    /// starts forced mode (no exit root came in time): pool = locked now, total = token(X)'s supply at the last
-    /// heartbeat. Pro rata if the pool is short; each address once; never more owed in all than the total.
-    function forcedPay(address to, uint256 owed) external returns (uint256 pay) {
+    /// The route's ZetaphyForcedExit only: pays `to` its share of `owed` (a token(X) balance it proved at `height`,
+    /// which must be the last heartbeat's snapshotHeight). The first call starts forced mode (no exit root came in
+    /// time): pool = locked now, total = token(X)'s supply at the last heartbeat. Pro rata if the pool is short; each
+    /// address once; never more owed in all than the total. Forced mode takes no heartbeat any more, so every payout
+    /// is of the same height.
+    function forcedPay(address to, uint256 owed, uint64 height) external returns (uint256 pay) {
         if (msg.sender != forcedExit || forcedExit == address(0)) revert NotForcedExit();
         if (!escaping()) revert NotEscaping();
+        if (height == 0 || height != snapshotHeight) revert WrongHeight(snapshotHeight);
         if (!forced) {
             if (exitRoot != bytes32(0)) revert ExitDone();       // the validators' exit root came first
             if (block.timestamp <= forcedFrom()) revert TooSoon(forcedFrom());

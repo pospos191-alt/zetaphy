@@ -1,6 +1,10 @@
-// Forced exit (contracts/ZetaphyForcedExit.sol, docs/ANTI-ROLLBACK-OFFCHAIN.md item Q): turns the proof a holder
-// keeps (the wallet stores ZETAPHY's eth_getProof answer for token(X)'s balanceOf[holder] at a block it saw
-// certified) into the arguments of ZetaphyForcedExit.prove.
+// Forced exit (contracts/ZetaphyForcedExit.sol, docs/ANTI-ROLLBACK-OFFCHAIN.md item Q): turns ZETAPHY's
+// eth_getProof answer for token(X)'s balanceOf[holder] into the arguments of ZetaphyForcedExit.prove.
+//
+// Every claim is of one height: the lockbox's snapshotHeight (the ZETAPHY height its last heartbeat carried;
+// ZetaphyForcedExit.snapshotHeight() reads it, SaphanCheckpointer.lastHeight() on ZETAPHY is the same number once the
+// heartbeat is delivered). A proof at any other height is refused on chain, so ask the node (any archive node, or
+// the holder's own copy) for eth_getProof at exactly that height and pass `snapshotHeight` here to check it first.
 //
 // cosmos/evm's eth_getProof(token, [slot], H) answers storageProof[0].proof = [iavl, multistore]: each the hex of an
 // ICS23 CommitmentProof (the evm store's IAVL existence proof of 0x02 || token || slot, then the multistore's
@@ -41,11 +45,15 @@ export function decodeExistenceProof(bytes) {
 /**
  * ZetaphyForcedExit.prove arguments from a stored eth_getProof answer of token(X):
  *   { proof: the eth_getProof result (storageProof[0] for balanceSlot(holder)), height: the block it was asked at,
- *     holder, token } -> [holder, height, balance, [leafPrefix, iavlPath, storePath]]
+ *     holder, token, snapshotHeight?: the lockbox's snapshotHeight } -> [holder, height, balance, [leafPrefix, iavlPath, storePath]]
+ * With snapshotHeight given, a proof of another height is refused here (the contract refuses it too).
  * Checks that the proof is for that key (0x02 || token || slot), that the IAVL leaf is the IavlSpec one the contract
  * hashes (sha256, value prehashed with sha256, varint lengths) and that the store proof is for "evm".
  */
-export function forcedExitArgs({ proof, height, holder, token, slot = BRIDGED_TOKEN_BALANCE_SLOT }) {
+export function forcedExitArgs({ proof, height, holder, token, slot = BRIDGED_TOKEN_BALANCE_SLOT, snapshotHeight = null }) {
+  if (snapshotHeight != null && BigInt(height) !== BigInt(snapshotHeight)) {
+    throw new Error(`the proof is of height ${height}, but forced-exit claims are of the snapshot height ${snapshotHeight} only (eth_getProof at ${snapshotHeight})`);
+  }
   const sp = proof?.storageProof?.[0];
   if (!sp || !Array.isArray(sp.proof) || sp.proof.length !== 2) throw new Error('expected eth_getProof with one storage proof of two ICS23 ops (evm store, multistore)');
   const want = balanceSlot(holder, slot);

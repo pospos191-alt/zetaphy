@@ -39,11 +39,11 @@ jobs:
     env:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           go-version: '1.26.11'
           cache: false
@@ -68,7 +68,7 @@ jobs:
           "$RUNNER_TEMP/out/zetaphyd-linux-${{ matrix.arch }}" q wasm libwasmvm-version
           ldd "$RUNNER_TEMP/out/zetaphyd-linux-${{ matrix.arch }}" | grep libwasmvm
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: zetaphyd-linux-${{ matrix.arch }}
           path: ${{ runner.temp }}/out/zetaphyd-linux-${{ matrix.arch }}
@@ -88,12 +88,12 @@ jobs:
       id-token: write      # Sigstore keyless signing (Fulcio certificate for this workflow run)
       attestations: write  # stores the attestation on GitHub (gh attestation verify finds it there)
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           fetch-depth: 0   # RELEASE.json counts the commits on main (the release's position, for anti-rollback)
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: out
           pattern: zetaphyd-linux-*
@@ -102,6 +102,9 @@ jobs:
       - name: SHA256SUMS and RELEASE.json
         run: |
           short=$(sha256sum zetaphy-chain/setup-node.sh | cut -c1-12)
+          # scripts: the SHA-256 of zetaphy-chain/join-validator.sh and verify-release.sh at this commit, so a node that
+          # has only this signed RELEASE.json can fetch those files at the commit and check them before running them
+          # as root (internal review 2026-11-10, Z-04)
           # the chain-upgrade handlers this binary carries (zetaphy-v2, ..., zetaphy-firewall): a binary missing
           # one the chain already ran is a rollback, whatever its date says
           upgrades=$(grep -oE '^\+const Zetaphy[A-Za-z0-9]*UpgradeName = "[^"]+"' zetaphy-chain/setup-node.sh \
@@ -110,8 +113,11 @@ jobs:
             --arg commit "$GITHUB_SHA" --arg ref "$GITHUB_REF" --arg repo "$GITHUB_REPOSITORY" \
             --argjson seq "$(git rev-list --count "$GITHUB_SHA")" --argjson time "$(git log -1 --format=%ct "$GITHUB_SHA")" \
             --argjson upgrades "$upgrades" --arg run "$GITHUB_RUN_ID" \
+            --arg jv "$(sha256sum zetaphy-chain/join-validator.sh | cut -d' ' -f1)" \
+            --arg vr "$(sha256sum zetaphy-chain/verify-release.sh | cut -d' ' -f1)" \
             '{schema: "zetaphy-release/v1", tag: $tag, repository: $repo, setup_node_sha256: $setup, commit: $commit, ref: $ref,
-              main_commits: $seq, commit_time: $time, upgrades: $upgrades, workflow_run: $run}' > out/RELEASE.json
+              main_commits: $seq, commit_time: $time, upgrades: $upgrades, workflow_run: $run,
+              scripts: {"join-validator.sh": $jv, "verify-release.sh": $vr}}' > out/RELEASE.json
           cat out/RELEASE.json
           cd out
           sha256sum zetaphyd-linux-* RELEASE.json > SHA256SUMS
@@ -135,7 +141,7 @@ jobs:
           cp "$BUNDLE" out/zetaphyd-provenance.sigstore.json
           ls -l out
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: signed-release
           path: |
@@ -154,11 +160,11 @@ jobs:
     permissions:
       contents: write      # creates / updates the release; no OIDC token here (signing is the sign job's)
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: signed-release
           path: out
@@ -187,9 +193,25 @@ jobs:
             echo "\`bash zetaphy-chain/verify-release.sh --dir <download dir> --arch amd64\` (docs/ANTI-ROLLBACK-OFFCHAIN.md)"
           } > notes.md
           files=(zetaphyd-linux-* SHA256SUMS RELEASE.json zetaphyd-provenance.sigstore.json)
+          # A tag is never reused for other signed binaries (internal review 2026-11-12, Z-49): once a release has
+          # RELEASE.json (it is signed), its files are final. A re-run for the same setup-node.sh (same tag) builds a
+          # new RELEASE.json (another run, maybe another commit), so it stops here instead of replacing what nodes
+          # verified and recorded. Only a release from before signing (no RELEASE.json) gets the signed files added.
           if gh release view "$tag" >/dev/null 2>&1; then
-            # a release published before signing existed gets the signed files added (same tag, --clobber)
-            gh release upload "$tag" "${files[@]}" --clobber
+            assets=$(gh release view "$tag" --json assets --jq '.assets[].name')
+            if grep -qx 'RELEASE.json' <<<"$assets"; then
+              gh release download "$tag" --pattern SHA256SUMS --output "$RUNNER_TEMP/published.SHA256SUMS" --clobber
+              if cmp -s "$RUNNER_TEMP/published.SHA256SUMS" SHA256SUMS; then
+                echo "$tag is already published with exactly these files: nothing to do"
+              else
+                echo "::error::$tag is already a signed release with other files; refusing to overwrite it (a new release needs a new setup-node.sh, i.e. a new tag)"
+                diff "$RUNNER_TEMP/published.SHA256SUMS" SHA256SUMS || true
+                exit 1
+              fi
+            else
+              # a release published before signing existed: the signed files are added (same tag)
+              gh release upload "$tag" "${files[@]}" --clobber
+            fi
           else
             gh release create "$tag" "${files[@]}" --title "zetaphyd $short" --notes-file notes.md --target "$GITHUB_SHA"
           fi

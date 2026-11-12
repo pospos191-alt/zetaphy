@@ -1,8 +1,9 @@
 # Runs the one-command installer (install.sh runner) on a clean Ubuntu runner against the live
 # ZETAPHY testnet, read only: the runner key is made, the service starts and waits for its bond
 # (nothing is funded or registered), the helper commands work, and uninstall leaves the key.
-# Also install.sh validator up to the node setup (DOWNLOAD_ONLY): the prebuilt zetaphyd for this
-# setup-node.sh is found and its SHA-256 checked; a tampered SHA256SUMS is refused. It never joins the
+# Also install.sh validator up to the node setup (DOWNLOAD_ONLY): the signed release for this
+# setup-node.sh is found and verified (Sigstore signature with the pinned cosign, SHA-256, setup-node.sh);
+# a tampered binary is refused. It never joins the
 # live chain from here (syncing would spend the main node's small monthly traffic allowance).
 # The same download step on other Linux systems (Debian, Fedora, Rocky, Amazon Linux, openSUSE, Arch)
 # installs what it needs with that system's package manager.
@@ -17,6 +18,7 @@ on:
       - 'zetaphy-network/setup-runner.sh'
       - 'zetaphy-network/cli.js'
       - 'zetaphy-chain/join-validator.sh'
+      - 'zetaphy-chain/verify-release.sh'
       - '.github/workflows/runner-install.yml'
   workflow_dispatch:
 
@@ -78,20 +80,40 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Prebuilt zetaphyd for this setup-node.sh, SHA-256 checked
+      - name: Which signed release to test (this setup-node.sh's, or the base branch's before it is built)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          cat install.sh | sudo REF="$REF" DOWNLOAD_ONLY=1 bash -s -- validator | tee /tmp/v.log
+          # A release is built and signed only after setup-node.sh lands on main, so a pull request that changes
+          # setup-node.sh has none yet: test the download and verification with the base branch's signed release.
+          rel=https://github.com/pospos191-alt/zetaphy/releases/download
+          tag=zetaphyd-$(sha256sum zetaphy-chain/setup-node.sh | cut -c1-12)
+          if ! curl -fsSL "$rel/$tag/RELEASE.json" -o /dev/null && [ -n "$BASE_SHA" ]; then
+            base=zetaphyd-$(curl -fsSL "https://raw.githubusercontent.com/pospos191-alt/zetaphy/$BASE_SHA/zetaphy-chain/setup-node.sh" | sha256sum | cut -c1-12)
+            echo "::notice::no signed release $tag yet (built after merge); testing with the base branch's $base"
+            tag=$base
+          fi
+          curl -fsSL "$rel/$tag/RELEASE.json" -o /dev/null || { echo "::error::no signed release $tag"; exit 1; }
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+      - name: Signed zetaphyd release for this setup-node.sh, verified
+        run: |
+          cat install.sh | sudo REF="$REF" RELEASE_TAG="$RELEASE_TAG" DOWNLOAD_ONLY=1 bash -s -- validator | tee /tmp/v.log
           grep -q 'SHA-256 ok' /tmp/v.log
-          s=$(sha256sum zetaphy-chain/setup-node.sh | cut -c1-12)
-          grep -q "release zetaphyd-$s" /tmp/v.log
+          grep -q "release $RELEASE_TAG" /tmp/v.log
           (cd /usr/local/lib/zetaphy-validator && sha256sum -c --ignore-missing SHA256SUMS)
-      - name: A binary that does not match its SHA-256 is refused
+      - name: A binary that does not match its signed release is refused
         run: |
           d=/usr/local/lib/zetaphy-validator
           sudo sh -c "printf x >> $d/zetaphyd-linux-amd64"
-          ! (cd $d && sha256sum -c --ignore-missing --quiet SHA256SUMS) 2>/dev/null
-          # the script's own check: same command, so a tampered download stops the install
-          grep -q 'sha256sum -c --ignore-missing --quiet SHA256SUMS) || die' zetaphy-chain/join-validator.sh
+          # the pinned verifier the install used (verify-release.sh + cosign in $d), on the tampered file
+          if PATH="$d/bin:$PATH" VERIFIER=cosign bash "$d/verify-release.sh" --dir "$d" --arch amd64 \
+              --record-file /nonexistent/record.json > /tmp/t.log 2>&1; then
+            cat /tmp/t.log; echo "::error::a tampered binary passed verify-release.sh"; exit 1
+          fi
+          cat /tmp/t.log
+          grep -q 'REFUSED: zetaphyd-linux-amd64: sha256' /tmp/t.log
+          # join-validator.sh stops before anything is installed when that check refuses (internal review 2026-11-10, Z-04)
+          grep -q 'did not verify (the REFUSED line above says why): refused, nothing was installed' zetaphy-chain/join-validator.sh
       - name: This machine passes the preflight (Linux with systemd)
         run: sudo bash zetaphy-chain/join-validator.sh preflight
       - name: The timer logic and the preflight (fake chain, fake machines)
@@ -112,10 +134,25 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+      - name: Which signed release to test (this setup-node.sh's, or the base branch's before it is built)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # A release is built and signed only after setup-node.sh lands on main, so a pull request that changes
+          # setup-node.sh has none yet: test the download and verification with the base branch's signed release.
+          rel=https://github.com/pospos191-alt/zetaphy/releases/download
+          tag=zetaphyd-$(sha256sum zetaphy-chain/setup-node.sh | cut -c1-12)
+          if ! curl -fsSL "$rel/$tag/RELEASE.json" -o /dev/null && [ -n "$BASE_SHA" ]; then
+            base=zetaphyd-$(curl -fsSL "https://raw.githubusercontent.com/pospos191-alt/zetaphy/$BASE_SHA/zetaphy-chain/setup-node.sh" | sha256sum | cut -c1-12)
+            echo "::notice::no signed release $tag yet (built after merge); testing with the base branch's $base"
+            tag=$base
+          fi
+          curl -fsSL "$rel/$tag/RELEASE.json" -o /dev/null || { echo "::error::no signed release $tag"; exit 1; }
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
       - name: install.sh validator (DOWNLOAD_ONLY) in a clean ${{ matrix.image }}
         run: |
           # curl first, as a user needs it to run the one-liner at all; the script installs the rest
-          docker run --rm -e REF="$REF" -e DOWNLOAD_ONLY=1 -v "$PWD:/repo:ro" "${{ matrix.image }}" bash -c '
+          docker run --rm -e REF="$REF" -e RELEASE_TAG="$RELEASE_TAG" -e DOWNLOAD_ONLY=1 -v "$PWD:/repo:ro" "${{ matrix.image }}" bash -c '
             set -e
             command -v curl >/dev/null || { command -v apt-get >/dev/null && apt-get update -qq && apt-get install -y -qq curl >/dev/null; }
             bash /repo/install.sh validator | tee /tmp/v.log

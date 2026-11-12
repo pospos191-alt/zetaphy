@@ -1,0 +1,116 @@
+# Is the setup-node.sh that zetaphy-chain/cloud-init.sh pins really published? (internal review 2026-11-10, Z-05)
+# cloud-init.sh (pasted into Oracle Cloud) downloads v/<sha256>.sh from the public repository
+# pospos191-alt/zetaphy-chain and stops when it is not there: no node. `pack-cloud-init.sh --check` (security.yml)
+# proves the pin matches this checkout's setup-node.sh but reads local files only; this asks the public repository
+# (audit/tools/cloud-init-published.sh: curl -fsI on the pinned URL, then its SHA-256).
+#
+#   pull request          a warning only: publishing comes before the merge that moves the pin, and a pull request
+#                         may be opened before its file can be published (docs/ANTI-ROLLBACK-OFFCHAIN.md)
+#   push to main, daily   fails, and opens (or adds to) an issue "cloud-init.sh pins a setup-node.sh that is not
+#                         published"; closes it once the file is there. A network error is reported, not raised.
+# Free: GitHub-hosted runner, no secrets (the issue uses the workflow's own token).
+name: cloud-init-published
+
+on:
+  pull_request:
+    paths:
+      - 'zetaphy-chain/cloud-init.sh'
+      - 'zetaphy-chain/setup-node.sh'
+      - 'zetaphy-chain/pack-cloud-init.sh'
+      - 'audit/tools/cloud-init-published.*'
+      - '.github/workflows/cloud-init-published.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'zetaphy-chain/cloud-init.sh'
+      - 'zetaphy-chain/setup-node.sh'
+      - 'zetaphy-chain/pack-cloud-init.sh'
+      - 'audit/tools/cloud-init-published.*'
+      - '.github/workflows/cloud-init-published.yml'
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-init-published-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: cloud-init pin is published
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write      # only used outside pull requests (push to main, schedule, manual run)
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+
+      - name: The checker's own tests (fake public repository)
+        run: |
+          shellcheck -S warning audit/tools/cloud-init-published.sh
+          node --test audit/tools/cloud-init-published.test.js
+
+      - name: 'Pull request: warn while the pinned file is not published yet'
+        if: github.event_name == 'pull_request'
+        run: bash audit/tools/cloud-init-published.sh --warn || [ $? = 3 ]
+
+      - name: 'main or schedule: is the pinned file published?'
+        id: pub
+        if: github.event_name != 'pull_request'
+        run: bash audit/tools/cloud-init-published.sh || echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the issue
+        if: github.event_name != 'pull_request' && steps.pub.outputs.status != 'unreachable' && steps.pub.outputs.status != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STATUS: ${{ steps.pub.outputs.status }}
+          URL: ${{ steps.pub.outputs.url }}
+          SHA: ${{ steps.pub.outputs.sha }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="cloud-init.sh pins a setup-node.sh that is not published"
+          n=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+          if [ "$STATUS" = published ]; then
+            [ -z "$n" ] || gh issue close "$n" --comment "Published now: $URL ($RUN)"
+            exit 0
+          fi
+          body=$(printf '%s\n' \
+            "cloud-init.sh on main downloads $URL and checks SHA-256 \`$SHA\`; that file is $STATUS ($RUN)." \
+            "New Oracle installs from cloud-init.sh stop at the download until it is published." \
+            "" \
+            "Fix: publish \`zetaphy-chain/public/v/$SHA.sh\` (from \`zetaphy-chain/pack-cloud-init.sh\`) to pospos191-alt/zetaphy-chain, unchanged." \
+            "Order from now on: publish first, then merge the change that moves the pin (docs/ANTI-ROLLBACK-OFFCHAIN.md, \"Publishing setup-node.sh\")." \
+            "" \
+            "<!-- cloud-init-pin:$SHA -->")
+          if [ -z "$n" ]; then
+            gh issue create --title "$title" --body "$body"
+          elif ! gh issue view "$n" --json body,comments --jq '[.body] + [.comments[].body] | join("\n")' | grep -q "cloud-init-pin:$SHA"; then
+            gh issue comment "$n" --body "$body"   # a new pin; the same pin is not repeated every day
+          fi
+
+      - name: Fail while the pinned file is not published
+        if: github.event_name != 'pull_request'
+        env:
+          STATUS: ${{ steps.pub.outputs.status }}
+          CODE: ${{ steps.pub.outputs.exit }}
+        run: |
+          case "$STATUS" in
+            published) echo "published" ;;
+            unreachable) echo "::warning::the public repository could not be reached; checked again on the next run" ;;
+            *) echo "::error::cloud-init.sh pins a setup-node.sh that is not published (status ${STATUS:-?}, exit ${CODE:-?})"; exit 1 ;;
+          esac

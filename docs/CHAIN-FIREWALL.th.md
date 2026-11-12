@@ -8,6 +8,8 @@
 (`holds(address) view returns (bool)`) ไว้ใน `InvariantFirewall` ชั้นสัญญา (`Firewalled.enforce`) ป้องกันได้เฉพาะ
 การเรียกที่เข้ามาทางฟังก์ชัน `firewalled` ของโปรโตคอลเท่านั้น **ชั้นโหนดในเอกสารนี้ตรวจ invariant หลังธุรกรรม EVM
 ทุกธุรกรรม ไม่ว่าธุรกรรมนั้นจะเดินทางผ่านเส้นทางใด** และย้อนธุรกรรมกลับถ้ามันทำให้ invariant ข้อใดพัง
+ตั้งแต่ upgrade `zetaphy-shield` โหนดตรวจหลังข้อความอื่นทุกข้อความที่รันโค้ด EVM ได้ด้วย (แพ็กเก็ตและ callback ของ IBC,
+การแปลง ICS-20 และ ERC-20, CosmWasm; ดู [หลังทุกข้อความที่รันโค้ด EVM](#หลังทุกข้อความที่รันโค้ด-evm-zetaphy-shield))
 invariant จึงกลายเป็นกติกาของเชน แทนที่จะเป็น modifier ที่ต้องเลือกใช้เอง
 
 | ส่วน | อยู่ที่ | สถานะ |
@@ -16,6 +18,7 @@ invariant จึงกลายเป็นกติกาของเชน แ
 | ตรรกะล้วน: ถอดรหัสแบบเข้มงวด, ขอบเขต, งบ gas, กฎคำตอบ, กฎ "เพิ่งพัง" | `evmd/zetaphy_firewall_core.go` (แพตช์เดียวกัน) | ของจริง มี unit test |
 | การต่อสาย: `pqHooks.PostTxProcessing`, `MsgEVMCall`, `BeginBlocker`, kind ของ `MsgSetFuture`, genesis, CLI, `zetaphyEarlyUpgrades` | `zetaphy_pqguard.go`, `zetaphy_pqcall.go`, `app.go`, `zetaphy_future.go`, `zetaphy_upgrade.go`, `zetaphy_seccli.go`, `zetaphy_upgradeguard.go` (แพตช์เดียวกัน) | ของจริง |
 | Fork test (13): `InvariantFirewall` ตัวจริง + vault ที่ถอนเงินมีบั๊ก | `zetaphy-chain/fork-tests/evmd/zetaphy_firewall_test.go`, `zetaphy_firewall_core_test.go`, `testdata/firewall/` | ของจริง รันใน CI |
+| `zetaphy-shield`: ตรวจหลังแพ็กเก็ต IBC, callback ของ IBC และธุรกรรมที่มีข้อความที่รัน EVM ได้ (+ fork test 3 ตัว) | `evmd/zetaphy_shield.go`, `zetaphy_ibchold.go`, `app.go` (แพตช์เดียวกัน); `fork-tests/evmd/zetaphy_shield_test.go` | ของจริง รันใน CI |
 | คำสั่ง governance | `gov.sh invariant-firewall <0x… \| ->` | ของจริง |
 
 ไฟล์นี้แทนที่ต้นแบบเดิมใน `zetaphy-chain/prototypes/invariant-firewall` (ไม่เคยถูกคอมไพล์) ต้นแบบเรียก `chainCheck()`
@@ -60,6 +63,24 @@ fail-closed ถูกบังคับโดยโค้ด consensus ไม่
 - **"ทุกธุรกรรมที่แตะโปรโตคอลที่ลงทะเบียน"** โหนดตรวจโปรโตคอลในชั้นเชนหลังธุรกรรม EVM ที่สำเร็จ **ทุก** ธุรกรรม ไม่ใช่
   เฉพาะธุรกรรมที่เรียกโปรโตคอลนั้น เพราะธุรกรรมดูดเงินออกจากโปรโตคอลได้โดยไม่ต้องเรียกมัน (เช่น spender ที่ได้รับ
   approve ดึงโทเคนด้วย `transferFrom`) จึงตัดสิน "แตะ" จากปลายทางของการเรียกไม่ได้ งบ gas ข้างบนจำกัดต้นทุนไว้
+
+### หลังทุกข้อความที่รันโค้ด EVM (`zetaphy-shield`)
+
+โค้ด EVM ไม่ได้รันแค่ในธุรกรรม EVM และ `MsgEVMCall` แพ็กเก็ต IBC ก็รัน (middleware ERC-20 แปลงเหรียญที่รับเข้ามาผ่าน
+สัญญาโทเคน; middleware callbacks เรียกสัญญาตอนรับ, acknowledgement และ timeout) รวมถึงการโอน ICS-20 การแปลงของโมดูล
+ERC-20 และสัญญา CosmWasm (ซึ่งส่งข้อความเหล่านั้นต่อได้) ก่อน upgrade `zetaphy-shield` เส้นทางเหล่านี้ไม่ถูกตรวจ
+(internal review 2026-11-10, Z-03) ตั้งแต่ความสูงของ shield (key `0x50`
+ที่ handler ตั้งเป็น H+1) การตรวจเดียวกัน (`firewallPostTx` ไม่คิด gas) รันที่:
+
+| ที่ไหน | เมื่อไม่ผ่าน |
+|---|---|
+| callback ของ IBC เข้าสัญญาแต่ละครั้ง (รับ, acknowledgement, timeout; `shieldCallbacks` รอบ keeper callbacks ของ EVM) | state ของ callback ถูกทิ้ง แพ็กเก็ตเดินต่อ (การรับได้ error acknowledgement) |
+| แพ็กเก็ตที่รับแต่ละอัน ที่ด้านบนของ stack ICS-20 (v1, v2 และการโอนที่ถูกพักเมื่อปล่อย) | error acknowledgement: IBC core ทิ้งทุกอย่างที่แพ็กเก็ตทำ ผู้ส่งได้เงินคืน |
+| acknowledgement และ timeout แต่ละอัน ที่ด้านบนของ stack ICS-20 (v1, v2) | ข้อความล้มเหลว (fail-closed) แพ็กเก็ตยังค้างอยู่ |
+| หลังข้อความทั้งหมดของธุรกรรมที่มี `MsgTransfer`, ข้อความของโมดูล ERC-20 หรือข้อความ CosmWasm (รวมใน authz `MsgExec`): post handler ของ SDK | ธุรกรรมล้มเหลว state ของข้อความถูกทิ้ง |
+
+ข้อความ governance, staking, bank และ IBC client ไม่ถูกตรวจ ตัวตรวจที่ทำงานผิดจึงหยุดการโหวตไม่ได้ ต่ำกว่าความสูงของ shield
+ทั้งหมดนี้ไม่ทำอะไร (ผลและ gas เหมือนเดิม; `TestShieldGuardOffBeforeHeight`)
 
 ### ใครเป็นคนกำหนดว่าตรวจอะไร
 
@@ -308,9 +329,11 @@ curl -s "localhost:26657/block_results?height=$h" | jq '[.result.finalize_block_
 
 ## ข้อจำกัด
 
-- **ไม่ใช่ทุกเส้นทางเป็นธุรกรรม EVM** ข้อความ CosmWasm, bank และ IBC ไม่ถูกตรวจ ถ้าข้อความเหล่านี้ทำให้โปรโตคอลพัง
-  ธุรกรรม EVM ถัดไปในบล็อกเดียวกันจะถูกย้อน (เพราะที่ check point โปรโตคอลยังดีอยู่) จนถึง check point ของบล็อกถัดไป
-  จำกัดอยู่ที่หนึ่งบล็อก แต่เป็นช่องให้ก่อกวนได้ถ้ามีเส้นทางแบบนั้นอยู่จริง
+- **ก่อนความสูงของ `zetaphy-shield` ตรวจเฉพาะธุรกรรม EVM และ `MsgEVMCall`** ข้อความที่รันโค้ด EVM ทางอื่น (แพ็กเก็ตและ
+  callback ของ IBC, การแปลง ERC-20, CosmWasm) ไม่ถูกตรวจในช่วงนั้น shield ปิดช่องนี้ (หัวข้อข้างบน) เชนที่ยังไม่รัน
+  upgrade นี้ยังมีช่องอยู่
+- **ข้อความที่ไม่รันโค้ด EVM ไม่ถูกตรวจ** (bank, staking, governance, อัปเดต IBC client) การโอน bank ยังเปลี่ยนยอดที่ตัวตรวจอ่าน
+  ได้ (การบริจาค) ถ้าทำให้โปรโตคอลพัง ธุรกรรมที่ถูกตรวจถัดไปในบล็อกจะถูกย้อน จนถึง check point ของบล็อกถัดไป
 - **`eth_estimateGas` / `eth_call` ไม่รัน hook** กระเป๋าจึงมองไม่เห็นล่วงหน้าว่าไฟร์วอลล์จะย้อนธุรกรรม ธุรกรรมจะล้มเหลวบนเชน
   และเสียค่า gas
 - **ต้นทุน** hook `PostTxProcessing` ไม่คิด gas ใน cosmos/evm ขณะเปิดไฟร์วอลล์ ทุกธุรกรรม EVM ทำให้โหนดต้องทำงาน EVM

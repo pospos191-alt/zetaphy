@@ -8,14 +8,18 @@ on:
   pull_request:
     paths:
       - 'zetaphy-chain/verify-release.sh'
+      - 'zetaphy-chain/join-validator.sh'
       - 'audit/tools/verify-release.test.js'
+      - 'audit/tools/join-validator-release.test.js'
       - '.github/workflows/release-zetaphyd.yml'
       - '.github/workflows/verify-release.yml'
   push:
     branches: [main]
     paths:
       - 'zetaphy-chain/verify-release.sh'
+      - 'zetaphy-chain/join-validator.sh'
       - 'audit/tools/verify-release.test.js'
+      - 'audit/tools/join-validator-release.test.js'
       - '.github/workflows/release-zetaphyd.yml'
 
 permissions:
@@ -44,6 +48,13 @@ jobs:
       - name: Tests (hashes, signer identity, anti-rollback, cosign path, unsigned releases)
         run: node --test audit/tools/verify-release.test.js
 
+      # join-validator.sh runs nothing as root before verify-release.sh accepted it; its verifier pins
+      # (verify-release.sh, cosign) are in step (internal review 2026-11-10, Z-04)
+      - name: join-validator.sh installs only verified releases
+        run: |
+          shellcheck -S warning zetaphy-chain/join-validator.sh
+          node --test audit/tools/join-validator-release.test.js
+
       # What the sign job of release-zetaphyd.yml writes into RELEASE.json must be what verify-release.sh reads.
       - name: The release workflow writes the fields verify-release.sh checks
         run: |
@@ -53,3 +64,5 @@ jobs:
           done
           grep -q 'zetaphyd-provenance.sigstore.json' .github/workflows/release-zetaphyd.yml
           grep -q 'zetaphyd-provenance.sigstore.json' zetaphy-chain/verify-release.sh
+          # shellcheck disable=SC2016 # the jq variables are literal text here
+          grep -qF 'scripts: {"join-validator.sh": $jv, "verify-release.sh": $vr}' .github/workflows/release-zetaphyd.yml

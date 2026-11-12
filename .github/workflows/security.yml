@@ -32,9 +32,10 @@
 #                 and the CosmWasm/PQ fork tests there. ~15 min.
 #   zetaphy-chain-attacks same trigger — anti-rollback / anti-takeover attacks
 #                 on real devnets (zetaphy-chain/test-anti-rollback.sh, docs/
-#                 ANTI-ROLLBACK-CHAIN.md): builds zetaphyd and the binary from
-#                 before the zetaphy-guard upgrade, runs them side by side
-#                 before the upgrade height, then each attack. ~25 min.
+#                 ANTI-ROLLBACK-CHAIN.md): builds zetaphyd and the binaries from
+#                 before the zetaphy-guard and zetaphy-shield upgrades, runs
+#                 them side by side before each upgrade height, then each
+#                 attack; plus the plan-pin check of setup-node.sh. ~40 min.
 #
 # Free-tier budget: GitHub Free gives private repos 2,000 Actions minutes a
 # month. The `changes` job runs each test job ONLY when its own files changed
@@ -590,11 +591,7 @@ jobs:
       # cloud-init.sh downloads setup-node.sh from the public repo; warn while
       # this version is not published there yet.
       - name: setup-node.sh is published for cloud-init
-        run: |
-          url=$(grep -o 'https://raw.githubusercontent.com/[^"]*' zetaphy-chain/cloud-init.sh)
-          sha=$(sha256sum zetaphy-chain/setup-node.sh | cut -d' ' -f1)
-          got=$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1 || true)
-          [ "$got" = "$sha" ] && echo "published: $url" || echo "::warning::setup-node.sh $sha is not published at $url yet; Oracle installs need it"
+        run: bash audit/tools/cloud-init-published.sh --warn || [ $? = 3 ]
 
       - name: Set up Go (the version setup-node.sh pins)
         uses: actions/setup-go@v5
@@ -762,7 +759,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.chain == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       SRC: ${{ github.workspace }}/../cosmos-evm
       OLD_SRC: ${{ github.workspace }}/../cosmos-evm-old
@@ -778,6 +775,9 @@ jobs:
         with:
           go-version: '1.26.11'
           cache: false
+
+      - name: setup-node.sh installs only the binary an upgrade plan pins
+        run: bash zetaphy-chain/test-plan-pin.sh
 
       - name: Build zetaphyd (this setup-node.sh) and the one from before zetaphy-guard
         run: |
@@ -796,8 +796,20 @@ jobs:
           bash "$RUNNER_TEMP/setup-node-old.sh" --patch-source "$OLD_SRC"
           (cd "$OLD_SRC/evmd" && go build -o "$RUNNER_TEMP/zetaphyd-old" ./cmd/evmd)
 
+      # The binary a node runs before zetaphy-shield (devnet 3: mixed binaries, the upgrade, the message limit).
+      - name: Build the zetaphyd from before zetaphy-shield
+        run: |
+          added=$(git log --format=%H -n 1 -S'ZetaphyShieldUpgradeName = "zetaphy-shield"' -- zetaphy-chain/setup-node.sh)
+          [ -n "$added" ] || { echo "::error::no commit adds zetaphy-shield"; exit 1; }
+          git show "$added^:zetaphy-chain/setup-node.sh" > "$RUNNER_TEMP/setup-node-preshield.sh"
+          ! grep -q 'ZetaphyShieldUpgradeName' "$RUNNER_TEMP/setup-node-preshield.sh"
+          echo "pre-shield binary: setup-node.sh of $added^"
+          rm -rf "$OLD_SRC" && git clone -q --depth 1 --branch "$(sed -n 's/^COSMOS_EVM_TAG="\(.*\)"/\1/p' zetaphy-chain/setup-node.sh)" https://github.com/cosmos/evm.git "$OLD_SRC"
+          bash "$RUNNER_TEMP/setup-node-preshield.sh" --patch-source "$OLD_SRC"
+          (cd "$OLD_SRC/evmd" && go build -o "$RUNNER_TEMP/zetaphyd-preshield" ./cmd/evmd)
+
       - name: Attacks on real devnets (each must be refused or detected)
-        run: bash zetaphy-chain/test-anti-rollback.sh "$RUNNER_TEMP/zetaphyd" "$RUNNER_TEMP/zetaphyd-old" "$RUNNER_TEMP/attacks"
+        run: bash zetaphy-chain/test-anti-rollback.sh "$RUNNER_TEMP/zetaphyd" "$RUNNER_TEMP/zetaphyd-old" "$RUNNER_TEMP/attacks" "$RUNNER_TEMP/zetaphyd-preshield"
 
   program:
     name: program (cargo test + anchor test)

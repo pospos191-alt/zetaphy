@@ -204,10 +204,22 @@ sudo tail -f /var/log/zetaphy-setup.log     # Ctrl+C เลิกดู กา�
 สคริปต์รันได้ทีละรอบ ถ้าสั่งซ้ำ รอบที่สองจะบอกแล้วออกเอง ใครก็ build ไฟล์นี้ใหม่จากซอร์สเดียวกัน
 (`.github/workflows/release-zetaphyd.yml`) แล้วเทียบ hash ได้
 ไฟล์แต่ละตัวมีลายเซ็นที่มาของการ build (Sigstore) ยืนยันว่า workflow นี้ build จาก commit ใน repo นี้ ไม่ได้อัปโหลดเอง:
-`gh attestation verify zetaphyd-linux-$ARCH --repo pospos191-alt/zetaphy`
+`gh attestation verify zetaphyd-linux-$ARCH --repo pospos191-alt/zetaphy` การตรวจเต็มก่อนติดตั้ง (ลายเซ็นของ workflow release
+บน `main`, hash, ไม่เก่ากว่าที่ติดตั้งอยู่) คือ `verify-release.sh` ใช้ cosign ไม่ต้องมีบัญชี:
+[docs/ANTI-ROLLBACK-OFFCHAIN.th.md](../docs/ANTI-ROLLBACK-OFFCHAIN.th.md) หัวข้อ "บน VM"
 
 **อัปเดตโหนดที่รันอยู่** (เก็บกุญแจและข้อมูลเชนไว้ ตั้งค่า rpc-guard และ Caddy ใหม่ แล้วรีสตาร์ตโหนด):
 `curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo bash -s -- update`
+(ติดตั้งเฉพาะ release ที่ `verify-release.sh` ยอมรับ ไม่เช่นนั้นปฏิเสธ)
+
+### การเผยแพร่ setup-node.sh (เจ้าของ): เผยแพร่ก่อน แล้วค่อยย้าย pin
+
+`cloud-init.sh` ดาวน์โหลด `v/<sha256>.sh` จาก repo สาธารณะ `pospos191-alt/zetaphy-chain` ไฟล์นั้นจึงต้องมีก่อนที่ `main` จะ pin มัน:
+รัน `pack-cloud-init.sh` ใน pull request, push `public/v/<sha256>.sh` (ไม่แก้อะไร) ไปที่ repo สาธารณะ, ตรวจ
+`curl -fsI https://raw.githubusercontent.com/pospos191-alt/zetaphy-chain/main/v/<sha256>.sh` แล้วค่อย merge; หลังจากนั้นคัดลอกทับ
+`setup-node.sh` สาธารณะ workflow `cloud-init-published.yml` เตือนใน pull request และ fail (พร้อมเปิด issue) บน `main` และทุกวัน
+ตราบที่ยังไม่มีไฟล์ที่ pin ไว้ รายละเอียด: [docs/ANTI-ROLLBACK-OFFCHAIN.th.md](../docs/ANTI-ROLLBACK-OFFCHAIN.th.md) หัวข้อ
+"การเผยแพร่ setup-node.sh"
 
 ### ใช้โดเมนของตัวเองเป็น RPC
 

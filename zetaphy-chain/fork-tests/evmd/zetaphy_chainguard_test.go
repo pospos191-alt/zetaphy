@@ -472,12 +472,18 @@ func TestStartGuardSignState(t *testing.T) {
 
 	// The sign record (written from ExtendVote) is ahead of the state file.
 	rec := newZetaphySignRecord(home)
-	rec.note(app.ChainID(), 120)
-	rec.note(app.ChainID(), 110) // never goes down
+	other := append([]byte{0xcd}, addr[1:]...)
+	rec.note(app.ChainID(), 130, other) // another validator key's record (internal review 2026-11-12, Z-50)
+	require.NoError(t, app.ZetaphyStartGuard(opts), "a record of another key does not count")
+	rec.note(app.ChainID(), 120, addr) // this key: starts afresh
+	rec.note(app.ChainID(), 110, addr) // never goes down
 	st, ok := readSignState(filepath.Join(home, "config", zetaphySignStateFn))
 	require.True(t, ok)
 	require.Equal(t, int64(120), st.Height)
-	err := app.ZetaphyStartGuard(opts)
+	require.Equal(t, fmt.Sprintf("%x", addr), st.ConsAddress)
+	_, err := os.Stat(filepath.Join(home, "config", zetaphySignStateFn+".tmp"))
+	require.True(t, os.IsNotExist(err), "written through a temporary file, renamed")
+	err = app.ZetaphyStartGuard(opts)
 	require.ErrorContains(t, err, "double sign")
 	require.ErrorContains(t, err, "height 120")
 	pvs(120)

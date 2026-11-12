@@ -78,9 +78,28 @@ validator อื่น ให้ใส่ `priv_validator_state.json` ล่า�
 (ข้อความปฏิเสธพิมพ์ค่าให้) ทุกครั้งที่ใช้จะบันทึกระดับ `user.crit` ลง journal (`journalctl -t zetaphy-setup`) และ
 `/var/log/zetaphy-setup.log` ไบนารีที่ติดตั้งแล้วยังรัน start guard ของตัวเองอีก
 
+เมื่อ start guard ปฏิเสธไบนารีที่ `setup-node.sh` เพิ่งติดตั้ง (exit 78 ซึ่ง systemd ไม่รีสตาร์ต) โหนดไม่ค้างอยู่: `setup-node.sh` เก็บไบนารี
+ที่รันอยู่ก่อนไว้เป็น `/usr/local/bin/zetaphyd.prev` และ `ExecStopPost` ของ unit (`/usr/local/bin/zetaphy-start-guard-revert`, root)
+ใส่มันกลับหนึ่งครั้ง เก็บตัวที่ถูกปฏิเสธเป็น `zetaphyd.refused` บันทึกระดับ `user.crit` และสตาร์ตโหนดอีกครั้ง การถูกปฏิเสธครั้งที่สอง
+(สถานะการเซ็นที่ถูกย้อนกลับจะปฏิเสธทุกไบนารี) ปล่อยให้หยุดรอผู้ดูแล บันทึกการเซ็นระบุคีย์ validator ที่มันเป็นของ (`cons_address`;
+บันทึกของคีย์อื่นไม่นับ) และเขียนด้วย fsync ก่อน rename (internal review 2026-11-12, Z-50)
+
 สคริปต์ติดตั้งไม่เคยเขียน `priv_validator_state.json` จาก backup: `zetaphy-validator backup` ระบุว่าเป็นไฟล์ที่อยู่ในเครื่อง และ
 `setup-horcrux.sh` ขยับมันไปข้างหน้าเท่านั้น (+2) ขั้นตอน rollback ใน [CHAIN-FIREWALL.th.md](CHAIN-FIREWALL.th.md) เก็บสำเนา
 ไฟล์สถานะล่าสุดไว้ก่อนใส่ข้อมูลเก่ากลับ
+
+### checksum ของไบนารีที่โหวต (`Plan.Info`)
+
+`gov.sh propose-upgrade` เขียน SHA-256 ของ `zetaphyd` แต่ละตัวของ release ลงใน `info` ของแผน ในรูปแบบของ cosmovisor
+(`{"binaries":{"linux/amd64":"<url>?checksum=sha256:<hex>","linux/arm64":"..."}}` อ่านจาก `SHA256SUMS` ของ release;
+`FORCE=1` ยื่นโดยไม่มี) เมื่อ `setup-node.sh` ติดตั้งไบนารีสำเร็จรูป (`zetaphy-validator update` หรือ `upgrade-watch` ตอนเชน
+หยุดที่ upgrade ที่โหวตแล้ว; ทั้งสองรับเฉพาะ release ที่ `verify-release.sh` ยอมรับ) และไบนารีนั้นมี handler ของแผนที่เชนตั้งไว้
+(อ่านจากโหนด) หรือของแผนที่เชนหยุดอยู่ (`data/upgrade-info.json` ที่ถูกเขียนทุกครั้งที่รีสตาร์ตขณะหยุด) SHA-256 ของไบนารีต้อง
+ตรงกับค่าที่ pin ไว้สำหรับแพลตฟอร์มของมัน แผนที่ pin ไบนารีอื่น หรือไม่ได้ pin แพลตฟอร์มนี้ จะปฏิเสธการติดตั้ง แผนที่ไม่มี pin
+(ข้อเสนอเก่า) เหลือลายเซ็นของ release เป็นการตรวจเดียว พร้อมข้อความแจ้ง ข้อยกเว้นโดยตั้งใจคือ
+`ZETAPHY_ALLOW_UNPINNED=<chain-id>:<ชื่อ upgrade>` ซึ่งบันทึกระดับ `user.crit` เหมือน override ของ downgrade (internal review
+2026-11-10, Z-04) การ build จากซอร์ส (โหนดแรกของเชน) ไม่ถูกเทียบ เพราะ build ในเครื่องไม่ได้ไบต์เดียวกับ release ที่นั่นการตรวจคือ
+fingerprint ของ `setup-node.sh` ที่ pin ไว้
 
 ## T: ไม่มี crypto downgrade
 
@@ -131,6 +150,14 @@ staking precompile (0x…0800) และ gentx ตรวจเฉพาะกา
   ลายเซ็นครอบคลุมข้อความ (ข้อความที่ถูกแก้จะถูกปฏิเสธ)
 - **trip ไม่ได้เลย**: `/cosmos.gov.*`, `/cosmos.upgrade.*`, `/cosmos.consensus.*`, `MsgUnjail` และ `MsgSetFuture`,
   `MsgPQCertificate`, `MsgZXVotes`, `MsgPQVoteKey` ของเชนเอง governance จึง reset ได้เสมอ และบล็อกยังมี certificate
+- **ตั้งแต่ความสูงของ `zetaphy-shield`** (internal review 2026-11-12, Z-44, Z-46): ข้อความของ ZETAPHY ทุกข้อความ
+  (`/zetaphy.pq.v1.*`: quantum lock, commit/reveal ของ Q-day, การยกเลิก IBC hold และการตั้งค่าความปลอดภัยของ governance)
+  และข้อความ client กับ channel ของ IBC core ทุกข้อความ trip ไม่ได้เช่นกัน (trip ที่ทำไว้ก่อนหน้าหยุดมีผล) trip ของ circuit authority
+  หมดอายุหลัง 100,000 บล็อก (~1 สัปดาห์) เว้นแต่ governance trip ชนิดเดียวกันเอง ซึ่งเท่ากับยืนยัน หลัง reset หรือหลัง trip หมดอายุ
+  authority ต้องรออีก 100,000 บล็อกก่อนจะ trip ชนิดนั้นได้อีก (governance ไม่ต้องรอ) authority ต้องเซ็นธุรกรรมเอง: trip หรือ reset ที่มาผ่าน
+  `authz` `MsgExec` หรือสัญญาถูกปฏิเสธ
+- **ข้อจำกัด: precompile** breaker อยู่ใน message router ส่วน EVM precompile (staking, distribution, bank, ICS-20) เรียก keeper
+  ของโมดูลโดยตรง การ trip `MsgDelegate` หรือ `MsgTransfer` จึงไม่หยุดการกระทำเดียวกันจากสัญญา (internal review 2026-11-12, Z-45)
 
 ## P: รัฐธรรมนูญ (ปิดเป็นค่าเริ่ม)
 
@@ -149,6 +176,32 @@ governance จะถูกปฏิเสธตอนยื่น (ธุรก�
 บน testnet นี้ปิดไว้ สิ่งที่มีอยู่จึงไม่เปลี่ยน ตั้งใจให้เปิดตอน mainnet งานนี้ไม่ได้เปลี่ยนค่า timelock ใดที่มีอยู่ ข้อจำกัด:
 governance ยังรันข้อความธรรมดาในนามบัญชี governance ได้ (เช่น `MsgEVMCall` ไปยังสัญญาที่มันเป็นเจ้าของ แบบที่ `gov.sh neuro`
 ทำ) และยังโหวต software upgrade ไปไบนารีที่ไม่มีกฎเหล่านี้ได้ timelock ระดับสัญญา (`ZetaphyTimelock` 48 ชม.) แยกกันและไม่เปลี่ยน
+สิ่งที่ยังไม่ครอบคลุม (internal review 2026-11-12, Z-47): `MsgStoreCode`, `MsgMigrateContract` และ `MsgUpdateAdmin` ของ CosmWasm
+(admin ของสัญญายัง migrate ได้), `MsgCommunityPoolSpend`, `max_validators` ของ staking, พารามิเตอร์ consensus, ค่า send-enabled
+ของ bank และ `min_deposit` ของ gov และพื้นของเพดานอำนาจโหวตมีผลเฉพาะเมื่อเพดานเปิดอยู่ตอนเปิดรัฐธรรมนูญ ผู้โหวตยังต้องอ่านข้อเสนอเหล่านั้นเอง
+
+## upgrade `zetaphy-shield`
+
+กฎของชั้นป้องกันเสริม (internal review 2026-11-10, Z-01..Z-03 และกฎของ circuit breaker จาก internal review 2026-11-12,
+Z-44 และ Z-46 ใน S2 ข้างบน) เริ่มจากคีย์ `0x50` (ความสูง upgrade + 1; เชนใหม่ใส่ใน
+genesis ได้) อยู่ใน store `zetaphypq` เดิม (ไม่เพิ่ม store จึงอยู่ใน `zetaphyEarlyUpgrades`) ต่ำกว่าความสูงนั้นทุกเส้นทางตอบเหมือนเดิม
+โดยอ่าน `0x50` โดยไม่คิด gas
+
+- **การมอบโค้ด** ธุรกรรม Ethereum ที่มี authorization ของ EIP-7702 ซึ่งเซ็นโดยบัญชีที่ account guard ป้องกันอยู่ (protected mode
+  มีผล หรือเข้าร่วม anomaly hold) ถูกปฏิเสธใน ante handler และตอนส่งเข้า mempool ไม่ว่าใครเป็นผู้ส่ง การปิดการป้องกันยังต้องรอ
+  delay เหมือนเดิม
+- **ทุกข้อความ** account guard และ threat gate อ่านทุกข้อความของธุรกรรม รวมข้อความข้างใน authz `MsgExec` ธุรกรรมที่มีเกิน 64
+  ข้อความ (นับ `MsgExec` ด้วย) ถูกปฏิเสธ แทนการตรวจเพียงบางส่วน
+- **ไฟร์วอลล์หลังทุกข้อความที่รันโค้ด EVM** ดู [CHAIN-FIREWALL.th.md](CHAIN-FIREWALL.th.md#หลังทุกข้อความที่รันโค้ด-evm-zetaphy-shield)
+
+ตรวจแล้ว: `TestShieldGuardOffBeforeHeight` (เดินข้อความแบบเดิมทุกรายการ คำตอบเดิม gas เท่าเดิมทั้งตอนไม่ตั้งและตั้งความสูงไว้ข้างหน้า),
+`TestShieldUpgradeHandler`, `TestShieldGuardCodeDelegation` (รวมผ่าน ante handler), `TestShieldGuardMessageLimit`, เทสต์
+`TestShieldFirewall*` สามตัว, `TestUpgradeRestartAfterEveryUpgrade` (ตอนนี้มี `zetaphy-shield`) และ devnet 3 ของ
+`test-anti-rollback.sh`: ไบนารีที่ไม่มี upgrade กับไบนารีใหม่ได้ app hash เดียวกันกับธุรกรรม 65 ข้อความก่อนความสูง ไบนารีเก่าหยุดที่
+ความสูงนั้น และหลังจากนั้นธุรกรรม 65 ข้อความถูกปฏิเสธ
+
+เปิดใช้บน testnet: เหมือน `zetaphy-guard` ข้างล่าง (ขั้น 1–4 โดยใช้ `zetaphy-shield`; testnet ทำ `zetaphy-guard` แล้ว)
+`gov.sh propose-upgrade` ตอนนี้ pin ไบนารีของ release ไว้ในแผน ก่อนโหวตตรวจว่าไม่มีเครื่องมือใดส่งเกิน 64 ข้อความในธุรกรรมเดียว
 
 ## upgrade `zetaphy-guard`
 

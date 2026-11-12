@@ -15,7 +15,8 @@ interface IFEProofs {
 interface IFELockbox {
     function escaping() external view returns (bool);
     function forcedFrom() external view returns (uint64);
-    function forcedPay(address to, uint256 owed) external returns (uint256);
+    function snapshotHeight() external view returns (uint64);
+    function forcedPay(address to, uint256 owed, uint64 height) external returns (uint256);
 }
 
 /// @title ZetaphyForcedExit: holders leave a stopped, censoring or rolled-back ZETAPHY with the proof they hold
@@ -27,20 +28,22 @@ interface IFELockbox {
 ///           prove(account, height, balance, proof): token(X)'s storage slot balanceOf[account] = balance in ZETAPHY's
 ///             state at `height`, whose app hash the light client finalized (StarkLightClient: a STARK of > 2/3 of the
 ///             validators' ML-DSA-44 votes): the IAVL path of the evm store key 0x02 || token || keccak256(account,
-///             slot) and the multistore path of "evm" to that app hash. Exactly the proof the wallet keeps
-///             (zetaphy-wallet: eth_getProof at a height it saw certified). Anyone may prove for any account; the
-///             payout only ever goes to the account.
-///           a LATER finalized height replaces an earlier one (anyone, until the account is paid): the newest proven
-///             state wins, so a stale proof (an old balance since spent) is corrected by whoever holds a newer one,
-///             e.g. any archive node, within `challengeWindow`;
-///           finalize(account) after challengeWindow from its first proof: the lockbox pays the account its share
-///             (pro rata against the last heartbeat's supply, once; HyperlaneLockBoxV2.forcedPay).
+///             slot) and the multistore path of "evm" to that app hash. `height` must be the lockbox's snapshotHeight:
+///             the ZETAPHY height its last heartbeat carried, the state whose supply caps the pool. One state for every
+///             claim, so each account counts once and the claims add up to that state's balances; no other height,
+///             earlier or later, is accepted (internal review 2026-11-12, Z-43). The proof is eth_getProof of
+///             token(X) at that height (any archive node, or the holder's own copy). Anyone may prove for any account;
+///             the payout only ever goes to the account. A claim of an older snapshot (a heartbeat came since, then
+///             ZETAPHY went silent again) is replaced by a proof at the new one;
+///           finalize(account) after challengeWindow from its proof: the lockbox pays the account its share (pro
+///             rata against the last heartbeat's supply, once; HyperlaneLockBoxV2.forcedPay, which checks the height
+///             again).
 ///
 ///         What it trusts: the light client (finality) and the proof code (ZetaphyBridgeInbox's IAVL / multistore
-///         checks), the same as proven releases (SaphanReleaseVerifier). No admin. What it does not cover: releases
-///         queued on the lockbox and locks ZETAPHY never minted (the validators' exit root covers those); one account's
-///         stale claim needs someone with a newer proof of THAT account to be corrected (the pool's cap: never more
-///         owed than the last heartbeat's supply, pro rata).
+///         checks), the same as proven releases (SaphanReleaseVerifier), and that the light client's app hash at the
+///         snapshot height is ZETAPHY's (one app hash per height; a conflicting one freezes it). No admin. What it does
+///         not cover: releases queued on the lockbox and locks ZETAPHY never minted (the validators' exit root covers
+///         those). The pool's cap stays: never more owed than the last heartbeat's supply, pro rata.
 contract ZetaphyForcedExit {
     struct StateProof {
         bytes iavlLeafPrefix;
@@ -69,7 +72,8 @@ contract ZetaphyForcedExit {
 
     error NotEscaping();
     error TooSoon(uint64 at);
-    error NotNewer(uint64 height);
+    error WrongHeight(uint64 snapshotHeight);
+    error AlreadyProven();
     error BadStateProof(uint256 step);
     error NoClaim();
     error Paid();
@@ -90,22 +94,30 @@ contract ZetaphyForcedExit {
         return abi.encodePacked(uint8(2), token, keccak256(abi.encode(account, balanceSlot)));
     }
 
-    /// Anyone, once forced exits may begin: account's token(X) balance at a finalized ZETAPHY height. A first proof
-    /// opens the account's claim; a proof at a later height replaces it (until it is paid).
+    /// The height every claim must be of: the lockbox's last heartbeat's ZETAPHY height (zero: none yet).
+    function snapshotHeight() public view returns (uint64) {
+        return lockbox.snapshotHeight();
+    }
+
+    /// Anyone, once forced exits may begin: account's token(X) balance at the snapshot height. Once per account and
+    /// snapshot (a balance at one height has one value); a claim of an older snapshot is replaced.
     function prove(address account, uint64 height, uint256 balance, StateProof calldata sp) external {
         Claim storage k = claims[account];
         if (k.paid) revert Paid();
-        if (k.height != 0 && height <= k.height) revert NotNewer(k.height);
-        if (k.height == 0) k.readyAt = uint64(block.timestamp) + challengeWindow;
+        uint64 before = k.height;
+        k.readyAt = uint64(block.timestamp) + challengeWindow;
         k.height = height;
         k.balance = balance;
         emit Proven(account, height, balance, msg.sender);
-        // the checks against the lockbox, the light client and the proof code come last: any failure reverts the
-        // writes above (and no state changes after a call)
-        _check(account, height, balance, sp);
+        // the checks against the lockbox (the snapshot height first), the light client and the proof code come last:
+        // any failure reverts the writes above (and no state changes after a call)
+        _check(account, height, balance, sp, before);
     }
 
-    function _check(address account, uint64 height, uint256 balance, StateProof calldata sp) private view {
+    function _check(address account, uint64 height, uint256 balance, StateProof calldata sp, uint64 before) private view {
+        uint64 snap = lockbox.snapshotHeight();
+        if (height == 0 || height != snap) revert WrongHeight(snap);
+        if (before == height) revert AlreadyProven();   // once per account and snapshot
         if (!lockbox.escaping()) revert NotEscaping();
         uint64 from = lockbox.forcedFrom();
         if (block.timestamp <= from) revert TooSoon(from);
@@ -115,14 +127,22 @@ contract ZetaphyForcedExit {
         if (proofs.storeRoot("evm", evmRoot, sp.storePath) != app) revert BadStateProof(1);
     }
 
-    /// Anyone, after the account's challenge window: the lockbox pays the account (a zero balance just closes it).
+    /// Anyone, after the account's challenge window: the lockbox pays the account. Only a claim of the current
+    /// snapshot counts; a zero balance pays nothing and just clears the claim.
     function finalize(address account) external returns (uint256 paid) {
         Claim storage k = claims[account];
         if (k.height == 0) revert NoClaim();
         if (k.paid) revert Paid();
         if (block.timestamp < k.readyAt) revert TooSoon(k.readyAt);
-        k.paid = true;
-        if (k.balance > 0) paid = lockbox.forcedPay(account, k.balance);
-        emit Finalized(account, k.balance, paid);
+        uint64 height = k.height;
+        uint256 balance = k.balance;
+        if (balance == 0) delete claims[account];
+        else k.paid = true;
+        // the calls come last (a failure reverts the writes above): only a claim of the current snapshot counts, and
+        // the lockbox checks the height again
+        uint64 snap = lockbox.snapshotHeight();
+        if (height != snap) revert WrongHeight(snap);
+        if (balance > 0) paid = lockbox.forcedPay(account, balance, height);
+        emit Finalized(account, balance, paid);
     }
 }
