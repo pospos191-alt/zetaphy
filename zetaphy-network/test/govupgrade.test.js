@@ -26,7 +26,7 @@ case "$*" in
   *" status"*|status*) echo '{"sync_info":{"latest_block_height":"1000"}}' ;;
   *"module-account gov"*) echo '{"account":{"value":{"address":"zetaphy10d07y265gmmuvt4z0w9aw880jnsr700jxqk2t7"}}}' ;;
   *"gov proposals"*) n=$(cat ${d}/n 2>/dev/null || echo 0); echo $((n+1)) > ${d}/n; [ "$n" = 0 ] && echo '{"proposals":[{"id":"2"}]}' || echo '{"proposals":[{"id":"3"}]}' ;;
-  *"submit-proposal"*) f=""; for a in "$@"; do case "$a" in /*) [ -f "$a" ] && f="$a" ;; esac; done; [ -n "$f" ] && cp "$f" ${d}/proposal.json; echo '{"code":0,"txhash":"AB"}' ;;
+  *"submit-proposal"*) f=""; prev=""; for a in "$@"; do [ "$prev" = submit-proposal ] && f="$a"; prev="$a"; done; [ -n "$f" ] && cp "$f" ${d}/proposal.json; echo '{"code":0,"txhash":"AB"}' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
 esac`);
   const run = (...args) => {
