@@ -169,7 +169,7 @@ packages() {
   elif command -v dnf >/dev/null; then dnf install -y -q "${pk[@]}"
   elif command -v yum >/dev/null; then yum install -y -q "${pk[@]}"
   elif command -v zypper >/dev/null; then zypper -n -q install "${pk[@]}"
-  elif command -v pacman >/dev/null; then pacman -Sy --noconfirm --needed "${pk[@]}"
+  elif command -v pacman >/dev/null; then pacman -Syu --noconfirm --needed "${pk[@]}"
   else die "install ${pk[*]} with this system's package manager, then run this again"
   fi
 }
