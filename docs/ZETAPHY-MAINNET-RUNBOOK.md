@@ -4,19 +4,27 @@
 
 The ordered gates for turning the ZETAPHY chain into a mainnet whose coin, ZTPHY, can hold real value. Every gate must
 be ticked, in order, with the evidence written next to it. Nothing here is automated: no workflow creates a mainnet
-genesis or starts a mainnet node, and this document holds no command that does.
+genesis or starts a mainnet node. The commands for each gate are in
+[ZETAPHY-MAINNET-PROCEDURE.md](ZETAPHY-MAINNET-PROCEDURE.md) (tools: `zetaphy-chain/mainnet/make-genesis.sh` and the
+pinned-chain mode of `zetaphy-chain/setup-node.sh`); the owner runs them.
+
+**Owner decision (2026-11-12): the mainnet launches with 1 validator, operated by the project; more are added later.**
+The risk of that choice: whoever controls that one machine or its key controls the chain (can halt it, censor it, and
+with a modified binary change its rules, including every guard listed here), and losing it without a key backup
+stops the chain. Users are told so by the public notice in the procedure, together with the open audit (gate 1).
+Gate 2 below stays as the target, marked as this decision.
 
 Fees, deployments and gas on ZETAPHY are paid in ZTPHY. No SOL or other outside coin is needed. (SOL is only for the
 separate swd-amm program on Solana; see [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md).)
 
-**Status on 2026-11-12:** gate 1 not started, gate 2 not started, gate 3 in progress (the `zetaphy-guard` upgrade
+**Status on 2026-11-12:** gate 1 not started, gate 2 decided by the owner (1 validator at launch), gate 3 in progress (the `zetaphy-guard` upgrade
 passed on the testnet as proposal 9). The testnet (`zetaphy_77390-1`) runs on one validator. That is acceptable for a
 testnet and not for a mainnet.
 
 | Gate | What | Status |
 |---|---|---|
 | 1 | Independent external audit of the release commit; every Critical/High fixed and re-reviewed | ❌ not started |
-| 2 | At least 4 independent validators, none above 1/3 of the power | ❌ 1 validator |
+| 2 | At least 4 independent validators, none above 1/3 of the power | ⚠️ owner decision: 1 validator at launch; plan to add more |
 | 3 | The release has run on the testnet for at least 4 weeks without incident | ⏳ started 2026-11-12 |
 | 4 | Fresh keys, none on a public host | ❌ |
 | 5 | Mainnet release: signed, published, fingerprint frozen | ❌ waits for gate 1 |
@@ -46,6 +54,9 @@ its High items), so the paid audit spends its time on what is left.
 Record here: firm / contest `________`, report URL `________`, audited commit `________`, fingerprint `________`.
 
 ## Gate 2: independent validators
+
+**Owner decision: 1 validator at launch; plan to add more** (risk: above, and in the procedure). Adding validators:
+step 17 of [the procedure](ZETAPHY-MAINNET-PROCEDURE.md). The target stays:
 
 - **At least 4** validators run by different people or organisations, on different machines and providers. CometBFT
   stays safe only while less than 1/3 of the power is dishonest: with 4, one can fail or be compromised. With 1, whoever
