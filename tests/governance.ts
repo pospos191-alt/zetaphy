@@ -501,13 +501,13 @@ describe("swd_amm governance", () => {
     const settingsPda = await ensureGovSettings();
     const pending = await proposeAction({ unpauseCpPool: { pool: poolPda, swap: true, deposit: false, withdraw: false } });
     const earlyErr = await expectThrows(async () => {
-      await program.methods.executeUnpausePool().accounts({ pending, pool: poolPda }).rpc();
+      await program.methods.executeUnpausePool().accounts({ config: globalConfigPda, pending, pool: poolPda }).rpc();
     }, "executing the unpause before the timelock elapsed");
     assert.equal(errorCode(earlyErr), "TimelockNotElapsed");
     await waitForTimelock(settingsPda);
-    await program.methods.executeUnpausePool().accounts({ pending, pool: poolPda }).rpc();
+    await program.methods.executeUnpausePool().accounts({ config: globalConfigPda, pending, pool: poolPda }).rpc();
     const again = await expectThrows(async () => {
-      await program.methods.executeUnpausePool().accounts({ pending, pool: poolPda }).rpc();
+      await program.methods.executeUnpausePool().accounts({ config: globalConfigPda, pending, pool: poolPda }).rpc();
     }, "executing the same action twice");
     assert.equal(errorCode(again), "ActionNotPending");
 

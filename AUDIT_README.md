@@ -7,7 +7,7 @@ program `programs/swd_amm` (SAWASDEE COIN / SWD). Owner's guide in Thai:
 | | |
 |---|---|
 | What | SWDMM v2 — a full-range constant-product AMM with Meteora-DAMM-v2-style fees and LP positions — plus Squads-governed, timelocked administration and an optional Pyth guard. Anchor 0.31.1 / Solana 3.1.10. |
-| Scope | The **mainnet build** `--features mainnet,v2-only`: 6 files, **2,600 nSLOC**, 23 instructions. Constant-product and DLMM pool types are compiled out (the full program is 4,820 nSLOC). → [SCOPE.md](audit-package/SCOPE.md) |
+| Scope | The **mainnet build** `--features mainnet,v2-only`: 6 files, **2,647 nSLOC**, 24 instructions. Constant-product and DLMM pool types are compiled out (the full program is 4,871 nSLOC). → [SCOPE.md](audit-package/SCOPE.md) |
 | Frozen commit | `________________________________________` (set when the engagement is booked) |
 | Status | Not audited. Not on mainnet. Internal review, attack tests, fuzzing and 6 Kani proofs done (below). Pre-audit hardening 2026-11-11: freeze-authority allowlist (K-1), two-step authority rotation (K-3), governance-only v2 pool creation on mainnet (K-5) — [PRIOR_FINDINGS.md](audit-package/PRIOR_FINDINGS.md) §4. |
 | Contact | GitHub private vulnerability reporting on `pospos191-alt/zetaphy`; engagement contact in the RFP email. |
@@ -52,15 +52,16 @@ Results on the prepared branch (2026-11-11, local, after the pre-audit hardening
 
 | Check | Result |
 |---|---|
-| `cargo test -p swd_amm` (full / `v2-only` / `mainnet,v2-only`) | 60+4 / 41+4 / 41+4 passed |
+| `cargo test -p swd_amm` (full / `v2-only` / `mainnet,v2-only`) | 62+4 / 43+4 / 43+4 passed (lib counts after the internal-review fixes of 2026-11-11; the other rows are from the run before them — after the fixes, CI run 455 (`security.yml`) and the `amm-formal.yml` run on the same branch passed every step) |
 | `cargo clippy -p swd_amm --features v2-only` | clean except one warning inside Anchor-generated code (K-21) |
 | TS localnet, full build (8 suites) | 55 passed, 6 skipped (v2-only checks) |
 | TS localnet, `v2-only` build (`v2-only.ts`, `swdmm_v2.ts`, `security-review.ts`) | 27 passed, 1 skipped (CP-only F-5) |
 | TS localnet, `mainnet,v2-only` build (`v2-only.ts`) | 6 passed (5 s timelock refused, 24 h governance rotation, governance-only pool creation) |
-| `tests/z-squads-live-verification.ts` (needs the mainnet Squads clone) | rewritten for the two-step handover; not re-run locally (no mainnet RPC) — CI / `anchor test` |
+| `tests/z-squads-live-verification.ts` (needs the mainnet Squads clone) | 3 passed in CI (run 466, 2026-11-11): a real Squads v4 vault accepts governance through the timelock and hands it back |
+| Compute units, worst-case `swap_v2` (`tests/v2-only.ts` K-17, `mainnet,v2-only` binary, CI run 466) | about 35,200 of the default 200,000 (Token-2022 both sides + Pyth guard + dynamic fee) — KNOWN_ISSUES K-17 |
 | Fuzz regression (stable) | 28 passed |
 | LiteSVM stateful differential, `v2-only` and full `.so` | 60 seeds × 150 steps each, no violation |
-| Kani | 6 of 6 completing harnesses verified (14 SLOW harnesses not run — see FUZZING_FORMAL §5) |
+| Kani | 6 of 6 completing harnesses verified. Of the 16 SLOW harnesses, the 5 of the mainnet scope were given 180 min each (2026-11-11): `v2_fee_amount_u32` verified, the other 4 did not finish; the 11 CP / DLMM ones were not run — see FUZZING_FORMAL §5 |
 | `cargo audit` (cargo-audit 0.23.0, 1,446 advisories) | 0 vulnerabilities; 3 warnings on transitive Solana/Anchor crates (bincode 1.3.3 and libsecp256k1 0.6.0 unmaintained, rand 0.7.3 unsound-with-custom-logger) — not reachable from program logic. CI runs it on every push. |
 
 ## Ground rules we ask for

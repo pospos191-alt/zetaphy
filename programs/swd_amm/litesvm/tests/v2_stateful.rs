@@ -322,6 +322,7 @@ impl Env {
         self.warp(TIMELOCK + 1, 3);
         let mut a = exec_accts;
         a.push(("pending", pending));
+        a.push(("config", self.config));
         let ix = self.ix(exec, &a, &[]);
         self.send(vec![ix], &[])
     }

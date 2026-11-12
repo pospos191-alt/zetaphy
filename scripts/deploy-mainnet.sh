@@ -100,11 +100,13 @@ preflight() {
 
   local pid dep declared
   pid=$(program_id); dep=$(pubkey_of "$DEPLOYER_KEYPAIR")
-  declared=$(grep -oP 'declare_id!\("\K[1-9A-HJ-NP-Za-km-z]+' programs/swd_amm/src/lib.rs)
+  # the id a `mainnet` build declares: the declare_id! right under #[cfg(feature = "mainnet")]
+  declared=$(grep -A1 '^#\[cfg(feature = "mainnet")\]$' programs/swd_amm/src/lib.rs | grep -oP 'declare_id!\("\K[1-9A-HJ-NP-Za-km-z]+' | head -1)
+  [ -n "$declared" ] || die "no #[cfg(feature = \"mainnet\")] declare_id! found in lib.rs"
   info "program id (from PROGRAM_KEYPAIR): $pid"
   info "deployer: $dep  balance: $(solana balance "$dep" -u "$RPC")"
   info "squads vault: $SQUADS_VAULT   emergency: $EMERGENCY_AUTHORITY   treasury: ${TREASURY:-$SQUADS_VAULT}"
-  [ "$declared" = "$pid" ] || die "declare_id! in lib.rs is $declared, not $pid — set it (and [programs.mainnet] in Anchor.toml), commit, push, rerun"
+  [ "$declared" = "$pid" ] || die "declare_id! in lib.rs is $declared, not $pid — set the mainnet declare_id! (and [programs.mainnet] in Anchor.toml), commit, push, rerun"
   [ "$SQUADS_VAULT" != "$dep" ] || die "SQUADS_VAULT must not be the deployer"
   [ "$EMERGENCY_AUTHORITY" != "$SQUADS_VAULT" ] || die "emergency authority must not be the Squads vault"
   if solana account "$pid" -u "$RPC" >/dev/null 2>&1; then info "NOTE: $pid already exists on mainnet (deploy = upgrade)"; fi
@@ -228,7 +230,7 @@ handover() {
   info "   the vault must be the only signer), propose, 2 of 3 members approve, execute."
   info "4. yarn governance status          -> governance_authority == $SQUADS_VAULT"
   info "   yarn governance verify-multisig <MULTISIG_PDA> 0   -> threshold 2 of 3"
-  info "   yarn governance settings        -> no other pending action from the deployer (cancel any via Squads)"
+  info "   yarn governance settings        -> actions the deployer queued are stale now (they can no longer execute)"
   info "5. Retire the deployer key. If step 3 is missed for 7 days the proposal expires: propose again (step 1 of handover)."
 }
 

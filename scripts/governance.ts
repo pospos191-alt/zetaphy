@@ -134,6 +134,8 @@
 //   in timelock.rs) or it expires and has to be proposed again.
 //
 //   emergency-pause-v2-pool <pool> <pauseSwap> <pauseDeposit> <pauseWithdraw>
+//   emergency-pause-v2-pools <pauseSwap> <pauseDeposit> <pauseWithdraw> <pool> [<pool> ...]
+//       Same, for many pools in one transaction (about 20 fit).
 //
 //   NOTE: governed-unpause-pool / governed-unpause-dlmm-pool below now
 //   always fail on-chain (UseTimelockedUnpause) — use propose-unpause-*.
@@ -163,6 +165,7 @@ const GOV_SETTINGS_SEED = Buffer.from("gov_settings");
 const GOV_ACTION_SEED = Buffer.from("gov_action");
 const MINT_POLICY_SEED = Buffer.from("mint_policy");
 const ATA_PROGRAM = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+const MAINNET_GENESIS_HASH = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
 
 function loadProgram(): anchor.Program<anchor.Idl> {
   const provider = anchor.AnchorProvider.env();
@@ -475,6 +478,24 @@ async function main() {
       const share = Number(rest[1]);
       const treasury = parsePubkey(rest[2], "treasury");
       const settings = pda([GOV_SETTINGS_SEED], program.programId);
+      // On mainnet, refuse to initialise a binary that was not built with
+      // `--features mainnet` (5 s timelock, open pool creation). Probe: such
+      // a build accepts a 5-second delay, a mainnet build refuses it with
+      // InvalidTimelockDelay. Simulation only, nothing is sent.
+      if (yes && (await provider.connection.getGenesisHash()) === MAINNET_GENESIS_HASH) {
+        let refused = false;
+        try {
+          await program.methods
+            .initializeGovernanceSettings(new anchor.BN(5), share, treasury)
+            .accounts({ config: configPda, governanceAuthority: wallet, settings, payer: wallet, systemProgram: SystemProgram.programId })
+            .simulate();
+        } catch (e: any) {
+          refused = /InvalidTimelockDelay|0x2134/.test(`${e?.message ?? e} ${JSON.stringify(e?.simulationResponse?.logs ?? e?.logs ?? [])}`);
+          if (!refused) throw e;
+        }
+        if (!refused) throw new Error("This program accepts a 5-second timelock: it was NOT built with --features mainnet. Do not initialise it on mainnet.");
+        console.log("mainnet-build probe: ok (a 5-second timelock is refused)");
+      }
       await confirmOrDryRun(
         () => console.log(`Would call initialize_governance_settings(delay=${delay}s, protocolFeeShare=${share}bps, treasury=${treasury.toBase58()})`),
         () =>
@@ -613,9 +634,9 @@ async function main() {
       }
       const settingsPda = pda([GOV_SETTINGS_SEED], program.programId);
       let builder: any;
-      if (kind === "unpauseCpPool") builder = program.methods.executeUnpausePool().accounts({ pending, pool: body.pool });
-      else if (kind === "unpauseDlmmPool") builder = program.methods.executeUnpauseDlmmPool().accounts({ pending, pool: body.pool });
-      else if (kind === "unpauseV2Pool" || kind === "setV2PoolParams") builder = program.methods.executeV2PoolAction().accounts({ pending, pool: body.pool });
+      if (kind === "unpauseCpPool") builder = program.methods.executeUnpausePool().accounts({ config: configPda, pending, pool: body.pool });
+      else if (kind === "unpauseDlmmPool") builder = program.methods.executeUnpauseDlmmPool().accounts({ config: configPda, pending, pool: body.pool });
+      else if (kind === "unpauseV2Pool" || kind === "setV2PoolParams") builder = program.methods.executeV2PoolAction().accounts({ config: configPda, pending, pool: body.pool });
       else if (kind === "withdrawV2ProtocolFees") {
         const st: any = await (program.account as any).governanceSettings.fetch(settingsPda);
         const pool: any = await (program.account as any).swdmmV2Pool.fetch(body.pool);
@@ -636,9 +657,9 @@ async function main() {
           data: Buffer.from([1]), // CreateIdempotent
         });
         builder = program.methods.executeWithdrawProtocolFees()
-          .accounts({ pending, settings: settingsPda, pool: body.pool, mintA: pool.mintA, mintB: pool.mintB, vaultA: pool.vaultA, vaultB: pool.vaultB, treasuryTokenA: ta, treasuryTokenB: tb, tokenProgramA: pool.tokenProgramA, tokenProgramB: pool.tokenProgramB })
+          .accounts({ config: configPda, pending, settings: settingsPda, pool: body.pool, mintA: pool.mintA, mintB: pool.mintB, vaultA: pool.vaultA, vaultB: pool.vaultB, treasuryTokenA: ta, treasuryTokenB: tb, tokenProgramA: pool.tokenProgramA, tokenProgramB: pool.tokenProgramB })
           .preInstructions([createAta(ta, pool.mintA, pool.tokenProgramA), createAta(tb, pool.mintB, pool.tokenProgramB)]);
-      } else builder = program.methods.executeSettingsAction().accounts({ pending, settings: settingsPda });
+      } else builder = program.methods.executeSettingsAction().accounts({ config: configPda, pending, settings: settingsPda });
       await confirmOrDryRun(
         () => console.log(`Would execute action #${id} (${kind}); earliest execution ${new Date(Number(a.executeAfter) * 1000).toISOString()}`),
         () => builder.rpc()
@@ -662,6 +683,18 @@ async function main() {
       await confirmOrDryRun(
         () => console.log(`Would call emergency_pause_v2_pool(${f.join(", ")}) on ${pool.toBase58()} (signer must be emergency_authority)`),
         () => program.methods.emergencyPauseV2Pool(f[0], f[1], f[2]).accounts({ config: configPda, emergencyAuthority: wallet, pool }).rpc()
+      );
+      break;
+    }
+
+    case "emergency-pause-v2-pools": {
+      const f = [parseBool(rest[0], "pauseSwap"), parseBool(rest[1], "pauseDeposit"), parseBool(rest[2], "pauseWithdraw")];
+      const pools = rest.slice(3).map((p, i) => parsePubkey(p, `pool #${i + 1}`));
+      if (pools.length === 0) throw new Error("give at least one pool");
+      await confirmOrDryRun(
+        () => console.log(`Would call emergency_pause_v2_pools(${f.join(", ")}) on ${pools.length} pool(s) (signer must be emergency_authority)`),
+        () => program.methods.emergencyPauseV2Pools(f[0], f[1], f[2]).accounts({ config: configPda, emergencyAuthority: wallet })
+          .remainingAccounts(pools.map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }))).rpc()
       );
       break;
     }

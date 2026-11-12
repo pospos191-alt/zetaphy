@@ -21,7 +21,8 @@ WALLET="${ANCHOR_WALLET:-$HOME/.config/solana/id.json}"
 SO=target/deploy/swd_amm.so
 [ -f "$SO" ] || { echo "build first: $SO not found" >&2; exit 1; }
 [ -f target/idl/swd_amm.json ] || { echo "build first: target/idl/swd_amm.json not found" >&2; exit 1; }
-PID=$(grep -oP 'declare_id!\("\K[1-9A-HJ-NP-Za-km-z]+' programs/swd_amm/src/lib.rs)
+# The id the built binary declares (it differs between a `mainnet` build and the others).
+PID=$(python3 -c 'import json; print(json.load(open("target/idl/swd_amm.json"))["address"])')
 AUTH=$(solana-keygen pubkey "$WALLET")
 
 node scripts/gen-pyth-fixtures.js >/dev/null

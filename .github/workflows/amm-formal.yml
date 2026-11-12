@@ -9,6 +9,10 @@
 #          Harnesses marked SLOW (cfg kani_slow) are not run: CBMC did not
 #          finish them in 15-25 min; their properties are checked
 #          exhaustively on small domains by fuzz/tests/exhaustive.rs (per PR).
+#   kani-slow  manual only (input kani_slow = v2 | all): each SLOW harness in
+#          its own job with a time limit, so one run shows which of them
+#          finish when given hours. A harness that hits the limit is
+#          reported as cancelled — "not finished", not "property false".
 #
 # What these do and do not prove: docs/FUZZING_FORMAL.md.
 
@@ -20,6 +24,14 @@ on:
       fuzz_seconds:
         description: "libFuzzer seconds per target"
         default: "600"
+      kani_slow:
+        description: "Also run the SLOW Kani harnesses, one job each: none | v2 (the mainnet scope: SWDMM v2 math) | all (+ CP and DLMM)"
+        type: choice
+        options: [none, v2, all]
+        default: none
+      kani_slow_minutes:
+        description: "Time limit per SLOW harness (minutes, max 350)"
+        default: "180"
   schedule:
     - cron: '41 2 * * 0' # Sundays
 
@@ -72,3 +84,46 @@ jobs:
       - name: Run every proof
         working-directory: programs/swd_amm/kani
         run: cargo kani
+
+  kani-slow:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.kani_slow != 'none'
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ fromJSON(github.event.inputs.kani_slow_minutes || '180') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { harness: v2_fee_amount_u32, scope: v2 }
+          - { harness: v2_swap_props_u16, scope: v2 }
+          - { harness: v2_liquidity_never_over_issues_u16, scope: v2 }
+          - { harness: v2_fee_growth_never_over_pays, scope: v2 }
+          - { harness: v2_pending_fee_split_never_creates_fees, scope: v2 }
+          - { harness: cp_swap_out_props_u16, scope: all }
+          - { harness: cp_lp_mint_never_over_issues_u16, scope: all }
+          - { harness: cp_lp_burn_never_over_pays_u16, scope: all }
+          - { harness: cp_mul_div_exact_bounded, scope: all }
+          - { harness: dlmm_q64_mul_no_panic_full_domain, scope: all }
+          - { harness: dlmm_conversion_rounding_favours_pool, scope: all }
+          - { harness: dlmm_bin_price_no_panic_any_id, scope: all }
+          - { harness: dlmm_bin_price_monotone_small_ids, scope: all }
+          - { harness: dlmm_bin_deposit_props, scope: all }
+          - { harness: dlmm_bin_withdraw_props, scope: all }
+          - { harness: dlmm_swap_bins_3_bins, scope: all }
+    name: kani-slow (${{ matrix.harness }})
+    steps:
+      - uses: actions/checkout@v5
+        if: matrix.scope == 'v2' || github.event.inputs.kani_slow == 'all'
+        with:
+          persist-credentials: false
+      - name: Install Kani
+        if: matrix.scope == 'v2' || github.event.inputs.kani_slow == 'all'
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - name: Run the SLOW proof
+        if: matrix.scope == 'v2' || github.event.inputs.kani_slow == 'all'
+        working-directory: programs/swd_amm/kani
+        env:
+          RUSTFLAGS: "--cfg kani_slow"
+          HARNESS: ${{ matrix.harness }}
+        run: cargo kani --harness "proofs::$HARNESS" --exact

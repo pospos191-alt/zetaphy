@@ -495,7 +495,7 @@ pub fn run(g: &mut Gen) {
                 // Governance: protocol share (settings) and protocol-fee withdrawal
                 if g.bool() {
                     p.protocol_share = g.range(0, MAX_PROTOCOL_FEE_SHARE_BPS);
-                } else {
+                } else if !p.withdraw_paused {
                     p.withdraw_protocol();
                 }
                 Ok(())

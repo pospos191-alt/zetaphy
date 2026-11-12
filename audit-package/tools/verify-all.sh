@@ -22,8 +22,8 @@ build() {
   python3 - <<'PY'
 import json
 n = {i["name"] for i in json.load(open("target/idl/swd_amm.json"))["instructions"]}
-assert len(n) == 23 and "swap" not in n and "initialize_pool" not in n, sorted(n)
-print("IDL: 23 instructions, no CP/DLMM")
+assert len(n) == 24 and "swap" not in n and "initialize_pool" not in n, sorted(n)
+print("IDL: 24 instructions, no CP/DLMM")
 PY
   python3 audit-package/tools/nsloc.py --v2-only
   python3 audit-package/tools/gen_tables.py --check

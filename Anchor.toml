@@ -15,6 +15,11 @@ swd_amm = "3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL"
 [programs.devnet]
 swd_amm = "3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL"
 
+# Mainnet program id = the `#[cfg(feature = "mainnet")] declare_id!` in lib.rs.
+# Not deployed yet (deploy only after the external audit, scripts/deploy-mainnet.sh).
+[programs.mainnet]
+swd_amm = "3acaVErTYMArMbfXwMTEQiefUHBZgAkPuVaBgo1ptkc4"
+
 [registry]
 url = "https://api.apr.dev"
 
