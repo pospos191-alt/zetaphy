@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "test:devnet": "node --test test/devnet.e2e.js"
+    "test:devnet": "node --test test/devnet.e2e.js",
+    "test:mainnet": "node --test test/mainnet.e2e.js"
   },
   "engines": {
     "node": ">=20"

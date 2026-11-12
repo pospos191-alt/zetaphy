@@ -1,0 +1,35 @@
+{
+  "_comment": "ZETAPHY mainnet deploy config for launch.js --network mainnet (docs/ZETAPHY-MAINNET-PROCEDURE.md, step 16). Public values only: never a key. EVERY ADDRESS HERE IS A FAKE PLACEHOLDER (repeated digits) and is refused: put the real ones. Unknown keys are refused. Values not given take the defaults shown.",
+  "governance": "gov",
+  "timelockProposers": [],
+  "timelockExecutor": "open",
+  "timelockDelay": 172800,
+  "guardianOwners": ["0x1111111111111111111111111111111111111111", "0x2222222222222222222222222222222222222222", "0x3333333333333333333333333333333333333333"],
+  "guardianThreshold": 2,
+  "communityFund": "0x4444444444444444444444444444444444444444",
+  "neuro": { "bond": "100", "reward": "1", "minFee": "0.1", "commitWindow": 120, "timeout": 600, "unbondDelay": 3600, "dailyRewardCap": "100", "maxBodies": 64, "maxRegrowPerHour": 4 },
+  "threats": { "quorum": 3, "minAgreed": 5, "enforceDelay": 3600, "appealBond": "1", "appealWindow": 1209600 },
+  "reports": { "fee": "0.1", "ttl": 2592000 },
+  "bridge": {
+    "lockbox": "1:0x5555555555555555555555555555555555555555",
+    "tokenName": "USD Coin (bridged)",
+    "tokenSymbol": "USDC",
+    "decimals": 6,
+    "dailyLimit": "1000",
+    "threshold": 2,
+    "quarantine": 3600,
+    "laneQuorum": 2,
+    "laneMinAgreed": 5,
+    "markers": []
+  },
+  "dex": { "feeTo": null },
+  "bounty": {
+    "committee": ["0x6666666666666666666666666666666666666666", "0x7777777777777777777777777777777777777777", "0x8888888888888888888888888888888888888888"],
+    "threshold": 2,
+    "maxPayout": "100000",
+    "periodCap": "250000",
+    "timelock": 172800,
+    "reportBond": "10",
+    "fund": "1000"
+  }
+}

@@ -166,6 +166,10 @@ node airdrop/cli.js allocate snapshot.json --min 1000000 --cap-bps 100 > allocat
 node airdrop/cli.js merkle allocations.json > merkle.json
 ```
 
+แอร์ดรอปแบบ EVM (สัญญากดรับ `ZtphyMerkleDistributor` สำหรับกระเป๋า EVM ราว 100,000 ใบ: CSV จากการลงทะเบียน ผู้ถือ SWD
+ที่ผูกที่อยู่ EVM ด้วยลายเซ็น Solana กระเป๋าที่ใช้งานจริงบนเชนสาธารณะจาก BigQuery การแบ่ง shard การตรวจ และการ์ด
+"รับแอร์ดรอป" ใน hub) อยู่ที่ [docs/AIRDROP.th.md](../docs/AIRDROP.th.md)
+
 - **snapshot** รวมยอด SWD ของทุกบัญชี (SPL และ Token-2022) ต่อเจ้าของกระเป๋า อ่านจาก Solana อย่างเดียว
   - ใส่ที่อยู่ vault ของ pool ใน `--exclude` ด้วย เพราะเหรียญใน pool เป็นของผู้ให้สภาพคล่อง ไม่ใช่ของ PDA
 - **allocate** แบ่ง 200,000,000 ZETAPHY ตามสัดส่วน

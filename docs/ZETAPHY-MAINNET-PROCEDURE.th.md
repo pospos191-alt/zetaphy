@@ -255,16 +255,140 @@ zetaphyd tx pq-vote-key --from validator --keyring-backend file --keyring-dir ~/
 
 หยุด ถ้าข้อ 1 หรือ 2 ผ่าน
 
-## 16. สัญญาที่จ่ายด้วย ZTPHY และส่งสิทธิ์ admin ให้ governance [เปลี่ยนเชน]
+## 16. สัญญาที่จ่ายด้วย ZTPHY และส่งสิทธิ์ admin ให้ governance [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
 
-ลำดับ (ด่าน 8 ของ runbook): timelock และ multisig; สะพาน Saphan (ปิดไว้); DEX; Neuro; `ZetaphyBounty` (เติมเงิน)
-deployer เป็นคีย์ใหม่ใช้ครั้งเดียว เติม ZTPHY เล็กน้อย แล้วเลิกใช้ ตอนท้ายสิทธิ์ admin ทุกอย่างไปที่ `ZetaphyTimelock` (หน่วง 48 ชม.)
-ที่มี governance เป็น proposer (`--governance gov`), guardian ฉุกเฉินเป็น multisig และเครื่องมือตรวจว่าไม่มีคีย์เดี่ยวใดเหลือสิทธิ์ admin
-(`zetaphy-launch/launch.js --handover`) จากนั้น `zetaphyd tx security-proposal invariant-firewall <InvariantFirewall 0x…>`
-ระบุสัญญา firewall (ผ่านการโหวต)
+เครื่องมือ: `zetaphy-launch/launch.js --network mainnet` (`src/mainnet.js` อธิบายว่าต่างจากการ launch ของ testnet ตรงไหนและเพราะอะไร)
+และ `zetaphy-chain/gov.sh` ซึ่งอยู่ในโหมด mainnet เองบนโหนดที่ pin ไว้ สิ่งที่ launch deploy (ด่าน 8 ของ runbook): guardian multisig;
+Neuro (`NeuroControl` + `NeuroJobs`, `ThreatRegistry`, `ThreatReports`); สะพาน Saphan ฝั่ง ZETAPHY (`BridgeGuard` + `BridgeAirlock` +
+`NeuroLane`) แบบ**ปิด**; DEX (factory + router ไม่มีโทเคนทดสอบ ไม่เติม pool); `ZetaphyBounty` (เติมเงิน ไม่มีคีย์ admin); แล้วจึง
+`ZetaphyTimelock` และการส่งมอบสิทธิ์ Neuro มาก่อนสะพานและ DEX เพราะทั้งสองอ่านค่าจาก Neuro; timelock มาท้ายสุดเพื่อให้ช่วง bootstrap
+(deployer เป็น proposer คนเดียวที่ delay ศูนย์ สำหรับ batch ของการส่งมอบเท่านั้น) กินเวลาแค่ไม่กี่นาที ในโหมดนี้ไม่มีของเฉพาะ testnet เลย:
+ไม่มี faucet ไม่มี stablecoin ทดสอบหรือ StableGateway ไม่มีราคาตายตัว ไม่มี DLMM ที่ยังไม่ audit ไม่มีตลาด NFT ไม่เขียน config ของเว็บแอป
 
-**วันนี้ให้หยุดที่นี่:** `zetaphy-launch/launch.js` และ `zetaphy-chain/gov.sh` เป็นเครื่องมือของ testnet (launch.js ปฏิเสธ EVM chain id
-อื่นนอกจาก 77390; gov.sh ใช้ test keyring) ต้องมีโหมด mainnet ที่ผ่านการรีวิวของทั้งสองก่อนขั้นนี้ อย่าแก้การตรวจของมันในวันจริง
+สิ่งที่ launch บังคับบน mainnet:
+
+- เชนไม่มีค่าตั้งต้น: ต้องมี `--network mainnet` และ `--chain chain.json` (ขั้น 8) และ/หรือ `--pin` + `--genesis` (ไฟล์ pin ของโหนดกับ
+  genesis ที่ pin ไว้ ตรวจ sha256) ทุกแหล่งต้องตรงกัน ปฏิเสธ id ของ testnet และปฏิเสธ RPC ที่ตอบ `eth_chainId` ต่างออกไปก่อนเซ็นอะไรเลย
+  ทุกธุรกรรมใส่ id นั้น
+- ไม่รับคีย์แบบข้อความธรรมดา: `--keystore` (keystore JSON ที่เข้ารหัส สิทธิ์ไฟล์ 600; ถาม passphrase ทางเทอร์มินัล หรือส่งผ่าน pipe ด้วย
+  `--passphrase-stdin` ถอดรหัสในหน่วยความจำเท่านั้น) หรือ `--remote-signer` (clef กับ hardware wallet, web3signer, Frame: ตรวจธุรกรรม
+  ที่เซ็นแล้วทีละ field ก่อนส่ง) ปฏิเสธ `--key-file`, `ZETAPHY_DEPLOYER_KEY`, `ZETAPHY_DEPLOYER_KEY_FILE`, `ZETAPHY_PASSPHRASE`
+  รวมทั้ง `--devnet` และ `--redo`
+- ค่าตั้งมาจาก deploy config (`zetaphy-launch/mainnet.example.json`): ปฏิเสธที่อยู่ปลอม key ที่ไม่รู้จัก field ที่ดูเหมือนความลับ delay ของ
+  timelock หรือ bounty ต่ำกว่า 48 ชม. โทเคนสะพานที่ชื่อมีคำว่า "test" และ deployer ในบทบาทใดๆ governance, proposer เพิ่มเติม และ
+  guardian ที่มีอยู่แล้วต้องมี code ของสัญญา (หรือเป็น `gov`)
+- `--dry-run` พิมพ์ทุกสัญญา อาร์กิวเมนต์ของ constructor ทุกการเรียก และ gas กับค่าใช้จ่ายเป็น ZTPHY โดยไม่ส่งและไม่เขียนอะไร
+  การรันจริงต้องมี `--confirm-chain <EVM chain id>` ด้วย
+- ไฟล์ state (`zetaphy-launch/state/<EVM chain id>.json`) เก็บแค่ที่อยู่ ขั้นที่ล้มเหลวรันต่อด้วย `--resume` ตอนท้ายการส่งมอบให้สิทธิ์ admin
+  ทุกอย่างแก่ timelock (delay ≥ 48 ชม. proposer/canceller คือ gov module ใครก็ execute ได้) ให้สวิตช์ฉุกเฉินแก่ guardian multisig
+  deployer สละสิทธิ์ แล้ว `verify` ตรวจบนเชนว่าไม่มี EOA และไม่ใช่ deployer ที่ถือสิทธิ์ใดๆ บนสัญญาใดของรอบนี้
+
+### 16.1 คีย์ของ deployer บนเครื่องของมันเอง [เปลี่ยนไฟล์]
+
+คีย์ใหม่ ใช้เฉพาะขั้นนี้ (ด่าน 4) ห้ามอยู่บน M-VAL หรือ M-SENTRY จะเป็น keystore ที่เข้ารหัส:
+
+```bash
+cast wallet new ~/zetaphy-deployer          # foundry; ถาม passphrase; พิมพ์ที่อยู่และไฟล์ keystore
+chmod 600 ~/zetaphy-deployer/*
+```
+
+หรือ hardware wallet ผ่าน clef (Ledger/Trezor เสียบไว้): `clef --chainid 3659 --http` แล้วใช้
+`--remote-signer http://127.0.0.1:8550 --signer-method account_signTransaction --signer-address 0x<บัญชีของมัน>` แทน `--keystore`
+ด้านล่าง กดยืนยันทุกธุรกรรมบนอุปกรณ์
+
+### 16.2 Deploy config [เปลี่ยนไฟล์]
+
+```bash
+cp zetaphy-launch/mainnet.example.json ~/mainnet-deploy.json
+```
+
+กรอก: `governance` `"gov"`; `guardianOwners` (3 คนที่ต่างกัน ใช้ hardware wallet; หรือ `guardian` = multisig ที่มีอยู่แล้ว);
+`communityFund` (ที่อยู่ของกองทุนชุมชน แบบ 0x ของ zetaphy1…: `zetaphyd debug addr <zetaphy1…>`); `bridge.lockbox`
+(`<source chain id>:0x<lockbox>`; ลบ `bridge` ออกถ้ายังไม่ deploy สะพาน); `bounty.committee` ไฟล์นี้มีแต่ค่าสาธารณะ
+ที่อยู่ทุกตัวในตัวอย่างเป็นค่าปลอมและถูกปฏิเสธ
+
+### 16.3 Dry run [อ่าน]
+
+คัดลอก `chain.json` (ขั้น 8) มาไว้ข้างกัน แล้ว (`$RPC` = https RPC ของ sentry จากขั้น 12 หรือ `http://127.0.0.1:8545` ผ่าน SSH tunnel ไป M-SENTRY):
+
+```bash
+node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json \
+  --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<ไฟล์ keystore> --dry-run
+#   ZETAPHY mainnet zetaphy_3659-1 (EVM chain 3659, genesis sha256 <ค่าที่เผยแพร่>)
+#   แผน: ทุก "deploy <Contract>(<argument>=<value>, …)" พร้อม gas ทุกการเรียก แล้ว
+#   total: 12 contract(s), about 46 call(s), ~40,000,000 gas … : the deployer needs <N> ZTPHY
+#   dry run: nothing signed, nothing sent, no state written
+```
+
+บนเครื่องที่มีโหนดที่ pin ไว้ ใส่ `--pin /etc/zetaphy/pinned-chain.env --genesis ~/.zetaphy/config/genesis.json` เพิ่มได้ (ทุกแหล่งต้องตรงกัน)
+ตรวจอาร์กิวเมนต์ของ constructor ทุกตัวเทียบกับ deploy config, delay (`delay 172800 s`), `enabled = false  CLOSED` ของ route สะพาน
+และต้องไม่มี `Test`, `StableGateway`, `Dlmm` หรือ faucet โผล่มา หยุด ถ้ามีอะไรต่างไป
+
+### 16.4 เติมเงินให้ deployer [เปลี่ยนเชน]
+
+จำนวนที่ dry run พิมพ์ (รวม `fund` ของ bounty แล้ว) จาก liquidity multisig (`zetaphyd debug addr 0x<deployer>` ให้ zetaphy1… ของมัน)
+สมาชิกเซ็นแบบ offline เหมือนขั้น 15:
+
+```bash
+zetaphyd tx bank send <liquidity multisig zetaphy1…> <deployer zetaphy1…> <N>azetaphy --chain-id zetaphy_3659-1 \
+  --gas 200000 --gas-prices 1000000000azetaphy --generate-only > fund.json
+zetaphyd tx sign fund.json --multisig <liquidity multisig zetaphy1…> --from <สมาชิก> --sign-mode amino-json --chain-id zetaphy_3659-1 --output-document m1.json   # สมาชิก 2 คน คนละไฟล์
+zetaphyd tx multisign fund.json <ชื่อคีย์ multisig> m1.json m2.json --chain-id zetaphy_3659-1 > signed.json
+bash zetaphy-chain/gov.sh broadcast signed.json                                                    # บน M-VAL: โหมด mainnet
+```
+
+รัน 16.3 อีกครั้ง: `deployer balance` ต้องพอสำหรับ `the deployer needs`
+
+### 16.5 Deploy และส่งมอบสิทธิ์ [เปลี่ยนเชน]
+
+```bash
+node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json \
+  --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<ไฟล์ keystore> --confirm-chain 3659
+#   ถาม passphrase ของ keystore; แล้วทีละขั้น: guardian neuro threats reports bridge dex bounty wire timelock handover verify
+#   … checked on-chain: N admin role(s) belong to the timelock; no EOA and not the deployer holds a timelock role …
+#   … checked on-chain: no EOA and not the deployer 0x… holds a role on any contract of this run; the bridge is closed
+```
+
+ถ้าขั้นใดล้มเหลว: แก้สาเหตุแล้วรันคำสั่งเดิมพร้อม `--resume` (ขั้นที่เสร็จแล้วถูกเก็บไว้; ห้ามใช้ `--fresh` บน mainnet เมื่อ deploy สัญญาไปแล้ว)
+หยุด ถ้าเห็น `the handover check failed` หรือ `the mainnet check failed`: ห้ามประกาศที่อยู่ใดๆ หาสาเหตุก่อน
+
+### 16.6 ตรวจ แล้วเผยแพร่ที่อยู่ [อ่าน]
+
+```bash
+node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json --deploy-config ~/mainnet-deploy.json \
+  --keystore ~/zetaphy-deployer/<ไฟล์ keystore> --check     # อ่านอย่างเดียว: ไม่ถาม passphrase ไม่เซ็นอะไร ใครก็รันได้
+cast call --rpc-url "$RPC" <timelock> 'getMinDelay()(uint256)'                                    # 172800
+cast call --rpc-url "$RPC" <timelock> 'getRoleMember(bytes32,uint256)(address)' $(cast keccak PROPOSER_ROLE) 0   # 0x7b5Fe22B…3dF2 (gov)
+cast call --rpc-url "$RPC" <NeuroControl, ThreatRegistry, BridgeGuard, BridgeAirlock, DEX factory> 'governance()(address)'   # timelock
+```
+
+เผยแพร่ `zetaphy-launch/state/3659.json` (มีแต่ที่อยู่) และ verify source ของทุกสัญญา (Sourcify, ด่าน 8)
+
+### 16.7 เลิกใช้ deployer [เปลี่ยนเชน] [เปลี่ยนไฟล์]
+
+ส่งเงินที่เหลือกลับ liquidity pool แล้วทำลาย keystore (หรือล้างบัญชีใน hardware wallet):
+`cast send --rpc-url "$RPC" --keystore ~/zetaphy-deployer/<ไฟล์ keystore> <liquidity 0x…> --value <ยอดคงเหลือหักค่า gas>`
+แล้ว `shred -u ~/zetaphy-deployer/*` มันไม่มีสิทธิ์ใดเหลืออยู่แล้ว (16.5 ตรวจแล้ว)
+
+### 16.8 Governance บน M-VAL: gov.sh โหมด mainnet
+
+บนโหนดที่ pin ไว้ `gov.sh` อ่าน chain id จาก genesis ที่ pin ไว้ (ตรวจ sha256) ตรวจว่าโหนดให้บริการ chain นั้นก่อนเซ็น ใช้ file keyring ใน
+`~/.zetaphy-keys` (`--keyring-backend file|os|ledger`; ปฏิเสธ `test`) ใส่ `min_deposit` เต็มจำนวนของเชน (10,000 ZTPHY) ใน proposal
+และปฏิเสธ `airdrop` (เหรียญ faucet ของ testnet)
+
+```bash
+bash zetaphy-chain/gov.sh status                                                                 # [อ่าน]
+bash zetaphy-chain/gov.sh vote <id> yes --from validator                                         # [เปลี่ยนเชน] file keyring ถาม passphrase
+bash zetaphy-chain/gov.sh vote <id> yes --keyring-backend ledger --from <คีย์ ledger>             # [เปลี่ยนเชน] ยืนยันบนอุปกรณ์
+bash zetaphy-chain/gov.sh propose-upgrade <name> <height> "<summary>" \
+  --from <gov multisig zetaphy1…> --generate-only up.json                                          # [เปลี่ยนไฟล์] ยังไม่เซ็น แล้ว tx sign / multisign
+bash zetaphy-chain/gov.sh broadcast signed.json                                                   # [เปลี่ยนเชน]
+bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <proposer>           # [เปลี่ยนเชน] เมื่อ deploy แล้ว (ด้านล่าง)
+```
+
+ยังไม่อยู่ในชุด mainnet ของ launch (ค้างอยู่): `InvariantFirewall` (ต้องใช้สัญญา audit ชุด SS1, docs/CHAIN-FIREWALL.md), RewardVault
+สำหรับ rewards pool, oracle (ต้องมี pool ของ DEX กับ stablecoin จริง), NeuroIdentity, QuantumWalletFactory, ComputeMarket, ตลาด NFT
+และ DLMM แต่ละตัวต้องมีขั้น mainnet ที่ผ่านการรีวิวของตัวเองก่อน deploy ห้ามรันขั้นของ launch แบบ testnet กับ mainnet (มันปฏิเสธเชนนี้อยู่แล้ว)
 
 ## 17. เพิ่ม validator [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 

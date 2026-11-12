@@ -115,6 +115,10 @@ finding), **not run** (with the reason), **timeout** (the tool did not finish wi
 | NeuroJobs | totalActiveBond / activeWorkers match the runners | Foundry `invariant_activeBond` | pass |
 | NeuroJobs | no bond withdrawn while its runner can still be slashed (open round, grace, challengeable or challenged round 1) | Foundry `invariant_bondHeldWhileSlashable` | pass after the NJ-1 fix (was **FAIL** in 1 of 3 full runs, 5-call counterexample) |
 | NeuroJobs | an unrevealed seat holds the bond until its penalty lands, whoever calls expire and whenever; a reveal resolves the seat (NJ-1, fixed) | Foundry `test_regression_NJ1_unrevealedSeatHoldsBondUntilPenalised`, `test_regression_NJ1_revealResolvesSeat` | pass |
+| ZtphyMerkleDistributor | *new (docs/AIRDROP.md):* funded = balance + paid to leaves + swept; paid ≤ declared total | Foundry `MerkleDistributor.inv.t.sol::invariant_conservation` (a real 13-leaf tree, wrong proofs / amounts / accounts / indices, batches, abort, sweep, time) | pass |
+| ZtphyMerkleDistributor | *new:* each index paid at most once; exactly the claimed indices are marked; nothing beyond leafCount | Foundry `invariant_oncePerIndex` | pass |
+| ZtphyMerkleDistributor | *new:* only the leaf's account receives, exactly its amount; submitters get nothing; returnTo only by a sweep after the deadline or an abort; no abort after a claim; no claim after close | Foundry `invariant_onlyLeafAccounts`; the handler reaches claims, abort and sweep (`test_handlerPaths`) | pass |
+| ZtphyMerkleDistributor | *new:* a re-entering recipient finds its leaf claimed and cannot sweep; a refusing recipient is not marked | node `test/distributor.test.js` (reentrancy test) | pass |
 
 ### Saphan route (Saphan PR 6, item S2; docs/SAPHAN-PR6.md)
 

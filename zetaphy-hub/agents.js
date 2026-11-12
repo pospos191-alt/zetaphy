@@ -13,6 +13,7 @@
 //  3. AI agents: who answers for an agent (AgentRegistry): operator, bond, constitution, actions, claims.
 //  4. Agent wallet guardrails: an AgentPolicyWallet's state; freeze it with your passkey.
 //  5. Private identity (zkid.js): a zero-knowledge identity over the labels; prove and claim without revealing the account.
+//     Claim airdrop (airdrop.js): check an address against a published ZtphyMerkleDistributor list and claim (docs/AIRDROP.md).
 // Contract addresses come from hub-config.json (contracts.intentExecutor, labelRegistry, vouchRegistry,
 // agentRegistry) or are typed in. Everything shown is set with textContent.
 import { isEvmAddress, short, formatZeta, formatUnits } from './chainlib.js';
@@ -29,6 +30,7 @@ import {
 import { revertReason } from './presign.js';
 import { rawSender } from './assist.js';
 import { zkidCard } from './zkid.js';
+import { airdropCard } from './airdrop.js';
 
 const EVM_CHAIN_ID = 77390;
 const AI_SETTINGS = 'neuro-ai-settings'; // the same settings and key as Neuro's AI panel (same origin)
@@ -554,6 +556,7 @@ export default {
               el('button', { type: 'button', class: 'btn ghost', id: 'ag-unvouch', text: t.unvouch, onclick: () => vouchAct(ctx, 'unvouch') }),
               el('button', { type: 'button', class: 'btn ghost', id: 'ag-refresh', text: t.refresh, onclick: () => vouchAct(ctx, 'refresh') })],
             note: t.uniqueNote }),
+          airdropCard(ctx),
           zkidCard(ctx),
           addrCard(ctx, t, { id: 'ag-ag', title: t.agentTitle, tip: t.tipAgent, cfgKey: 'agentRegistry', placeholder: t.agentQuery, button: t.check, onCheck: checkAgent }),
           (() => {
