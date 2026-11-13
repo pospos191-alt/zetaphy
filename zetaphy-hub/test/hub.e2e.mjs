@@ -8,6 +8,7 @@ import { chromium } from 'playwright-core';
 import { serve } from './serve.mjs';
 import { answer, USDC } from './mocknode.mjs';
 import { Interface } from 'ethers';
+import { onTestnet } from './net.mjs';
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const exe = process.env.CHROMIUM_PATH || undefined;
@@ -17,6 +18,7 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.route('**/*', async (route) => {

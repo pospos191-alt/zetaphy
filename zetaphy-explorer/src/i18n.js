@@ -1,3 +1,4 @@
+import { activeNetwork, netText } from './network.js';
 // UI texts: English (the default and the fallback), Simplified Chinese,
 // Spanish, Korean, Japanese, Russian, Vietnamese and Thai. {name} is filled in by t(key, vars); values are
 // put in the page as text, never as markup. Threat wording stays neutral and
@@ -2235,10 +2236,12 @@ export const LANGS = [
 export const pickLang = (code) => (LANGS.some(([c]) => c === code) ? code : 'en');
 
 /** t(key, vars) for one language; missing keys fall back to English, then the key. */
-export function makeT(lang) {
+export function makeT(lang, net = activeNetwork()) {
   const d = T[lang] ?? T.en;
   return (key, vars = {}) => {
-    const s = d[key] ?? T.en[key] ?? key;
+    let s = d[key] ?? T.en[key] ?? key;
+    // mainnet (network.js): the notice's risk sentence in the footer, and its chain id where a text names the testnet's
+    if (!net.testnet) { if (key === 'footerUnaudited') s = netText(lang).risk; s = s.replaceAll('77390', String(net.chainId)); }
     return s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
   };
 }

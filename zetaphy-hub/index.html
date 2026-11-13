@@ -39,16 +39,20 @@
     <div class="title">
       <h1 id="page-title">ZETAPHY</h1>
       <span class="info" id="page-info" tabindex="0" role="note" aria-label="info">i</span>
-      <span class="badge" data-tip-key="tipTestnet" tabindex="0">Testnet</span>
+      <span class="badge" id="net-badge" data-tip-key="tipTestnet" tabindex="0">Testnet</span>
     </div>
     <div class="top-actions">
       <button type="button" class="busy-pill" id="busy-pill" hidden></button>
       <span class="net-pill" id="net-pill" data-tip-key="tipNetOffline" tabindex="0" role="status" hidden><i class="dot"></i><span data-i18n="netOffline">Offline</span></span>
+      <span id="net-switch"></span>
       <button type="button" class="btn ghost" id="add-net" data-tip-key="tipAddNet"><span data-i18n="addNet">Add network</span></button>
       <select class="lang-select" id="lang" aria-label="Language" title="Language"><option value="en">English</option></select>
       <button type="button" class="btn" id="wb-btn" data-i18n="wbConnect">Connect wallet</button>
     </div>
   </header>
+
+  <!-- mainnet: "ZETAPHY mainnet", the notice's risk sentence and its link (network.js networkBadge); hidden on the testnet -->
+  <div class="net-note" id="net-note" hidden></div>
 
   <!-- "How it works" for the open tab (hub.js renderHow) -->
   <div class="how" id="how" hidden></div>
@@ -81,6 +85,7 @@
               <span class="step-n">2</span>
               <div class="step-body">
                 <div class="step-head"><b data-i18n="step2">Get test ZETAPHY (free)</b><span class="info" data-tip-key="tipFaucet" tabindex="0">i</span></div>
+                <div id="faucet-gate" hidden></div>
                 <form class="row" id="faucet-form" autocomplete="off">
                   <input id="faucet-addr" class="mono" spellcheck="false" placeholder="0x… / zetaphy1…" aria-label="address">
                   <button type="submit" class="btn" data-i18n="faucetBtn">Get</button>
@@ -109,7 +114,7 @@
           <dl class="kv" id="endpoints"></dl>
         </div>
       </div>
-      <!-- ZETAPHY mainnet facts (mainnet.js); the apps above stay on the testnet -->
+      <!-- ZETAPHY mainnet facts (mainnet.js) -->
       <div class="card mainnet-card" id="mainnet"></div>
     </section>
 

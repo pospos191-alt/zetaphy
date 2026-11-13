@@ -13,6 +13,7 @@ import { Interface, keccak256, toBeHex } from 'ethers';
 import { chromium } from 'playwright-core';
 import { createChain } from './helpers/evm.js';
 import { servePage, injectWallet, chromiumOptions } from './helpers/web.js';
+import { onTestnet } from './helpers/web.js';
 
 const A = (n) => JSON.parse(readFileSync(new URL(`../artifacts/${n}.json`, import.meta.url), 'utf8'));
 const ARTS = Object.fromEntries(['ZetaphyFactory', 'ZetaphyRouter', 'WZETAPHY', 'TestToken', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'ZetaphyDlmmPair'].map((n) => [n, A(n)]));
@@ -94,6 +95,7 @@ test('the DLMM tab: swap native -> tUSD, add liquidity over a range, see it, rem
   const problems = [];
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error' || /Content Security Policy/i.test(m.text())) problems.push(`console: ${m.text()}`); });
     await page.route(`${RPC_URL}**`, async (route) => {

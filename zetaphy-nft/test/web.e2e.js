@@ -17,6 +17,7 @@ import { chromium } from 'playwright-core';
 import { Wallet } from 'ethers';
 import { createShim, ZETA } from './helpers/rpcshim.js';
 import { artifacts, mockArtifacts } from './helpers/chain.js';
+import { onTestnet } from './net.js';
 
 const PORT = 18192;
 const ORIGIN = `http://localhost:${PORT}`;
@@ -124,6 +125,7 @@ async function contextFor(account, label) {
   });
   await ctx.addInitScript((gw) => { try { localStorage.setItem('zn.settings', JSON.stringify({ gateway: gw })); } catch {} }, GW);
   const page = await ctx.newPage();
+  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
   page.on('pageerror', (e) => problems.push(`${label} pageerror ${e.message}`));
   page.on('dialog', (d) => { problems.push(`${label} dialog ${d.message()}`); d.dismiss(); });
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(`${label} console ${m.text()}`); });
@@ -159,6 +161,7 @@ test('a first visit is in English, even from a Thai-language browser', async () 
   await chainRoutes(ctx, 'first visit');
   try {
     const page = await ctx.newPage();
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     await page.goto(`${ORIGIN}/`);
     await page.waitForFunction(() => document.querySelectorAll('#lang option').length === 8);
     assert.equal(await page.getAttribute('html', 'lang'), 'en');
@@ -180,6 +183,7 @@ test('a language stored by the hub is honoured; anything else is English; every 
   await chainRoutes(ctx, 'languages');
   try {
     const page = await ctx.newPage();
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('zn.lang', JSON.stringify('ja')); } });
     await page.goto(`${ORIGIN}/`);
     await page.waitForFunction(() => document.documentElement.lang === 'ja');
@@ -466,4 +470,28 @@ test('wallet safety: the banner at 1,000+ ZETAPHY, hardware-wallet help, Ledger 
   assert.equal(await p.locator('.ws-banner').count(), 0);
   problems.push(...(await p.evaluate(() => window.__problems)));
   assert.deepEqual(problems, [], 'no CSP violations, script dialogs or page errors');
+});
+
+test('mainnet (the default): "testnet only for now" with the switch, the badge and risk line; no RPC, no contract, no wallet', async () => {
+  const ctx = await browser.newContext({ locale: 'en-US' });
+  await chainRoutes(ctx, 'mainnet');
+  try {
+    const page = await ctx.newPage();
+    const asked = [];
+    page.on('request', (r) => { if (!r.url().startsWith('data:')) asked.push(new URL(r.url()).pathname); });
+    await page.goto(`${ORIGIN}/`);
+    await page.waitForSelector('#main .zn-gate');
+    assert.match(await page.textContent('#main'), /Testnet only for now.*The NFT marketplace is not on ZETAPHY mainnet yet/s);
+    assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet.*single validator operated by the ZETAPHY project/s);
+    assert.ok(await page.isHidden('#connect'), 'no wallet to connect on mainnet');
+    assert.ok(!asked.includes('/deployments.json'), 'the testnet deployment is not read');
+    assert.ok(!problems.some((p) => p.startsWith('mainnet')), problems.join('\n'));
+    await page.selectOption('#lang', 'th');
+    assert.match(await page.textContent('#main'), /ตอนนี้ใช้ได้เฉพาะบน testnet.*ตลาด NFT ยังไม่มีบน ZETAPHY mainnet/s);
+    // one click: the testnet, remembered, and the marketplace is back
+    await Promise.all([page.waitForEvent('load'), page.click('#main .zn-gate-switch')]);
+    assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), 'testnet');
+    await page.waitForFunction(() => !document.querySelector('#main .zn-gate') && /ZETAPHY testnet/.test(document.getElementById('net-badge').textContent));
+    assert.ok(asked.includes('/deployments.json'), 'the testnet deployment is read');
+  } finally { await ctx.close(); }
 });

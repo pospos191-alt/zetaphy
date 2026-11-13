@@ -19,6 +19,9 @@ import { getAddress } from 'ethers';
 import { T, LANGS } from '../src/i18n.js';
 import { buildChain, CHAIN_ID, LATEST, ME, ME_HEX, LOCKED, LOCKED_HEX, TOKEN, NFT, REGISTRY, AUDIT_CERT, REPORT, RESPONSE_TEXT, ROUTER, PROXY, FACTORY, DEPLOYER, MAILBOX, SEPOLIA_DELIVERY_TX,
   BUSY, BUSY_HEX, BUSY_TXS, FLOW_HEX } from './mock-chain.js';
+import { onNetwork } from './net.js';
+// ZETAPHY mainnet's public node (src/network.js): answered by the same mock chain when a test opens the page on mainnet
+const MAINNET_HOST = '129-221-199-191.sslip.io';
 
 // Free ports (other checkouts may run these tests at the same time), or E2E_PORT and E2E_PORT + 1
 // (EXPLORER_E2E_PORT is read too, as an older name of E2E_PORT).
@@ -67,10 +70,12 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 /** A page with the mock node behind https://node.zetaphy.test (and other.zetaphy.test); records problems. */
 /** lang: the stored language preference ('th' unless set; null for none). */
 /** ws: 'comet' answers the CometBFT websocket (NewBlock pushed by the test with push(H)); 'refuse' closes every socket (polling). */
-async function openPage({ viewport, lang = 'th', origin = ORIGIN, ws = 'comet' } = {}) {
+async function openPage({ viewport, lang = 'th', origin = ORIGIN, ws = 'comet', network = 'testnet' } = {}) {
   // service workers blocked: the PWA has its own test (explore2.e2e.js)
   const ctx = await browser.newContext({ viewport: viewport ?? { width: 1280, height: 900 }, acceptDownloads: true, serviceWorkers: 'block' });
   const page = await ctx.newPage();
+  // these checks are about the testnet unless a test asks for mainnet (src/network.js defaults to mainnet)
+  if (network) await onNetwork(page, network);
   const problems = []; const mine = {};
   // The node's websockets (wss://<node>/rpc/websocket and /ws), mocked: no network.
   const sockets = []; const wsUrls = [];
@@ -85,7 +90,7 @@ async function openPage({ viewport, lang = 'th', origin = ORIGIN, ws = 'comet' }
   const push = (H) => { for (const s of sockets) s.sock.send(JSON.stringify(chain.newBlockEvent(H, s.id))); return sockets.length; };
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(`console: ${m.text()}`); });
-  page.on('requestfailed', (r) => { if (!/node\.zetaphy\.test|other\.zetaphy\.test/.test(r.url())) problems.push(`requestfailed: ${r.url()}`); });
+  page.on('requestfailed', (r) => { if (!/node\.zetaphy\.test|other\.zetaphy\.test|129-221-199-191\.sslip\.io/.test(r.url())) problems.push(`requestfailed: ${r.url()}`); });
   // Other chains' public RPCs (crosschain.json): never reached from the tests; a test that needs one routes it itself
   await ctx.route((url) => XC_HOSTS.has(url.host), (route) => route.fulfill({ status: 503, headers: CORS, body: 'offline in tests' }));
   // Neuro's chain activity counts (/api/chain-stats)
@@ -97,7 +102,7 @@ async function openPage({ viewport, lang = 'th', origin = ORIGIN, ws = 'comet' }
     return route.fulfill({ status: body ? 200 : 404, contentType: 'application/json', headers: CORS, body: JSON.stringify(body ?? { customCode: 'not_found', message: 'Contract not found' }) });
   });
   await ctx.route((url) => url.host === 'stats.zetaphy.test', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(CHAIN_STATS) }));
-  await ctx.route((url) => url.host === 'node.zetaphy.test' || url.host === 'other.zetaphy.test', async (route) => {
+  await ctx.route((url) => url.host === 'node.zetaphy.test' || url.host === 'other.zetaphy.test' || url.host === MAINNET_HOST, async (route) => {
     const req = route.request();
     const url = new URL(req.url());
     counts[url.origin] = (counts[url.origin] ?? 0) + 1;
@@ -134,6 +139,35 @@ async function waitText(page, s, timeout = 15000) {
     throw new Error(`"${s}" never appeared on ${page.url()}; the page shows:\n${(await text(page).catch(() => '?')).slice(0, 3000)}`);
   }
 }
+
+test('mainnet (the default): its own node and ThreatRegistry, chain 3659, the badge and risk line; the switch picks the testnet', async () => {
+  const { page, ctx, problems, counts: mine } = await openPage({ lang: 'en', network: null });
+  const evmCalls = [];
+  page.on('request', (r) => { if (new URL(r.url()).host === MAINNET_HOST && r.postData()) for (const c of [JSON.parse(r.postData())].flat()) if (c.method === 'eth_call') evmCalls.push(String(c.params?.[0]?.to).toLowerCase()); });
+  await go(page, '#/');
+  await waitText(page, 'MsgSend');
+  assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet.*single validator operated by the ZETAPHY project.*afford to lose/s);
+  assert.equal(await page.getAttribute('#net-badge a', 'href'), 'https://github.com/pospos191-alt/zetaphy/blob/main/docs/ZETAPHY-MAINNET-NOTICE.md');
+  assert.match(await page.textContent('footer'), /single validator/, 'the footer says the same');
+  const cfg = await page.evaluate(() => window.__explorer.config());
+  assert.equal(cfg.evmChainId, 3659);
+  assert.equal(cfg.node, `https://${MAINNET_HOST}`);
+  assert.equal(cfg.threatRegistry, '0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139', 'mainnet\'s ThreatRegistry, not config.json\'s');
+  assert.equal(cfg.auditCertificate, '', 'config.json\'s testnet AuditCertificate is not used on mainnet');
+  assert.match(await text(page), /EVM 3659/);
+  assert.ok(mine[`https://${MAINNET_HOST}`] > 3, 'read from the mainnet node');
+  assert.equal(mine[NODE] ?? 0, 0, 'nothing asked of config.json\'s (testnet) node');
+  assert.ok(!evmCalls.includes(REGISTRY.toLowerCase()) && !evmCalls.includes(AUDIT_CERT.toLowerCase()), 'no testnet contract called');
+  // the switch: the testnet, remembered, read from config.json's node
+  await Promise.all([page.waitForEvent('load'), page.selectOption('#net-badge select', 'testnet')]);
+  assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), 'testnet');
+  await waitText(page, 'MsgSend');
+  assert.match(await page.textContent('#net-badge'), /ZETAPHY testnet/);
+  assert.equal((await page.evaluate(() => window.__explorer.config())).evmChainId, 77390);
+  assert.ok(mine[NODE] > 3, 'now the testnet node');
+  assert.deepEqual(problems, []);
+  await ctx.close();
+});
 
 test('home: chain id, height, supply with burns, staking, PQ coverage, latest blocks and txs, no-indexer note', async () => {
   const { page, ctx, problems } = await openPage();

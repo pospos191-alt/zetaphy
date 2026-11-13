@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { Interface } from 'ethers';
 import { serve } from './serve.mjs';
+import { onTestnet } from './net.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(HERE, 'dist');
@@ -38,6 +39,7 @@ test('forecasts page: questions from the chain, forecast buttons, 8 languages, t
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

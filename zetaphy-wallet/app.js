@@ -17,8 +17,10 @@ import {
 } from './vendor/pqwallet.js';
 import {
   CHAIN_ID, CHAIN_NAME, EVM_CHAIN_ID_HEX, EVM_SYMBOL, DECIMALS, nodeEndpoints, evmChainParams, keplrChainInfo,
-  discoverWallets, mayRunSnaps, openInAppLinks,
+  discoverWallets, mayRunSnaps, openInAppLinks, NETWORK,
 } from './wallets.js';
+// The network (network.js): mainnet unless the visitor picked the testnet; a switch reloads the page.
+import { netKey, networkBadge, netText, watchNetwork, linkExplorer } from './network.js';
 import {
   seal, unseal, passwordStrength, MIN_PASSWORD_LENGTH, wrapSeed, unwrapSeed, isPasskeyBlob, newPrfSalt, toB64url, fromB64url,
 } from './security.js';
@@ -26,18 +28,40 @@ import {
 // account's eth_getProof, kept on this device; signing is refused when the node later serves a lower or different state.
 import { parseBook, newBook, checkpoint, bridgedBalanceSlot, exportProofs, INTERVAL_MS } from './rollback.js';
 
-const KEYS = { seed: 'zetaphy-wallet:seed:v1', rpc: 'zetaphy-wallet:rpc', lang: 'zetaphy-wallet:lang', token: 'zetaphy-wallet:token',
+// rpc, token and threats are per network (network.js netKey: the testnet keeps its old keys); the seed is the same key on both
+const KEYS = { seed: 'zetaphy-wallet:seed:v1', rpc: netKey(NETWORK, 'zetaphy-wallet:rpc'), lang: 'zetaphy-wallet:lang', token: netKey(NETWORK, 'zetaphy-wallet:token'),
   owners: 'zetaphy-wallet:owners:v1:', // + this wallet's zetaphy1… address
   snap: 'zetaphy-wallet:snap:v1', // the snap ID last connected (no key: MetaMask holds it)
   evmWallet: 'zetaphy-wallet:evm-wallet', // the EVM wallet picked (its EIP-6963 rdns, or which injected object)
   wcId: 'zetaphy-wallet:walletconnect-project-id',
-  threats: 'zetaphy-wallet:threat-registry', // ThreatRegistry address (the vaccine), else the page's meta tag
+  threats: netKey(NETWORK, 'zetaphy-wallet:threat-registry'), // ThreatRegistry address (the vaccine), else the network's / the page's meta tag
   autolock: 'zetaphy-wallet:autolock-minutes', // 30, 60, 120 or 240
   passkey: 'zetaphy-wallet:passkey:v1', // the seed wrapped under a passkey's PRF output (security.js wrapSeed); never the PRF output
   bigHidden: 'zetaphy-wallet:big-balance-hidden-until:', // + address: the large-balance banner hidden until (ms)
   comet: 'zetaphy-wallet:comet-rpc', // CometBFT RPC for finality certificates (else <the node's origin>/rpc/)
-  rollback: 'zetaphy-wallet:rollback:v1:77390' }; // checkpoints held and the alarm (rollback.js), per chain
-const EVM_CHAIN_ID = 77390n;
+  rollback: `zetaphy-wallet:rollback:v1:${NETWORK.chainId}` }; // checkpoints held and the alarm (rollback.js), per chain
+const EVM_CHAIN_ID = BigInt(NETWORK.chainId);
+watchNetwork(window);
+
+// On mainnet: its own words where the testnet's would be wrong; elsewhere the chain's name and id follow the network.
+const MAIN_T = {
+  en: { warnTitle: 'Before you start', warnTestnet: 'This is ZETAPHY mainnet: real ZTPHY. A transfer cannot be undone.', wrongChain: 'That RPC is not ZETAPHY mainnet (chain id {id}).',
+    mmWrongChain: 'MetaMask is not on ZETAPHY mainnet (chain id {id}). Switch networks in MetaMask first.', helpMore: 'The README\'s security section has the details. This is mainnet: real ZTPHY.' },
+  th: { warnTitle: 'อ่านก่อนใช้งาน', warnTestnet: 'นี่คือ ZETAPHY mainnet ใช้ ZTPHY จริง โอนแล้วยกเลิกไม่ได้', wrongChain: 'RPC นี้ไม่ใช่ ZETAPHY mainnet (chain id {id})',
+    mmWrongChain: 'MetaMask ไม่ได้อยู่บน ZETAPHY mainnet (chain id {id}) สลับเครือข่ายใน MetaMask ก่อน', helpMore: 'รายละเอียดอยู่ในส่วนความปลอดภัยของ README นี่คือ mainnet ใช้ ZTPHY จริง' },
+  zh: { warnTitle: '使用前请阅读', warnTestnet: '这是 ZETAPHY 主网：真实的 ZTPHY。转账无法撤销。', wrongChain: '该 RPC 不是 ZETAPHY 主网（chain id {id}）。',
+    mmWrongChain: 'MetaMask 当前不在 ZETAPHY 主网（chain id {id}）。请先在 MetaMask 中切换网络。', helpMore: '详情见 README 的安全部分。这是主网：真实的 ZTPHY。' },
+  es: { warnTitle: 'Antes de empezar', warnTestnet: 'Esta es la mainnet de ZETAPHY: ZTPHY real. Una transferencia no se puede deshacer.', wrongChain: 'Ese RPC no es la mainnet de ZETAPHY (chain id {id}).',
+    mmWrongChain: 'MetaMask no está en la mainnet de ZETAPHY (chain id {id}). Cambia primero de red en MetaMask.', helpMore: 'La sección de seguridad del README tiene los detalles. Esto es la mainnet: ZTPHY real.' },
+  ko: { warnTitle: '시작하기 전에', warnTestnet: '여기는 ZETAPHY 메인넷입니다: 실제 ZTPHY입니다. 전송은 되돌릴 수 없습니다.', wrongChain: '이 RPC는 ZETAPHY 메인넷이 아닙니다 (chain id {id}).',
+    mmWrongChain: 'MetaMask가 ZETAPHY 메인넷에 있지 않습니다 (chain id {id}). 먼저 MetaMask에서 네트워크를 전환하세요.', helpMore: '자세한 내용은 README의 보안 섹션에 있습니다. 메인넷이므로 실제 ZTPHY입니다.' },
+  ja: { warnTitle: '始める前に', warnTestnet: 'ここは ZETAPHY メインネットです: 本物の ZTPHY です。送金は取り消せません。', wrongChain: 'その RPC は ZETAPHY メインネットではありません（chain id {id}）。',
+    mmWrongChain: 'MetaMask が ZETAPHY メインネットに接続されていません（chain id {id}）。先に MetaMask でネットワークを切り替えてください。', helpMore: '詳しくは README のセキュリティの節にあります。これはメインネットで、本物の ZTPHY です。' },
+  ru: { warnTitle: 'Перед началом', warnTestnet: 'Это мейннет ZETAPHY: настоящие ZTPHY. Перевод нельзя отменить.', wrongChain: 'Этот RPC не относится к мейннету ZETAPHY (chain id {id}).',
+    mmWrongChain: 'MetaMask не подключён к мейннету ZETAPHY (chain id {id}). Сначала переключите сеть в MetaMask.', helpMore: 'Подробности — в разделе безопасности README. Это мейннет: настоящие ZTPHY.' },
+  vi: { warnTitle: 'Trước khi bắt đầu', warnTestnet: 'Đây là mainnet ZETAPHY: ZTPHY thật. Giao dịch chuyển không thể hoàn tác.', wrongChain: 'RPC đó không phải mainnet ZETAPHY (chain id {id}).',
+    mmWrongChain: 'MetaMask không ở mainnet ZETAPHY (chain id {id}). Hãy chuyển mạng trong MetaMask trước.', helpMore: 'Chi tiết có trong phần bảo mật của README. Đây là mainnet: ZTPHY thật.' },
+};
 
 const T = {
   th: {
@@ -3176,7 +3200,18 @@ const SNAP_LANGS = ['en', 'th'];
 let lang = pickLang(store.get(KEYS.lang));
 let lastStatus = null;
 // A key missing in this language falls back to English (text that is not a key is shown as is).
-const t = (k, vars = {}) => (T[lang][k] ?? T.en[k] ?? k).replace(/\{(\w+)\}/g, (_, v) => String(vars[v] ?? ''));
+const forNet = (k) => (NETWORK.testnet ? null : (MAIN_T[lang]?.[k] ?? MAIN_T.en[k] ?? null));
+const t = (k, vars = {}) => {
+  let s = forNet(k) ?? T[lang][k] ?? T.en[k] ?? k;
+  if (!NETWORK.testnet) s = s.replaceAll('ZETAPHY Testnet', CHAIN_NAME).replaceAll('77390', String(NETWORK.chainId));
+  return s.replace(/\{(\w+)\}/g, (_, v) => String(vars[v] ?? ''));
+};
+/** The network badge and switch above the warning box (network.js). */
+function showNetwork() {
+  const host = $('net-badge');
+  if (host) host.replaceChildren(networkBadge(document, { lang, net: NETWORK, testnetText: t('warnTestnet') }));
+  linkExplorer(document, NETWORK);
+}
 
 function applyLang() {
   document.documentElement.lang = lang;
@@ -3186,6 +3221,7 @@ function applyLang() {
     menu.replaceChildren(...LANGS.map(([code, name]) => Object.assign(document.createElement('option'), { value: code, lang: code, textContent: name })));
   }
   menu.value = lang;
+  showNetwork();
   if (lastStatus) status(...lastStatus);
   if (wallet) { showAccount(); showToken(); showOwned(); autoLockTick(); }
   if (discovery) { renderWallets(); showManual(); showEvmAccount(); }
@@ -3281,7 +3317,7 @@ async function checkedCall(method, params) {
   return rpcCall(method, params);
 }
 
-const client = pqClient(checkedCall);
+const client = pqClient(checkedCall, { chainId: CHAIN_ID });
 
 /** Shows any error in the user's language where we know it. */
 function showError(e) {
@@ -4162,9 +4198,10 @@ async function deployConfirm() {
 // Registry set but the check fails: refused (fail closed). No registry set yet:
 // sent, with a visible "not checked" notice in the confirm box (fail open), so the
 // wallet works before the registry exists.
-const THREAT_META = document.querySelector('meta[name="zetaphy-threat-registry"]')?.content.trim() ?? '';
-// The site's default RPC (<meta name="zetaphy-rpc">, written by zetaphy-launch); a saved RPC wins.
-const RPC_META = document.querySelector('meta[name="zetaphy-rpc"]')?.content.trim() ?? '';
+// The meta tags are the testnet's (zetaphy-launch writes them); on mainnet the network's own (network.js).
+const THREAT_META = NETWORK.testnet ? document.querySelector('meta[name="zetaphy-threat-registry"]')?.content.trim() ?? '' : NETWORK.contracts.threatRegistry;
+// The site's default RPC (<meta name="zetaphy-rpc">, written by zetaphy-launch; mainnet: its public RPC); a saved RPC wins.
+const RPC_META = NETWORK.testnet ? document.querySelector('meta[name="zetaphy-rpc"]')?.content.trim() ?? '' : NETWORK.rpc;
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 // THREAT_SEL (the registry's views), PROXY_DEPTH and proxyTargets come from
 // zetaphy-network/src/vaccine.js, the same code the ZETAPHY Snap's transaction
@@ -4480,7 +4517,7 @@ async function qdayCheck() {
 /** MetaMask signs the migration text (locally); returns everything both steps need. */
 async function qdayMigration() {
   if (!wallet || !qdayOwner) throw new Error('qdCannot');
-  const text = qdayRevealText({ owner: qdayOwner.hex, controller: wallet.addr.hex });
+  const text = qdayRevealText({ chainId: CHAIN_ID, owner: qdayOwner.hex, controller: wallet.addr.hex });
   const hex = '0x' + bytesToHex(new TextEncoder().encode(text));
   let sig;
   try { sig = await ethereum().request({ method: 'personal_sign', params: [hex, qdayOwner.hex] }); } catch (e) { throw new Error(e?.code === 4001 ? 'mmRejected' : 'mmDenied'); }
@@ -4491,7 +4528,7 @@ async function qdayMigration() {
   const rec = new Uint8Array(65); rec[0] = s[64] >= 27 ? s[64] - 27 : s[64]; rec.set(s.slice(0, 64), 1);
   const publicKey = secp256k1.recoverPublicKey(rec, h, { prehash: false });
   const salt = qdaySalt(s);
-  return { signature: s, salt, commitment: qdayCommitment({ publicKey, controller: wallet.addr.hex, salt }) };
+  return { signature: s, salt, commitment: qdayCommitment({ chainId: CHAIN_ID, publicKey, controller: wallet.addr.hex, salt }) };
 }
 
 async function qdayCommitStep() {
@@ -4730,6 +4767,7 @@ function showManual() {
   $('m-chain').textContent = `${EVM_CHAIN_ID} (${EVM_CHAIN_ID_HEX})`;
   $('m-symbol').textContent = EVM_SYMBOL;
   $('m-decimals').textContent = String(DECIMALS);
+  $('m-explorer').textContent = NETWORK.explorer ?? '—';
   $('m-symbol-note').textContent = t('mSymbolNote', { sym: EVM_SYMBOL, precompile: NATIVE_PRECOMPILE });
 }
 

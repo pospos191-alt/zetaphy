@@ -10,6 +10,7 @@ import { ASSIST } from './assist-i18n.js';
 import { reviewProposals, reviewTimelock } from './govassist.js';
 import { verifyArchive, anchoredAtData, readAnchoredAt, anchorData, withAnchor } from './pqattest.js';
 import { simulateTx, simulationRows, explainTx, neuroAiSettings } from './presign.js';
+import { activeNetwork } from './network.js';
 
 export const A = (lang) => withFallback(ASSIST, lang);
 const word = (n) => BigInt(n).toString(16).padStart(64, '0');
@@ -220,7 +221,7 @@ export function presignHooks({ lang, url, from, to, data, value = 0n, tokens = [
   const settings = neuroAiSettings();
   const explain = settings.provider && (settings.key || settings.provider === 'ollama') ? async () => {
     const { complete } = await import('./neuro/ai/providers.js');
-    const summary = { network: 'ZETAPHY testnet (77390)', from, to, value: String(value), callData: String(data).slice(0, 2 + 8 + 64 * 6),
+    const summary = { network: `${activeNetwork().label} (${activeNetwork().chainId})`, from, to, value: String(value), callData: String(data).slice(0, 2 + 8 + 64 * 6),
       simulation: last ? { ok: last.ok, reason: last.reason, nativeChange: last.native == null ? null : String(last.native),
         tokenChanges: last.tokens.map((t) => ({ token: info(t.address)?.symbol ?? t.address, change: String(t.delta) })) } : null };
     return explainTx({ summary, settings, lang, complete });
@@ -306,7 +307,7 @@ export async function browserVerify(archive, { evmCall, pqwallet, verdict }) {
     verify: (sig, msg, pub) => ml_dsa44.verify(sig, msg, pub),
   };
   const anchorOf = async (hash, a) => {
-    if (Number(a?.chainId) !== 77390 || !ADDR.test(a?.contract ?? '')) throw new Error('anchor on another chain');
+    if (Number(a?.chainId) !== activeNetwork().chainId || !ADDR.test(a?.contract ?? '')) throw new Error('anchor on another chain');
     return readAnchoredAt(await evmCall('eth_call', [{ to: a.contract, data: anchoredAtData(hash) }, 'latest']));
   };
   const checkReport = verdict ? async (p) => (p?.report ? ((await verdict.verdictOf(p.report)) === p.reportHash ? null : 'the report in the payload does not give its reportHash') : null) : null;

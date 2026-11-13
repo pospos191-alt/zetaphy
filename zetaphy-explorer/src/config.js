@@ -1,6 +1,9 @@
 // Explorer settings: defaults, config.json (the site's), then this browser's
 // own overrides (Settings page, localStorage). Only https URLs are accepted
 // (http only for localhost, for local runs).
+// The network (network.js): config.json is the testnet's; on mainnet the node and contracts are network.js's, and
+// this browser's overrides are kept per network (the testnet keeps its old key).
+import { activeNetwork, netKey } from './network.js';
 
 export const DEFAULTS = Object.freeze({
   // The node's public https host (zetaphy-chain/setup-node.sh puts Caddy in front):
@@ -12,7 +15,7 @@ export const DEFAULTS = Object.freeze({
   cometRpc: '',
   rest: '',
   chainName: 'ZETAPHY',
-  evmChainId: 77390,
+  evmChainId: activeNetwork().chainId,
   // ThreatRegistry (zetaphy-network/contracts/ThreatRegistry.sol) on ZETAPHY: 0x… or empty (not checked).
   threatRegistry: '',
   // ImmuneRegistry (zetaphy-network/contracts/ImmuneRegistry.sol, docs/future/immune-network.md) on ZETAPHY: 0x… or
@@ -46,7 +49,16 @@ export const DEFAULTS = Object.freeze({
 });
 
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
-export const STORAGE_KEY = 'zetaphy-explorer:settings';
+export const STORAGE_KEY = netKey(activeNetwork(), 'zetaphy-explorer:settings');
+
+// what config.json sets about the chain itself; on mainnet these come from network.js only
+const CHAIN_KEYS = ['node', 'evmRpc', 'cometRpc', 'rest', 'evmChainId', 'threatRegistry', 'immuneFeed', 'auditCertificate', 'securityScore', 'provenVerdicts'];
+/** config.json as `net` should see it: the testnet's file as is; on mainnet its node and deployed contracts instead. */
+export function siteLayer(site, net = activeNetwork()) {
+  if (net.testnet) return site;
+  const out = Object.fromEntries(Object.entries(site && typeof site === 'object' ? site : {}).filter(([k]) => !CHAIN_KEYS.includes(k)));
+  return { ...out, node: net.rpc, evmRpc: '', cometRpc: '', rest: '', evmChainId: net.chainId, threatRegistry: net.contracts?.threatRegistry ?? '' };
+}
 
 /** An API base URL: https (or http on localhost), no credentials, no query. Returns the normalised URL or throws. */
 export function checkUrl(u, { trailingSlash = false } = {}) {
@@ -117,6 +129,7 @@ export async function loadConfig({ fetchFn = (...a) => fetch(...a), storage } = 
     const res = await fetchFn('config.json', { cache: 'no-cache', credentials: 'omit' });
     if (res.ok) site = await res.json();
   } catch { /* defaults */ }
+  site = siteLayer(site);
   const local = readLocal(storage);
   return { site: sanitizeConfig(site), config: sanitizeConfig(site, local), local: local ?? {} };
 }

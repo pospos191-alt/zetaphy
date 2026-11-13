@@ -99,3 +99,7 @@ export async function injectWallet(page, handler, { confirm = true } = {}) {
 export function chromiumOptions() {
   return process.env.ZDEX_CHROMIUM ? { executablePath: process.env.ZDEX_CHROMIUM } : {};
 }
+
+/** The page opens on the testnet (web/lib/network.js defaults to mainnet): these tests run the testnet deployment. */
+export const onNetwork = (page, id) => page.addInitScript((n) => { try { localStorage.setItem('zetaphy:network', n); } catch { /* blocked */ } }, id);
+export const onTestnet = (page) => onNetwork(page, 'testnet');

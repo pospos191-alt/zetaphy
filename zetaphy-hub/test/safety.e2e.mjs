@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { serve } from './serve.mjs';
 import { answer } from './mocknode.mjs';
+import { onTestnet } from './net.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -19,6 +20,7 @@ const ACC = '0x6af57fC3633dD0F7907f7900dbd4A2822F43a245';
 
 async function open(browser, site, { viewport = { width: 1366, height: 768 } } = {}) {
   const page = await browser.newPage({ viewport });
+  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (/Content Security Policy|Refused to/.test(m.text())) errors.push(m.text()); });

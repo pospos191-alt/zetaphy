@@ -30,6 +30,7 @@ import { scanEntry } from '../ml/fl/labels.js';
 import { decodeUpdate } from '../ml/fl/codec.js';
 import { aggregateRound } from '../ml/fl/aggregate.js';
 import { FL_TEXT } from '../web/fl-i18n.js';
+import { onNetwork } from './net.js';
 
 const PORT = 18097;
 const RPC_PORT = 18098;
@@ -80,7 +81,7 @@ function seeded(i) {
  * One browser: its own context (storage), an injected wallet for ACCTS[i], the test deployment
  * record (deployed = false: a record with no contract), RPCs answered by the test chains.
  */
-async function client(i, { deployed = true, seed = true } = {}) {
+async function client(i, { deployed = true, seed = true, network = 'testnet' } = {}) {
   const ctx = await browser.newContext();
   contexts.push(ctx);
   const log = { requests: [], wallet: [] };
@@ -105,6 +106,8 @@ async function client(i, { deployed = true, seed = true } = {}) {
     };
   }, { acct, seed: seed ? JSON.stringify(seeded(i)) : null });
   const page = await ctx.newPage();
+  // these checks are about the testnet unless a test asks for mainnet (network.js defaults to mainnet)
+  if (network) await onNetwork(page, network);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('request', (r) => log.requests.push({ url: r.url(), method: r.method(), body: r.postData() ?? '' }));
@@ -294,6 +297,20 @@ test('nothing but the clipped and noised update left the browsers', async () => 
   const s = await stored(clients[2].page);
   const anyAddr = s.entries[0].address.slice(2);
   assert.ok(clients.every(({ log }) => log.requests.every((r) => !r.body.includes(anyAddr) && !r.body.includes('neuro-fl'))));
+});
+
+test('mainnet (the default): the rounds are "testnet only for now"; ZETAPHY in the chain list is mainnet; no round, no wallet', async () => {
+  const { page, errors, log } = await client(0, { network: null });
+  assert.match(await text(page, '#fl'), /Testnet only for now.*Federated learning rounds is not on ZETAPHY mainnet yet/s);
+  assert.equal(await page.locator('#fl-train, #fl-optin').count(), 0, 'no round to join');
+  assert.match(await text(page, '#net-badge'), /ZETAPHY mainnet.*single validator operated by the ZETAPHY project/s);
+  const chains = await page.$$eval('#chain option', (o) => o.map((x) => x.value));
+  assert.ok(chains.includes('zetaphyMainnet') && !chains.includes('zetaphy'), 'mainnet\'s ZETAPHY only');
+  assert.ok(!log.requests.some((r) => r.url.startsWith(FL_RPC) || /deployment\.json/.test(r.url)), 'nothing of the testnet rounds is read');
+  assert.equal(log.wallet.length, 0);
+  await page.selectOption('#lang', 'th');
+  await waitText(page, '#fl', /ตอนนี้ใช้ได้เฉพาะบน testnet/);
+  assert.deepEqual(errors, []);
 });
 
 test('the panel follows the page language (8 languages)', async () => {

@@ -15,6 +15,7 @@ import { Interface, keccak256, AbiCoder } from 'ethers';
 import { serve } from './serve.mjs';
 import * as aas from '../aas-core.js';
 import { keccak256 as neuroKeccak } from '../../zetaphy-neuro/src/keccak.js';
+import { onTestnet } from './net.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -115,6 +116,7 @@ test('certificate check page + Audit Directory: live states from mocked chains, 
     await context.route(`${SOL.rpcs[0]}/**`, rpcRoute(solana));
     await context.route('https://raw.githubusercontent.com/**', (route) => route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(REGISTRY) }));
     const page = await context.newPage();
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (/Content Security Policy|Refused to/.test(m.text())) errors.push(m.text()); });

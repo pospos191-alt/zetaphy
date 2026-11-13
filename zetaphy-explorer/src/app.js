@@ -35,6 +35,10 @@ import { LiveFeed, socketHost, liveIndicator, markNewRows, pageLive, txLanded } 
 import { createWatchStore, createTxWatch, watchControls, watchedCard, toast } from './watch.js';
 import { analyticsView, ANALYTICS_MAX_BLOCKS } from './charts.js';
 import { cometTxHash } from './cosmos.js';
+import { activeNetwork, networkBadge, watchNetwork } from './network.js';
+// The network (network.js): mainnet unless the visitor picked the testnet; a switch (here or in another tab) reloads.
+const NET = activeNetwork();
+watchNetwork(window);
 
 // ---- state ----
 
@@ -152,7 +156,12 @@ function applyTheme(theme) {
   $('theme-toggle').textContent = dark ? '☀' : '☾';
 }
 
+/** The network badge and switch (network.js) under the header; on the testnet with the footer's own words. */
+function netBadge() {
+  $('net-badge')?.replaceChildren(networkBadge(document, { lang, net: NET, testnetText: t('footerUnaudited') }));
+}
 function banner() {
+  netBadge();
   const b = $('banner');
   if (isPlaceholder(cfg)) {
     fill(b, h('p', null, t('placeholderNode'), ' ', routeLink('settings', t('openSettings'))));
@@ -865,7 +874,8 @@ function startLive() {
   if (!ready) return;
   const c = chain;
   // Sockets only to config.json's node: its wss:// origin is the one in the CSP (vercel.json connect-src).
-  live = new LiveFeed({ endpoints: endpoints(cfg), host: socketHost(siteCfg), poll: () => c.status() });
+  // mainnet: no socket (its public sentry is behind rpc-guard, and the CSP's only wss:// source is config.json's node): polling
+  live = new LiveFeed({ endpoints: endpoints(cfg), host: NET.testnet ? socketHost(siteCfg) : '', poll: () => c.status() });
   txWatch = createTxWatch(store, (e) => txLanded(c, e));
   txWatch.onChange((landed) => { for (const e of landed) toast(t(e.status === 'failed' ? 'toastTxFailed' : 'toastTxConfirmed', { h: e.height }), { href: `#/tx/${e.evmHash ?? e.hash}`, text: short(e.evmHash ?? e.hash, 10, 6) }); });
   live.on((b) => {
@@ -907,7 +917,8 @@ async function start() {
   const loaded = await loadConfig({ storage: store });
   siteCfg = loaded.site; localCfg = loaded.local;
   setup(loaded.config);
-  await Promise.all([loadLabels(), loadCrossChain()]); // labels.json, crosschain.json (built by npm run build)
+  // crosschain.json is the testnet's Hyperlane table: on mainnet the bridge is not deployed
+  await Promise.all([loadLabels(), NET.testnet ? loadCrossChain() : 0]); // labels.json, crosschain.json (built by npm run build)
   window.addEventListener('hashchange', route);
   route();
   registerServiceWorker();

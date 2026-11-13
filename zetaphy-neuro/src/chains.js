@@ -67,15 +67,27 @@ export const CHAINS = {
       weth: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', native: 'WETH', amountIn: '10000000000000000', // 0.01 ETH
     },
   },
-  // ZETAPHY's own EVM (testnet). No DEX is configured, so no trade simulation.
+  // ZETAPHY's own EVM (testnet). No DEX is configured, so no trade simulation. The explorer app defaults to mainnet,
+  // so its links name the testnet (?network=testnet).
   zetaphy: {
     kind: 'evm',
     id: 77390,
     name: 'ZETAPHY (testnet)',
     rpcs: ['https://rpc.sawasdeecoin.com'],
-    explorer: 'https://explorer.sawasdeecoin.com/#/address/',
-    explorerTx: 'https://explorer.sawasdeecoin.com/#/tx/',
+    explorer: 'https://explorer.sawasdeecoin.com/?network=testnet#/address/',
+    explorerTx: 'https://explorer.sawasdeecoin.com/?network=testnet#/tx/',
     native: 'ZETAPHY',
+  },
+  // ZETAPHY mainnet (chain 3659, zetaphy-hub/network.js): its public sentry RPC. It has no explorer backend: the
+  // explorer app reads the RPC itself (?network=mainnet). No DEX pools yet, so no trade simulation.
+  zetaphyMainnet: {
+    kind: 'evm',
+    id: 3659,
+    name: 'ZETAPHY',
+    rpcs: ['https://129-221-199-191.sslip.io'],
+    explorer: 'https://explorer.sawasdeecoin.com/?network=mainnet#/address/',
+    explorerTx: 'https://explorer.sawasdeecoin.com/?network=mainnet#/tx/',
+    native: 'ZTPHY',
   },
   sol: {
     kind: 'solana',

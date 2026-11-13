@@ -12,6 +12,7 @@ import { answer } from './mocknode.mjs';
 import { build } from '../build.mjs';
 import { SEL, PROOF_DATA_TOPIC } from '../zkverdict-core.js';
 import { evalFixed, fromHex, quantizeVector, packFeatures } from '../../zetaphy-neuro/ml/onchain/fixed.js';
+import { onTestnet } from './net.mjs';
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 const FX = JSON.parse(read('../../zetaphy-network/test/fixtures/neuroscore-zk.json'));
@@ -59,6 +60,7 @@ test('hub Immunity card: a proven verdict verified in the browser under the site
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (/Content Security Policy|Refused to|WebAssembly/.test(m.text())) errors.push(m.text()); });

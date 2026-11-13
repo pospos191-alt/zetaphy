@@ -2,12 +2,15 @@
 // the chain's wallet_addEthereumChain parameters, EIP-6963 wallet discovery
 // (MetaMask, Rabby, OKX, Trust, Binance, Coinbase, Brave, Phantom, ...) and the
 // older injected providers. Keep the chain values in step with that file.
-// The chain values are the same as in zetaphy-chain/wallets/*.template.json.
+// The testnet's values are the same as in zetaphy-chain/wallets/*.template.json.
+// The chain is the page's network (network.js: mainnet unless the visitor picked the testnet), read once per page.
+import { activeNetwork } from './network.js';
 
-export const CHAIN_ID = 'zetaphy_77390-1';
-export const EVM_CHAIN_ID = 77390;
-export const EVM_CHAIN_ID_HEX = '0x12e4e';
-export const CHAIN_NAME = 'ZETAPHY Testnet';
+export const NETWORK = activeNetwork();
+export const CHAIN_ID = NETWORK.cosmosChainId;
+export const EVM_CHAIN_ID = NETWORK.chainId;
+export const EVM_CHAIN_ID_HEX = NETWORK.chainIdHex;
+export const CHAIN_NAME = NETWORK.chainName;
 export const DENOM = 'azetaphy';
 export const DISPLAY_DENOM = 'ZETAPHY';
 export const DECIMALS = 18;

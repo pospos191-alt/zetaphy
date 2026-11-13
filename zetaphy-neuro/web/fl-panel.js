@@ -16,6 +16,8 @@
 // `neuro:report` event of app.js, follows <html lang>. Everything shown is textContent.
 import { flText, fill } from './fl-i18n.js';
 import { createWallet } from './fl-wallet.js';
+// The network (network.js, shared with the hub): the federated rounds (FederatedRounds) are on the testnet only.
+import { activeNetwork, hasFeature, testnetOnlyBox } from './network.js';
 import { CHAINS } from '../src/chains.js';
 import { createRpc } from '../src/rpc.js';
 import { readContract } from '../src/reader.js';
@@ -400,6 +402,19 @@ function render() {
 }
 
 // ------------------------------------------------------------ start
+// mainnet: no FederatedRounds contract there yet. "testnet only for now" with the switch; no wallet, no round, no label.
+function startGated() {
+  const s = make('section', { id: 'fl', class: 'fl' });
+  const draw = () => s.replaceChildren(make('h2', { id: 'fl-title' }, flText(document.documentElement.lang || 'en').title),
+    testnetOnlyBox(document, { lang: document.documentElement.lang || 'en', feature: 'federated' }));
+  draw();
+  const footer = document.querySelector('footer');
+  if (footer) footer.before(s); else document.body.append(s);
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });
+}
+if (!hasFeature(activeNetwork(), 'federated')) startGated();
+else startPanel();
+function startPanel() {
 build();
 render();
 document.addEventListener('neuro:report', (e) => { capture(e.detail).catch(() => {}); });
@@ -416,3 +431,4 @@ new MutationObserver(render).observe(document.documentElement, { attributes: tru
   if (dueForRecheck(st.entries).length) setTimeout(() => { if (!busy) recheck(3).catch(() => {}); }, 5000);
 })();
 setInterval(() => { if (st.optIn && dep?.deployed && !busy && document.visibilityState === 'visible') refreshStatus(); }, 30_000);
+}

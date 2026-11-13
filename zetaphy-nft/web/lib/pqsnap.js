@@ -200,14 +200,15 @@ export function parseCometTx(j) {
  * @param {object} o.host        the MetaMask EIP-1193 provider (snapHost(list).provider)
  * @param {(m: string, p?: any[]) => Promise<any>} o.rpc   the node's JSON-RPC (reads, gas, broadcast)
  * @param {() => string} o.comet  the node's CometBFT RPC base (https://<node>/rpc): where the result is read
- * @param {number} [o.chainId]   the EVM chain id (77390)
+ * @param {number} [o.chainId]   the EVM chain id of the page's network (network.js: 3659 mainnet, 77390 testnet)
+ * @param {string} [o.cosmosChainId] its Cosmos chain id (default zetaphy_<chainId>-1, so the two always name one chain)
  * @param {() => string} [o.lang]
  * @param {string} [o.snapId]
  * @param {Function} [o.fetch]
  * @param {{now: () => number, sleep: (ms: number) => Promise<void>}} [o.clock]
  * @param {{timeoutMs?: number, everyMs?: number}} [o.watch]
  */
-export function snapProvider({ host, rpc, comet, chainId = 77390, cosmosChainId = COSMOS_CHAIN_ID, lang = () => 'en', snapId = SNAP_ID,
+export function snapProvider({ host, rpc, comet, chainId = 77390, cosmosChainId = `zetaphy_${chainId}-1`, lang = () => 'en', snapId = SNAP_ID,
   fetch: fetchFn = (...a) => globalThis.fetch(...a), clock = null, watch = {}, subtle = globalThis.crypto?.subtle }) {
   const listeners = new Map();
   const emit = (ev, v) => { for (const f of listeners.get(ev) ?? []) { try { f(v); } catch { /* listener */ } } };

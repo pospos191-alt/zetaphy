@@ -12,6 +12,7 @@ import { AbiCoder } from 'ethers';
 import { serve } from './serve.mjs';
 import { answer } from './mocknode.mjs';
 import { SEL } from '../aichain.js';
+import { onTestnet } from './net.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -42,6 +43,7 @@ function contractCall({ to, data }) {
 
 async function open(browser, site, path) {
   const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (/Content Security Policy|Refused to/.test(m.text())) errors.push(m.text()); });
