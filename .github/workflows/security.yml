@@ -170,7 +170,7 @@ jobs:
           out nft '^(zetaphy-nft/|zetaphy-network/(src/vaccine\.js|artifacts/ThreatRegistry\.json)$)'
           out hub '^(zetaphy-hub/|zetaphy-wallet/|zetaphy-dex/web/|zetaphy-nft/web/|zetaphy-explorer/|zetaphy-neuro/(web|src)/|zetaphy-network/src/(immune|qsafe)/|zetaphy-network/artifacts/(ProvenVerdicts|QuantumRescue)\.json$|zetaphy-network/test/fixtures/(neuroscore-zk|audit-report)\.json$|zetaphy-chain/hyperlane/(saphan-(chains|routes)|immune-network)\.json$)'
           out snap '^(zetaphy-snap/|zetaphy-network/src/pqtx\.js$)'
-          out launch '^(zetaphy-launch/|zetaphy-(dex|nft)/web/deployments\.json$|zetaphy-explorer/config\.json$|zetaphy-wallet/index\.html$|zetaphy-snap/snap\.config\.js$)'
+          out launch '^(zetaphy-launch/|zetaphy-network/(src/|artifacts/|package(-lock)?\.json$)|zetaphy-(dex|nft)/web/deployments\.json$|zetaphy-explorer/config\.json$|zetaphy-wallet/index\.html$|zetaphy-snap/snap\.config\.js$)'
           # the DLMM devnet test (in the zetaphy-chain job, which builds zetaphyd): when the DLMM contracts, their CLI or test change
           out dlmm '^(zetaphy-dex/(contracts/dlmm/|artifacts/(ZetaphyDlmm|DlmmMath)[A-Za-z]*\.json$|dlmm-cli\.js$|cli\.js$|test/devnet\.dlmm\.integration\.js$|package(-lock)?\.json$)|zetaphy-network/(scripts/devnet\.sh|artifacts/ThreatRegistry\.json)$)'
           # the timelock/oracle devnet test: when its test, those contracts or the pinned OpenZeppelin files change (rarely)
@@ -308,6 +308,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Install zetaphy-network (the mainnet AI steps import its deploy tooling)
+        working-directory: zetaphy-network
         run: npm ci --no-audit --no-fund
 
       - name: Unit tests (resume, dry-run, --only, state without secrets, config writers)

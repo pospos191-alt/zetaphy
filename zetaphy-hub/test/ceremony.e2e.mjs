@@ -12,6 +12,7 @@ import { chromium } from 'playwright-core';
 import { serve } from './serve.mjs';
 import { build } from '../build.mjs';
 import { checkChain, tip, sha256Hex } from '../ceremony-core.js';
+import { onTestnet } from './net.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FX = join(HERE, 'test', 'fixtures', 'ceremony');
@@ -26,6 +27,7 @@ test('ceremony page: contribute in the browser, refuse a wrong key, 8 languages,
   try {
     const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1100, height: 900 } });
     const page = await ctx.newPage();
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     const foreign = [];
     page.on('pageerror', (e) => errors.push(String(e)));

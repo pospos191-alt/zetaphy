@@ -38,8 +38,8 @@ button, input { font: inherit; color: inherit; }
 .shell {
   display: grid; height: 100dvh;
   grid-template-columns: 224px minmax(0, 1fr);
-  grid-template-rows: 60px auto minmax(0, 1fr);
-  grid-template-areas: "side top" "side how" "side stage";
+  grid-template-rows: 60px auto auto minmax(0, 1fr);
+  grid-template-areas: "side top" "side note" "side how" "side stage";
 }
 .side { grid-area: side; background: var(--rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 12px; gap: 14px; min-height: 0; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 10px; color: var(--text); }
@@ -68,6 +68,14 @@ button, input { font: inherit; color: inherit; }
 .top { grid-area: top; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--line); background: var(--rail); min-width: 0; }
 .title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .title h1 { margin: 0; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the network: mainnet's risk line (network.js networkBadge) and the switch */
+.net-note { grid-area: note; padding: 6px 20px; border-bottom: 1px solid var(--line); background: var(--rail); min-width: 0; }
+.net-note[hidden] { display: none; }
+.net-note .zn-net { padding: 4px 10px; font-size: 12px; }
+#net-switch .zn-net-select { background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; }
+#net-switch .zn-net-select option { color: #111; }
+.badge.mainnet { border-color: rgba(34, 197, 94, .45); color: #4ade80; background: rgba(34, 197, 94, .08); }
+.panel.gate-panel { padding: 20px; max-width: 720px; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(240, 185, 11, .35); color: var(--warn); background: rgba(240, 185, 11, .08); cursor: help; white-space: nowrap; }
 .top-actions { display: flex; gap: 8px; align-items: center; flex: none; }
 /* the language menu: a compact select dressed like the ghost buttons next to it */
@@ -193,7 +201,7 @@ dialog form { display: flex; flex-direction: column; gap: 10px; }
 
 /* ---------- narrow screens: the rail becomes a bottom bar ---------- */
 @media (max-width: 860px) {
-  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: 54px auto minmax(0, 1fr) 62px; grid-template-areas: "top" "how" "stage" "side"; }
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: 54px auto auto minmax(0, 1fr) 62px; grid-template-areas: "top" "note" "how" "stage" "side"; }
   .side { flex-direction: row; padding: 6px; border-right: 0; border-top: 1px solid var(--line); gap: 0; }
   .brand, .side-foot { display: none; }
   .tabs { flex-direction: row; width: 100%; overflow-x: auto; overflow-y: hidden; gap: 0; }
@@ -203,7 +211,14 @@ dialog form { display: flex; flex-direction: column; gap: 10px; }
   .top { padding: 0 12px; }
   #add-net span { display: none; }
   #add-net::before { content: "+"; font-weight: 700; }
+  /* room for the network switch: "Add network" stays on the Overview (step 1, MetaMask) */
+  #add-net { display: none; }
   .lang-select { max-width: 116px; padding: 7px 24px 7px 10px; background-position: right 8px center; font-size: 13px; }
+  /* the network: the switch says which one; the badge and the risk line stay short */
+  #net-badge { display: none; }
+  #net-switch .zn-net-select { max-width: 74px; padding: 6px 0; font-size: 12px; }
+  .top-actions { gap: 5px; }
+  .net-note { padding: 4px 12px; }
   .panel { padding: 12px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .home-grid, .stake-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; height: auto; }

@@ -15,6 +15,11 @@ import { safety, ledgerReason } from './lib/wallet-safety.js';
 import { LEDGER_ID_RE, ledgerId, ledgerProvider, hidSupported, preloadTransport } from './lib/ledger.js';
 import * as txg from './lib/txguard.js';
 import { PQSNAP_ID, snapHost, snapProvider, pqsText } from './lib/pqsnap.js';
+// The network (lib/network.js, shared with the hub): mainnet unless the visitor picked the testnet. The NFT contracts
+// are on the testnet only, so on mainnet this page shows "testnet only for now" and never reads or calls them.
+import { activeNetwork, hasFeature, networkBadge, testnetOnlyBox, watchNetwork, linkExplorer } from './lib/network.js';
+const NET = activeNetwork();
+watchNetwork(window);
 
 const walletLock = txg.walletLock(); // one wallet request at a time (txguard.js)
 const pageStop = txg.pageSignal(window);
@@ -942,6 +947,10 @@ function applyChrome() {
   const sel = $('#lang');
   if (sel.options.length !== LANGS.length) sel.replaceChildren(...LANGS.map((c) => h('option', { value: c, lang: c, text: LANG_NAMES[c] })));
   sel.value = S.lang;
+  // the network badge and switch; on the testnet with this page's own testnet line
+  $('#net-badge')?.replaceChildren(networkBadge(document, { lang: S.lang, net: NET, testnetText: T('testnet') }));
+  for (const n of document.querySelectorAll('.testnet')) n.hidden = true; // said by the badge
+  linkExplorer(document, NET);
   sel.setAttribute('aria-label', T('switchLang'));
   sel.title = T('switchLang');
   $('#theme').setAttribute('aria-label', T('switchTheme'));
@@ -951,7 +960,22 @@ function applyChrome() {
 // The block explorer (its own site): set here so index.html links nowhere else.
 const EXPLORER_URL = 'https://explorer.sawasdeecoin.com/';
 
+/** Mainnet: no NFT contracts there yet. The badge, "testnet only for now" with the switch; no RPC, no wallet, no contract. */
+function startGated() {
+  const gate = () => { applyChrome(); $('#main').replaceChildren(testnetOnlyBox(document, { lang: S.lang, feature: 'nft' })); };
+  $('#lang').addEventListener('change', (ev) => { S.lang = pickLang(ev.target.value); save('zn.lang', S.lang); gate(); });
+  $('#theme').addEventListener('click', () => {
+    const dark = S.theme ? S.theme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    S.theme = dark ? 'light' : 'dark';
+    save('zn.theme', S.theme);
+    applyChrome();
+  });
+  $('#connect').style.display = 'none'; // no wallet on this network
+  gate();
+}
+
 async function start() {
+  if (!hasFeature(NET, 'nft')) { startGated(); return; }
   document.getElementById('explorer-link')?.setAttribute('href', EXPLORER_URL);
   try {
     const r = await fetch('./deployments.json', { cache: 'no-cache' });

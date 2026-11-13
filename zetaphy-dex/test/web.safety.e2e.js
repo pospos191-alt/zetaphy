@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 import { servePage, injectWallet, chromiumOptions } from './helpers/web.js';
+import { onTestnet } from './helpers/web.js';
 
 const RPC_URL = 'https://rpc.zetaphy.test/';
 const USER = '0x6af57fC3633dD0F7907f7900dbd4A2822F43a245';
@@ -16,6 +17,7 @@ async function run(balanceWei) {
   const problems = [];
   const walletLog = [];
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) problems.push(`console: ${m.text()}`); });
   await page.route(`${RPC_URL}**`, async (route) => {

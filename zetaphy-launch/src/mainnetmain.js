@@ -147,6 +147,7 @@ export async function mainnetMain(opt, env = process.env, log = console.log, { s
         await new Promise((res) => setTimeout(res, 1000));
       }
     };
+    ctx.saveState = (s) => saveState(stateFile, s); // a step saves each contract the moment it is deployed (src/mainnetai.js)
     await runSteps({ steps, state, ctx, only, log, save: (s) => saveState(stateFile, s), settle });
     saveState(stateFile, state);
     const o = outputs(state);

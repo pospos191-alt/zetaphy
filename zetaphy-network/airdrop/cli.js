@@ -2,13 +2,14 @@
 // Airdrop list tooling (docs/AIRDROP.md). Nothing here moves coins, signs anything or deploys anything.
 //   SWD holders (Solana) -> pro-rata (stage 2):
 //   node airdrop/cli.js snapshot --mint <SWD mint> [--rpc URL] [--exclude a,b] > snapshot.json
-//   node airdrop/cli.js allocate snapshot.json [--min 1000000] [--cap-bps 100] > allocations.json
+//   node airdrop/cli.js allocate snapshot.json [--min 1000000] [--cap-bps 100 | --cap Z] [--pool Z] > allocations.json
 //   node airdrop/cli.js merkle allocations.json > merkle.json      (Solana-owner leaves, the stage-2 format)
 //   EVM rounds for ZtphyMerkleDistributor (amounts in ZTPHY, decimals allowed; --pool defaults to 200,000,000):
 //   node airdrop/cli.js from-csv <file.csv> [--equal | --each Z | --weight score] [--cap Z] [--pool Z] [--min-score N]
 //        [--exclude list.txt] [--rpc <URL of the chain the list came from>] [--batch 100] > recipients.json
 //   node airdrop/cli.js link-message <solanaOwner> <0xEVM> --chain-id N
 //   node airdrop/cli.js link-solana allocations.json links.json --chain-id N > linked.json
+//   node airdrop/cli.js links-from-issues issues.json [--chain-id 3659] [--deadline ISO] > links.json   (GitHub issue form)
 //   node airdrop/cli.js merge a.json b.json ... [--pool Z] > round.json
 //   node airdrop/cli.js merkle round.json --out <dir> [--chain-id N] [--prefix 3] [--pool Z]
 //   node airdrop/cli.js verify <dir> [--rpc URL --distributor 0x…]
@@ -23,6 +24,7 @@ import { allocate, POOL } from './allocate.js';
 import { buildTree } from './merkle.js';
 import { parseRecipients, dropContracts, assignAmounts, reasons } from './recipients.js';
 import { linkMessage, linkSolana } from './link.js';
+import { issuesOf, linksFromIssues } from './issues.js';
 import { buildRound, writeRound, verifyRound } from './distributor.js';
 
 const FLAGS = new Set(['equal']); // options without a value
@@ -53,7 +55,8 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     return takeSnapshot({ mint: opt.mint, rpcUrl: opt.rpc ?? 'https://api.mainnet-beta.solana.com', exclude: opt.exclude ? opt.exclude.split(',') : [], fetchImpl });
   }
   if (cmd === 'allocate') {
-    return allocate(readJson(pos[0]), { minAmount: BigInt(opt.min ?? 1), capBps: Number(opt['cap-bps'] ?? 10_000) });
+    const cap = ztphy(opt.cap, 'cap');
+    return allocate(readJson(pos[0]), { pool, minAmount: BigInt(opt.min ?? 1), capBps: Number(opt['cap-bps'] ?? 10_000), ...(cap != null ? { cap } : {}) });
   }
   if (cmd === 'from-csv') {
     if (!pos[0]) throw new Error('from-csv <file.csv>');
@@ -83,6 +86,15 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     const links = readJson(pos[1]);
     const r = linkSolana(readJson(pos[0]), Array.isArray(links) ? links : links.links, { chainId: Number(opt['chain-id']) });
     log(`link-solana: ${r.count} EVM recipients (${z(r.total)}) from ${r.linkedOwners} linked Solana owners; ${r.rejected.length} records rejected, ${r.conflicts.length} conflicts, ${r.duplicates} duplicates; unlinked (not paid this round): ${r.unlinked.count} owners, ${z(r.unlinked.total)}`);
+    return r;
+  }
+  if (cmd === 'links-from-issues') {
+    if (!pos[0]) throw new Error('links-from-issues <issues.json> [--chain-id 3659] [--deadline <ISO date>]');
+    let deadline = null;
+    if (opt.deadline != null) { deadline = Date.parse(opt.deadline); if (!Number.isFinite(deadline)) throw new Error('--deadline: an ISO date, e.g. 2026-12-04T14:00:00Z'); }
+    const r = linksFromIssues(issuesOf(readFileSync(pos[0], 'utf8')), { chainId: Number(opt['chain-id'] ?? 3659), deadline });
+    const why = reasons(r.rejected);
+    log(`links-from-issues: ${r.count} links from ${r.issues} issues; ${r.rejected.length} rejected ${JSON.stringify(why)}, ${r.conflicts.length} conflicts, ${r.duplicates} duplicates, ${r.skipped.length} skipped${deadline == null ? ' (no --deadline: issue dates NOT checked)' : ''}`);
     return r;
   }
   if (cmd === 'merge') {
@@ -142,7 +154,7 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     log(`init-code: root ${s.root}, ${s.count} leaves, ${z(s.total)}, claims ${new Date(start * 1000).toISOString()} .. ${new Date(deadline * 1000).toISOString()}, returnTo ${returnTo}, guardian ${guardian === ZeroAddress ? 'none' : guardian}`);
     return { contract: 'ZtphyMerkleDistributor', args: { root: s.root, totalAllocated: s.total, leafCount: s.count, claimStart: start, claimDeadline: deadline, returnTo, guardian }, initCode };
   }
-  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 16).join('\n')), { usage: true });
+  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 17).join('\n')), { usage: true });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

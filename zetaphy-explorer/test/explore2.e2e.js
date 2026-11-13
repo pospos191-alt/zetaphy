@@ -15,6 +15,7 @@ import { ml_dsa44, bytesToHex } from '../vendor/zetaphy-lib.js';
 import { buildChain, ME, ME_HEX, TOKEN, NFT, REGISTRY, TOKEN_OWNER, IPFS_FILES } from './mock-chain.js';
 import { feeSuggestions, burnedEstimate, gwei } from '../src/gas.js';
 import { formatZtphy } from '../src/format.js';
+import { onTestnet } from './net.js';
 
 // A free port (other checkouts may run their tests at the same time), or E2E2_PORT.
 const PORT = Number(process.env.E2E2_PORT) || await new Promise((r) => { const sv = createServer().listen(0, '127.0.0.1', () => { const { port } = sv.address(); sv.close(() => r(port)); }); });
@@ -45,6 +46,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 async function openPage({ viewport, lang = 'en', serviceWorkers = 'block' } = {}) {
   const ctx = await browser.newContext({ viewport: viewport ?? { width: 1280, height: 900 }, serviceWorkers });
   const page = await ctx.newPage();
+  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
   const problems = [];
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(`console: ${m.text()}`); });

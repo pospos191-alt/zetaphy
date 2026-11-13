@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { serve } from './serve.mjs';
 import { build } from '../build.mjs';
+import { onTestnet } from './net.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const exe = process.env.CHROMIUM_PATH || undefined;
@@ -21,6 +22,7 @@ test('count.html toggles the opt-out in 8 languages; count.js stays off outside 
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const page = await (await browser.newContext({ viewport: { width: 360, height: 740 } })).newPage();
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     const insights = [];
     page.on('pageerror', (e) => errors.push(String(e)));

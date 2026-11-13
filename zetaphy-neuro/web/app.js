@@ -8,6 +8,14 @@ import { CHAINS, isChainAddress, explorerUrl, explorerTxUrl } from '../src/chain
 import { verdictOf } from '../src/verdict.js';
 import { loadChainStats, renderChainStats } from './chain.js';
 import { safety } from './wallet-safety.js';
+// The network (network.js, shared with the hub): mainnet unless the visitor picked the testnet. ZETAPHY in the chain
+// list is that network's chain (src/chains.js zetaphyMainnet or zetaphy); the other one is not offered.
+import { activeNetwork, networkBadge, watchNetwork, linkExplorer } from './network.js';
+const NET = activeNetwork();
+watchNetwork(window);
+const ZETAPHY_KEY = NET.testnet ? 'zetaphy' : 'zetaphyMainnet';
+const OTHER_ZETAPHY = NET.testnet ? 'zetaphyMainnet' : 'zetaphy';
+const isZetaphy = (chain) => chain === 'zetaphy' || chain === 'zetaphyMainnet';
 
 const $ = (id) => document.getElementById(id);
 // What an address looks like on each kind of chain (placeholder and error hint).
@@ -35,7 +43,7 @@ try { lang = pickLang(localStorage.getItem('neuro-lang') ?? 'en'); } catch { /* 
 const sf = safety({ win: window, lang: () => lang });
 sf.track();
 
-for (const [key, c] of Object.entries(CHAINS)) $('chain').add(new Option(c.name, key));
+for (const [key, c] of Object.entries(CHAINS)) if (key !== OTHER_ZETAPHY) $('chain').add(new Option(c.name, key));
 $('chain').value = 'bsc';
 for (const [code, L] of Object.entries(LANGS)) $('lang').add(new Option(L.NAME, code));
 const setPlaceholder = () => { $('address').placeholder = FORMAT[kindOf($('chain').value)].placeholder; };
@@ -48,6 +56,8 @@ function applyLang() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = ui[el.dataset.i18n];
   renderCounts();
   renderChainStats(lang);
+  $('net-badge')?.replaceChildren(networkBadge(document, { lang, net: NET }));
+  linkExplorer(document, NET);
   $('lang').setAttribute('aria-label', ui.language);
   $('footer-help')?.replaceChildren(sf.helpLink({ chains: ['evm', 'solana', 'cosmos'], ledger: false }));
   if (last) render(last);
@@ -255,13 +265,13 @@ function reportUsage(level, kind, chain) {
   if (!/^https?:$/.test(location.protocol)) return;
   fetch(api('/api/usage'), {
     method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ event: 'check', level, kind, chain: chain === 'zetaphy' ? 'zetaphy' : 'other' }),
+    body: JSON.stringify({ event: 'check', level, kind, chain: isZetaphy(chain) ? 'zetaphy' : 'other' }),
   }).catch(() => { /* counter is optional */ });
   if (counts) {
     counts.checks += 1;
     if (level === 'high' || level === 'medium') counts[level] += 1;
     if (kind === 'tx') counts.tx += 1;
-    if (chain === 'zetaphy') counts.zetaphy += 1;
+    if (isZetaphy(chain)) counts.zetaphy += 1;
     renderCounts();
   }
 }
@@ -307,6 +317,7 @@ loadCounts();
 loadChainStats(() => lang);
 // Shareable links: ?chain=bsc&address=0x…
 const q = new URLSearchParams(location.search);
-if (Object.hasOwn(CHAINS, q.get('chain') ?? '')) $('chain').value = q.get('chain');
+// a ZETAPHY link opens on this page's network (the switch picks the other one)
+if (Object.hasOwn(CHAINS, q.get('chain') ?? '')) $('chain').value = isZetaphy(q.get('chain')) ? ZETAPHY_KEY : q.get('chain');
 setPlaceholder();
 if (q.get('address')) { $('address').value = q.get('address'); run($('chain').value, q.get('address').trim()); }

@@ -17,9 +17,14 @@ import * as walletLib from './wallet/wallets.js';
 import { A as assistText, badgeOf, presignHooks, immuneWarnings } from './assist.js';
 import * as txg from './txguard.js';
 import { renderMainnet } from './mainnet.js';
+import { activeNetwork, contractsOf, hasFeature, networkBadge, networkSelect, testnetOnlyBox, watchNetwork, netText } from './network.js';
 
-const EVM_CHAIN_ID = 77390;
-const DEFAULT_NODE = 'https://rpc.sawasdeecoin.com';
+// The network this page uses (network.js: mainnet unless the visitor picked the testnet). Read once; a switch reloads
+// the page (and every app frame in it), so every chain id, RPC and contract below belongs to one network.
+const NET = activeNetwork();
+watchNetwork(window);
+const EVM_CHAIN_ID = NET.chainId;
+const DEFAULT_NODE = NET.rpc;
 const $ = (id) => document.getElementById(id);
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -58,23 +63,24 @@ const TABS = [
   { id: 'wallet', src: 'wallet/' },
   { id: 'swap', src: 'swap/' },
   { id: 'stake', fresh: true },
-  { id: 'earn', page: true, fresh: true },
-  { id: 'mine', page: true, fresh: true },
-  { id: 'saphan', page: true, fresh: true },
-  { id: 'agents', page: true, fresh: true },
-  { id: 'offline', page: true, fresh: true },
-  { id: 'audit', page: true, fresh: true },
-  { id: 'quantum', page: true, fresh: true },
-  { id: 'nft', src: 'nft/' },
+  // feature: the network.js feature the tab needs; where the network has none, the tab shows "testnet only for now"
+  { id: 'earn', page: true, fresh: true, feature: 'faucet' },
+  { id: 'mine', page: true, fresh: true, feature: 'mining' },
+  { id: 'saphan', page: true, fresh: true, feature: 'bridge' },
+  { id: 'agents', page: true, fresh: true, feature: 'agents' },
+  { id: 'offline', page: true, fresh: true, feature: 'offline' },
+  { id: 'audit', page: true, fresh: true, feature: 'audit' },
+  { id: 'quantum', page: true, fresh: true, feature: 'quantumWallet' },
+  { id: 'nft', src: 'nft/', feature: 'nft' },
   { id: 'explorer', src: 'explorer/', group: 'data' },
   { id: 'neuro', src: 'neuro/web/' },
-  { id: 'ai', page: true, fresh: true },
+  { id: 'ai', page: true, fresh: true, feature: 'aiMap' },
   { id: 'analytics', page: true, group: 'data', fresh: true },
   { id: 'defi', page: true, group: 'data', fresh: true },
   { id: 'leaderboard', page: true, group: 'data', fresh: true },
   { id: 'gov', page: true, group: 'data', fresh: true },
-  { id: 'immune', page: true, group: 'data', fresh: true },
-  { id: 'aichain', page: true, group: 'data', fresh: true },
+  { id: 'immune', page: true, group: 'data', fresh: true, feature: 'immune' },
+  { id: 'aichain', page: true, group: 'data', fresh: true, feature: 'aiMap' },
   { id: 'dev', page: true, group: 'build', fresh: true },
 ];
 const APP_HOSTS = { 'wallet.sawasdeecoin.com': 'wallet', 'swap.sawasdeecoin.com': 'swap', 'nft.sawasdeecoin.com': 'nft', 'explorer.sawasdeecoin.com': 'explorer', 'neuro.sawasdeecoin.com': 'neuro' };
@@ -83,7 +89,15 @@ const APP_LANG = [['zetaphy-wallet:lang', (l) => l], ['zetaphy-dex:lang', (l) =>
 const APP_THEME = [['zetaphy-dex:theme', 'dark'], ['zn.theme', '"dark"'], ['zetaphy-explorer:theme', 'dark']];
 
 let lang = pickLang(store.get('zetaphy-hub:lang'));
-const T = (k) => TEXT[lang]?.[k] ?? TEXT.en[k] ?? k;
+// on mainnet: its own words where the testnet's would be wrong (tipNetMain…), and its chain id in place of 77390
+const MAIN_KEYS = { tipNet: 'tipNetMain', tipFaucet: 'tipFaucetMain' };
+const T = (k) => {
+  const key = !NET.testnet && MAIN_KEYS[k] ? MAIN_KEYS[k] : k;
+  const s = TEXT[lang]?.[key] ?? TEXT.en[key] ?? k;
+  return NET.testnet || typeof s !== 'string' ? s : s.replaceAll('77390', String(NET.chainId));
+};
+/** Is this tab "testnet only for now" on the page's network? */
+const gated = (t) => !!t?.feature && !hasFeature(NET, t.feature);
 /** A tab's label / title / hover text in the current language (English if missing). */
 const tabText = (t, i) => TAB_TEXT[lang]?.[t.id]?.[i] ?? TAB_TEXT.en[t.id][i];
 const LABEL = 0, TITLE = 1, TIP = 2;
@@ -167,8 +181,8 @@ function buildTabs() {
   nav.replaceChildren(...order.flatMap((t) => {
     const head = t.group && t.group !== last ? el('span', { class: 'group', text: GROUP[t.group] }) : null;
     last = t.group;
-    return [head, el('a', { class: 'tab', href: `?tab=${t.id}`, 'data-tab': t.id, 'data-tip': tabText(t, TIP) },
-      svg(t.id), el('span', { text: tabText(t, LABEL) }), t.fresh ? el('span', { class: 'new', text: 'new' }) : null)];
+    return [head, el('a', { class: 'tab', href: `?tab=${t.id}`, 'data-tab': t.id, 'data-tip': tabText(t, TIP), 'data-gated': gated(t) ? '1' : null },
+      svg(t.id), el('span', { text: tabText(t, LABEL) }), gated(t) ? el('span', { class: 'new', text: 'testnet' }) : t.fresh ? el('span', { class: 'new', text: 'new' }) : null)];
   }).filter(Boolean),
   // the validator guide is a page of its own on this site (validators.html), not a tab
   el('a', { class: 'tab', href: 'validators.html', id: 'nav-guide', 'data-tip': T('tipGuide') }, svg('guide'), el('span', { text: T('navGuide') })),
@@ -189,10 +203,18 @@ function show(id, { hash, push = true } = {}) {
   $('panel-home').hidden = tab.id !== 'home';
   $('panel-stake').hidden = tab.id !== 'stake';
   for (const p of document.querySelectorAll('.panel[data-page]')) p.hidden = p.dataset.page !== tab.id;
-  if (tab.page) openPage(tab.id);
+  // a tab whose contracts are not on this network: "testnet only for now" and a switch, never its page or app
+  const gate = gated(tab);
+  let gp = $('panel-gate');
+  if (gate) {
+    if (!gp) { gp = el('section', { class: 'panel gate-panel', id: 'panel-gate' }); $('stage').insertBefore(gp, $('frames')); }
+    gp.replaceChildren(testnetOnlyBox(document, { lang, feature: tab.feature }));
+    gp.hidden = false;
+  } else if (gp) gp.hidden = true;
+  if (tab.page && !gate) openPage(tab.id);
   renderHow(tab.id);
   for (const [fid, f] of frames) f.hidden = fid !== tab.id;
-  if (tab.src) {
+  if (tab.src && !gate) {
     let f = frames.get(tab.id);
     if (!f) {
       f = el('iframe', { title: TAB_TEXT.en[tab.id][LABEL], src: tab.src + (hash ?? ''), allow: 'clipboard-write' });
@@ -338,6 +360,7 @@ function applyLang() {
   buildTabs();
   renderBusy();
   renderEndpoints();
+  renderNetwork();
   renderMainnet($('mainnet'), { ...pageCtx(), provider: () => window.ethereum ?? wb.provider() });
   wb.render();
   show(current ?? 'home', { push: false });
@@ -347,10 +370,27 @@ function syncApps() {
   for (const [k, v] of APP_THEME) store.set(k, v);
 }
 
+// ------------------------------------------------------------------ the network: badge, switch, mainnet risk line, no faucet on mainnet
+function renderNetwork() {
+  const b = $('net-badge');
+  const t = netText(lang);
+  b.textContent = NET.testnet ? 'Testnet' : t.badgeMainnet;
+  b.classList.toggle('mainnet', !NET.testnet);
+  if (NET.testnet) { b.dataset.tipKey = 'tipTestnet'; delete b.dataset.tip; } else { delete b.dataset.tipKey; b.dataset.tip = t.risk; }
+  $('net-switch').replaceChildren(networkSelect(document, { lang, net: NET }));
+  const note = $('net-note');
+  note.hidden = NET.testnet;
+  note.replaceChildren(...(NET.testnet ? [] : [networkBadge(document, { lang, net: NET, select: false })]));
+  const faucetOn = hasFeature(NET, 'faucet');
+  $('faucet-form').hidden = !faucetOn;
+  $('faucet-gate').hidden = faucetOn;
+  $('faucet-gate').replaceChildren(...(faucetOn ? [] : [testnetOnlyBox(document, { lang, feature: 'faucet' })]));
+}
+
 // ------------------------------------------------------------------ overview
 function renderEndpoints() {
   const e = ep();
-  const rows = [[T('endpointChain'), `${EVM_CHAIN_ID} · zetaphy_77390-1`], [T('endpointEvm'), e.evm], ['WebSocket', e.ws], [T('endpointComet'), e.comet], [T('endpointRest'), e.rest]];
+  const rows = [[T('endpointChain'), `${EVM_CHAIN_ID} · ${NET.cosmosChainId}`], [T('endpointEvm'), e.evm], ['WebSocket', e.ws], [T('endpointComet'), e.comet], [T('endpointRest'), e.rest]];
   $('endpoints').replaceChildren(...rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v, title: v }),
     el('button', { type: 'button', class: 'copy', text: T('copy'), onclick: async (ev) => {
       try { await navigator.clipboard.writeText(v.split(' · ')[0]); ev.target.textContent = T('copied'); setTimeout(() => { ev.target.textContent = T('copy'); }, 1200); } catch { /* blocked */ }
@@ -416,6 +456,7 @@ async function validatorNames() {
 
 async function faucet(e) {
   e.preventDefault();
+  if (!hasFeature(NET, 'faucet')) return; // no faucet, no free coins on mainnet
   const out = $('faucet-msg');
   const a = $('faucet-addr').value.trim();
   if (!isEvmAddress(a) && !/^zetaphy1[02-9ac-hj-np-z]{38}$/.test(a)) { msg(out, T('badAddr'), 'bad'); return; }
@@ -446,7 +487,8 @@ async function addNetwork() {
 }
 async function addKeplr() {
   if (!window.keplr) throw new Error(T('noKeplr'));
-  const info = await getJson(`${ep().files}/keplr.json`);
+  // the testnet node publishes its Keplr file; mainnet's chain info is built here from network.js (wallets.js)
+  const info = NET.testnet ? await getJson(`${ep().files}/keplr.json`) : walletLib.keplrChainInfo(walletLib.nodeEndpoints(NODE));
   await window.keplr.experimentalSuggestChain(info);
   await window.keplr.enable(info.chainId);
 }
@@ -614,14 +656,22 @@ function stakeDialog(v, kind) {
 }
 
 // ------------------------------------------------------------------ start
+/** The hub's config on mainnet: its deployed contracts (network.js), the DEX factory and router, nothing of the testnet's. */
+export function mainnetConfig(hub, net = NET) {
+  const c = contractsOf(net);
+  return { contracts: Object.fromEntries(['neuroJobs', 'neuroControl', 'threatRegistry', 'threatReports', 'bugBounty', 'timelock'].filter((k) => c[k]).map((k) => [k, c[k]])),
+    dex: { factory: c.factory, router: c.router }, nft: {}, tokens: [], saphan: [], saphanTokens: [], immune: null, immuneNet: null, qsafe: hub?.qsafe ?? null };
+}
 async function start() {
   $('lang').replaceChildren(...LANGS.map(([code, name]) => el('option', { value: code, lang: code, text: name })));
   $('lang').value = lang;
-  try { const c = await getJson('./hub-config.json'); if (/^https:\/\/[^/]+$/.test(c.node ?? '')) NODE = c.node; HUB = { contracts: c.contracts ?? {}, dex: c.dex ?? {}, nft: c.nft ?? {}, tokens: Array.isArray(c.tokens) ? c.tokens.filter((x) => isEvmAddress(x?.address)) : [], saphan: Array.isArray(c.saphan) ? c.saphan : [], saphanTokens: Array.isArray(c.saphanTokens) ? c.saphanTokens.filter((x) => x && typeof x === 'object' && Array.isArray(x.destinations)) : [],
+  try { const c = await getJson('./hub-config.json'); if (NET.testnet && /^https:\/\/[^/]+$/.test(c.node ?? '')) NODE = c.node; HUB = { contracts: c.contracts ?? {}, dex: c.dex ?? {}, nft: c.nft ?? {}, tokens: Array.isArray(c.tokens) ? c.tokens.filter((x) => isEvmAddress(x?.address)) : [], saphan: Array.isArray(c.saphan) ? c.saphan : [], saphanTokens: Array.isArray(c.saphanTokens) ? c.saphanTokens.filter((x) => x && typeof x === 'object' && Array.isArray(x.destinations)) : [],
     // the Neuro oracle's sender and mirrors (Immunity tab, item 18)
     immune: c.immune && typeof c.immune === 'object' ? c.immune : null, immuneNet: c.immuneNet && typeof c.immuneNet === 'object' ? c.immuneNet : null,
     // the quantum-exposure inventory's summary (Quantum tab; quantum-core.js readiness() checks it)
     qsafe: c.qsafe && typeof c.qsafe === 'object' ? c.qsafe : null }; } catch { /* default */ }
+  // hub-config.json is the testnet's (build.mjs); on mainnet only network.js's deployed contracts, no testnet address
+  if (!NET.testnet) HUB = mainnetConfig(HUB);
   syncApps();
   bindTips(document, $('tip'));
   document.addEventListener('click', (e) => {

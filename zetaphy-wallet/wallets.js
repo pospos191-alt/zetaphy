@@ -6,12 +6,15 @@
 // - Cosmos wallets (Keplr, Leap, Cosmostation): experimentalSuggestChain(chainInfo).
 // Every value comes from the RPC URL the user configured: the EVM JSON-RPC is that URL,
 // and the same https host serves CometBFT RPC at /rpc and Cosmos REST at /rest.
-// The same values are in zetaphy-chain/wallets/*.template.json (the test checks they agree).
+// The testnet's values are in zetaphy-chain/wallets/*.template.json (the test checks they agree).
+// The chain is the page's network (network.js: mainnet unless the visitor picked the testnet), read once per page.
+import { activeNetwork } from './network.js';
 
-export const CHAIN_ID = 'zetaphy_77390-1';
-export const EVM_CHAIN_ID = 77390;
-export const EVM_CHAIN_ID_HEX = '0x12e4e';
-export const CHAIN_NAME = 'ZETAPHY Testnet';
+export const NETWORK = activeNetwork();
+export const CHAIN_ID = NETWORK.cosmosChainId;
+export const EVM_CHAIN_ID = NETWORK.chainId;
+export const EVM_CHAIN_ID_HEX = NETWORK.chainIdHex;
+export const CHAIN_NAME = NETWORK.chainName;
 export const DENOM = 'azetaphy';
 export const DISPLAY_DENOM = 'ZETAPHY';
 export const DECIMALS = 18;
@@ -78,7 +81,7 @@ export function keplrChainInfo(ep) {
     stakeCurrency: currency(),
     features: ['eth-address-gen', 'eth-key-sign', 'eth-secp256k1-cosmos', 'force-enable-evm-ledger'],
     evm: { chainId: EVM_CHAIN_ID, rpc: ep.evm },
-    isTestnet: true,
+    isTestnet: NETWORK.testnet,
   };
 }
 

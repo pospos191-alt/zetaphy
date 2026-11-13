@@ -11,6 +11,7 @@ import { chromium } from 'playwright-core';
 import { Interface, keccak256 } from 'ethers';
 import { serve } from './serve.mjs';
 import { answer } from './mocknode.mjs';
+import { onTestnet } from './net.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -66,6 +67,7 @@ test('Audit tab: requests, findings, the certificate check, a certificate lookup
       return route.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '' });
     });
     const page = await context.newPage();
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (/Content Security Policy|Refused to/.test(m.text())) errors.push(m.text()); });

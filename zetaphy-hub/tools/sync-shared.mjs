@@ -18,13 +18,16 @@ const ZKVERDICT = ['zkverdict-core.js', 'zkverdict-vkey.json'];
 const TXGUARD = ['txguard.js'];
 /** post-quantum signing: the ZETAPHY Snap (ML-DSA-44 in MetaMask) as an EIP-1193 provider (pqsnap.js; imports ./txguard.js) */
 const PQSNAP = ['pqsnap.js'];
+/** the networks (mainnet default, testnet selectable): ids, RPCs, contracts, features, badge and "testnet only" box (network.js) */
+const NETWORK = ['network.js'];
 /** site folder (from the repo root) -> the files it gets */
 export const SHARED = {
-  'zetaphy-dex/web/lib': [...SAFETY, ...LEDGER, ...TXGUARD, ...PQSNAP],
-  'zetaphy-nft/web/lib': [...SAFETY, ...LEDGER, ...TXGUARD, ...PQSNAP],
-  'zetaphy-explorer/src': [...SAFETY, ...ZKVERDICT, ...TXGUARD],
+  'zetaphy-dex/web/lib': [...SAFETY, ...LEDGER, ...TXGUARD, ...PQSNAP, ...NETWORK],
+  'zetaphy-nft/web/lib': [...SAFETY, ...LEDGER, ...TXGUARD, ...PQSNAP, ...NETWORK],
+  'zetaphy-explorer/src': [...SAFETY, ...ZKVERDICT, ...TXGUARD, ...NETWORK],
   'zetaphy-explorer': ['vendor/zkverify.js'],
-  'zetaphy-neuro/web': SAFETY,
+  'zetaphy-neuro/web': [...SAFETY, ...NETWORK],
+  'zetaphy-wallet': NETWORK,
   'test-ui': SAFETY,
 };
 

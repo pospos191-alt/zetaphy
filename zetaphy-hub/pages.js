@@ -10,6 +10,7 @@ import aimap from './aimap.js';
 import { ASSIST_PAGES } from './assist.js';
 import aichain from './aichain.js';
 import offline from './offline.js';
+import { activeNetwork, hasFeature } from './network.js';
 // the Quantum safety tab (quantum.js) loads the explorer's exposure check, Neuro's Keccak and the wallet's ML-DSA code
 // from this site: fetched only when the tab opens
 const quantum = {
@@ -408,7 +409,8 @@ const dev = {
           ['WebSocket (eth_subscribe)', `npx wscat -c ${e.ws}\n> {"jsonrpc":"2.0","id":1,"method":"eth_subscribe","params":["newHeads"]}`],
           ['CometBFT RPC', `curl -s ${e.comet}/status`],
           ['Cosmos REST', `curl -s "${e.rest}/cosmos/bank/v1beta1/supply/by_denom?denom=azetaphy"`],
-          [ctx.T('devFaucet'), `curl -s ${e.evm} -H "content-type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucet","params":["0xYOUR_ADDRESS"]}'`],
+          // no faucet on mainnet (network.js)
+          ...(hasFeature(activeNetwork(), 'faucet') ? [[ctx.T('devFaucet'), `curl -s ${e.evm} -H "content-type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucet","params":["0xYOUR_ADDRESS"]}'`]] : []),
           [ctx.T('devRegistry'), `curl -s ${e.files}/keplr.json\ncurl -s ${e.files}/evm-chain.json`],
           [ctx.T('devCli'), 'git clone https://github.com/pospos191-alt/zetaphy.git\ncd zetaphy/zetaphy-network && npm ci --omit=dev\nnode cli.js --help']]
           .flatMap(([t, cmd]) => [ctx.el('h3', { text: t }), code(ctx, cmd)]),

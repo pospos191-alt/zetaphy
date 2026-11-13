@@ -31,6 +31,7 @@ import { Contract, ContractFactory, encodeBytes32String, formatEther, formatUnit
 import { outputs, assertNoSecrets } from './runner.js';
 import { later, isLater, real, ref, resolveArgs, dep, deployOne } from './plan.js';
 import { addedPlans, addedSteps, verifyAdded, MAINNET_EXCLUDED } from './mainnetall.js';
+import { aiConfig, aiRoleHolders, aiPlans, aiSteps, verifyAi, contractsStep } from './mainnetai.js';
 import { launchSteps, art, NET, haveCode, signer, wait, same, bridgeOpen, BRIDGE_GATES, adminRoles, guardianRoles, ROOT, GOV_MODULE, EVM_CHAIN_ID as TESTNET_EVM_CHAIN_ID } from './steps.js';
 
 export const MAINNET_MIN_DELAY = 48 * 3600;
@@ -127,7 +128,7 @@ function only(o, keys, what) { if (o == null || typeof o !== 'object' || Array.i
 export function mainnetConfig(raw, { deployer } = {}) {
   assertNoSecrets(raw, 'deploy config');
   const c = only(raw, ['governance', 'timelockProposers', 'timelockExecutor', 'timelockDelay', 'guardian', 'guardianOwners', 'guardianThreshold', 'communityFund', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty',
-    'identity', 'vault', 'compute', 'dlmm', 'nft', 'oracle', 'proposalDeposit'], '');
+    'identity', 'vault', 'compute', 'dlmm', 'nft', 'oracle', 'proposalDeposit', 'ai'], '');
   if (c.governance == null) throw new Error('deploy config governance: "gov" (the chain\'s gov module) or 0x<multisig>: the timelock\'s proposer');
   const out = {};
   out.governance = addr(c.governance, 'governance', { gov: true });
@@ -201,11 +202,13 @@ export function mainnetConfig(raw, { deployer } = {}) {
   if (or.pythZetaFeed != null && (!/^0x[0-9a-fA-F]{64}$/.test(String(or.pythZetaFeed)) || /^0x(.)\1{63}$/i.test(String(or.pythZetaFeed)))) throw new Error('deploy config oracle.pythZetaFeed: the Pyth price feed id of ZTPHY/USD, 0x + 64 hex (not a placeholder)');
   out.oracle = { relayers, relayerThreshold, twapMinSpacing: int(or.twapMinSpacing ?? 60, 'oracle.twapMinSpacing', 1, 3600), pythZetaFeed: or.pythZetaFeed == null ? null : String(or.pythZetaFeed).toLowerCase() };
   out.proposalDeposit = coin(c.proposalDeposit ?? '10000', 'proposalDeposit');
+  // the AI map's contracts (src/mainnetai.js)
+  out.ai = aiConfig(c.ai, { only, addr, addrs, int, coin });
   out.proposalDepositWei = parseEther(out.proposalDeposit).toString();
   if (deployer) {
     const roles = [['governance', [out.governance]], ['timelockProposers', out.extraProposers], ['guardian', [out.guardian].filter(Boolean)], ['guardianOwners', out.guardianOwners],
       ['communityFund', [out.communityFund]], ['bridge.markers', out.bridge?.markers ?? []], ['dex.feeTo', [out.dex.feeTo].filter(Boolean)], ['bounty.committee', out.bounty?.committee ?? []],
-      ['vault.validators', [out.vault.validators].filter(Boolean)], ['dlmm.feeTo', [out.dlmm.feeTo].filter(Boolean)], ['nft.feeRecipient', [out.nft.feeRecipient]], ['oracle.relayers', out.oracle.relayers]];
+      ['vault.validators', [out.vault.validators].filter(Boolean)], ['dlmm.feeTo', [out.dlmm.feeTo].filter(Boolean)], ['nft.feeRecipient', [out.nft.feeRecipient]], ['oracle.relayers', out.oracle.relayers], ...aiRoleHolders(out.ai)];
     for (const [k, list] of roles) if (list.some((a) => same(a, deployer))) throw new Error(`deploy config ${k}: the deployer ${deployer} is used once and retired; it may hold no role`);
   }
   return out;
@@ -291,6 +294,8 @@ function mainnetPlans() {
     },
     verify: () => ({ deploys: [], calls: ['(checks) every role on every contract of this run: the timelock, the guardian multisig, the gov module or nobody; never an EOA or the deployer'] }),
     ...addedPlans(),
+    ...aiPlans(),
+    contracts: contractsStep().plan,
   };
 }
 
@@ -438,6 +443,9 @@ export function mainnetSteps() {
     withPlan({ ...base.handover, describe: 'hand every admin role to the ZetaphyTimelock (its real proposers, delay >= 48 h), the emergency switches to the guardian, the deployer renounces; checked on-chain' }),
     // the rest of the testnet's systems, after the handover (src/mainnetall.js): each hands its roles straight to the timelock
     ...addedSteps(),
+    // the AI map's contracts (src/mainnetai.js), then the addresses the web apps read
+    ...aiSteps(),
+    contractsStep(),
     withPlan({
       name: 'verify',
       always: true,
@@ -507,6 +515,7 @@ export async function verifyMainnet(ctx, state) {
     lines.push(`${'ZetaphyBounty'.padEnd(18)} ${o.zetaphyBounty}  no admin; committee ${(await b.members()).length}, holds ${formatEther(await p.getBalance(o.zetaphyBounty))} ${ctx.symbol}`);
   }
   await verifyAdded(ctx, o, problems, lines);
+  await verifyAi(ctx, o, problems, lines);
   if (problems.length) throw new Error(`the mainnet check failed:\n  - ${problems.join('\n  - ')}`);
   for (const l of lines) ctx.log(`  ${l}`);
   ctx.log(`  checked on-chain: no EOA and not the deployer ${me} holds a role on any contract of this run; the bridge is closed`);
@@ -515,7 +524,8 @@ export async function verifyMainnet(ctx, state) {
 
 // ---------- the dry run's plan and the cost ----------
 
-const fmtArg = (v) => (isLater(v) ? `<${v.later}>` : Array.isArray(v) ? `[${v.map(fmtArg).join(', ')}]` : typeof v === 'bigint' ? v.toString() : String(v));
+const fmtArg = (v) => (isLater(v) ? `<${v.later}>` : Array.isArray(v) ? `[${v.map(fmtArg).join(', ')}]` : typeof v === 'bigint' ? v.toString()
+  : v && typeof v === 'object' ? `{${Object.entries(v).map(([k, x]) => `${k}: ${fmtArg(x)}`).join(', ')}}` : String(v));
 
 /** Gas of a deployment: eth_estimateGas with the real constructor arguments (the deployer in place of a contract
  *  that comes later), else priced by code size. */
@@ -555,6 +565,7 @@ export async function mainnetPlan(ctx, state, steps) {
     }
     const nCalls = p.txs ?? p.calls.filter((c) => !c.startsWith('(checks)')).length;
     for (const c of p.calls) lines.push(`    ${c.startsWith('(checks)') ? '' : 'call '}${c}`);
+    for (const [k, why] of p.skipped ?? []) lines.push(`    - ${k}: skipped on mainnet (${why})`);
     gas += 150000n * BigInt(nCalls); calls += nCalls;
     if (p.value) { value += p.value; lines.push(`    puts ${formatEther(p.value)} ${ctx.symbol} into the contract`); }
   }

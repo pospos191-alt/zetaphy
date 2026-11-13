@@ -1,25 +1,26 @@
-// The "ZETAPHY mainnet" card of the Overview (hub.js): every mainnet fact the hub shows is in MAINNET, here only.
-// The apps on this site (swap, NFT, staking, faucet…) stay on the testnet (77390); this card only informs.
+// The "ZETAPHY mainnet" card of the Overview (hub.js). The facts are network.js's (NETWORKS.mainnet), the one
+// network definition every app reads; the network switch at the top picks mainnet (the default) or the testnet.
 //   rpc null  -> "Public RPC: coming soon", the "Add to MetaMask" button is disabled
 //   rpc set   -> the button asks the wallet to add the chain (wallet_addEthereumChain, chain 0xe4b)
 // Published files: zetaphy-chain/mainnet/zetaphy_3659-1/ and docs/ZETAPHY-MAINNET-NOTICE.md (+ .th.md).
 import { withFallback } from './i18n.js';
 import { MAINNET_TEXT } from './mainnet-i18n.js';
+import { NETWORKS } from './network.js';
 
-const REPO = 'https://github.com/pospos191-alt/zetaphy';
+const M = NETWORKS.mainnet;
 export const MAINNET = Object.freeze({
-  name: 'ZETAPHY',
-  chainId: 3659,
-  cosmosChainId: 'zetaphy_3659-1',
-  symbol: 'ZTPHY',
-  decimals: 18,
-  genesisSha256: 'ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667',
-  genesisTime: '2026-11-13T14:00:00Z',
-  rpc: 'https://129-221-199-191.sslip.io', // the public sentry (rpc-guard); the validator has no public port
-  explorer: null,
-  notice: `${REPO}/blob/main/docs/ZETAPHY-MAINNET-NOTICE.md`,
-  noticeTh: `${REPO}/blob/main/docs/ZETAPHY-MAINNET-NOTICE.th.md`,
-  files: `${REPO}/tree/main/zetaphy-chain/mainnet/zetaphy_3659-1`,
+  name: M.name,
+  chainId: M.chainId,
+  cosmosChainId: M.cosmosChainId,
+  symbol: M.symbol,
+  decimals: M.decimals,
+  genesisSha256: M.genesisSha256,
+  genesisTime: M.genesisTime,
+  rpc: M.rpc, // the public sentry (rpc-guard); the validator has no public port
+  explorer: M.explorer,
+  notice: M.notice,
+  noticeTh: M.noticeTh,
+  files: M.files,
 });
 
 /** wallet_addEthereumChain parameters, or null while there is no public RPC. */

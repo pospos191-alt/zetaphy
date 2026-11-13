@@ -13,7 +13,9 @@ import { encodeCall, decode, decodeError, decodeBytes32String, parseUnits, forma
 import { getAmountOut, minWithSlippage, priceImpactBps, impactLevel, quote, candidatePaths, poolKind, addLiquidityMins } from './lib/amm.js';
 import { checkToken, checkBadge, reasonText, DISCLAIMER } from './lib/neuro.js';
 import { cleanName, cleanSymbol, validEntry, lookalikes } from './lib/tokens.js';
-import { EVM_CHAIN_ID, EVM_CHAIN_ID_HEX, EVM_SYMBOL, nodeEndpoints, evmChainParams, discoverWallets, openInAppLinks } from './lib/wallets.js';
+import { EVM_CHAIN_ID, EVM_CHAIN_ID_HEX, EVM_SYMBOL, nodeEndpoints, evmChainParams, discoverWallets, openInAppLinks, NETWORK } from './lib/wallets.js';
+// The network (lib/network.js, shared with the hub): mainnet unless the visitor picked the testnet; a switch reloads.
+import { contractsOf, hasFeature, netKey, netText, networkBadge, testnetOnlyBox, watchNetwork, linkExplorer } from './lib/network.js';
 import { parseSettings, serializeSettings, parseImported, cleanWalletId, rpcIsCustom, SLIPPAGE_MAX_BPS, SLIPPAGE_CONFIRM_BPS } from './lib/storage.js';
 import { createDlmmTab } from './dlmm.js';
 import { safety, ledgerReason } from './lib/wallet-safety.js';
@@ -23,7 +25,9 @@ import { PQSNAP_ID, snapHost, snapProvider, pqsText } from './lib/pqsnap.js';
 
 const $ = (id) => document.getElementById(id);
 const BASE = './';
-const KEYS = { lang: 'zetaphy-dex:lang', theme: 'zetaphy-dex:theme', settings: 'zetaphy-dex:settings', imported: `zetaphy-dex:imported:${EVM_CHAIN_ID}`, wallet: 'zetaphy-dex:wallet' };
+// settings (slippage, a custom RPC) per network: the testnet keeps its old key
+const KEYS = { lang: 'zetaphy-dex:lang', theme: 'zetaphy-dex:theme', settings: netKey(NETWORK, 'zetaphy-dex:settings'), imported: `zetaphy-dex:imported:${EVM_CHAIN_ID}`, wallet: 'zetaphy-dex:wallet' };
+watchNetwork(window);
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
@@ -59,9 +63,24 @@ const st = sf.t; // the safety texts (lib/wallet-safety-i18n.js)
 
 // ---------------------------------------------------------------- i18n / theme
 
+// mainnet: its own badge ("ZETAPHY mainnet · Unaudited") and footer (the notice's risk sentence, network.js words),
+// and its chain id where the texts name the testnet's
 function t(key, vars = {}) {
-  const s = TEXT[state.lang]?.[key] ?? TEXT.en[key] ?? key;
+  let s = TEXT[state.lang]?.[key] ?? TEXT.en[key] ?? key;
+  if (!NETWORK.testnet) {
+    if (key === 'badge') s = `${netText(state.lang).badgeMainnet} · ${s.split('·').pop().trim()}`;
+    if (key === 'footer') s = netText(state.lang).risk;
+    s = s.replaceAll('77390', String(EVM_CHAIN_ID));
+  }
   return s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ''));
+}
+/** The network badge and switch (lib/network.js) above the page; on the testnet with the page's own testnet words. */
+function renderNetwork() {
+  const host = $('net-badge');
+  if (host) host.replaceChildren(networkBadge(document, { lang: state.lang, net: NETWORK, testnetText: TEXT[state.lang]?.footer ?? TEXT.en.footer }));
+  linkExplorer(document, NETWORK);
+  // DLMM is not on mainnet yet: "testnet only for now", never its contracts
+  if (!hasFeature(NETWORK, 'dlmm')) $('dlmm-root').replaceChildren(testnetOnlyBox(document, { lang: state.lang, feature: 'dlmm' }));
 }
 
 function applyI18n() {
@@ -72,6 +91,7 @@ function applyI18n() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
   for (const el of document.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = t(el.dataset.i18nPlaceholder);
   for (const el of document.querySelectorAll('[data-i18n-title]')) el.title = t(el.dataset.i18nTitle);
+  renderNetwork();
   renderConnect();
   $('footer-help').replaceChildren(sf.helpLink(HELP));
 }
@@ -1023,7 +1043,7 @@ let dlmmTab = null; // the DLMM tab (dlmm.js, UNAUDITED contracts)
 function showTab(name) {
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const s of TABS) $(`tab-${s}`).hidden = s !== name;
-  if (name === 'dlmm') dlmmTab?.show().catch(() => {});
+  if (name === 'dlmm' && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
   if (name === 'pool') { updateAdd(); loadPositions(); }
   if (name === 'tokens') renderTokenList();
   if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
@@ -1040,7 +1060,7 @@ function refreshAll() {
   renderSafetyBanner();
   updateSwap();
   if (!$('tab-pool').hidden) { updateAdd(); loadPositions(); }
-  if (!$('tab-dlmm').hidden) dlmmTab?.show().catch(() => {});
+  if (!$('tab-dlmm').hidden && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
 }
 
 function debounce(fn, ms) {
@@ -1064,23 +1084,33 @@ function validConfig(c) {
   return { ...c, rpc: rpcValue, contracts, tokens: Array.isArray(c.tokens) ? c.tokens : [], neuroRegistry: ok(c.neuroRegistry) ? c.neuroRegistry : null };
 }
 
+/** mainnet's DEX (network.js): the deployed factory and router, the native coin as its own ERC-20, no test tokens. */
+function mainnetDeployment() {
+  const c = contractsOf(NETWORK);
+  return { name: 'ZETAPHY DEX', chainId: NETWORK.chainId, cosmosChainId: NETWORK.cosmosChainId, rpc: NETWORK.rpc,
+    contracts: { factory: c.factory, router: c.router, wnative: c.wnative, wnativeKind: 'native-precompile', threatRegistry: c.threatRegistry },
+    tokens: [], neuroRegistry: c.threatRegistry };
+}
+
 async function init() {
   state.lang = pickLang(store.get(KEYS.lang)); // English unless another language of the set was chosen
   applyTheme(store.get(KEYS.theme));
   loadSettings();
   applyI18n();
 
-  try { state.cfg = validConfig(await fetchJson('deployments.json')); } catch { state.cfg = null; }
+  // deployments.json and tokenlist.json are the testnet's; mainnet's factory, router and ThreatRegistry are network.js's (no pools yet)
+  if (NETWORK.testnet) { try { state.cfg = validConfig(await fetchJson('deployments.json')); } catch { state.cfg = null; } }
+  else state.cfg = validConfig(mainnetDeployment());
   if (!state.cfg) state.cfg = { contracts: null, tokens: [], rpc: '' };
   let list = [];
-  try { const tl = await fetchJson('tokenlist.json'); list = Array.isArray(tl.tokens) ? tl.tokens : []; } catch { list = []; }
+  if (NETWORK.testnet) { try { const tl = await fetchJson('tokenlist.json'); list = Array.isArray(tl.tokens) ? tl.tokens : []; } catch { list = []; } }
   buildTokens(list);
   fillAllSelects();
   if (deployed()) {
     $('footer-contracts').textContent = `Router ${state.cfg.contracts.router} · Factory ${state.cfg.contracts.factory}`;
   }
 
-  dlmmTab = createDlmmTab({ state, $, el, setStatus, rpc, sendTx, errorText, revertData, neuroCheck, recheckNeuro, renderNeuro, needsAck,
+  if (hasFeature(NETWORK, 'dlmm')) dlmmTab = createDlmmTab({ state, $, el, setStatus, rpc, sendTx, errorText, revertData, neuroCheck, recheckNeuro, renderNeuro, needsAck,
     allowance, isNative, keyOf, tokenByKey, tokenByAddress, deadline, openWallets });
 
   // events

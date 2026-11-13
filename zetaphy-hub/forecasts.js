@@ -4,6 +4,8 @@
 import { pickLang, locale } from './i18n.js';
 import { FORECASTS } from './forecasts-i18n.js';
 import * as txg from './txguard.js';
+// The network (network.js): these contracts are on the testnet only; on mainnet the page says "testnet only for now".
+import { activeNetwork, hasFeature, networkBadge, testnetOnlyBox, watchNetwork } from './network.js';
 
 const CHAIN_HEX = '0x12e4e'; // 77390
 const DEFAULT_NODE = 'https://rpc.sawasdeecoin.com';
@@ -256,7 +258,22 @@ function texts() {
   document.getElementById('lang').value = lang;
 }
 
+/** mainnet: the badge, "testnet only for now" and the switch; no node, no contract, no wallet. */
+function gated() {
+  const net = activeNetwork();
+  watchNetwork(window);
+  for (const n of document.querySelectorAll('#ftabs, [role="tabpanel"], .note')) n.hidden = true;
+  const box = document.createElement('div');
+  box.id = 'net-gate';
+  document.querySelector('header').after(box);
+  const draw = () => { texts(); box.replaceChildren(networkBadge(document, { lang, net }), testnetOnlyBox(document, { lang, feature: 'forecasts' })); };
+  document.getElementById('lang').addEventListener('change', (e) => { lang = pickLang(e.target.value); store.set('zetaphy-hub:lang', lang); draw(); });
+  document.getElementById('back').textContent = `ZETAPHY · ${net.cosmosChainId}`;
+  draw();
+}
+
 async function main() {
+  if (!hasFeature(activeNetwork(), 'forecasts')) { gated(); return; }
   try {
     const r = await fetch('./hub-config.json', { cache: 'no-store', credentials: 'omit' });
     const cfg = await r.json();

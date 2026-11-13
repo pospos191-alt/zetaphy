@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
 import { serve } from './serve.mjs';
 import { answer, powClaims, POW_BITS } from './mocknode.mjs';
+import { onTestnet } from './net.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -24,6 +25,7 @@ test('mine testnet ZETAPHY in the browser, and the faucet forms', { timeout: 120
   let nodeDown = false, hardPow = false, refuseClaims = 0, dropClaims = 0;
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy/.test(m.text())) errors.push(m.text()); });

@@ -10,10 +10,16 @@ import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Wallet, Transaction, parseUnits } from 'ethers';
+import { Wallet, Transaction, parseUnits, ZeroAddress } from 'ethers';
 import { main } from '../launch.js';
 import { loadChain, readPin, mainnetConfig, mainnetSteps, mainnetPlan, MAINNET_MIN_DELAY } from '../src/mainnet.js';
 import { MAINNET_EXCLUDED, ADDED_STEPS, identityChains } from '../src/mainnetall.js';
+import { AI_STEPS, AI_ITEMS, HUB_KEYS, hubContracts } from '../src/mainnetai.js';
+
+// every AI-map contract the mainnet deploys (no NeuroOracleSender without ai.mailbox; never HackInsurance)
+const AI_CONTRACTS = ['ModelRegistry', 'NeuroScore', 'ModelEpochs', 'SignalBoard', 'FederatedRounds', 'WebAuthnVerifier', 'CosignCommittee', 'ConstitutionChecker', 'AgentRegistry',
+  'LabelRegistry', 'VouchRegistry', 'IntentExecutor', 'ForesightRegistry', 'RiskForecasts', 'DetectorPool', 'DataDAO', 'RedBlueArena', 'NeuroAttest', 'NeuroAnchor',
+  'WorkerReputation', 'UsefulIssuance', 'UsefulWork', 'BugBounty'];
 import { readKeystore, readPassphrase, keystoreSigner, RemoteSigner, checkSigned, checkSignerUrl } from '../src/signer.js';
 import { GOV_MODULE } from '../src/steps.js';
 
@@ -156,7 +162,7 @@ test('mainnet.example.json: every key is known; its placeholders (addresses, the
 test('the mainnet steps: the gate-8 set, the handover, then the rest of the testnet\'s systems, a check last; no testnet-only contract', () => {
   const names = mainnetSteps().map((s) => s.name);
   assert.deepEqual(names, ['guardian', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty', 'wire', 'timelock', 'handover',
-    'identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', 'verify']);
+    'identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', ...AI_STEPS, 'contracts', 'verify']);
   // the testnet-only steps do not exist on mainnet: each is listed in the plan as skipped, with its reason
   for (const t of ['stable', 'configs', 'snap', 'skill']) {
     assert.ok(!names.includes(t), t);
@@ -168,8 +174,9 @@ test('the mainnet steps: the gate-8 set, the handover, then the rest of the test
   const ctx = { address: me, symbol: 'ZTPHY', evmChainId: 3659n, mainnet: mainnetConfig(goodConfig({ identity: { web: 'https://neuro.zetaphy.org/web/' } })), guardianOwners: [W(), W()], guardianThreshold: 2, governance: GOV_MODULE, timelockDelay: MAINNET_MIN_DELAY, dexWnative: 'deploy' };
   const all = mainnetSteps().flatMap((s) => s.plan(ctx, {}).deploys.map((d) => d.name));
   assert.deepEqual(all, ['SimpleMultisig', 'NeuroControl', 'NeuroJobs', 'ThreatRegistry', 'ThreatReports', 'BridgeGuard', 'BridgeAirlock', 'NeuroLane', 'WZETAPHY', 'ZetaphyFactory', 'ZetaphyRouter', 'ZetaphyBounty', 'ZetaphyTimelock',
-    'NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']);
-  for (const n of all) assert.doesNotMatch(n, /Test|StableGateway|Faucet/i, n);
+    'NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle',
+    ...AI_CONTRACTS]);
+  for (const n of all) assert.doesNotMatch(n, /^Test|StableGateway|Faucet|HackInsurance/, n);
   const bridge = mainnetSteps().find((s) => s.name === 'bridge').plan(ctx, {});
   assert.ok(bridge.calls.some((c) => /enabled = false\)  CLOSED/.test(c)));
 });
@@ -236,7 +243,7 @@ test('the plan of a resume after the gate-8 set: only the added steps, their con
     dex: done({ dex: { contracts: { factory: W(), router: W(), wnative: ctx.dexWnative } } }), bounty: done({ zetaphyBounty: W() }), wire: done(), timelock: done({ timelock: W() }), handover: done(), verify: done() } };
   const plan = await mainnetPlan(ctx, state, mainnetSteps());
   const text = plan.lines.join('\n');
-  assert.deepEqual(plan.todo, ['identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal']);
+  assert.deepEqual(plan.todo, ['identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', ...AI_STEPS, 'contracts']);
   for (const c of ['NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']) {
     assert.match(text, new RegExp(`deploy ${c}\\(`), c);
   }
@@ -247,7 +254,11 @@ test('the plan of a resume after the gate-8 set: only the added steps, their con
   assert.match(text, /- stable: skipped on mainnet \(test USDC\/USDT/);
   assert.match(text, /- snap: skipped on mainnet/);
   assert.match(text, /- bridge: skipped \(no "bridge" in the deploy config/);
-  assert.match(text, /total: 12 contract\(s\)/);
+  assert.match(text, new RegExp(`total: ${12 + AI_CONTRACTS.length} contract\\(s\\)`));
+  assert.match(text, /- hackInsurance: skipped on mainnet \(HackInsurance is testnet only/);
+  assert.match(text, /- neuroOracleSender: skipped on mainnet \(no Hyperlane Mailbox/);
+  assert.match(text, /deploy FederatedRounds\(governance=0x[0-9a-fA-F]{40}, start=<the block 14400 after the deploy>/);
+  assert.match(text, /deploy UsefulWork\(governance=0x[0-9a-fA-F]{40}, reputation=<WorkerReputation>, issuance=<UsefulIssuance>, p=\{stampBits: 22/);
 });
 
 // ---------- options and environment ----------
@@ -390,4 +401,98 @@ test('remote signer: the signed transaction is checked field by field against wh
   assert.throws(() => checkSigned('0x1234', {}, { address: key.address, chainId: 3659n }), /not a signed transaction/);
   assert.throws(() => checkSignerUrl('http://example.org:8550'), /on 127.0.0.1/);
   assert.equal(checkSignerUrl('https://signer.example.org'), 'https://signer.example.org');
+});
+
+// ---------- the AI map's contracts (src/mainnetai.js) ----------
+
+test('the AI map: every "notDeployed" / "practice" item\'s contract is deployed, or skipped on mainnet with a reason', async () => {
+  const { ITEMS, statusOf } = await import('../../zetaphy-hub/flow.js');
+  const steps = Object.fromEntries(mainnetSteps().map((s) => [s.name, s]));
+  const ctx = { address: W(), symbol: 'ZTPHY', evmChainId: 3659n, mainnet: mainnetConfig(goodConfig()) };
+  const o = { timelock: W(), neuroJobs: W(), threatRegistry: W(), guardianMultisig: W(), rewardVault: W() };
+  const planned = new Set(AI_STEPS.flatMap((n) => steps[n].plan(ctx, o).deploys.map((d) => d.key)));
+  const skipped = new Map(AI_STEPS.flatMap((n) => steps[n].plan(ctx, o).skipped ?? []));
+  // bugBounty: the useful-work BugBounty (zetaphy-hub/work.js calls its functions); ZetaphyBounty keeps its own key
+  const have = new Set([...planned, 'zetaphyBounty']);
+  for (const [id, it] of Object.entries(ITEMS)) {
+    if (!['notDeployed', 'practice'].includes(it.s) || !it.needs) continue;
+    for (const k of it.needs) assert.ok(have.has(k) || skipped.has(k), `item ${id} needs ${k}: neither deployed nor skipped`);
+    for (const k of it.needs) assert.ok(HUB_KEYS.includes(k), `${k} is a hub-config key`);
+    for (const k of it.needs) assert.ok(AI_ITEMS[k]?.includes(Number(id)), `AI_ITEMS lists item ${id} for ${k}`);
+  }
+  assert.match(skipped.get('hackInsurance'), /testnet only/);
+  assert.match(skipped.get('neuroOracleSender'), /no Hyperlane Mailbox/);
+  // with every planned address in hub-config, the map shows those items as working
+  const fake = Object.fromEntries([...planned].map((k) => [k, W()]));
+  const h = hubContracts(ctx, { ...o, ...fake });
+  for (const id of h.aiItemsWithContracts) assert.equal(statusOf(ITEMS[id], h.contracts), ITEMS[id].needs.every((k) => h.contracts[k]) ? 'live' : ITEMS[id].s, `item ${id}`);
+  for (const id of [1, 3, 6, 9, 14, 15, 16, 19, 23, 24, 25, 26, 27, 29, 34, 35, 2, 5, 7, 10, 17, 30]) assert.equal(statusOf(ITEMS[id], h.contracts), 'live', `item ${id} works with these addresses`);
+  for (const id of [18, 28, 32]) assert.notEqual(statusOf(ITEMS[id], h.contracts), 'live', `item ${id} stays not deployed`);
+  // a mailbox in the config deploys NeuroOracleSender (items 18 and 28)
+  const withMb = { ...ctx, mainnet: mainnetConfig(goodConfig({ ai: { mailbox: W() } })) };
+  assert.ok(steps.aiassist.plan(withMb, o).deploys.some((d) => d.name === 'NeuroOracleSender'));
+});
+
+test('the AI contracts: the timelock in the constructor, or the deployer for its set-up calls then one step to the timelock; the guardian multisig', () => {
+  const me = W(), timelock = W(), jobs = W(), reg = W(), guardian = W(), vault = W();
+  const ctx = { address: me, symbol: 'ZTPHY', evmChainId: 3659n, mainnet: mainnetConfig(goodConfig({ ai: { committee: [W(), W(), W()], threshold: 2 } })) };
+  const o = { timelock, neuroJobs: jobs, threatRegistry: reg, guardianMultisig: guardian, rewardVault: vault };
+  const steps = Object.fromEntries(mainnetSteps().map((s) => [s.name, s]));
+  const d = (n, c) => steps[n].plan(ctx, o).deploys.find((x) => x.name === c);
+  const calls = (n) => steps[n].plan(ctx, o).calls.join('\n');
+  for (const [n, c] of [['aimodels', 'NeuroScore'], ['aimodels', 'FederatedRounds'], ['aiagents', 'CosignCommittee'], ['aiagents', 'LabelRegistry'], ['aimarkets', 'RiskForecasts'],
+    ['aimarkets', 'DetectorPool'], ['aimarkets', 'DataDAO'], ['aimarkets', 'RedBlueArena'], ['usefulwork', 'UsefulIssuance']]) assert.equal(d(n, c).args[0], timelock, `${c}: the timelock in the constructor`);
+  assert.equal(d('aiassist', 'NeuroAttest').args[1], timelock);
+  assert.equal(d('aiagents', 'VouchRegistry').args[1], timelock);
+  // set up by the deployer, then handed over in the same step
+  for (const [n, c] of [['aimodels', 'ModelRegistry'], ['aimodels', 'ModelEpochs'], ['aiagents', 'AgentRegistry'], ['aimarkets', 'ForesightRegistry'], ['usefulwork', 'WorkerReputation']]) {
+    assert.equal(d(n, c).args[0], me, c);
+    assert.match(calls(n), new RegExp(`${c}\\.setGovernance\\(ZetaphyTimelock\\)  one step`), c);
+  }
+  assert.equal(d('usefulwork', 'UsefulWork').args[0], me);
+  assert.equal(d('usefulwork', 'BugBounty').args[3], me);
+  assert.match(calls('usefulwork'), /UsefulWork\.setPaused\(true\)[\s\S]*UsefulWork\.setGuardian\(the guardian multisig\)[\s\S]*BugBounty\.setPaused\(true\)[\s\S]*BugBounty\.setGovernance\(ZetaphyTimelock\)/);
+  assert.match(calls('aimodels'), /ModelRegistry\.setGuardian\(the guardian multisig, true\)/);
+  assert.match(calls('aimodels'), /ModelEpochs\.setGuardian\(the guardian multisig, true\)/);
+  assert.match(calls('aiagents'), /AgentRegistry\.setChecker\(ConstitutionChecker, true\)/);
+  assert.match(calls('aimarkets'), /ForesightRegistry\.setResolver\(RiskForecasts, true\)/);
+  // wiring: NeuroJobs, the ThreatRegistry, the RewardVault (UsefulIssuance's overflow), the committee from the config
+  assert.equal(d('aimarkets', 'RiskForecasts').args[1], reg);
+  assert.equal(d('aiassist', 'NeuroAttest').args[0], jobs);
+  assert.equal(d('usefulwork', 'UsefulIssuance').args[1], vault);
+  assert.equal(d('usefulwork', 'BugBounty').args[0], jobs);
+  assert.deepEqual(d('aiagents', 'CosignCommittee').args.slice(1), [ctx.mainnet.ai.committee, 2n]);
+  assert.equal(d('aimarkets', 'DataDAO').args[1], timelock, 'no poster in the config: the timelock posts');
+  assert.equal(d('usefulwork', 'WorkerReputation').args[2], ZeroAddress, 'no NeuroIdentity in the state: no identity link');
+  // the deployer is a constructor argument only where it governs for the set-up calls
+  const json = (v) => JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? String(x) : x));
+  const setup = ['ModelRegistry', 'ModelEpochs', 'AgentRegistry', 'ForesightRegistry', 'WorkerReputation', 'UsefulWork', 'BugBounty'];
+  for (const n of AI_STEPS) for (const x of steps[n].plan(ctx, o).deploys) if (!setup.includes(x.name)) assert.ok(!json(x.args).includes(me), `${x.name}: no deployer in its arguments`);
+});
+
+test('the deploy config section "ai": defaults, the deployer in no AI role, placeholders refused', () => {
+  const me = W();
+  const c = mainnetConfig(goodConfig(), { deployer: me }).ai;
+  assert.deepEqual(c.committee, []);
+  assert.equal(c.threshold, 1);
+  assert.equal(c.agentBond, '10');
+  assert.equal(c.hubHost, 'app.sawasdeecoin.com');
+  assert.equal(c.mailbox, null);
+  assert.equal(c.usefulWork.issuance, true);
+  assert.equal(c.fl.commitBlocks, 72000);
+  const bad = (patch, re) => assert.throws(() => mainnetConfig({ ...goodConfig(), ai: patch }, { deployer: me }), re);
+  bad({ committee: [me] }, /ai.committee: the deployer/);
+  bad({ poster: me }, /ai.poster: the deployer/);
+  bad({ usefulWork: { feeder: me } }, /ai.usefulWork.feeder: the deployer/);
+  bad({ committee: [W()], threshold: 2 }, /ai.threshold: a whole number from 1 to 1/);
+  bad({ hubHost: 'hub.example.org' }, /ai.hubHost/);
+  bad({ hubHost: 'https://app.sawasdeecoin.com' }, /ai.hubHost/);
+  bad({ mailbox: '0x3333333333333333333333333333333333333333' }, /ai.mailbox: .* is a placeholder/);
+  bad({ usefulWork: { issuance: 'yes' } }, /ai.usefulWork.issuance: true or false/);
+  bad({ mint: true }, /unknown key "mint"/);
+});
+
+test('an AI step refuses to run before the handover', async () => {
+  const ctx = { address: W(), evmChainId: 3659n, mainnet: mainnetConfig(goodConfig()), log: () => {} };
+  for (const n of AI_STEPS) await assert.rejects(mainnetSteps().find((s) => s.name === n).run(ctx, { steps: {} }), /the handover has not run yet/, n);
 });

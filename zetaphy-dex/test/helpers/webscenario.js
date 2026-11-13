@@ -14,6 +14,7 @@ import { formatUnits as pageFormat } from '../../web/lib/abi.js';
 import { LANGS, TEXT as PAGE_TEXT } from '../../web/i18n.js';
 import { TEXT as DLMM_TEXT } from '../../web/dlmm.js';
 import { DISCLAIMER } from '../../web/lib/neuro.js';
+import { onTestnet } from './web.js';
 
 const A = (n) => JSON.parse(readFileSync(new URL(`../../artifacts/${n}.json`, import.meta.url), 'utf8'));
 export const ARTS = {
@@ -94,6 +95,7 @@ export async function runScenario(b, d, log = () => {}) {
   const sent = []; // every eth_sendTransaction's params
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error' || /Content Security Policy/i.test(m.text())) problems.push(`console: ${m.text()}`); });
     page.on('dialog', (dlg) => { problems.push(`dialog: ${dlg.message()}`); dlg.dismiss(); });

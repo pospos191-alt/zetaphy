@@ -16,6 +16,7 @@ import { Interface, Wallet, getAddress, keccak256 as ethKeccak, toUtf8Bytes, toB
 import { EVM } from '@ethereumjs/evm';
 import { Common, Chain, Hardfork } from '@ethereumjs/common';
 import { Address, Account, hexToBytes, bytesToHex } from '@ethereumjs/util';
+import { onTestnet } from './net.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
@@ -110,6 +111,7 @@ test('Private identity: create, backup, register, prove in the browser, claim to
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 900 }, acceptDownloads: true });
+    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy/.test(m.text())) errors.push(m.text()); });
