@@ -51,7 +51,7 @@ test('Offline tab: works with the network gone after one visit: key, cheques sig
 
     // ---- online, once
     await page.goto(`${site.url}?tab=offline`);
-    assert.ok(await page.$('.tab[data-tab="offline"]'), 'listed with the tabs');
+    assert.ok(await page.waitForSelector('.tab[data-tab="offline"]', { state: 'attached', timeout: 10000 }), 'listed with the tabs');
     await page.waitForSelector('#off-create-form');
     await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 60_000 });
     await page.waitForSelector('#off-net[data-online="1"]');

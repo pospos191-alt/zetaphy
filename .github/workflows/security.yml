@@ -792,6 +792,11 @@ jobs:
       - name: setup-node.sh installs only the binary an upgrade plan pins
         run: bash zetaphy-chain/test-plan-pin.sh
 
+      # docs/ZETAPHY-MAINNET-PROCEDURE.md step 12.1: MAINNET_FAUCET=1 refused on the validator / a node without a
+      # public RPC / any validator signer, accepted on the public sentry (fresh key mode 600, limits 1/5/200, kept).
+      - name: setup-node.sh mainnet faucet only on the public sentry (MAINNET_FAUCET)
+        run: bash zetaphy-chain/test-mainnet-faucet.sh
+
       - name: Build zetaphyd (this setup-node.sh) and the one from before zetaphy-guard
         run: |
           tag=$(sed -n 's/^COSMOS_EVM_TAG="\(.*\)"/\1/p' zetaphy-chain/setup-node.sh)

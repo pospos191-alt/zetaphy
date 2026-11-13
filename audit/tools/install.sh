@@ -53,7 +53,14 @@ SVM_DIR="${SVM_HOME:-$HOME/.svm}/$SOLC_VERSION"
 if ! echo "$SOLC_SHA256  $SVM_DIR/solc-$SOLC_VERSION" | sha256sum -c --quiet - >/dev/null 2>&1; then
   mkdir -p "$SVM_DIR"; cp "$DIR/bin/solc" "$SVM_DIR/solc-$SOLC_VERSION"; chmod +x "$SVM_DIR/solc-$SOLC_VERSION"
 fi
-[ -x "$DIR/bin/aderyn" ] || untar "https://github.com/cyfrin/aderyn/releases/download/aderyn-v$ADERYN_VERSION/aderyn-x86_64-unknown-linux-gnu.tar.xz" "$ADERYN_SHA256" xJf
+# Aderyn is retired upstream and its release downloads were withdrawn: the same archive (same SHA-256)
+# is mirrored in pospos191-alt/zetaphy-chain tools/ (source: cyfrin/aderyn tag aderyn-v0.6.8).
+ADERYN_URL="https://github.com/cyfrin/aderyn/releases/download/aderyn-v$ADERYN_VERSION/aderyn-x86_64-unknown-linux-gnu.tar.xz"
+ADERYN_MIRROR="https://raw.githubusercontent.com/pospos191-alt/zetaphy-chain/d82391cf20a09728b8a49352987c49a1feb72d0e/tools/aderyn-$ADERYN_VERSION-x86_64-unknown-linux-gnu.tar.xz"
+if [ ! -x "$DIR/bin/aderyn" ]; then
+  if curl -fsIL --retry 2 -o /dev/null "$ADERYN_URL" 2>/dev/null; then untar "$ADERYN_URL" "$ADERYN_SHA256" xJf
+  else untar "$ADERYN_MIRROR" "$ADERYN_SHA256" xJf; fi
+fi
 [ -x "$DIR/bin/osv-scanner" ] || { fetch "https://github.com/google/osv-scanner/releases/download/v$OSV_VERSION/osv-scanner_linux_amd64" "$OSV_SHA256" "$DIR/bin/osv-scanner"; chmod +x "$DIR/bin/osv-scanner"; }
 # forge: the invariant suites (a smoke run in the fast tier, the full run in deep)
 [ -x "$DIR/bin/forge" ] || untar "https://github.com/foundry-rs/foundry/releases/download/v$FOUNDRY_VERSION/foundry_v${FOUNDRY_VERSION}_linux_amd64.tar.gz" "$FOUNDRY_SHA256"

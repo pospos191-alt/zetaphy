@@ -20,7 +20,7 @@
 | `test-make-genesis.sh` | เทสต์: input ที่ไม่ปลอดภัยถูกปฏิเสธทุกกรณี `--e2e` รันผลลัพธ์เป็นเชน validator เดียว (CI: `security.yml` job zetaphy-chain) |
 
 `zetaphy-chain/setup-node.sh` มีโหมด pinned chain สำหรับ mainnet: `GENESIS_FILE` + `GENESIS_SHA256` +
-`GENESIS_EVM_CHAIN_ID` ติดตั้งโหนดของ genesis นั้นเท่านั้น ไม่สร้าง genesis ของ testnet ไม่มี faucet ไม่มี test keyring
+`GENESIS_EVM_CHAIN_ID` ติดตั้งโหนดของ genesis นั้นเท่านั้น ไม่สร้าง genesis ของ testnet ไม่มี faucet (เว้นแต่เจ้าของเลือกเปิดบน sentry, ขั้น 12.1) ไม่มี test keyring
 ไม่ส่งธุรกรรมเอง และไม่เปิด RPC สาธารณะเว้นแต่ `PUBLIC_RPC=1` ถ้าไม่ตั้งตัวแปรเหล่านี้ จะตั้ง testnet เหมือนเดิมทุกอย่าง
 
 ป้าย: **[อ่าน]** อ่านอย่างเดียว · **[เปลี่ยนไฟล์]** เขียนไฟล์ · **[เปลี่ยนเชน]** ส่งธุรกรรม ·
@@ -213,6 +213,58 @@ sudo GENESIS_FILE=$HOME/genesis.json GENESIS_SHA256=<sha> GENESIS_EVM_CHAIN_ID=3
 (เฉพาะ method ที่อนุญาต, จำกัดต่อ IP) อย่าตั้ง `PUBLIC_HTTP_RPC` ใน `~/.zetaphy/config/config.toml` ของ M-SENTRY ตั้ง
 `private_peer_ids = "<node id ของ M-VAL>"`; บน M-VAL ตั้ง `pex = false` แล้วรันคำสั่งของขั้น 11 อีกครั้งพร้อม
 `PEERS=<node id ของ M-SENTRY>@<ip ของ M-SENTRY>:26656` และ restart (`sudo systemctl restart zetaphyd`)
+
+### 12.1 Faucet ของ mainnet บน sentry (มติของเจ้าของ) [เปลี่ยนการตั้งค่า] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+**มติของเจ้าของ (2026-11-13):** mainnet เปิด faucet และการขุดผ่านเบราว์เซอร์ บน M-SENTRY เท่านั้น:
+`zetaphy_faucet` ให้ 1 ZTPHY ต่อที่อยู่วันละครั้ง, `zetaphy_faucetPow` (หน้าขุดของ hub) ให้ 5 ZTPHY ต่อ proof of work
+ที่ผ่าน และทั้งสองแบบรวมกันจ่ายได้ไม่เกิน 200 ZTPHY ต่อวัน (ตามเวลา UTC) และไม่เกิน 200 ครั้ง; ที่อยู่หนึ่งรับได้ครั้งเดียวทุก
+24 ชั่วโมง ไม่ว่าจะจากแบบไหน กองทุนคือ 10,000 ZTPHY ที่เจ้าของโอนเข้าคีย์ faucet โดยเฉพาะ faucet ทำงานที่ชั้น RPC
+เท่านั้น: มันแค่ส่งธุรกรรมโอนเงินธรรมดาที่เซ็นด้วยคีย์นั้น ไม่เปลี่ยนกฎ consensus ใดๆ และไม่เกี่ยวกับ validator เลย
+rpc-guard ยังจำกัดการเรียก faucet ต่อ IP เหมือนเดิม (`zetaphy_faucet` 3 ครั้ง และ `zetaphy_faucetPow` 10 ครั้ง ต่อวัน)
+
+**ความเสี่ยง พูดกันตรงๆ:** คีย์ faucet เป็น hot key ที่อยู่บนเครื่องที่เปิดสู่สาธารณะ ถ้ามีคนเจาะ M-SENTRY ได้ เขาโอนทุกอย่างที่คีย์นี้
+ถืออยู่ออกไปได้ กรณีเลวร้ายที่สุดคือเสียกองทุน (ส่วนที่เหลือของ 10,000 ZTPHY) และไม่มากกว่านั้น: คีย์นี้ไม่มีสิทธิ์อะไรที่ไหน
+และเซ็นบล็อกไม่ได้ เก็บไว้ในคีย์แค่กองทุน และค่อยๆ เติม แทนที่จะโอนก้อนใหญ่ทีเดียว **ห้ามมีคีย์ faucet บนเครื่อง validator
+เด็ดขาด**: setup-node.sh ปฏิเสธ `MAINNET_FAUCET=1` ถ้าไม่มี `PUBLIC_RPC=1` และปฏิเสธบนเครื่องที่เซ็นในฐานะ validator
+(consensus key อยู่ใน genesis, มี voting power, ใช้ remote signer หรือมี keyring `~/.zetaphy-keys`)
+
+เปิดใช้: รันคำสั่งของขั้น 12 บน M-SENTRY อีกครั้ง โดยเพิ่ม `MAINNET_FAUCET=1`:
+
+```bash
+sudo GENESIS_FILE=$HOME/genesis.json GENESIS_SHA256=<sha> GENESIS_EVM_CHAIN_ID=3659 ZETAPHYD_BIN=$HOME/rel/zetaphyd-linux-amd64 \
+  PUBLIC_RPC=1 PUBLIC_HOST=rpc.<โดเมนของคุณ> PEERS=<node id ของ M-VAL>@<ip ของ M-VAL>:26656 MAINNET_FAUCET=1 bash ~/rel/setup-node.sh
+```
+
+สคริปต์จะสร้างคีย์ใหม่บน M-SENTRY (`~/.zetaphy/config/faucet.key` สิทธิ์ 600 เจ้าของคือ `zetaphy`; มีอยู่ชุดเดียว ถ้าอยาก
+กู้กองทุนคืนได้เมื่อเครื่องหาย ให้สำรองไว้ offline), เขียนค่าจำกัด (`config/faucet-amount` 1, `config/faucet-pow-amount` 5,
+`config/faucet-day-budget` 200; หรือกำหนดเองด้วย `FAUCET_AMOUNT=`, `FAUCET_POW_AMOUNT=`, `FAUCET_DAY_BUDGET=` ในคำสั่ง),
+บันทึก `MAINNET_FAUCET=1` และลายนิ้วมือของคีย์ไว้ใน `/etc/zetaphy/pinned-chain.env` (การรันครั้งต่อๆ ไปและ
+`zetaphy-validator update` จะคง faucet ไว้และไม่สร้างคีย์ใหม่) แล้วพิมพ์ `Faucet (MAINNET_FAUCET=1): 0x… zetaphy1…`
+ถ้าขึ้นว่า `refused:` ให้หยุด
+
+เติมเงิน: จากกระเป๋าของเจ้าของ โอนกองทุนไปยังที่อยู่ที่พิมพ์ออกมา เช่นใช้ MetaMask (10000 ZTPHY ไปที่ที่อยู่ `0x…`) หรือ
+`zetaphyd tx bank send <คีย์ของเจ้าของ> <zetaphy1… ของ faucet> 10000000000000000000000azetaphy --keyring-backend file …
+--gas-prices 1000000000azetaphy` ตรวจ [อ่าน]:
+
+```bash
+curl -s https://rpc.<โดเมนของคุณ> -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucetPowInfo","params":[]}' | jq .result
+#   enabled true, address 0x… (ของ faucet), reward 0x4563918244f40000 (5 ZTPHY), faucetReward 0xde0b6b3a7640000 (1),
+#   dayBudget 0xad78ebc5ac6200000 (200), remainingBudget, remainingToday
+```
+
+เปลี่ยนค่าจำกัด: แก้ไฟล์ทั้งสามบน M-SENTRY (`sudo -u zetaphy sh -c 'echo 0.5 > ~/.zetaphy/config/faucet-amount'` เป็นจำนวน
+ZTPHY แบบทศนิยม; ต่อครั้งต้องมากกว่า 0 และไม่เกิน 100, งบต่อวันไม่เกิน 100,000) zetaphyd อ่านไฟล์ทุกครั้งที่มีการเรียก
+ไม่ต้อง restart ถ้าไฟล์ไหนไม่ใช่ตัวเลขที่ถูกต้อง faucet จะปิดตัวเอง (ดู `problem` ใน `zetaphy_faucetPowInfo`) จนกว่าจะแก้
+การรัน setup-node.sh ซ้ำจะคงไฟล์ไว้ เว้นแต่จะส่งค่าใหม่เข้าไป
+
+ปิด: บน M-SENTRY ลบคีย์ก่อน `sudo rm ~zetaphy/.zetaphy/config/faucet.key` zetaphyd อ่านไฟล์คีย์ทุกครั้งที่ถูกเรียก ทั้งสอง
+แบบจึงหยุดทันที (`the faucet is off on this node`) ไม่ต้อง restart แล้วจึงลบ
+`~zetaphy/.zetaphy/config/faucet-{amount,pow-amount,day-budget}` (อย่าลบแค่ไฟล์เหล่านี้ขณะที่คีย์ยังอยู่: ถ้าไม่มีไฟล์ โหนดจะ
+กลับไปใช้ค่าของ testnet คือครั้งละ 10 ZTPHY และไม่มีงบต่อวัน) แล้วรันคำสั่งของขั้น 12 พร้อม `MAINNET_FAUCET=0` เพื่อบันทึก
+การตัดสินใจ; setup-node.sh จะปฏิเสธ `MAINNET_FAUCET=0` ถ้าคีย์ยังอยู่ ถ้าอยากได้กองทุนที่เหลือคืน ให้โอนกลับไปหาเจ้าของก่อน
+ลบคีย์ (คีย์ใน `faucet.key` import เข้ากระเป๋า EVM ใดก็ได้) ไม่อย่างนั้นถือว่าเสียไป
 
 ## 13. เริ่มเชนและตรวจครั้งแรก [อ่าน]
 

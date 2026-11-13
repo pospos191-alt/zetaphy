@@ -133,8 +133,12 @@ func newPowFaucet(t *testing.T, bits string) (*powBackend, powRPC, string) {
 		}
 	}
 	key, _ := crypto.GenerateKey()
+	// the faucet reads its key file on every call (deleting it turns the faucet off)
+	if err := os.WriteFile(filepath.Join(home, "config", "faucet.key"), []byte(hexutil.Encode(crypto.FromECDSA(key))+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	faucet.Lock()
-	faucet.key, faucet.nonce, faucet.day, faucet.count, faucet.last, faucet.powUsed = key, 0, 0, 0, nil, nil
+	faucet.key, faucet.nonce, faucet.day, faucet.count, faucet.spent, faucet.last, faucet.powUsed = key, 0, 0, 0, nil, nil, nil
 	faucet.Unlock()
 	clock := time.Date(2026, 10, 28, 10, 0, 0, 0, time.UTC)
 	faucetNow = func() time.Time { return clock }
