@@ -53,10 +53,16 @@ authority, governance and staking parameters, and the chain guard, shield and co
 
 ## Run a node of this chain
 
-A public peer and RPC are not open yet. When they are, this file will list them. A node installs the signed release
-and pins this genesis (step 11 of [the procedure](../../../docs/ZETAPHY-MAINNET-PROCEDURE.md)):
+| | |
+|---|---|
+| Public RPC (EVM JSON-RPC) | `https://129-221-199-191.sslip.io` |
+| CometBFT RPC / REST | `https://129-221-199-191.sslip.io/rpc` · `https://129-221-199-191.sslip.io/rest` |
+| Public peer (sentry) | `ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656` |
+
+A node installs the signed release and pins this genesis (step 11 of
+[the procedure](../../../docs/ZETAPHY-MAINNET-PROCEDURE.md)):
 
 ```bash
 sudo GENESIS_FILE=$PWD/genesis.json GENESIS_SHA256=ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667 \
-  GENESIS_EVM_CHAIN_ID=3659 ZETAPHYD_BIN=<verified zetaphyd> PEERS=<published peer> bash setup-node.sh
+  GENESIS_EVM_CHAIN_ID=3659 ZETAPHYD_BIN=<verified zetaphyd> PEERS=ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656 bash setup-node.sh
 ```

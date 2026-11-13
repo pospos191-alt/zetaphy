@@ -16,6 +16,7 @@ import { walletBar } from './walletbar.js';
 import * as walletLib from './wallet/wallets.js';
 import { A as assistText, badgeOf, presignHooks, immuneWarnings } from './assist.js';
 import * as txg from './txguard.js';
+import { renderMainnet } from './mainnet.js';
 
 const EVM_CHAIN_ID = 77390;
 const DEFAULT_NODE = 'https://rpc.sawasdeecoin.com';
@@ -337,6 +338,7 @@ function applyLang() {
   buildTabs();
   renderBusy();
   renderEndpoints();
+  renderMainnet($('mainnet'), { ...pageCtx(), provider: () => window.ethereum ?? wb.provider() });
   wb.render();
   show(current ?? 'home', { push: false });
 }

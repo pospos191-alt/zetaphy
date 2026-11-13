@@ -33,7 +33,7 @@ genesis sha256 `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667
 | 7 | เปิดเชนพร้อมกัน | ✅ 2026-11-13 14:00 UTC (ตรวจบล็อก, ใบรับรองโหวต PQ และยอดเงินแล้ว) |
 | 8 | deploy contract ด้วย ZTPHY แล้วส่งสิทธิ์ admin ให้ governance | ❌ |
 | 9 | การดูแลระบบ: monitoring, bounty, แผนรับเหตุ | ❌ |
-| 10 | RPC สาธารณะ, กระเป๋า, registry, listing | ❌ (เผยแพร่ประกาศความเสี่ยงแล้ว) |
+| 10 | RPC สาธารณะ, กระเป๋า, registry, listing | ⏳ RPC สาธารณะเปิดแล้ว 2026-11-13 (https://129-221-199-191.sslip.io ผ่าน sentry; validator ไม่เปิดพอร์ตสาธารณะ) เตรียมไฟล์ listing แล้ว |
 
 ## ด่าน 1: audit อิสระจากภายนอก
 
