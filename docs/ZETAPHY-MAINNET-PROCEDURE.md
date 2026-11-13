@@ -421,7 +421,8 @@ Monitoring and alerts (missed blocks, height, start guard, circuit-breaker event
 
 ## Public notice (for the apps and the website)
 
-Provide this text where users see the network; it is not wired into the UIs.
+Provide this text where users see the network; it is not wired into the UIs. The full notice for `zetaphy_3659-1`:
+[ZETAPHY-MAINNET-NOTICE.md](ZETAPHY-MAINNET-NOTICE.md).
 
 > **EN:** ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not
 > yet completed an independent external audit. Until more independent validators join and the audit is published,

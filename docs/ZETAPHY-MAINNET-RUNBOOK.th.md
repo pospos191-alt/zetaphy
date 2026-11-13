@@ -12,24 +12,28 @@ pinned chain ของ `zetaphy-chain/setup-node.sh`) เจ้าของเ�
 รวมถึงตัวป้องกันทุกตัวที่ระบุไว้ที่นี่) และถ้าเครื่องหายโดยไม่มีสำรองคีย์ เชนจะหยุด ผู้ใช้ได้รับแจ้งผ่านประกาศสาธารณะในเอกสารขั้นตอน
 พร้อมเรื่อง audit ที่ยังไม่เสร็จ (ด่าน 1) ด่าน 2 ข้างล่างยังเป็นเป้าหมาย โดยระบุว่าเป็นการตัดสินใจนี้
 
+**การตัดสินใจของเจ้าของ (2026-11-13): เปิด mainnet `zetaphy_3659-1` เมื่อ 2026-11-13 เวลา 14:00 UTC ก่อนผ่านด่าน 1, 3 และ 5**
+genesis sha256 `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667` ไฟล์ที่เผยแพร่: [zetaphy-chain/mainnet/zetaphy_3659-1/](../zetaphy-chain/mainnet/zetaphy_3659-1/README.th.md)
+ประกาศสาธารณะ: [ZETAPHY-MAINNET-NOTICE.th.md](ZETAPHY-MAINNET-NOTICE.th.md) ด่านที่ยังไม่ผ่านยังเปิดอยู่ข้างล่าง และยังต้องทำตามลำดับ
+
 ค่าธรรมเนียม การ deploy และ gas บน ZETAPHY จ่ายด้วย ZTPHY ไม่ต้องใช้ SOL หรือเหรียญอื่น (SOL ใช้เฉพาะ program swd-amm
 บน Solana ซึ่งเป็นงานแยก ดู [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md))
 
-**สถานะ 2026-11-12:** ด่าน 1 ยังไม่เริ่ม ด่าน 2 เจ้าของตัดสินใจแล้ว (เปิดด้วย 1 validator) ด่าน 3 กำลังทำ (upgrade `zetaphy-guard` ผ่านบน testnet เป็นข้อเสนอ 9)
-testnet (`zetaphy_77390-1`) รันด้วย validator ตัวเดียว ซึ่งรับได้สำหรับ testnet แต่ไม่ได้สำหรับ mainnet
+**สถานะ 2026-11-13:** mainnet ทำงานแล้ว (ตามการตัดสินใจของเจ้าของด้านบน) ด้วย validator 1 ตัว ด่าน 1 ยังไม่เริ่ม ด่าน 3 เริ่ม 2026-11-12
+และยังไม่ครบ ด่าน 4, 6 และ 7 เสร็จ ตามที่จดไว้ข้างล่าง ด่าน 8 ถึง 10 ยังเปิดอยู่ testnet (`zetaphy_77390-1`) ยังรันต่อเพื่อซ้อม upgrade
 
 | ด่าน | อะไร | สถานะ |
 |---|---|---|
 | 1 | audit อิสระจากภายนอก ตรวจ commit ที่จะ release แก้ทุก Critical/High และให้ผู้ตรวจยืนยัน | ❌ ยังไม่เริ่ม |
 | 2 | validator อิสระอย่างน้อย 4 ราย ไม่มีรายไหนเกิน 1/3 ของ power | ⚠️ การตัดสินใจของเจ้าของ: เปิดด้วย 1 validator; มีแผนเพิ่ม |
 | 3 | release ตัวนี้รันบน testnet อย่างน้อย 4 สัปดาห์โดยไม่มีปัญหา | ⏳ เริ่ม 2026-11-12 |
-| 4 | กุญแจใหม่ทั้งหมด ไม่มีกุญแจไหนอยู่บนเครื่องสาธารณะ | ❌ |
-| 5 | release สำหรับ mainnet: เซ็นแล้ว publish แล้ว ล็อก fingerprint | ❌ รอด่าน 1 |
-| 6 | พิธีสร้าง genesis ร่วมกับ validator ทุกราย | ❌ |
-| 7 | เปิดเชนพร้อมกัน | ❌ |
+| 4 | กุญแจใหม่ทั้งหมด ไม่มีกุญแจไหนอยู่บนเครื่องสาธารณะ | ✅ 2026-11-13 |
+| 5 | release สำหรับ mainnet: เซ็นแล้ว publish แล้ว ล็อก fingerprint | ⚠️ การตัดสินใจของเจ้าของ: ใช้ release ที่ยังไม่ audit (จดในด่าน 5) |
+| 6 | พิธีสร้าง genesis ร่วมกับ validator ทุกราย | ✅ 2026-11-13 |
+| 7 | เปิดเชนพร้อมกัน | ✅ 2026-11-13 14:00 UTC (ตรวจบล็อก, ใบรับรองโหวต PQ และยอดเงินแล้ว) |
 | 8 | deploy contract ด้วย ZTPHY แล้วส่งสิทธิ์ admin ให้ governance | ❌ |
 | 9 | การดูแลระบบ: monitoring, bounty, แผนรับเหตุ | ❌ |
-| 10 | RPC สาธารณะ, กระเป๋า, registry, listing | ❌ |
+| 10 | RPC สาธารณะ, กระเป๋า, registry, listing | ❌ (เผยแพร่ประกาศความเสี่ยงแล้ว) |
 
 ## ด่าน 1: audit อิสระจากภายนอก
 
@@ -61,7 +65,8 @@ testnet (`zetaphy_77390-1`) รันด้วย validator ตัวเดี�
 - เริ่มหาบน testnet: ชวนผู้ดูแลเมื่อ RPC สาธารณะเปิดกลับมา และให้รัน validator บน testnet ก่อน
   ([zetaphy-chain/README.md](../zetaphy-chain/README.md) และ `zetaphy-validator`)
 
-จดไว้ตรงนี้: validator แต่ละราย (ชื่อ, ช่องทางติดต่อ, operator address) `________`
+จดไว้ตรงนี้: validator แต่ละราย (ชื่อ, ช่องทางติดต่อ, operator address) `zetaphy-validator-0` (โครงการ ZETAPHY ดู SECURITY.md),
+`zetaphyvaloper1l9fxu7xn7yrug9rlsve9hs4mgtpn9zej9tqvx8`, node id `9d71e8582823a74d2cfbf51b1c6ef4af50e94e5c`
 
 ## ด่าน 3: รันบน testnet ให้นิ่ง
 
@@ -82,11 +87,15 @@ testnet (`zetaphy_77390-1`) รันด้วย validator ตัวเดี�
 | บัญชีกองทุนใน genesis (rewards, airdrop, team, treasury) | multisig หรือบัญชี vesting | **ห้าม**อยู่บนโหนดหรือเครื่อง RPC ใดๆ ห้ามใช้ keyring `test` |
 | deployer (contract) | ใช้ครั้งเดียวแล้วเลิกใช้ | offline |
 
+ทำแล้วเมื่อ 2026-11-13: กุญแจผู้เซ็น 3 ดอก (A, B, C) สร้างบน VM ชั่วคราวที่ตัดอินเทอร์เน็ต (ลบ VM แล้ว คำกู้กุญแจจดบนกระดาษ และตรวจแล้วทุกดอกด้วยการกู้คืน)
+multisig แบบ 2 จาก 3 จำนวน 6 ตัวจากกุญแจชุดนี้ (circuit authority และกองเหรียญ 5 กอง เรียงลำดับกุญแจต่างกัน) และกุญแจ validator บนเครื่อง validator
+
 ## ด่าน 5: release สำหรับ mainnet
 
 - build โดย `release-zetaphyd.yml` จาก commit ที่ผ่าน audit (หรือ commit นั้นบวกการแก้ที่ผู้ตรวจยืนยันแล้ว) เซ็นด้วย Sigstore และ
   validator ทุกรายตรวจด้วย `zetaphy-chain/verify-release.sh` (ต้องได้ `VERIFIED` เท่านั้น)
-- ล็อกไว้ตรงนี้: release tag `________`, commit `________`, sha256 ของ `setup-node.sh` `________`
+- ล็อกไว้ตรงนี้: release tag `zetaphyd-a5698832d273`, commit `dc0d0bbbaa827c0b5049603ab3fec8a56c8c7f44`, sha256 ของ `setup-node.sh`
+  `a5698832d273aa3e297b0ff7365ca5eeb4b024adb9d361a2e82f052c4ce70c6d` (การตัดสินใจของเจ้าของ 2026-11-13: ยังไม่ audit ด่าน 1 ยังต้องทำ)
 - publish `zetaphy-chain/public/v/<sha>.sh` ก่อนที่อะไรจะชี้ไปหามัน (cloud-init และเอกสาร)
 
 ## ด่าน 6: พิธีสร้าง genesis
@@ -102,7 +111,8 @@ validator ทุกรายร่วมด้วย ไม่มีใครใ
 4. ฝัง `GENESIS_SHA256` ที่ประกาศไว้ในสคริปต์ของโหนด เพื่อให้โหนดที่เข้าร่วมใหม่ปฏิเสธ genesis อื่น
 5. บัญชี vesting สำหรับ team และ treasury ไม่มีกุญแจกองทุนบนเครื่องสาธารณะ
 
-จดไว้ตรงนี้: chain id `________`, sha256 ของ genesis `________`, ลายเซ็นรับรอง `________`
+จดไว้ตรงนี้: chain id `zetaphy_3659-1` (EVM 3659), sha256 ของ genesis `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`, ลายเซ็นรับรอง `________`
+genesis ถูกสร้างซ้ำแยกอีกเครื่องจาก draft และ gentx และได้ sha256 เดียวกัน
 
 ## ด่าน 7: เปิดเชนพร้อมกัน
 
