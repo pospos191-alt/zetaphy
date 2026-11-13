@@ -62,7 +62,7 @@ test('rpc set: the button adds chain 0xe4b (ZETAPHY, ZTPHY, 18) with that RPC', 
   const calls = [];
   const c = card('th', m, () => ({ request: async (a) => { calls.push(a); return null; } }));
   assert.ok(!('disabled' in c.add.attrs));
-  assert.ok(c.root.textContent.includes(rpc));
+  assert.ok(find(c.root, (n) => n.text === rpc), 'the RPC is shown as its own text');
   assert.ok(!c.root.textContent.includes(MAINNET_TEXT.th.rpcSoon));
   assert.ok(find(c.root.kids[3], (n) => n.attrs?.href === MAINNET.noticeTh), 'Thai notice for Thai');
   await c.add.on.click();
