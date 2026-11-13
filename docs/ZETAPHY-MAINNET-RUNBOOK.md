@@ -23,7 +23,7 @@ Fees, deployments and gas on ZETAPHY are paid in ZTPHY. No SOL or other outside 
 separate swd-amm program on Solana; see [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md).)
 
 **Status on 2026-11-13:** the mainnet runs (owner decision above) on 1 validator. Gate 1 not started; gate 3 started
-on 2026-11-12 and not complete; gates 4 and 6 done and gate 7 under way, as recorded below; gates 8 to 10 open. The testnet
+on 2026-11-12 and not complete; gates 4, 6 and 7 done, as recorded below; gates 8 to 10 open. The testnet
 (`zetaphy_77390-1`) keeps running for upgrade rehearsals.
 
 | Gate | What | Status |
@@ -34,7 +34,7 @@ on 2026-11-12 and not complete; gates 4 and 6 done and gate 7 under way, as reco
 | 4 | Fresh keys, none on a public host | ✅ 2026-11-13 |
 | 5 | Mainnet release: signed, published, fingerprint frozen | ⚠️ owner decision: unaudited release used (recorded in gate 5) |
 | 6 | Genesis ceremony with every validator | ✅ 2026-11-13 |
-| 7 | Coordinated start | ⏳ genesis time 2026-11-13 14:00 UTC |
+| 7 | Coordinated start | ✅ 2026-11-13 14:00 UTC (blocks, PQ vote certificates, balances checked) |
 | 8 | Contracts deployed with ZTPHY, admin handed to governance | ❌ |
 | 9 | Operations: monitoring, bounty, incident plan | ❌ |
 | 10 | Public RPC, wallets, registries, listings | ❌ (risk notice published) |
