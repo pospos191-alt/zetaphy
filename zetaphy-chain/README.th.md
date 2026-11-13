@@ -2,6 +2,11 @@
 
 # ZETAPHY Chain — ขั้น 0: เชนทดลอง (testnet)
 
+> **Mainnet:** `zetaphy_3659-1` (EVM 3659, ZTPHY) เริ่มเชน 2026-11-13 14:00 UTC (21:00 น. เวลาไทย) genesis sha256
+> `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667` ไฟล์และวิธีตรวจ:
+> [mainnet/zetaphy_3659-1/](mainnet/zetaphy_3659-1/README.th.md) อ่าน
+> [ประกาศความเสี่ยง](../docs/ZETAPHY-MAINNET-NOTICE.th.md) ก่อน หน้านี้อธิบาย testnet
+
 เชนทดลอง validator ตัวเดียว รันบน **Oracle Cloud** ทั้งหมด ทำผ่านหน้าเว็บ Oracle อย่างเดียว
 ไม่ต้องรันอะไรบนคอมพิวเตอร์ของคุณ
 

@@ -2,6 +2,11 @@
 
 # ZETAPHY Chain — Stage 0: test chain (testnet)
 
+> **Mainnet:** `zetaphy_3659-1` (EVM 3659, ZTPHY), genesis 2026-11-13 14:00 UTC, genesis sha256
+> `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`. Files and checks:
+> [mainnet/zetaphy_3659-1/](mainnet/zetaphy_3659-1/README.md). Read the
+> [risk notice](../docs/ZETAPHY-MAINNET-NOTICE.md) first. This page describes the testnet.
+
 A test chain with a single validator, running entirely on **Oracle Cloud**. Everything is done through the Oracle web console.
 You do not need to run anything on your own computer.
 

@@ -404,7 +404,8 @@ file keyring และเงินของตัวเอง: `zetaphyd tx stak
 
 ## ประกาศสาธารณะ (สำหรับแอปและเว็บไซต์)
 
-ใส่ข้อความนี้ในที่ที่ผู้ใช้เห็นเครือข่าย (ยังไม่ได้ใส่ใน UI)
+ใส่ข้อความนี้ในที่ที่ผู้ใช้เห็นเครือข่าย (ยังไม่ได้ใส่ใน UI) ประกาศฉบับเต็มของ `zetaphy_3659-1`:
+[ZETAPHY-MAINNET-NOTICE.th.md](ZETAPHY-MAINNET-NOTICE.th.md)
 
 > **EN:** ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not
 > yet completed an independent external audit. Until more independent validators join and the audit is published,

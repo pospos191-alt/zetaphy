@@ -666,6 +666,14 @@ jobs:
       - name: Mainnet genesis tool (make-genesis.sh) + a one-validator chain from its genesis
         run: TMPDIR="$RUNNER_TEMP" bash zetaphy-chain/mainnet/test-make-genesis.sh "$RUNNER_TEMP/zetaphyd" --e2e
 
+      # The published mainnet genesis (zetaphy_3659-1) must still be exactly what its mainnet.env describes.
+      - name: Published mainnet genesis (zetaphy_3659-1) rebuilt from mainnet.env and its sha256 checked
+        working-directory: zetaphy-chain/mainnet/zetaphy_3659-1
+        run: |
+          sha256sum -c genesis.sha256
+          grep -qx 'ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667  genesis.json' genesis.sha256
+          ZETAPHYD="$RUNNER_TEMP/zetaphyd" bash ../make-genesis.sh verify mainnet.env genesis.json
+
       # ibc-go's test app expects "cosmos1" addresses, so these run with the
       # stock prefix (after the build above, which keeps "zetaphy1").
       - name: IBC tests (transfers through the stack, rate limits enforced, large-transfer hold)
