@@ -37,7 +37,7 @@ on 2026-11-12 and not complete; gates 4, 6 and 7 done, as recorded below; gates 
 | 7 | Coordinated start | ✅ 2026-11-13 14:00 UTC (blocks, PQ vote certificates, balances checked) |
 | 8 | Contracts deployed with ZTPHY, admin handed to governance | ❌ |
 | 9 | Operations: monitoring, bounty, incident plan | ❌ |
-| 10 | Public RPC, wallets, registries, listings | ❌ (risk notice published) |
+| 10 | Public RPC, wallets, registries, listings | ⏳ public RPC up 2026-11-13 (https://129-221-199-191.sslip.io, sentry; validator has no public port); listings prepared |
 
 ## Gate 1: independent external audit
 

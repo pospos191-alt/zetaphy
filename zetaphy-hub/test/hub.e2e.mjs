@@ -54,9 +54,9 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
     assert.ok(fits, 'everything fits in one screen');
     assert.equal(await page.locator('text=SAWASDEE COIN').count(), 0, 'the chain name only');
     await shot('home');
-    // the mainnet card (mainnet.js): facts and the risk sentence; no public RPC yet, so no Add to MetaMask
-    assert.match(await page.textContent('#mainnet'), /3659 · zetaphy_3659-1.*ZTPHY.*ca0efb15…0a94667.*coming soon.*single validator/s);
-    assert.ok(await page.isDisabled('#mainnet-add'), 'Add to MetaMask disabled while rpc is null');
+    // the mainnet card (mainnet.js): facts, the public RPC and the risk sentence; Add to MetaMask is enabled
+    assert.match(await page.textContent('#mainnet'), /3659 · zetaphy_3659-1.*ZTPHY.*ca0efb15…0a94667.*129-221-199-191\.sslip\.io.*single validator/s);
+    assert.ok(!(await page.isDisabled('#mainnet-add')), 'Add to MetaMask enabled now that the public RPC is published');
 
     // hover text instead of paragraphs
     await page.hover('.stat >> nth=0');

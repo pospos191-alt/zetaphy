@@ -15,7 +15,7 @@ export const MAINNET = Object.freeze({
   decimals: 18,
   genesisSha256: 'ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667',
   genesisTime: '2026-11-13T14:00:00Z',
-  rpc: null, // https://<ip-with-dashes>.sslip.io once the public sentry is up
+  rpc: 'https://129-221-199-191.sslip.io', // the public sentry (rpc-guard); the validator has no public port
   explorer: null,
   notice: `${REPO}/blob/main/docs/ZETAPHY-MAINNET-NOTICE.md`,
   noticeTh: `${REPO}/blob/main/docs/ZETAPHY-MAINNET-NOTICE.th.md`,

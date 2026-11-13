@@ -32,11 +32,15 @@ test('the mainnet facts', () => {
   for (const k of ['notice', 'noticeTh', 'files']) assert.match(MAINNET[k], /^https:\/\/github\.com\/pospos191-alt\/zetaphy\/(blob|tree)\/main\//, k);
 });
 
+test('the published public RPC is the sentry', () => {
+  assert.equal(MAINNET.rpc, 'https://129-221-199-191.sslip.io');
+});
+
 test('rpc null: "coming soon", the Add to MetaMask button is disabled and asks nothing', async () => {
-  assert.equal(MAINNET.rpc, null);
-  assert.equal(addChainParams(MAINNET), null);
+  const m0 = { ...MAINNET, rpc: null };
+  assert.equal(addChainParams(m0), null);
   let asked = 0;
-  const c = card('en', MAINNET, () => ({ request: async () => { asked++; } }));
+  const c = card('en', m0, () => ({ request: async () => { asked++; } }));
   assert.equal(c.params, null);
   assert.ok('disabled' in c.add.attrs, 'disabled');
   assert.equal(c.add.attrs['data-tip'], MAINNET_TEXT.en.addSoon);
