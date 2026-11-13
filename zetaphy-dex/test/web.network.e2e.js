@@ -31,7 +31,7 @@ test('Swap on mainnet: badge and risk line, mainnet factory/router, no test toke
         eth_call: `0x${word(0)}`, eth_getCode: '0x6080' }[req.method] ?? null;
       await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ jsonrpc: '2.0', id: req.id, result }) });
     });
-    await page.route((url) => !url.href.startsWith(server.origin) && !url.href.startsWith(MAINNET_RPC), (route) => { problems.push(`request to ${route.request().url()}`); return route.abort(); });
+    await page.route((url) => url.origin !== new URL(server.origin).origin && url.origin !== new URL(MAINNET_RPC).origin, (route) => { problems.push(`request to ${route.request().url()}`); return route.abort(); });
     let chain = '0x12e4e';
     await injectWallet(page, async (method, params) => {
       walletLog.push({ method, params });
