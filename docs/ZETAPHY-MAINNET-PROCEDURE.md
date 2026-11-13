@@ -21,9 +21,9 @@ Tools (in `zetaphy-chain/mainnet/`):
 | `test-make-genesis.sh` | tests: each unsafe input refused; `--e2e` runs the result as a one-validator chain (CI: `security.yml`, job zetaphy-chain) |
 
 `zetaphy-chain/setup-node.sh` has a pinned-chain mode for the mainnet: `GENESIS_FILE` + `GENESIS_SHA256` +
-`GENESIS_EVM_CHAIN_ID` install a node of that genesis only, with no testnet genesis, no faucet, no test keyring, no
-automatic transactions, and no public RPC unless `PUBLIC_RPC=1`. With those variables unset it sets up the testnet
-exactly as before.
+`GENESIS_EVM_CHAIN_ID` install a node of that genesis only, with no testnet genesis, no faucet (unless the owner opts
+in on the sentry, step 12.1), no test keyring, no automatic transactions, and no public RPC unless `PUBLIC_RPC=1`.
+With those variables unset it sets up the testnet exactly as before.
 
 Labels: **[อ่าน]** reads only · **[เปลี่ยนไฟล์]** writes files · **[เปลี่ยนเชน]** sends a transaction ·
 **[เปลี่ยนการตั้งค่า]** changes a machine or node setting (users, firewall, services, config). **Stop** means: do not go
@@ -221,6 +221,61 @@ sudo GENESIS_FILE=$HOME/genesis.json GENESIS_SHA256=<sha> GENESIS_EVM_CHAIN_ID=3
 rpc-guard (allowed methods only, per-IP limits); keep `PUBLIC_HTTP_RPC` unset. In `~/.zetaphy/config/config.toml` on
 M-SENTRY set `private_peer_ids = "<M-VAL node id>"`; on M-VAL set `pex = false`, then run step 11's command again with
 `PEERS=<M-SENTRY node id>@<M-SENTRY ip>:26656` and restart (`sudo systemctl restart zetaphyd`).
+
+### 12.1 Mainnet faucet on the sentry (owner decision) [เปลี่ยนการตั้งค่า] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+**Owner decision (2026-11-13):** the mainnet has a faucet and browser mining, on M-SENTRY only:
+`zetaphy_faucet` gives 1 ZTPHY to an address once a day, `zetaphy_faucetPow` (the hub's mining page) 5 ZTPHY for
+each accepted proof of work, and both together give at most 200 ZTPHY a UTC day (and at most 200 grants); one
+address gets one grant per 24 h from either method. The pool is 10,000 ZTPHY that the owner sends to a dedicated
+faucet key. The faucet is RPC only: it sends ordinary signed transfers from that key; no consensus rule changes and
+the validator is not involved. rpc-guard still limits faucet calls per IP (3 `zetaphy_faucet` and 10
+`zetaphy_faucetPow` a day).
+
+**Risk, stated plainly:** the faucet key is a hot key on a public machine. If M-SENTRY is broken into, the attacker can
+send away everything the key holds. The worst case is the pool (what is left of the 10,000 ZTPHY), nothing more: the
+key has no role anywhere and cannot sign blocks. Keep only the pool there, and top it up instead of sending more at once.
+**The faucet key must never be on the validator**: setup-node.sh refuses `MAINNET_FAUCET=1` without `PUBLIC_RPC=1`
+and on any machine that signs as a validator (its consensus key in the genesis, voting power, a remote signer, or the
+`~/.zetaphy-keys` keyring).
+
+Enable it: step 12's command again on M-SENTRY, with `MAINNET_FAUCET=1` added:
+
+```bash
+sudo GENESIS_FILE=$HOME/genesis.json GENESIS_SHA256=<sha> GENESIS_EVM_CHAIN_ID=3659 ZETAPHYD_BIN=$HOME/rel/zetaphyd-linux-amd64 \
+  PUBLIC_RPC=1 PUBLIC_HOST=rpc.<your domain> PEERS=<M-VAL node id>@<M-VAL ip>:26656 MAINNET_FAUCET=1 bash ~/rel/setup-node.sh
+```
+
+It makes a fresh key on M-SENTRY (`~/.zetaphy/config/faucet.key`, mode 600, owned by `zetaphy`; it is the only copy:
+back it up offline if you want to recover the pool after losing the machine), writes the limits
+(`config/faucet-amount` 1, `config/faucet-pow-amount` 5, `config/faucet-day-budget` 200; or `FAUCET_AMOUNT=`,
+`FAUCET_POW_AMOUNT=`, `FAUCET_DAY_BUDGET=` on the command), records `MAINNET_FAUCET=1` and the key's fingerprint in
+`/etc/zetaphy/pinned-chain.env` (later runs and `zetaphy-validator update` keep the faucet and never make a new key),
+and prints `Faucet (MAINNET_FAUCET=1): 0x… zetaphy1…`. Stop if it says `refused:`.
+
+Fund it: from the owner's wallet send the pool to the printed address, e.g. with MetaMask (10000 ZTPHY to the `0x…`
+address) or `zetaphyd tx bank send <owner key> <zetaphy1… of the faucet> 10000000000000000000000azetaphy
+--keyring-backend file … --gas-prices 1000000000azetaphy`. Check [อ่าน]:
+
+```bash
+curl -s https://rpc.<your domain> -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucetPowInfo","params":[]}' | jq .result
+#   enabled true, address 0x… (the faucet), reward 0x4563918244f40000 (5 ZTPHY), faucetReward 0xde0b6b3a7640000 (1),
+#   dayBudget 0xad78ebc5ac6200000 (200), remainingBudget, remainingToday
+```
+
+Change the limits: edit the three files on M-SENTRY (`sudo -u zetaphy sh -c 'echo 0.5 > ~/.zetaphy/config/faucet-amount'`,
+decimal ZTPHY; an amount above 0 and at most 100, a budget at most 100,000). zetaphyd reads them on every call; no
+restart. A file that is not a valid number turns the faucet off (`problem` in `zetaphy_faucetPowInfo`) until it is
+fixed. Re-running setup-node.sh keeps the files unless you pass new values.
+
+Turn it off: on M-SENTRY delete the key first, `sudo rm ~zetaphy/.zetaphy/config/faucet.key`. zetaphyd reads the key
+file on every call, so both methods stop at once (`the faucet is off on this node`), no restart. Then delete
+`~zetaphy/.zetaphy/config/faucet-{amount,pow-amount,day-budget}` (never the files alone while the key is there: without
+them the node falls back to the testnet's 10 ZTPHY a grant and no budget) and run step 12's command with
+`MAINNET_FAUCET=0`, which records the choice; setup-node.sh refuses `MAINNET_FAUCET=0` while the key is still there.
+To get the rest of the pool back, send it to the owner before deleting the key (the key in `faucet.key` imports into
+any EVM wallet), or accept that it is lost.
 
 ## 13. Start and first checks [อ่าน]
 
