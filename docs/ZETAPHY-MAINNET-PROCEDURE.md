@@ -534,6 +534,39 @@ faucet, mining payouts and fixed prices. The bridge stays as it is (it needs a l
    TwapRecorder and the timelock batch. Publish the new addresses with the state file (16.6), then retire the deployer
    (16.7).
 
+### 16.10 The AI map's contracts [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+The same `--resume` (16.9) also deploys every contract the hub's AI map (`zetaphy-hub/flow.js`) marks "not deployed",
+and the ones its "practice" items need, as the testnet does (`zetaphy-network/src/aideploy.js`, `deploy-useful-work`,
+`fl deploy`; docs/future/deploy.md). Code: `zetaphy-launch/src/mainnetai.js`. Each contract is written to the state as
+soon as it is deployed, so a step that stops half way resumes with the same contracts.
+
+| step | contracts | AI map items | roles |
+|---|---|---|---|
+| `aimodels` | ModelRegistry, NeuroScore, ModelEpochs, SignalBoard, FederatedRounds | 1, 2, 3, 6, 7, 35 | NeuroScore, FederatedRounds: the timelock in the constructor (FederatedRounds **closed**); ModelRegistry, ModelEpochs: the guardian multisig as guardian, then `setGovernance(timelock)`; SignalBoard: none |
+| `aiagents` | WebAuthnVerifier, CosignCommittee, ConstitutionChecker, AgentRegistry, LabelRegistry, VouchRegistry, IntentExecutor | 9, 14, 23, 24, 25 | CosignCommittee, LabelRegistry, VouchRegistry: the timelock in the constructor; AgentRegistry: the ConstitutionChecker approved, then the timelock; the rest none |
+| `aimarkets` | ForesightRegistry, RiskForecasts, DetectorPool, DataDAO, RedBlueArena | 15, 16, 26, 27, 29 | ForesightRegistry: RiskForecasts accepted as resolver, then the timelock; the rest the timelock in the constructor |
+| `aiassist` | NeuroAttest, NeuroAnchor (NeuroOracleSender with `ai.mailbox`) | 19, 30 (18, 28) | NeuroAttest: the timelock; NeuroAnchor: none |
+| `usefulwork` | WorkerReputation, UsefulIssuance, UsefulWork, BugBounty | 5, 10, 17, 34 | UsefulWork and BugBounty **paused**, the guardian multisig as guardian; all governed by the timelock |
+| `contracts` | (writes) | | `3659.contracts.json` next to the state file |
+
+- **Nothing mints.** UsefulIssuance mints nothing: it is a RewardVault recipient (`fund()`) with capped buckets
+  (overflow: the RewardVault). The vault gives it no share at launch (100 % to NeuroJobs), so it holds 0 until a vote
+  gives it one, from the fixed rewards pool. UsefulWork and BugBounty pay from their own reserves and that bucket only.
+- **Skipped on mainnet** (printed in the plan): HackInsurance (item 32: the contract is testnet only by its own terms:
+  no real money may be put in it); NeuroOracleSender (items 18, 28) while this chain has no Hyperlane Mailbox
+  (set `ai.mailbox` to deploy it). ProvenVerdicts and the NeuroScoreVerifier wait for the zkML ceremony's final key.
+- **Opened later by a vote**, as their docs say: FederatedRounds (`setPaused(false)`), UsefulWork and BugBounty
+  (`UsefulIssuance.setBuckets`, `setPaused(false)`), NeuroScore feeders, CosignCommittee members (`ai.committee`, else
+  the timelock alone).
+- The deploy config's `ai` section (`mainnet.example.json`) holds its settings: `committee`/`threshold`, `agentBond`,
+  `claimDeposit`, `hubHost` (the host the hub's passkeys are made on), `poster`, `mailbox`, `fl`, `usefulWork`.
+- `3659.contracts.json`: every address the hub and the web apps read, under the keys of `hub-config.json` `contracts`
+  (plus `dex`, `nft`, the AI map items that now have their contracts, and what was skipped). Publish it with the state.
+- `verify` / `--check` also fail if any AI contract's governance is not the timelock, the deployer is a guardian,
+  feeder, poster, reporter, resolver or committee member, or the wiring differs; it prints whether FederatedRounds,
+  UsefulWork and BugBounty are still closed.
+
 ## 17. Adding validators [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
 A new operator: steps 3 and 11 on their own machine with the published `genesis.json` and sha256, `PEERS=` the

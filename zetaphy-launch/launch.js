@@ -64,7 +64,8 @@
 //   Refused on mainnet: --key-file and keys or passphrases in the environment (ZETAPHY_DEPLOYER_KEY[_FILE], ZETAPHY_PASSPHRASE),
 //   --devnet, --redo, and every testnet-only option (test stablecoins, fixed prices, web-app configs).
 //   Steps: guardian neuro threats reports bridge dex bounty wire timelock handover, then (after the handover; added
-//   to an existing mainnet with --resume) identity vault pq compute dlmm nft oracle protect proposal, and verify last.
+//   to an existing mainnet with --resume) identity vault pq compute dlmm nft oracle protect proposal, the AI map (aimodels aiagents
+//   aimarkets aiassist usefulwork), contracts (writes <state>.contracts.json), and verify last.
 //   Not on mainnet (listed as skipped in the plan): stable, skill (inside neuro), configs, snap, test tokens and fixtures.
 
 import { readFileSync, renameSync, mkdtempSync, rmSync } from 'node:fs';

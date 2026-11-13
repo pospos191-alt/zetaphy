@@ -511,6 +511,34 @@ bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <p
 5. ตรวจ [อ่าน]: `--check` (16.6) จะแสดง NeuroIdentity, ComputeMarket, DLMM, NFT factory, TwapRecorder และ batch ของ timelock เพิ่มด้วย
    เผยแพร่ที่อยู่ใหม่พร้อมไฟล์ state (16.6) แล้วจึงเลิกใช้ deployer (16.7)
 
+### 16.10 สัญญาของแผนที่ AI [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+`--resume` รอบเดียวกัน (16.9) deploy ทุกสัญญาที่แผนที่ AI ของ hub (`zetaphy-hub/flow.js`) แสดงว่า "ยังไม่ deploy" และสัญญาที่รายการแบบ
+"ฝึกใช้" ต้องใช้ ตามวิธีเดียวกับ testnet (`zetaphy-network/src/aideploy.js`, `deploy-useful-work`, `fl deploy`; docs/future/deploy.md)
+โค้ด: `zetaphy-launch/src/mainnetai.js` ทุกสัญญาถูกบันทึกลงไฟล์ state ทันทีที่ deploy เสร็จ ขั้นที่หยุดกลางทางจึงรันต่อด้วยสัญญาเดิม
+
+| ขั้น | สัญญา | รายการในแผนที่ AI | สิทธิ์ |
+|---|---|---|---|
+| `aimodels` | ModelRegistry, NeuroScore, ModelEpochs, SignalBoard, FederatedRounds | 1, 2, 3, 6, 7, 35 | NeuroScore, FederatedRounds: timelock ตั้งแต่ constructor (FederatedRounds **ปิด**); ModelRegistry, ModelEpochs: guardian multisig เป็น guardian แล้ว `setGovernance(timelock)`; SignalBoard: ไม่มี |
+| `aiagents` | WebAuthnVerifier, CosignCommittee, ConstitutionChecker, AgentRegistry, LabelRegistry, VouchRegistry, IntentExecutor | 9, 14, 23, 24, 25 | CosignCommittee, LabelRegistry, VouchRegistry: timelock ตั้งแต่ constructor; AgentRegistry: อนุมัติ ConstitutionChecker แล้วให้ timelock; ที่เหลือไม่มี |
+| `aimarkets` | ForesightRegistry, RiskForecasts, DetectorPool, DataDAO, RedBlueArena | 15, 16, 26, 27, 29 | ForesightRegistry: รับ RiskForecasts เป็น resolver แล้วให้ timelock; ที่เหลือ timelock ตั้งแต่ constructor |
+| `aiassist` | NeuroAttest, NeuroAnchor (NeuroOracleSender เมื่อมี `ai.mailbox`) | 19, 30 (18, 28) | NeuroAttest: timelock; NeuroAnchor: ไม่มี |
+| `usefulwork` | WorkerReputation, UsefulIssuance, UsefulWork, BugBounty | 5, 10, 17, 34 | UsefulWork และ BugBounty **หยุดไว้** guardian multisig เป็น guardian; ทั้งหมดอยู่ใต้ timelock |
+| `contracts` | (เขียนไฟล์) | | `3659.contracts.json` ข้างไฟล์ state |
+
+- **ไม่มีการสร้างเหรียญใหม่** UsefulIssuance ไม่ mint อะไรเลย มันเป็นผู้รับของ RewardVault (`fund()`) ที่แบ่งเป็นถังมีเพดาน (ส่วนเกินคืน RewardVault)
+  ตอน launch vault ไม่แบ่งให้มัน (100% ให้ NeuroJobs) จึงมี 0 จนกว่าโหวตจะให้ส่วนแบ่งจาก rewards pool ซึ่งมีจำนวนตายตัว
+- **ข้ามบน mainnet** (แสดงในแผน): HackInsurance (รายการ 32: ตัวสัญญาเองระบุว่าใช้บน testnet เท่านั้น ห้ามใส่เงินจริง); NeuroOracleSender
+  (รายการ 18, 28) ตราบที่เชนนี้ยังไม่มี Hyperlane Mailbox (ใส่ `ai.mailbox` เพื่อ deploy) ProvenVerdicts และ NeuroScoreVerifier รอคีย์สุดท้ายของพิธี zkML
+- **เปิดภายหลังด้วยโหวต** ตามเอกสารของแต่ละตัว: FederatedRounds (`setPaused(false)`), UsefulWork และ BugBounty (`UsefulIssuance.setBuckets`,
+  `setPaused(false)`), feeder ของ NeuroScore, สมาชิก CosignCommittee (`ai.committee` ไม่งั้นมีแค่ timelock)
+- ส่วน `ai` ของ deploy config (`mainnet.example.json`): `committee`/`threshold`, `agentBond`, `claimDeposit`, `hubHost` (host ที่ passkey ของ hub
+  ถูกสร้าง), `poster`, `mailbox`, `fl`, `usefulWork`
+- `3659.contracts.json`: ทุกที่อยู่ที่ hub และเว็บแอปอ่าน ใช้ key เดียวกับ `contracts` ใน `hub-config.json` (รวม `dex`, `nft`, รายการในแผนที่ AI
+  ที่มีสัญญาแล้ว และสิ่งที่ข้าม) เผยแพร่พร้อมไฟล์ state
+- `verify` / `--check` ล้มเหลวด้วยถ้า governance ของสัญญา AI ตัวใดไม่ใช่ timelock หรือ deployer เป็น guardian, feeder, poster, reporter,
+  resolver หรือสมาชิก committee หรือการเชื่อมต่อไม่ตรง และแสดงว่า FederatedRounds, UsefulWork, BugBounty ยังปิดอยู่หรือไม่
+
 ## 17. เพิ่ม validator [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
 ผู้ดูแลรายใหม่: ทำขั้น 3 และ 11 บนเครื่องของตัวเองด้วย `genesis.json` และ sha256 ที่เผยแพร่, `PEERS=` sentry, รอ sync แล้วใช้คีย์

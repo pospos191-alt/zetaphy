@@ -32,6 +32,13 @@ import { fileURLToPath } from 'node:url';
 import { Wallet, JsonRpcProvider, Contract, ContractFactory, Interface, Transaction, ZeroAddress, ZeroHash, id as hashText, keccak256, toUtf8Bytes, parseEther } from 'ethers';
 import { GOV_MODULE, GOV_MODULE_BECH32, adminRoles, guardianRoles } from '../src/steps.js';
 import { ADDED_STEPS } from '../src/mainnetall.js';
+import { AI_STEPS, AI_ITEMS } from '../src/mainnetai.js';
+// the AI map's contracts the mainnet deploys (src/mainnetai.js); never HackInsurance; NeuroOracleSender only with ai.mailbox
+const AI_CONTRACTS = ['ModelRegistry', 'NeuroScore', 'ModelEpochs', 'SignalBoard', 'FederatedRounds', 'WebAuthnVerifier', 'CosignCommittee', 'ConstitutionChecker', 'AgentRegistry',
+  'LabelRegistry', 'VouchRegistry', 'IntentExecutor', 'ForesightRegistry', 'RiskForecasts', 'DetectorPool', 'DataDAO', 'RedBlueArena', 'NeuroAttest', 'NeuroAnchor',
+  'WorkerReputation', 'UsefulIssuance', 'UsefulWork', 'BugBounty'];
+const AI_KEYS = ['modelRegistry', 'neuroScore', 'modelEpochs', 'signalBoard', 'federatedRounds', 'webauthn', 'cosignCommittee', 'constitutionChecker', 'agentRegistry', 'labelRegistry',
+  'vouchRegistry', 'intentExecutor', 'foresight', 'riskForecasts', 'detectorPool', 'dataDao', 'arena', 'neuroAttest', 'neuroAnchor', 'workerReputation', 'usefulIssuance', 'usefulWork', 'bugBounty'];
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const ZETAPHYD = process.env.ZETAPHYD || 'zetaphyd';
@@ -152,7 +159,8 @@ test('dry run: every contract with its constructor arguments and the cost in ZTP
   const r = await launch([...M, ...KS, '--dry-run']);
   assert.equal(r.code, 0, r.out);
   for (const c of ['SimpleMultisig', 'NeuroControl', 'NeuroJobs', 'ThreatRegistry', 'ThreatReports', 'BridgeGuard', 'BridgeAirlock', 'NeuroLane', 'ZetaphyFactory', 'ZetaphyRouter', 'ZetaphyBounty', 'ZetaphyTimelock',
-    'NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']) {
+    'NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle',
+    ...AI_CONTRACTS]) {
     assert.match(r.out, new RegExp(`deploy ${c}\\(`), `${c} in the plan`);
   }
   assert.match(r.out, /deploy SimpleMultisig\(owners=\[0x[0-9a-fA-F]{40}, 0x[0-9a-fA-F]{40}, 0x[0-9a-fA-F]{40}\], threshold=2\)/);
@@ -161,10 +169,13 @@ test('dry run: every contract with its constructor arguments and the cost in ZTP
   assert.match(r.out, /deploy ZetaphyBounty\(members=\[.*\], threshold=2, maxPayout=100000000000000000000, periodCap=250000000000000000000, timelock=172800/);
   assert.match(r.out, /setRoute\(airlock, BridgeAirlock, 1000 tokens a day, enabled = false\)  CLOSED/);
   assert.match(r.out, /delay 172800 s/);
-  assert.match(r.out, /total: 24 contract\(s\), about \d+ call\(s\), ~[\d,]+ gas at [\d.]+ gwei = [\d.,]+ ZTPHY; with a 1\.5 x margin/);
+  assert.match(r.out, /total: 47 contract\(s\), about \d+ call\(s\), ~[\d,]+ gas at [\d.]+ gwei = [\d.,]+ ZTPHY; with a 1\.5 x margin/);
   assert.match(r.out, /plus 50 ZTPHY put into contracts/);
   // nothing testnet-only is deployed: each such step is listed as skipped on mainnet, with its reason
-  assert.doesNotMatch(r.out, /deploy (TestStable|StableGateway|TestToken|\w*Faucet)\(/i);
+  assert.doesNotMatch(r.out, /deploy (TestStable|StableGateway|TestToken|\w*Faucet|HackInsurance|NeuroOracleSender)\(/i);
+  assert.match(r.out, /- hackInsurance: skipped on mainnet \(HackInsurance is testnet only/);
+  assert.match(r.out, /- neuroOracleSender: skipped on mainnet \(no Hyperlane Mailbox/);
+  assert.match(r.out, /deploy UsefulIssuance\(governance=<ZetaphyTimelock>, overflow=<RewardVault>\)/);
   for (const t of ['stable', 'skill', 'configs', 'snap', 'test fixtures']) assert.match(r.out, new RegExp(`- ${t}: skipped on mainnet \\(`), t);
   assert.match(r.out, /deploy ZetaphyDlmmFactory\(governance=<ZetaphyTimelock>\)/);
   assert.match(r.out, /deploy NFTMarketplace\(governance=<ZetaphyTimelock>, /);
@@ -249,7 +260,7 @@ test('a later --resume adds the rest of the systems after the handover; every ne
   const nonce0 = await provider.getTransactionCount(deployer.address);
   const d = await launch([...M, ...RS(), '--resume', '--dry-run']);
   assert.equal(d.code, 0, d.out);
-  for (const c of ['NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']) {
+  for (const c of ['NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle', ...AI_CONTRACTS]) {
     assert.match(d.out, new RegExp(`deploy ${c}\\(`), c);
   }
   for (const c of ['SimpleMultisig', 'NeuroControl', 'ZetaphyTimelock', 'ZetaphyBounty', 'BridgeGuard']) assert.doesNotMatch(d.out, new RegExp(`deploy ${c}\\(`), `${c} is not deployed again`);
@@ -259,15 +270,16 @@ test('a later --resume adds the rest of the systems after the handover; every ne
   assert.match(d.out, new RegExp(`deploy ZetaphyPythRelay\\(governance=${tlAddr}, relayers=\\[\\], threshold=1\\)`));
   assert.match(d.out, new RegExp(`ZetaphyOracle\\.setGuardian\\(${g}, true\\)`));
   assert.match(d.out, /✓ handover: done .*; checked again on-chain/);
-  assert.match(d.out, /total: 12 contract\(s\), about \d+ call\(s\)/);
-  assert.match(d.out, /dry run: nothing signed, nothing sent, no state written \(9 step\(s\) would run\)/);
+  assert.match(d.out, /total: 35 contract\(s\), about \d+ call\(s\)/);
+  assert.match(d.out, /dry run: nothing signed, nothing sent, no state written \(15 step\(s\) would run\)/);
   assert.equal(readFileSync(stateFile, 'utf8'), before);
   assert.equal(await provider.getTransactionCount(deployer.address), nonce0);
 
   // the resume itself, through the remote signer
   const r = await launch([...M, ...RS(), '--confirm-chain', '3659', '--resume']);
   assert.equal(r.code, 0, r.out);
-  for (const n of ADDED_STEPS) assert.ok(state().steps[n]?.doneAt, `${n} done`);
+  for (const n of [...ADDED_STEPS, ...AI_STEPS, 'contracts']) assert.ok(state().steps[n]?.doneAt, `${n} done`);
+  for (const n of AI_STEPS) assert.equal(state().steps[n].partial, undefined, `${n}: no half-done record left`);
   for (const n of GATE8) assert.ok(state().steps[n]?.doneAt, `${n} still done`);
   assert.match(r.out, /checked on-chain: \d+ admin role\(s\) belong to the timelock/, 'the handover re-checked everything');
   assert.match(r.out, /checked on-chain: no EOA and not the deployer .* holds a role on any contract of this run; the bridge is closed/);
@@ -303,6 +315,39 @@ test('a later --resume adds the rest of the systems after the handover; every ne
   const vault = new Contract(o.rewardVault, art('zetaphy-network', 'RewardVault').abi, provider);
   assert.deepEqual((await vault.shares()).map((x) => [x.to, Number(x.bps), x.callFund]), [[o.neuroJobs, 10000, true]]);
   assert.doesNotMatch(readFileSync(stateFile, 'utf8'), /TestStable|StableGateway|TestToken|tUSD/);
+  // the AI map's contracts: every one deployed, every governance the timelock, the guardian multisig the guardian
+  const A = (k, n) => new Contract(o[k], art('zetaphy-network', n).abi, provider);
+  for (const k of AI_KEYS) assert.notEqual(await provider.getCode(o[k]), '0x', k);
+  assert.equal(o.hackInsurance, undefined);
+  assert.equal(o.neuroOracleSender, undefined);
+  for (const [k, n] of [['modelRegistry', 'ModelRegistry'], ['neuroScore', 'NeuroScore'], ['modelEpochs', 'ModelEpochs'], ['federatedRounds', 'FederatedRounds'], ['cosignCommittee', 'CosignCommittee'],
+    ['agentRegistry', 'AgentRegistry'], ['labelRegistry', 'LabelRegistry'], ['vouchRegistry', 'VouchRegistry'], ['foresight', 'ForesightRegistry'], ['riskForecasts', 'RiskForecasts'],
+    ['detectorPool', 'DetectorPool'], ['dataDao', 'DataDAO'], ['arena', 'RedBlueArena'], ['neuroAttest', 'NeuroAttest'], ['workerReputation', 'WorkerReputation'],
+    ['usefulIssuance', 'UsefulIssuance'], ['usefulWork', 'UsefulWork'], ['bugBounty', 'BugBounty']]) assert.equal(await A(k, n).governance(), tlAddr, `${n} governance`);
+  for (const [k, n] of [['modelRegistry', 'ModelRegistry'], ['modelEpochs', 'ModelEpochs']]) {
+    assert.equal(await A(k, n).guardian(g), true, `${n}: the guardian multisig`);
+    assert.equal(await A(k, n).guardian(deployer.address), false, `${n}: not the deployer`);
+  }
+  for (const [k, n] of [['usefulWork', 'UsefulWork'], ['bugBounty', 'BugBounty']]) {
+    assert.equal(await A(k, n).guardian(), g);
+    assert.equal(await A(k, n).paused(), true, `${n} paused until a vote opens it`);
+  }
+  assert.equal(await A('federatedRounds', 'FederatedRounds').paused(), true, 'FederatedRounds closed');
+  assert.equal(await A('agentRegistry', 'AgentRegistry').approvedChecker(o.constitutionChecker), true);
+  assert.equal(await A('foresight', 'ForesightRegistry').resolvers(o.riskForecasts), true);
+  assert.equal(await A('workerReputation', 'WorkerReputation').reporters(o.usefulWork), true);
+  assert.equal(await A('usefulIssuance', 'UsefulIssuance').overflow(), o.rewardVault);
+  assert.equal(await provider.getBalance(o.usefulIssuance), 0n, 'nothing minted, nothing funded');
+  assert.deepEqual([...(await A('cosignCommittee', 'CosignCommittee').members())], [tlAddr]);
+  // the addresses the web apps read: hub-config.json keys
+  const hub = JSON.parse(readFileSync(stateFile.replace(/\.json$/, '.contracts.json'), 'utf8'));
+  assert.equal(hub.chainId, 3659);
+  for (const k of [...AI_KEYS.filter((x) => x !== 'constitutionChecker'), 'timelock', 'neuroJobs', 'threatRegistry', 'rewardVault', 'neuroIdentity', 'oracle', 'computeMarket']) assert.equal(hub.contracts[k], o[k], k);
+  assert.equal(hub.dex.dlmmFactory, o.dlmm.contracts.dlmmFactory);
+  assert.equal(hub.nft.marketplace, o.nft.marketplace);
+  assert.match(hub.skipped.hackInsurance, /testnet only/);
+  for (const k of Object.keys(AI_ITEMS).filter((x) => hub.contracts[x])) for (const id of AI_ITEMS[k]) assert.ok(hub.aiItemsWithContracts.includes(id), `item ${id}`);
+  assert.doesNotMatch(JSON.stringify(hub), new RegExp(deployer.privateKey.slice(2), 'i'));
   assert.doesNotMatch(readFileSync(stateFile, 'utf8'), new RegExp(deployer.privateKey.slice(2), 'i'));
 
   // the timelock batch: what only the timelock can do (the DLMM set-up, the NFT code keys), as one gov proposal
@@ -358,9 +403,22 @@ test('a later --resume adds the rest of the systems after the handover; every ne
   const k = await launch([...M, '--keystore', f('deployer.json'), '--check']);
   assert.equal(k.code, 0, k.out);
   assert.match(k.out, /NeuroIdentity\s+0x[0-9a-fA-F]{40}  admin 0x/);
+  assert.match(k.out, /AI map\s+\d+ contract\(s\) governed by the timelock; FederatedRounds closed, UsefulWork paused, BugBounty paused/);
   assert.match(k.out, new RegExp(`timelock batch\\s+${gp.operationId}  Waiting`));
   assert.match(k.out, /checked on-chain: no EOA and not the deployer .* holds a role on any contract of this run/);
   assert.equal(await provider.getTransactionCount(deployer.address), nonce);
+
+  // the AI verify fails on an AI contract the deployer still governs (a state naming such a DataDAO)
+  const D = art('zetaphy-network', 'DataDAO');
+  const rogueDao = await new ContractFactory(D.abi, D.bytecode, new Wallet(deployer.privateKey, provider)).deploy(deployer.address, deployer.address);
+  await rogueDao.waitForDeployment();
+  const badAi = JSON.parse(readFileSync(stateFile, 'utf8'));
+  badAi.steps.aimarkets.out.dataDao = await rogueDao.getAddress();
+  writeFileSync(f('bad-ai-state.json'), JSON.stringify(badAi));
+  const va = await launch([...mainnet().map((x) => (x === stateFile ? f('bad-ai-state.json') : x)), '--keystore', f('deployer.json'), '--check']);
+  assert.notEqual(va.code, 0, va.out);
+  assert.match(va.out, new RegExp(`DataDAO ${await rogueDao.getAddress()}: governance ${deployer.address}, not the timelock`));
+  assert.match(va.out, /DataDAO: the deployer is the poster/);
 
   // the extended verify fails on a new contract the deployer still governs (a state naming such a marketplace)
   const w = new Wallet(deployer.privateKey, provider);
