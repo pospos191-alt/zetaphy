@@ -81,7 +81,7 @@ test('Quantum tab: readiness, Q-day, exposure check with rescue state, Thai', { 
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (/Content Security Policy|Refused to/.test(m.text())) errors.push(m.text()); });
     await page.goto(`${site.url}?tab=quantum`);
-    assert.ok(await page.$('.tab[data-tab="quantum"]'), 'listed with the tabs');
+    assert.ok(await page.waitForSelector('.tab[data-tab="quantum"]', { state: 'attached', timeout: 10000 }), 'listed with the tabs');
     await page.waitForSelector('#qs-score');
     assert.match(await page.textContent('#qs-score'), new RegExp(`${summary().score}/100`));
     assert.ok((await page.$$('#qs-open li')).length > 0);

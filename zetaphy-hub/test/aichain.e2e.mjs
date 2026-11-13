@@ -75,7 +75,7 @@ test('On-chain AI tab: live cards, not-deployed cards, a token score, 8 language
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const { page, errors } = await open(browser, site, '?tab=aichain');
-    assert.ok(await page.$('.tab[data-tab="aichain"]'), 'listed with the tabs');
+    assert.ok(await page.waitForSelector('.tab[data-tab="aichain"]', { state: 'attached', timeout: 10000 }), 'listed with the tabs');
     await page.waitForSelector('.ac-state[data-for="modelEpochs"][data-state="live"]');
     const ep = await page.textContent('#ac-epochs');
     assert.match(ep, /In force now[\s\S]*#0/);

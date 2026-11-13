@@ -71,7 +71,7 @@ test('Audit tab: requests, findings, the certificate check, a certificate lookup
     page.on('console', (m) => { if (/Content Security Policy|Refused to/.test(m.text())) errors.push(m.text()); });
 
     await page.goto(`${site.url}?tab=audit`);
-    assert.ok(await page.$('.tab[data-tab="audit"]'), 'listed with the tabs');
+    assert.ok(await page.waitForSelector('.tab[data-tab="audit"]', { state: 'attached', timeout: 10000 }), 'listed with the tabs');
     await page.waitForSelector('#au-req-table tr[data-id="0"]');
     assert.match(await page.textContent('#au-req-table'), /settled/);
     assert.match(await page.textContent('#au-intro'), /open audit network/i);
