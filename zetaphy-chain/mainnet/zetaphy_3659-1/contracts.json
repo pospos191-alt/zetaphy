@@ -1,0 +1,24 @@
+{
+  "chainId": 3659,
+  "cosmosChainId": "zetaphy_3659-1",
+  "deployedAt": "2026-11-13",
+  "deployer": "0x11391E190692BE087792c6e34FB699828b6BFC4e",
+  "handoverBlock": 3114,
+  "timelock": { "address": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA", "delaySeconds": 172800, "proposer": "0x7b5Fe22B5446f7C62Ea27B8BD71CeF94e03f3dF2", "executor": "anyone" },
+  "guardianMultisig": { "address": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519", "threshold": 2, "owners": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"] },
+  "contracts": {
+    "NeuroControl": "0x97F5D7FBc6228aA7A145505AABdbdC7825e161AE",
+    "NeuroJobs": "0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB",
+    "ThreatRegistry": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+    "ThreatReports": "0x11411E0c35dA30b4a5009827770798ad79881c31",
+    "ZetaphyFactory": "0x93463B001483970f8CAE63cd8B60D28F17a1C1AA",
+    "ZetaphyRouter": "0xa5221A7F25cf10d99446Fde3e95c15b1f696e783",
+    "ZetaphyBounty": "0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE"
+  },
+  "notUsed": {
+    "_comment": "Deployed by a first run that stopped before wiring (a missing dependency on the deploy machine). Not part of the system: nothing points at them and they hold no funds. Do not use.",
+    "NeuroControl": "0x7841608c96da5D35cbedFa13139A9f9952fc7695",
+    "NeuroJobs": "0x44b94894273641f9E6A77A64fc324C3f35aCA230"
+  },
+  "bridge": "not deployed (closed)"
+}

@@ -40,6 +40,24 @@ All files are public: addresses and public keys only.
 | Circuit-breaker authority (multisig 2 of 3) | `0x8D0496dcD685ffc5a5e8Ed86f4648206783E8713` | 1,000 |
 | Team (multisig 2 of 3; locked 1 year, then linear to year 4) | `0x58B726B2A5404b0374842fE15149294D139D62A8` | 50,000,000 |
 
+## Contracts (deployed 2026-11-13)
+
+Every admin role is held by the timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA` (delay 48 h, proposer: the
+governance module); the emergency switches are held by the 2-of-3 guardian multisig
+`0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519`. The deployer kept no role. Full list: [contracts.json](contracts.json).
+
+| Contract | Address |
+|---|---|
+| NeuroControl | `0x97F5D7FBc6228aA7A145505AABdbdC7825e161AE` |
+| NeuroJobs | `0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB` |
+| ThreatRegistry | `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139` |
+| ThreatReports | `0x11411E0c35dA30b4a5009827770798ad79881c31` |
+| DEX factory / router | `0x93463B001483970f8CAE63cd8B60D28F17a1C1AA` / `0xa5221A7F25cf10d99446Fde3e95c15b1f696e783` |
+| ZetaphyBounty | `0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE` (1,000 ZTPHY, committee 2 of 3, payouts wait 48 h) |
+
+The bridge is not deployed. Two contracts from an interrupted first run (listed under `notUsed` in contracts.json) are
+not part of the system: nothing points at them.
+
 ## Check it yourself
 
 ```bash

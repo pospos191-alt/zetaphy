@@ -35,7 +35,7 @@ on 2026-11-12 and not complete; gates 4, 6 and 7 done, as recorded below; gates 
 | 5 | Mainnet release: signed, published, fingerprint frozen | ⚠️ owner decision: unaudited release used (recorded in gate 5) |
 | 6 | Genesis ceremony with every validator | ✅ 2026-11-13 |
 | 7 | Coordinated start | ✅ 2026-11-13 14:00 UTC (blocks, PQ vote certificates, balances checked) |
-| 8 | Contracts deployed with ZTPHY, admin handed to governance | ❌ |
+| 8 | Contracts deployed with ZTPHY, admin handed to governance | ✅ 2026-11-13 (timelock 48 h; no bridge yet; [contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json)) |
 | 9 | Operations: monitoring, bounty, incident plan | ❌ |
 | 10 | Public RPC, wallets, registries, listings | ⏳ public RPC up 2026-11-13 (https://129-221-199-191.sslip.io, sentry; validator has no public port); listings prepared |
 

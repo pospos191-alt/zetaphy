@@ -40,6 +40,24 @@
 | ผู้มีสิทธิ์สั่ง circuit-breaker (multisig 2 จาก 3) | `0x8D0496dcD685ffc5a5e8Ed86f4648206783E8713` | 1,000 |
 | ทีม (multisig 2 จาก 3; ล็อก 1 ปี แล้วทยอยปลดจนครบปีที่ 4) | `0x58B726B2A5404b0374842fE15149294D139D62A8` | 50,000,000 |
 
+## สัญญา (deploy เมื่อ 2026-11-13)
+
+สิทธิ์ admin ทุกตัวอยู่กับ timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA` (หน่วงเวลา 48 ชั่วโมง ผู้เสนอคือ
+governance module) ปุ่มหยุดฉุกเฉินอยู่กับ guardian multisig แบบ 2 จาก 3 `0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519`
+deployer ไม่เหลือสิทธิ์ใด ๆ รายการเต็ม: [contracts.json](contracts.json)
+
+| สัญญา | Address |
+|---|---|
+| NeuroControl | `0x97F5D7FBc6228aA7A145505AABdbdC7825e161AE` |
+| NeuroJobs | `0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB` |
+| ThreatRegistry | `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139` |
+| ThreatReports | `0x11411E0c35dA30b4a5009827770798ad79881c31` |
+| DEX factory / router | `0x93463B001483970f8CAE63cd8B60D28F17a1C1AA` / `0xa5221A7F25cf10d99446Fde3e95c15b1f696e783` |
+| ZetaphyBounty | `0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE` (1,000 ZTPHY คณะกรรมการ 2 จาก 3 จ่ายหลังรอ 48 ชั่วโมง) |
+
+ยังไม่ได้ deploy bridge สัญญา 2 ตัวจากการรันรอบแรกที่หยุดกลางทาง (อยู่ใน `notUsed` ของ contracts.json) ไม่ได้เป็นส่วนของระบบ
+ไม่มีอะไรเชื่อมไปหา
+
 ## ตรวจด้วยตัวเอง
 
 ```bash
