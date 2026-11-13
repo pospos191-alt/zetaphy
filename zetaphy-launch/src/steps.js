@@ -24,8 +24,8 @@ export const DEFAULT_DELAY = 48 * 3600;
 export const MIN_DELAY = 24 * 3600;
 export const TIMELOCK_ROLES = { admin: ZeroHash, proposer: hashText('PROPOSER_ROLE'), executor: hashText('EXECUTOR_ROLE'), canceller: hashText('CANCELLER_ROLE') };
 
-const art = (pkg, n) => JSON.parse(readFileSync(join(ROOT, pkg, 'artifacts', `${n}.json`), 'utf8'));
-const NET = (n) => art('zetaphy-network', n);
+export const art = (pkg, n) => JSON.parse(readFileSync(join(ROOT, pkg, 'artifacts', `${n}.json`), 'utf8'));
+export const NET = (n) => art('zetaphy-network', n);
 
 // ---------- children ----------
 
@@ -66,16 +66,17 @@ export async function net(ctx, state, args) {
 const pick = (re, out, what) => { const m = re.exec(out); if (!m) throw new Error(`could not read the ${what} address from the output`); return getAddress(m[1]); };
 
 /** Checks every value that looks like an address has code. */
-async function haveCode(ctx, o) {
+export async function haveCode(ctx, o) {
   for (const [k, v] of Object.entries(o)) {
     if (typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v) && (await ctx.provider.getCode(v)) === '0x') throw new Error(`${k} ${v}: no contract code there`);
   }
   return o;
 }
 
-const signer = (ctx) => new NonceManager(ctx.wallet.connect(ctx.provider));
-const wait = async (txp) => { const r = await (await txp).wait(); if (r.status !== 1) throw new Error('transaction reverted'); return r; };
-const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+// ctx.signer (mainnet: an encrypted keystore or a remote signer, already connected) or the testnet's key
+export const signer = (ctx) => new NonceManager(ctx.signer ?? ctx.wallet.connect(ctx.provider));
+export const wait = async (txp) => { const r = await (await txp).wait(); if (r.status !== 1) throw new Error('transaction reverted'); return r; };
+export const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 
 // ---------- the bridge's opening gates ----------
 
@@ -601,7 +602,7 @@ async function cleanBootstrap(ctx, state, o, tl, own, realDelay, when) {
   return cancelled;
 }
 
-async function handover(ctx, state) {
+export async function handover(ctx, state) {
   const target = ctx.governance;
   if (!target || same(target, ctx.address)) throw new Error('--handover needs --governance gov or --governance 0x<multisig>');
   const o = outputs(state);

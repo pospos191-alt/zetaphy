@@ -39,7 +39,7 @@ const SKIP_IN = { wallet: new Set(['src']),
 const SKIP = new Set(['node_modules', 'test', 'scripts', 'package.json', 'package-lock.json', 'vercel.json', 'README.md', 'README.th.md', '.gitignore', 'data',
   'robots.txt', 'sitemap.xml', `${INDEXNOW_KEY}.txt`]);
 const HUB_FILES = ['index.html', 'walletbar.js', 'wallet-safety.js', 'wallet-safety-i18n.js', 'wallet-safety.css', 'ledger.js', 'vendor/ledger-hid.js', 'validators.html', 'validators.css', 'validators.js', 'forecasts.html', 'forecasts.css', 'forecasts.js', 'forecasts-i18n.js', 'ceremony.html', 'ceremony.css', 'ceremony.js', 'ceremony-i18n.js', 'ceremony-core.js', 'vendor/snarkjs.min.js', 'zkverdict-core.js', 'zkverdict-vkey.json', 'vendor/zkverify.js', 'hub.css', 'hub.js', 'i18n.js', 'chainlib.js', 'pages.js', 'pages-i18n.js', 'mine.js', 'mine-core.js', 'mine-worker.js',
-  'work.js', 'work-i18n.js', 'work-core.js', 'work-worker.js', 'train-core.js', 'train-worker.js', 'fuzz-core.js', 'fuzz-hook.js', 'vendor/evm.js', 'bounties/vulnerable-vault.json', 'bounties/sample-scan.json', 'agents.js', 'agents-lib.js', 'agents-i18n.js', 'intent-core.js', 'assist.js', 'assist-i18n.js', 'govassist.js', 'presign.js', 'presign-probe.js', 'pqattest.js', 'embed.css', 'logo.svg', 'favicon.svg', 'og.png', 'about/about.css', 'flow.js', 'flow-i18n.js', 'aimap.js', 'aichain.js', 'aichain-i18n.js', 'offline.js', 'offline-core.js', 'offline-i18n.js', 'offline-cash.js', 'offline-cash-i18n.js', 'cash-core.js', 'mesh-frames.js', 'audit.js', 'audit-core.js', 'audit-i18n.js', 'audit.html', 'audits.html', 'aas.css', 'aas-core.js', 'aas-i18n.js', 'aas-page.js', 'aas-verify.js', 'aas-directory.js', 'quantum.js', 'quantum-core.js', 'quantum-i18n.js', 'zkid.js', 'zkid-i18n.js', 'zkid-core.js', 'zkid-poseidon.js', 'zkid-worker.js', 'zkid/manifest.json', 'zkid/identity.wasm', 'zkid/identity.zkey', 'vendor/qrcode.js', 'zearly.svg', 'zearly-256.png', 'zetaphy-256.png', 'txguard.js', 'pqsnap.js', 'count.js', 'count.html', 'count-page.js', 'count.css'];
+  'work.js', 'work-i18n.js', 'work-core.js', 'work-worker.js', 'train-core.js', 'train-worker.js', 'fuzz-core.js', 'fuzz-hook.js', 'vendor/evm.js', 'bounties/vulnerable-vault.json', 'bounties/sample-scan.json', 'agents.js', 'agents-lib.js', 'agents-i18n.js', 'intent-core.js', 'assist.js', 'assist-i18n.js', 'govassist.js', 'presign.js', 'presign-probe.js', 'pqattest.js', 'embed.css', 'logo.svg', 'favicon.svg', 'og.png', 'about/about.css', 'flow.js', 'flow-i18n.js', 'aimap.js', 'aichain.js', 'aichain-i18n.js', 'offline.js', 'offline-core.js', 'offline-i18n.js', 'offline-cash.js', 'offline-cash-i18n.js', 'cash-core.js', 'mesh-frames.js', 'audit.js', 'audit-core.js', 'audit-i18n.js', 'audit.html', 'audits.html', 'aas.css', 'aas-core.js', 'aas-i18n.js', 'aas-page.js', 'aas-verify.js', 'aas-directory.js', 'quantum.js', 'quantum-core.js', 'quantum-i18n.js', 'airdrop.js', 'airdrop-i18n.js', 'airdrop-core.js', 'zkid.js', 'zkid-i18n.js', 'zkid-core.js', 'zkid-poseidon.js', 'zkid-worker.js', 'zkid/manifest.json', 'zkid/identity.wasm', 'zkid/identity.zkey', 'vendor/qrcode.js', 'zearly.svg', 'zearly-256.png', 'zetaphy-256.png', 'txguard.js', 'pqsnap.js', 'count.js', 'count.html', 'count-page.js', 'count.css'];
 
 /**
  * The Audit Directory's fallback copy of the public certificate registry (docs/future/audit-as-a-service.md): the
@@ -75,6 +75,9 @@ export function hubConfig(cfg, files = null) {
   // the frontier button (.github/workflows/frontier-deploy.yml, zetaphy-network/src/frontierdeploy.js): its record (testnet only)
   const fr = read('zetaphy-network/deployments/frontier-77390.json');
   if (fr?.chainId === 77390) for (const [k, v] of Object.entries(fr.contracts ?? {})) out[k] ??= v;
+  // a ZtphyMerkleDistributor round (docs/AIRDROP.md): its record, once deployed (testnet only); list = where its files are published
+  const drop = read('zetaphy-network/deployments/airdrop-77390.json');
+  if (drop?.chainId === 77390) for (const [k, v] of Object.entries(drop.contracts ?? {})) out[k] ??= v;
   const fl = read('zetaphy-neuro/ml/fl/deployment.json');
   if (fl?.chainId === 77390 && fl.rounds) out.federatedRounds ??= fl.rounds;
   const oracle = read('zetaphy-chain/hyperlane/neuro-oracle.json');
@@ -84,7 +87,7 @@ export function hubConfig(cfg, files = null) {
     'usefulWork', 'bugBounty', 'workerReputation', 'usefulIssuance', 'riskForecasts', 'foresight', 'detectorPool', 'dataDao', 'arena', 'intentExecutor', 'labelRegistry', 'vouchRegistry', 'agentRegistry', 'agentPolicyWallet',
     'timelock', 'neuroAttest', 'neuroAnchor', 'neuroOracleSender', 'hackInsurance',
     'modelRegistry', 'neuroScore', 'provenVerdicts', 'modelEpochs', 'signalBoard', 'webauthn', 'cosignCommittee', 'federatedRounds', 'zetaphyCheques', 'offlineOrders', 'offlineCash', 'auditNetwork', 'auditRunners', 'auditJudges', 'auditCertificate', 'circuitBreaker', 'quantumRescue', 'pqSettlement', 'pqMultisigIsm',
-    'immuneRegistry', 'immuneBroadcaster', 'zetaphyOutbox', 'zkIdentityRegistry', 'privatePoll']
+    'immuneRegistry', 'immuneBroadcaster', 'zetaphyOutbox', 'zkIdentityRegistry', 'privatePoll', 'airdropDistributor']
     .filter((k) => isAddr(out[k])).map((k) => [k, out[k]]));
   if (Number.isInteger(out.timelockBlock) && contracts.timelock) contracts.timelockBlock = out.timelockBlock;
   const dex = read('zetaphy-dex/web/deployments.json')?.contracts ?? {};
@@ -100,6 +103,7 @@ export function hubConfig(cfg, files = null) {
     immune: immuneMirrors(read),
     immuneNet: immuneNetwork(read),
     qsafe: qsafeHub(),
+    ...(typeof drop?.list === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(drop.list) ? { airdrop: { list: drop.list } } : {}),
   };
 }
 
@@ -267,6 +271,8 @@ export function build() {
     const top = (p) => p.slice(from.length + 1).split(/[\\/]/)[0];
     cpSync(from, join(dir, path), { recursive: true, filter: (p) => !SKIP.has(top(p)) && !SKIP_IN[path]?.has(top(p)) });
   }
+  // a published airdrop list (docs/AIRDROP.md: summary.json, list.csv, shards/), when the owner put one here
+  if (existsSync(join(HERE, 'airdrop', 'summary.json'))) cpSync(join(HERE, 'airdrop'), join(dir, 'airdrop'), { recursive: true });
   writeServiceWorker(dir);
   for (let i = 0; ; i++) {
     const old = `${OUT}.old-${process.pid}-${Date.now()}-${i}`;

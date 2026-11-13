@@ -264,17 +264,146 @@ Back up `~/.zetaphy/config/pq_vote_key.seed` offline with `priv_validator_key.js
 
 Stop if 1 or 2 is accepted.
 
-## 16. Contracts with ZTPHY, admin to governance [เปลี่ยนเชน]
+## 16. Contracts with ZTPHY, admin to governance [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
 
-Order (runbook gate 8): timelock and multisig; Saphan bridge (closed); DEX; Neuro; `ZetaphyBounty` (funded). The
-deployer is a fresh key used once, funded with a few ZTPHY, then retired. At the end every admin role goes to a
-`ZetaphyTimelock` (48 h delay) whose proposer is governance (`--governance gov`), the emergency guardian is a multisig,
-and the tool checks that no single key keeps an admin role (`zetaphy-launch/launch.js --handover`). Then
-`zetaphyd tx security-proposal invariant-firewall <InvariantFirewall 0x…>` names the firewall contract (voted).
+Tools: `zetaphy-launch/launch.js --network mainnet` (`src/mainnet.js` says what differs from the testnet launch and
+why) and `zetaphy-chain/gov.sh`, which is in mainnet mode on a pinned node. What the launch deploys (runbook gate 8):
+the guardian multisig; Neuro (`NeuroControl` + `NeuroJobs`, `ThreatRegistry`, `ThreatReports`); the Saphan bridge on
+ZETAPHY (`BridgeGuard` + `BridgeAirlock` + `NeuroLane`) **closed**; the DEX (factory + router, no test tokens, no
+seeded pools); `ZetaphyBounty` (funded, no admin key); then `ZetaphyTimelock` and the handover. Neuro comes before the
+bridge and the DEX because both read it; the timelock comes last so that its bootstrap (the deployer as its only
+proposer at a zero delay, for the handover's own batch) lasts minutes. Nothing testnet-only exists in this mode: no
+faucet, no test stablecoins or StableGateway, no fixed price, no unaudited DLMM, no NFT market, no web-app configs.
 
-**Stop here today:** `zetaphy-launch/launch.js` and `zetaphy-chain/gov.sh` are testnet tools (launch.js refuses any
-EVM chain id but 77390; gov.sh uses the test keyring). A reviewed mainnet mode of both is needed before this step;
-do not edit their checks on the day.
+What the launch enforces on mainnet:
+
+- the chain is never a default: `--network mainnet` plus `--chain chain.json` (step 8) and/or `--pin` + `--genesis`
+  (the node's pin and the genesis it pins, sha256 checked); every source must agree, the testnet's ids are refused,
+  and an RPC whose `eth_chainId` differs is refused before anything is signed. Every transaction carries that id.
+- no plain key: `--keystore` (an encrypted keystore JSON, mode 600; the passphrase is asked on the terminal or piped
+  with `--passphrase-stdin`, decrypted in memory only) or `--remote-signer` (clef with a hardware wallet, web3signer,
+  Frame: each signed transaction is checked field by field before it is sent). `--key-file`, `ZETAPHY_DEPLOYER_KEY`,
+  `ZETAPHY_DEPLOYER_KEY_FILE` and `ZETAPHY_PASSPHRASE` are refused; so are `--devnet` and `--redo`.
+- the settings come from a deploy config (`zetaphy-launch/mainnet.example.json`): placeholders, unknown keys,
+  secret-looking fields, a timelock or bounty delay under 48 h, a bridge token named "test", and the deployer in any
+  role are refused. Governance, extra proposers and an existing guardian must have contract code (or be `gov`).
+- `--dry-run` prints every contract, its constructor arguments, every call and the gas and cost in ZTPHY, and sends
+  and writes nothing; a real run also needs `--confirm-chain <EVM chain id>`.
+- the state file (`zetaphy-launch/state/<EVM chain id>.json`) holds addresses only; a failed step resumes with
+  `--resume`. At the end the handover gives every admin role to the timelock (delay ≥ 48 h, proposer/canceller the
+  gov module, executor anyone), the emergency switches to the guardian multisig, the deployer renounces, and
+  `verify` checks on-chain that no EOA and not the deployer holds any role on any contract of the run.
+
+### 16.1 The deployer key, on its own machine [เปลี่ยนไฟล์]
+
+A fresh key, used for this step only (gate 4), never on M-VAL or M-SENTRY. Either an encrypted keystore:
+
+```bash
+cast wallet new ~/zetaphy-deployer          # foundry; asks a passphrase; prints the address and the keystore file
+chmod 600 ~/zetaphy-deployer/*
+```
+
+or a hardware wallet behind clef (Ledger/Trezor, plugged in): `clef --chainid 3659 --http` and use
+`--remote-signer http://127.0.0.1:8550 --signer-method account_signTransaction --signer-address 0x<its account>`
+below instead of `--keystore`. Approve each transaction on the device.
+
+### 16.2 The deploy config [เปลี่ยนไฟล์]
+
+```bash
+cp zetaphy-launch/mainnet.example.json ~/mainnet-deploy.json
+```
+
+Fill it in: `governance` `"gov"`; `guardianOwners` (3 different people, hardware wallets; or `guardian` = an existing
+multisig); `communityFund` (the community pool's address, 0x form of its zetaphy1…: `zetaphyd debug addr <zetaphy1…>`);
+`bridge.lockbox` (`<source chain id>:0x<lockbox>`; drop `bridge` to deploy no bridge yet); `bounty.committee`.
+The file holds public values only. Every address in the example is a placeholder and is refused.
+
+### 16.3 The dry run [อ่าน]
+
+Copy `chain.json` (step 8) next to it, then (`$RPC` = the sentry's https RPC of step 12, or `http://127.0.0.1:8545`
+over an SSH tunnel to M-SENTRY):
+
+```bash
+node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json \
+  --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<keystore file> --dry-run
+#   ZETAPHY mainnet zetaphy_3659-1 (EVM chain 3659, genesis sha256 <the published one>)
+#   the plan: every "deploy <Contract>(<argument>=<value>, …)" with its gas, every call, then
+#   total: 12 contract(s), about 46 call(s), ~40,000,000 gas … : the deployer needs <N> ZTPHY
+#   dry run: nothing signed, nothing sent, no state written
+```
+
+On a machine with the pinned node, `--pin /etc/zetaphy/pinned-chain.env --genesis ~/.zetaphy/config/genesis.json`
+may be given too (all sources must agree). Check each constructor argument against the deploy config, the delay
+(`delay 172800 s`), `enabled = false  CLOSED` on the bridge route, and that no `Test`, `StableGateway`, `Dlmm` or
+faucet appears. Stop if anything differs.
+
+### 16.4 Fund the deployer [เปลี่ยนเชน]
+
+The amount the dry run printed (it includes the bounty's `fund`), from the liquidity multisig (`zetaphyd debug addr 0x<deployer>`
+gives its zetaphy1…). Members sign offline, as in step 15:
+
+```bash
+zetaphyd tx bank send <liquidity multisig zetaphy1…> <deployer zetaphy1…> <N>azetaphy --chain-id zetaphy_3659-1 \
+  --gas 200000 --gas-prices 1000000000azetaphy --generate-only > fund.json
+zetaphyd tx sign fund.json --multisig <liquidity multisig zetaphy1…> --from <member> --sign-mode amino-json --chain-id zetaphy_3659-1 --output-document m1.json   # each of 2 members
+zetaphyd tx multisign fund.json <multisig key name> m1.json m2.json --chain-id zetaphy_3659-1 > signed.json
+bash zetaphy-chain/gov.sh broadcast signed.json                                                    # on M-VAL: mainnet mode
+```
+
+Run 16.3 again: `deployer balance` must now cover `the deployer needs`.
+
+### 16.5 Deploy and hand over [เปลี่ยนเชน]
+
+```bash
+node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json \
+  --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<keystore file> --confirm-chain 3659
+#   asks the keystore passphrase; then each step: guardian neuro threats reports bridge dex bounty wire timelock handover verify
+#   … checked on-chain: N admin role(s) belong to the timelock; no EOA and not the deployer holds a timelock role …
+#   … checked on-chain: no EOA and not the deployer 0x… holds a role on any contract of this run; the bridge is closed
+```
+
+If a step fails: fix the cause and run the same command with `--resume` (finished steps are kept; never `--fresh` on
+mainnet once a contract is deployed). Stop if `the handover check failed` or `the mainnet check failed` is printed:
+do not announce any address; find out why first.
+
+### 16.6 Check, and publish the addresses [อ่าน]
+
+```bash
+node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json --deploy-config ~/mainnet-deploy.json \
+  --keystore ~/zetaphy-deployer/<keystore file> --check     # reads only: no passphrase, signs nothing; anyone can run it
+cast call --rpc-url "$RPC" <timelock> 'getMinDelay()(uint256)'                                    # 172800
+cast call --rpc-url "$RPC" <timelock> 'getRoleMember(bytes32,uint256)(address)' $(cast keccak PROPOSER_ROLE) 0   # 0x7b5Fe22B…3dF2 (gov)
+cast call --rpc-url "$RPC" <NeuroControl, ThreatRegistry, BridgeGuard, BridgeAirlock, DEX factory> 'governance()(address)'   # the timelock
+```
+
+Publish `zetaphy-launch/state/3659.json` (addresses only) and verify each contract's source (Sourcify, gate 8).
+
+### 16.7 Retire the deployer [เปลี่ยนเชน] [เปลี่ยนไฟล์]
+
+Send what is left back to the liquidity pool, then destroy the keystore (or wipe the hardware wallet's account):
+`cast send --rpc-url "$RPC" --keystore ~/zetaphy-deployer/<keystore file> <liquidity 0x…> --value <balance minus gas>`,
+then `shred -u ~/zetaphy-deployer/*`. It holds no role any more (16.5 checked it).
+
+### 16.8 Governance on M-VAL: gov.sh in mainnet mode
+
+On a pinned node `gov.sh` reads the chain id from the pinned genesis (sha256 checked), checks the node serves it
+before signing, uses the file keyring in `~/.zetaphy-keys` (`--keyring-backend file|os|ledger`; `test` is refused),
+puts the chain's full `min_deposit` (10,000 ZTPHY) on proposals, and refuses `airdrop` (testnet faucet coins).
+
+```bash
+bash zetaphy-chain/gov.sh status                                                                 # [อ่าน]
+bash zetaphy-chain/gov.sh vote <id> yes --from validator                                         # [เปลี่ยนเชน] file keyring, asks its passphrase
+bash zetaphy-chain/gov.sh vote <id> yes --keyring-backend ledger --from <ledger key>             # [เปลี่ยนเชน] confirm on the device
+bash zetaphy-chain/gov.sh propose-upgrade <name> <height> "<summary>" \
+  --from <gov multisig zetaphy1…> --generate-only up.json                                          # [เปลี่ยนไฟล์] unsigned, then tx sign / multisign
+bash zetaphy-chain/gov.sh broadcast signed.json                                                   # [เปลี่ยนเชน]
+bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <proposer>           # [เปลี่ยนเชน] once one is deployed (below)
+```
+
+Not covered by the launch's mainnet set (open): the `InvariantFirewall` (it needs the SS1 audit contracts,
+docs/CHAIN-FIREWALL.md), RewardVault for the rewards pool, the oracle (it needs a DEX pool with a real stablecoin),
+NeuroIdentity, QuantumWalletFactory, ComputeMarket, the NFT market and the DLMM. Each needs its own reviewed mainnet
+step before it is deployed; do not run the testnet launch's steps against the mainnet (it refuses this chain anyway).
 
 ## 17. Adding validators [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 

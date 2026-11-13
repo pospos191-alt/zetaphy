@@ -2044,3 +2044,23 @@ findings:
     reason: "ZetaphyBounty.proveExploit: the only call before the writes is IExploitVerifier.verify, declared view (STATICCALL: it cannot write state or re-enter with writes), to a verifier set only by committee threshold + timelock; the writes record the result of that check."
     decided_by: pospos191 (owner, confirmed 2026-11-11 "ยืนยัน triage"; proposed by claude-agent, PR #159 triage by reading the code)
     date: 2026-11-11
+  - id: slither:arbitrary-send-eth:zetaphy-network/contracts/ZtphyMerkleDistributor.sol:e75eeba620dc
+    status: false-positive
+    reason: "ZtphyMerkleDistributor._claim pays `account` only after verifyProof against the immutable merkleRoot proves (index, account, amount); the claimed bit, totalClaimed and claimCount are written before the call (checks-effects-interactions), so a re-entering recipient gets AlreadyClaimed; a failed send reverts. No caller-chosen recipient."
+    decided_by: pospos191 (owner, confirmed 2026-11-13 "ยืนยัน triage"; proposed by claude-agent, PR #167 triage by reading the code)
+    date: 2026-11-13
+  - id: aderyn:eth-send-unchecked-address:zetaphy-network/contracts/ZtphyMerkleDistributor.sol:5eb2b6748e37
+    status: false-positive
+    reason: "ZtphyMerkleDistributor.claim -> _claim: the recipient is the Merkle-proven leaf account under the immutable root, effects before the call; same analysis as the slither arbitrary-send-eth entry for _claim."
+    decided_by: pospos191 (owner, confirmed 2026-11-13 "ยืนยัน triage"; proposed by claude-agent, PR #167 triage by reading the code)
+    date: 2026-11-13
+  - id: aderyn:eth-send-unchecked-address:zetaphy-network/contracts/ZtphyMerkleDistributor.sol:ddbc3e8b1503
+    status: false-positive
+    reason: "ZtphyMerkleDistributor.claimMany -> _claim per entry: each recipient is a Merkle-proven leaf account under the immutable root, effects before each call; a refusing recipient reverts its batch (relayers simulate first)."
+    decided_by: pospos191 (owner, confirmed 2026-11-13 "ยืนยัน triage"; proposed by claude-agent, PR #167 triage by reading the code)
+    date: 2026-11-13
+  - id: aderyn:eth-send-unchecked-address:zetaphy-network/contracts/ZtphyMerkleDistributor.sol:098b03537126
+    status: false-positive
+    reason: "ZtphyMerkleDistributor.sweep pays only the immutable returnTo (fixed at construction, checked non-zero), and only after the deadline or an abort; anyone may trigger it but cannot choose the recipient; a failed send reverts."
+    decided_by: pospos191 (owner, confirmed 2026-11-13 "ยืนยัน triage"; proposed by claude-agent, PR #167 triage by reading the code)
+    date: 2026-11-13

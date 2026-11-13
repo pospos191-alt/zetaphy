@@ -9,10 +9,11 @@ export const POOL = 200_000_000n * 10n ** 18n; // azetaphy
  * @param {bigint} [o.pool]       azetaphy to share
  * @param {bigint} [o.minAmount]  SWD base units a holder needs to qualify (dust filter)
  * @param {number} [o.capBps]     most any one holder can get, in basis points of the pool (whales); 10000 = no cap
+ * @param {bigint} [o.cap]        the same as an absolute amount (azetaphy); overrides capBps when given
  */
-export function allocate(snapshot, { pool = POOL, minAmount = 1n, capBps = 10_000 } = {}) {
+export function allocate(snapshot, { pool = POOL, minAmount = 1n, capBps = 10_000, cap: absCap } = {}) {
   const eligible = snapshot.holders.map((h) => ({ owner: h.owner, amount: BigInt(h.amount) })).filter((h) => h.amount >= minAmount);
-  const cap = (pool * BigInt(capBps)) / 10_000n;
+  const cap = absCap != null ? BigInt(absCap) : (pool * BigInt(capBps)) / 10_000n;
   // Water-filling: capped holders get the cap; the rest shares what is left, pro-rata.
   let capped = new Set();
   for (;;) {

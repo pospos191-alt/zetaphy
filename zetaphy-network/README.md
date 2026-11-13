@@ -167,6 +167,10 @@ node airdrop/cli.js allocate snapshot.json --min 1000000 --cap-bps 100 > allocat
 node airdrop/cli.js merkle allocations.json > merkle.json
 ```
 
+The EVM airdrop (a claim contract, `ZtphyMerkleDistributor`, for ~100,000 EVM wallets: sign-up CSVs, SWD holders
+linked to EVM addresses with a Solana signature, active public-chain wallets from BigQuery; shards, verify, the hub's
+"Claim airdrop" card) is in [docs/AIRDROP.md](../docs/AIRDROP.md).
+
 - **snapshot** sums the SWD balance of every account (SPL and Token-2022) per wallet owner. It only reads from Solana
   - Put the pool vault addresses in `--exclude` too, because coins in a pool belong to the liquidity providers, not to the PDA
 - **allocate** splits 200,000,000 ZETAPHY proportionally

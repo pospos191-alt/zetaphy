@@ -11,6 +11,7 @@
 #   gov.sh propose-min-gas-price <gwei>                 chain-wide lowest gas price, e.g. 1 (0.000021 ZETAPHY a transfer)
 #   gov.sh vote <id> yes|no|abstain|no_with_veto
 #   gov.sh status [id]                                   one proposal, or all of them
+#   gov.sh broadcast <signed-tx.json>                    broadcast a transaction signed offline (multisig: tx multisign)
 #   gov.sh plan                                          the upgrade the chain is waiting for
 #   gov.sh propose-ratelimit <denom> <channel> <send%> <recv%> <hours>
 #                                                        cap IBC flow of a denom on a channel
@@ -63,29 +64,157 @@
 #
 # Env (defaults match setup-node.sh): NODE_HOME, KEYS_DIR, FROM (key name),
 # ZETAPHYD, NODE (CometBFT RPC), CHAIN_ID, DEPOSIT (azetaphy).
+#
+# ---- mainnet (docs/ZETAPHY-MAINNET-PROCEDURE.md) ----
+# On a node pinned to a chain (setup-node.sh's pinned-chain mode: /etc/zetaphy/pinned-chain.env, or PINNED=<file>),
+# or with --network mainnet (NETWORK=mainnet), gov.sh runs in mainnet mode:
+#   - the chain id is read from the pinned genesis ($NODE_HOME/config/genesis.json, or GENESIS_FILE), whose sha256 must
+#     be the pin's; --chain-id (CHAIN_ID) is only a cross-check (without a pin file it is required). The testnet's
+#     chain id is refused, and every transaction first checks that the node (NODE) serves that chain id.
+#   - the gas price and the deposit come from the chain: the genesis's minimum gas price and bond denom, and the
+#     full min_deposit of `q gov params` (DEPOSIT overrides it).
+#   - keys: --keyring-backend file|os|ledger (KEYRING_BACKEND; default file, KEYS_DIR default ~/.zetaphy-keys); never
+#     test. ledger: the key (--from, FROM) must be a Ledger key in the keyring (keys add <name> --ledger), signed with
+#     amino-json on the device. --from <key name or zetaphy1… address> (FROM).
+#   - a multisig: --generate-only <file> (GENERATE_ONLY) writes the unsigned transaction from --from <the multisig's
+#     zetaphy1… address> (fixed gas: GAS, default 900000) and prints the signing steps (tx sign --multisig by each
+#     member, tx multisign, then gov.sh broadcast <signed.json>).
+#   - testnet-only commands are refused: airdrop (the faucet coins; the mainnet SWD airdrop is the claim contract).
+# Without a pin file and without --network mainnet: the testnet, exactly as before (test keyring, zetaphy_77390-1).
 set -euo pipefail
+# options for mainnet mode, anywhere after the command; taken out before the command reads its arguments
+args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --network|--keyring-backend|--chain-id|--from|--generate-only|--keyring-dir)
+      [ $# -ge 2 ] || { echo "$1 needs a value"; exit 2; }
+      case "$1" in
+        --network) NETWORK=$2 ;; --keyring-backend) KEYRING_BACKEND=$2 ;; --chain-id) CHAIN_ID=$2 ;;
+        --from) FROM=$2 ;; --generate-only) GENERATE_ONLY=$2 ;; --keyring-dir) KEYS_DIR=$2 ;;
+      esac
+      shift 2 ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+set -- "${args[@]+"${args[@]}"}"
 ZETAPHYD=${ZETAPHYD:-/usr/local/bin/zetaphyd}
 NODE_HOME=${NODE_HOME:-$HOME/.zetaphy}
-KEYS_DIR=${KEYS_DIR:-$HOME/.zetaphy-genesis-keys}
+PINNED=${PINNED:-/etc/zetaphy/pinned-chain.env}
+NETWORK=${NETWORK:-}
+[ -z "$NETWORK" ] || [ "$NETWORK" = mainnet ] || [ "$NETWORK" = testnet ] || { echo "--network: mainnet or testnet"; exit 2; }
+MAINNET=""
+if [ "$NETWORK" = mainnet ] || { [ -z "$NETWORK" ] && [ -f "$PINNED" ]; }; then MAINNET=1; fi
+[ "$NETWORK" != testnet ] || [ ! -f "$PINNED" ] || { echo "refused: this node is pinned to a chain ($PINNED): it is not the testnet"; exit 1; }
+if [ -z "$MAINNET" ]; then
+  for v in KEYRING_BACKEND GENERATE_ONLY; do
+    [ -z "${!v:-}" ] || { echo "$v / --$(echo "$v" | tr 'A-Z_' 'a-z-') is for mainnet mode (--network mainnet, or a pinned node); the testnet uses the test keyring"; exit 2; }
+  done
+fi
+CHAIN_ID_GIVEN=${CHAIN_ID:-}
+KEYS_DIR=${KEYS_DIR:-$([ -n "$MAINNET" ] && echo "$HOME/.zetaphy-keys" || echo "$HOME/.zetaphy-genesis-keys")}
 FROM=${FROM:-validator}
 NODE=${NODE:-tcp://127.0.0.1:26657}
 CHAIN_ID=${CHAIN_ID:-zetaphy_77390-1}
+DEPOSIT_GIVEN=${DEPOSIT:-}
 DEPOSIT=${DEPOSIT:-1000000000000000000000azetaphy}   # 1,000 ZETAPHY
 REPO=${REPO:-pospos191-alt/zetaphy}
 SETUP_URL=${SETUP_URL:-https://raw.githubusercontent.com/$REPO/main/zetaphy-chain/setup-node.sh}
 RELEASE_BASE=${RELEASE_BASE:-https://github.com/$REPO/releases/download}
+GAS_PRICES=1000000000azetaphy
+KEYRING="--keyring-backend test"
+SIGN_MODE=""
+
+if [ -n "$MAINNET" ]; then
+  if [ -f "$PINNED" ]; then
+    pin() { sed -n "s/^$1=\([0-9a-f]*\)\$/\1/p" "$PINNED" | head -1; }
+    p_sha=$(pin GENESIS_SHA256); p_evm=$(pin GENESIS_EVM_CHAIN_ID)
+    [[ "$p_sha" =~ ^[0-9a-f]{64}$ ]] && [[ "$p_evm" =~ ^[1-9][0-9]*$ ]] || { echo "refused: $PINNED is not a pin file (GENESIS_SHA256, GENESIS_EVM_CHAIN_ID)"; exit 1; }
+    G=${GENESIS_FILE:-$NODE_HOME/config/genesis.json}
+    [ -f "$G" ] && echo "$p_sha  $G" | sha256sum -c --quiet - 2>/dev/null || { echo "refused: $G is not the pinned genesis (sha256 $p_sha, $PINNED)"; exit 1; }
+    g=$(jq -r '[.chain_id, .app_state.staking.params.bond_denom, (.app_state.feemarket.params.min_gas_price | tostring | split(".")[0])] | @tsv' "$G") \
+      || { echo "refused: cannot read $G"; exit 1; }
+    read -r g_chain g_denom g_gas <<<"$g"
+    [ -z "$CHAIN_ID_GIVEN" ] || [ "$CHAIN_ID_GIVEN" = "$g_chain" ] || { echo "refused: --chain-id $CHAIN_ID_GIVEN, but the pinned genesis is $g_chain"; exit 1; }
+    CHAIN_ID=$g_chain; EVM_CHAIN_ID=$p_evm
+    [[ "$g_denom" =~ ^[a-z][a-z0-9]{2,63}$ ]] && [[ "$g_gas" =~ ^[1-9][0-9]*$ ]] || { echo "refused: $G: bond denom / min gas price ($g_denom / $g_gas)"; exit 1; }
+    GAS_PRICES=$g_gas$g_denom
+  else
+    [ -n "$CHAIN_ID_GIVEN" ] || { echo "refused: mainnet mode without a pin file ($PINNED): pass --chain-id <the mainnet's chain id>"; exit 1; }
+  fi
+  [[ "$CHAIN_ID" =~ ^[a-z][a-z0-9]*_[0-9]+-[0-9]+$ ]] || { echo "refused: chain id $CHAIN_ID"; exit 1; }
+  [ "$CHAIN_ID" != zetaphy_77390-1 ] || { echo "refused: zetaphy_77390-1 is the testnet; mainnet mode is for another chain"; exit 1; }
+  EVM_CHAIN_ID=${EVM_CHAIN_ID:-$(echo "$CHAIN_ID" | sed -E 's/^[a-z0-9]*_([0-9]+)-.*/\1/')}
+  KEYRING_BACKEND=${KEYRING_BACKEND:-file}
+  case "$KEYRING_BACKEND" in
+    file|os) KEYRING="--keyring-backend $KEYRING_BACKEND" ;;
+    ledger)  KEYRING="--keyring-backend ${LEDGER_KEYRING_BACKEND:-file}"; SIGN_MODE="--sign-mode amino-json" ;;
+    test)    echo "refused: --keyring-backend test on mainnet (an unencrypted keyring): use file, os or ledger"; exit 1 ;;
+    *)       echo "--keyring-backend: file, os or ledger"; exit 2 ;;
+  esac
+  case "${1:-}" in
+    airdrop) echo "refused: gov.sh airdrop is the testnet airdrop (faucet coins); on mainnet the SWD airdrop is claimed from its contract (docs/AIRDROP*)"; exit 1 ;;
+  esac
+fi
 
 # Flags go after the subcommand: zetaphyd rejects tx/query flags placed before it.
 QF="--home $NODE_HOME --node $NODE -o json"
-TXF="--home $NODE_HOME --node $NODE --keyring-backend test --keyring-dir $KEYS_DIR --from $FROM --chain-id $CHAIN_ID --gas auto --gas-adjustment 1.5 --gas-prices 1000000000azetaphy -y -o json"
+TXF="--home $NODE_HOME --node $NODE $KEYRING --keyring-dir $KEYS_DIR --from $FROM --chain-id $CHAIN_ID --gas auto --gas-adjustment 1.5 --gas-prices $GAS_PRICES${SIGN_MODE:+ $SIGN_MODE} -y -o json"
+if [ -n "${GENERATE_ONLY:-}" ]; then
+  # an unsigned tx for a multisig: no simulation (the multisig has no public key on chain yet), fixed gas
+  TXF="--home $NODE_HOME --node $NODE $KEYRING --keyring-dir $KEYS_DIR --from $FROM --chain-id $CHAIN_ID --gas ${GAS:-900000} --gas-prices $GAS_PRICES --generate-only"
+fi
+
+# Mainnet: before the first transaction, the node must serve the chain id this runs for (and the key must be
+# what --keyring-backend says).
+MAINNET_CHECKED=""
+mainnet_preflight() {
+  [ -n "$MAINNET" ] && [ -z "$MAINNET_CHECKED" ] || return 0
+  MAINNET_CHECKED=1
+  local net
+  net=$("$ZETAPHYD" status --home "$NODE_HOME" --node "$NODE" 2>/dev/null | jq -r '.node_info.network // .NodeInfo.network // empty') || true
+  [ "$net" = "$CHAIN_ID" ] || { echo "refused: the node at $NODE serves chain ${net:-<no answer>}, not $CHAIN_ID: nothing signed"; exit 1; }
+  if [ "${KEYRING_BACKEND:-}" = ledger ] && [ -z "${GENERATE_ONLY:-}" ]; then
+    local t
+    t=$("$ZETAPHYD" keys show "$FROM" $KEYRING --keyring-dir "$KEYS_DIR" --home "$NODE_HOME" --output json 2>/dev/null | jq -r '.type // empty') || true
+    [ "$t" = ledger ] || { echo "refused: --keyring-backend ledger, but \"$FROM\" is not a Ledger key in $KEYS_DIR (keys add $FROM --ledger)"; exit 1; }
+  fi
+  echo "mainnet $CHAIN_ID: $([ -n "${GENERATE_ONLY:-}" ] && echo "unsigned tx from $FROM" || echo "key $FROM ($KEYRING_BACKEND keyring $KEYS_DIR)")"
+}
 
 # Runs a tx; prints the chain's error (not a silent exit) when it is refused.
 send() {
   local out
-  out=$("$ZETAPHYD" "$@" $TXF 2>&1) || { echo "rejected: $(echo "$out" | grep -m1 -E 'rpc error|Error' || echo "$out" | tail -1)"; exit 1; }
+  if [ -n "$MAINNET" ]; then
+    mainnet_preflight
+    if [ -n "${GENERATE_ONLY:-}" ]; then
+      out=$("$ZETAPHYD" "$@" $TXF 2>&1) || { echo "rejected: $(echo "$out" | grep -m1 -E 'rpc error|Error' || echo "$out" | tail -1)"; exit 1; }
+      echo "$out" | tail -1 > "$GENERATE_ONLY"
+      jq -e '.body.messages | length > 0' "$GENERATE_ONLY" >/dev/null 2>&1 || { echo "rejected: no unsigned transaction came out: $(tail -c 300 "$GENERATE_ONLY")"; exit 1; }
+      echo "unsigned transaction written to $GENERATE_ONLY (from $FROM, chain $CHAIN_ID); nothing was sent. Next:"
+      echo "  each member: zetaphyd tx sign $GENERATE_ONLY --multisig $FROM --from <member key> --chain-id $CHAIN_ID --node $NODE --sign-mode amino-json --output-document <member>.json"
+      echo "  then:        zetaphyd tx multisign $GENERATE_ONLY <multisig key name> <member1>.json <member2>.json --chain-id $CHAIN_ID --node $NODE > signed.json"
+      echo "  and:         gov.sh broadcast signed.json"
+      exit 0
+    fi
+    # the keyring may ask for its passphrase (or the Ledger for a confirmation): its prompt stays visible
+    local errf; errf=$(mktemp)
+    out=$("$ZETAPHYD" "$@" $TXF 2> >(tee "$errf" >&2)) || { sleep 0.2; echo "rejected: $(grep -m1 -E 'rpc error|Error' "$errf" || tail -1 "$errf")"; rm -f "$errf"; exit 1; }
+    rm -f "$errf"
+  else
+    out=$("$ZETAPHYD" "$@" $TXF 2>&1) || { echo "rejected: $(echo "$out" | grep -m1 -E 'rpc error|Error' || echo "$out" | tail -1)"; exit 1; }
+  fi
   out=$(echo "$out" | tail -1)
   [ "$(echo "$out" | jq -r .code 2>/dev/null)" = 0 ] || { echo "rejected: $(echo "$out" | jq -r .raw_log 2>/dev/null || echo "$out")"; exit 1; }
 }
+
+# Mainnet: the deposit of a proposal is the chain's full min_deposit (voting starts at once), unless DEPOSIT is set.
+if [ -n "$MAINNET" ] && [ -z "$DEPOSIT_GIVEN" ]; then
+  case "${1:-}" in
+    propose-*|pq-evidence|neuro|qday|threat-gate|ibc-hold|ibc-hold-rule|ai-model|immune|breaker|breaker-rearm|model-epochs|invariant-firewall|erc20-register|ibc-usdc-ratelimit|wasm-store|wasm-upload-access)
+      DEPOSIT=$("$ZETAPHYD" q gov params $QF 2>/dev/null | jq -r '(.params // .).min_deposit[0] | "\(.amount)\(.denom)"') || DEPOSIT=""
+      [[ "$DEPOSIT" =~ ^[1-9][0-9]*[a-z][a-z0-9]+$ ]] || { echo "refused: could not read the chain's min_deposit (q gov params); set DEPOSIT=<amount><denom>"; exit 1; } ;;
+  esac
+fi
 
 # Before a binary-upgrade vote (the 2026-10-29 testnet stop at block 123343 is why):
 #  - the upgrade must exist in the current release on main, or the chain would stop at the height
@@ -199,6 +328,14 @@ case "${1:-}" in
     # A proposal with no messages must carry metadata (SDK rule).
     jq -n --arg d "$DEPOSIT" --arg t "$title" --arg s "$summary" '{messages:[],metadata:$t,deposit:$d,title:$t,summary:$s,expedited:false}' > "$f"
     submit tx gov submit-proposal "$f"; rm -f "$f" ;;
+  broadcast)
+    f=${2:?a signed transaction .json (zetaphyd tx multisign … > signed.json)}
+    [ -f "$f" ] && jq -e '.body.messages and (.signatures | length > 0)' "$f" >/dev/null 2>&1 || { echo "not a signed transaction: $f"; exit 1; }
+    if [ -n "$MAINNET" ]; then GENERATE_ONLY=""; mainnet_preflight; fi
+    out=$("$ZETAPHYD" tx broadcast "$f" --home "$NODE_HOME" --node "$NODE" --chain-id "$CHAIN_ID" -o json 2>&1) || { echo "rejected: $(echo "$out" | tail -1)"; exit 1; }
+    out=$(echo "$out" | tail -1)
+    [ "$(echo "$out" | jq -r .code 2>/dev/null)" = 0 ] || { echo "rejected: $(echo "$out" | jq -r .raw_log 2>/dev/null || echo "$out")"; exit 1; }
+    echo "broadcast: txhash $(echo "$out" | jq -r .txhash)" ;;
   vote)
     id=${2:?id}; opt=${3:?option}
     [[ "$opt" =~ ^(yes|no|abstain|no_with_veto)$ ]] || { echo "vote: yes, no, abstain or no_with_veto"; exit 1; }
@@ -610,5 +747,5 @@ case "${1:-}" in
     $ZETAPHYD q wasm list-code $QF | jq -c '.code_infos[]? | {code_id, creator, data_hash, instantiate_permission}' ;;
 
   *)
-    sed -n '8,62p' "$0" | sed 's/^# //'; exit 2 ;;
+    sed -n '8,63p' "$0" | sed 's/^# //'; exit 2 ;;
 esac

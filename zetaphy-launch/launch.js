@@ -42,7 +42,28 @@
 //   --skip-snap-build       write snap.config.js but do not run npm run build in zetaphy-snap
 //
 // Steps: neuro skill threats reports identity vault pq stable compute bridge dex dlmm nft oracle wire protect configs snap guardian timelock handover
-// Testnet only: refuses any chain but ZETAPHY (EVM chain id 77390).
+// Without --network: the testnet only; refuses any chain but ZETAPHY (EVM chain id 77390).
+//
+// Mainnet (docs/ZETAPHY-MAINNET-PROCEDURE.md, step 16; src/mainnet.js says what differs and why):
+//   node zetaphy-launch/launch.js --network mainnet --rpc URL --chain chain.json [--pin pinned-chain.env --genesis genesis.json]
+//        --deploy-config mainnet.json (--keystore FILE [--passphrase-stdin] | --remote-signer URL --signer-address 0x… [--signer-method M])
+//        [--dry-run | --confirm-chain <EVM chain id>] [--resume] [--fresh] [--only a,b] [--state FILE]
+//   --network mainnet       never a default: without it the launch is the testnet's
+//   --chain FILE            chain.json of make-genesis.sh finalize (chain id, EVM chain id, genesis sha256)
+//   --pin FILE --genesis FILE   the node's /etc/zetaphy/pinned-chain.env and the genesis it pins (sha256 checked);
+//                           every source given must agree, and the RPC must answer that eth_chainId
+//   --deploy-config FILE    the governance, guardian, community fund and contract settings (zetaphy-launch/mainnet.example.json)
+//   --keystore FILE         the deployer as an encrypted keystore JSON (chmod 600); the passphrase is asked on the terminal,
+//                           or read from standard input with --passphrase-stdin; decrypted in memory only
+//   --remote-signer URL     an external signer holding the key (clef with a hardware wallet, web3signer, Frame): https, or
+//                           http on 127.0.0.1; --signer-address 0x… the deployer; --signer-method eth_signTransaction
+//                           (default) or account_signTransaction (clef). Each signed transaction is checked before it is sent.
+//   --dry-run               print every contract, its constructor arguments, every call and the gas and cost; send nothing
+//   --confirm-chain N       required to send: the EVM chain id, typed again
+//   --check                 after the run: the on-chain role check again (reads only, no passphrase, signs nothing)
+//   Refused on mainnet: --key-file and keys or passphrases in the environment (ZETAPHY_DEPLOYER_KEY[_FILE], ZETAPHY_PASSPHRASE),
+//   --devnet, --redo, and every testnet-only option (test stablecoins, fixed prices, web-app configs).
+//   Steps: guardian neuro threats reports bridge dex bounty wire timelock handover verify
 
 import { readFileSync, renameSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -52,9 +73,10 @@ import { JsonRpcProvider, Wallet, getAddress, isAddress } from 'ethers';
 import { readDeployerKey, keyFolder } from './src/key.js';
 import { loadState, saveState, newState, runSteps, outputs } from './src/runner.js';
 import { launchSteps, estimate, handoverPlan, zeta, ROOT, GOV_MODULE, EVM_CHAIN_ID, DEFAULT_DELAY, MIN_DELAY } from './src/steps.js';
+import { mainnetMain, MAINNET_FLAGS } from './src/mainnetmain.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const FLAGS = new Set(['dry-run', 'resume', 'redo', 'fresh', 'handover', 'skip-snap-build', 'help', 'devnet']);
+const FLAGS = new Set(['dry-run', 'resume', 'redo', 'fresh', 'handover', 'skip-snap-build', 'help', 'devnet', 'passphrase-stdin', 'check']);
 
 export function parseArgs(argv) {
   const opt = {};
@@ -113,6 +135,9 @@ const HELP = () => readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\
 export async function main(argv = process.argv.slice(2), env = process.env, log = console.log) {
   const opt = parseArgs(argv);
   if (opt.help) { log(HELP()); return 0; }
+  if (opt.network != null && !['mainnet', 'testnet'].includes(String(opt.network))) throw new Error('--network: mainnet (the testnet is the default)');
+  if (opt.network === 'mainnet') return mainnetMain(opt, env, log);
+  for (const k of MAINNET_FLAGS) if (opt[k] != null) throw new Error(`--${k} is for --network mainnet`);
   const rpc = checkUrl(opt.rpc ?? env.ZETAPHY_RPC ?? '', '--rpc');
   const publicRpc = checkUrl(opt['public-rpc'] ?? rpc, '--public-rpc');
   const governance = governanceTarget(opt.governance);

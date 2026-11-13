@@ -1,0 +1,252 @@
+// Unit tests of the mainnet mode (no chain): the chain's identity from chain.json / the pin / the genesis, the deploy
+// config's checks, the options and environment refused on mainnet, the keystore and passphrase, and the remote
+// signer's check of what it signed. test/mainnet.e2e.js runs the whole deploy and handover on a local chain.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { Readable } from 'node:stream';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Wallet, Transaction, parseUnits } from 'ethers';
+import { main } from '../launch.js';
+import { loadChain, readPin, mainnetConfig, mainnetSteps, MAINNET_MIN_DELAY } from '../src/mainnet.js';
+import { readKeystore, readPassphrase, keystoreSigner, RemoteSigner, checkSigned, checkSignerUrl } from '../src/signer.js';
+import { GOV_MODULE } from '../src/steps.js';
+
+const tmp = () => mkdtempSync(join(tmpdir(), 'zetaphy-launch-mainnet-'));
+const W = () => Wallet.createRandom().address;
+const SHA = 'ab'.repeat(32);
+
+function chainFiles({ evm = 3659, chainId = `zetaphy_${evm}-1`, pinEvm = evm, pinSha = null } = {}) {
+  const d = tmp();
+  const genesis = JSON.stringify({ chain_id: chainId, app_state: { staking: { params: { bond_denom: 'azetaphy' } }, bank: { denom_metadata: [{ base: 'azetaphy', symbol: 'ZTPHY' }] } } });
+  writeFileSync(join(d, 'genesis.json'), genesis);
+  const sha = createHash('sha256').update(genesis).digest('hex');
+  writeFileSync(join(d, 'chain.json'), JSON.stringify({ chain_id: chainId, evm_chain_id: evm, genesis_sha256: sha, symbol: 'ZTPHY' }));
+  writeFileSync(join(d, 'pin.env'), `GENESIS_SHA256=${pinSha ?? sha}\nGENESIS_EVM_CHAIN_ID=${pinEvm}\nPUBLIC_RPC=0\n`);
+  return { d, sha, chain: join(d, 'chain.json'), pin: join(d, 'pin.env'), genesis: join(d, 'genesis.json') };
+}
+
+function goodConfig(extra = {}) {
+  return { governance: 'gov', guardianOwners: [W(), W(), W()], communityFund: W(),
+    bridge: { lockbox: '1:0x00000000000000000000000000000000000Bd0C5', tokenName: 'USD Coin (bridged)', tokenSymbol: 'USDC', decimals: 6 },
+    bounty: { committee: [W(), W()], threshold: 2, maxPayout: '10', periodCap: '20', fund: '5' }, ...extra };
+}
+
+// ---------- the chain ----------
+
+test('the chain from chain.json, or the pin with its genesis; every source must agree', () => {
+  const f = chainFiles();
+  const c = loadChain({ chain: f.chain });
+  assert.equal(c.evmChainId, 3659n);
+  assert.equal(c.chainId, 'zetaphy_3659-1');
+  assert.equal(c.genesisSha256, f.sha);
+  assert.equal(c.symbol, 'ZTPHY');
+  assert.equal(loadChain({ pin: f.pin, genesis: f.genesis }).evmChainId, 3659n);
+  assert.equal(loadChain({ chain: f.chain, pin: f.pin, genesis: f.genesis }).chainId, 'zetaphy_3659-1');
+  assert.throws(() => loadChain({}), /needs the chain it is for: --chain <chain.json>/);
+  assert.throws(() => loadChain({ pin: f.pin }), /needs the chain it is for/);
+  const p = chainFiles({ pinEvm: 3660 });
+  assert.throws(() => loadChain({ chain: p.chain, pin: p.pin }), /disagree on the EVM chain id: chain.json 3659, pin 3660/);
+  const s = chainFiles({ pinSha: SHA });
+  assert.throws(() => loadChain({ chain: s.chain, pin: s.pin, genesis: s.genesis }), /disagree on the genesis sha256/);
+  const g = chainFiles();
+  writeFileSync(g.genesis, '{"chain_id":"zetaphy_3659-1","tampered":1}');
+  assert.throws(() => loadChain({ chain: g.chain, genesis: g.genesis }), /disagree on the genesis sha256/);
+});
+
+test('the testnet\'s ids, and a chain id that does not match its EVM chain id, are refused', () => {
+  assert.throws(() => loadChain({ chain: chainFiles({ evm: 77390 }).chain }), /that is the testnet/);
+  assert.throws(() => loadChain({ chain: chainFiles({ evm: 3659, chainId: 'zetaphy_77390-1' }).chain }), /that is the testnet|must agree/);
+  assert.throws(() => loadChain({ chain: chainFiles({ evm: 3659, chainId: 'zetaphy_3660-1' }).chain }), /must agree/);
+  const d = tmp();
+  writeFileSync(join(d, 'p.env'), 'GENESIS_SHA256=xyz\n');
+  assert.throws(() => readPin(join(d, 'p.env')), /not a pin file/);
+});
+
+// ---------- the deploy config ----------
+
+test('the deploy config: defaults, 48 h at least, placeholders, typos, secrets and the deployer in a role refused', () => {
+  const me = W();
+  const c = mainnetConfig(goodConfig(), { deployer: me });
+  assert.equal(c.governance, GOV_MODULE);
+  assert.equal(c.timelockDelay, MAINNET_MIN_DELAY);
+  assert.equal(c.bounty.timelock, MAINNET_MIN_DELAY);
+  assert.equal(c.executorMode, 'open');
+  assert.equal(c.neuro.bond, '100');
+  const bad = (patch, re) => assert.throws(() => mainnetConfig({ ...goodConfig(), ...patch }, { deployer: me }), re);
+  bad({ timelockDelay: 86400 }, /timelockDelay: a whole number from 172800/);
+  bad({ bounty: { committee: [W(), W()], maxPayout: '1', periodCap: '1', timelock: 3600 } }, /bounty.timelock: a whole number from 172800/);
+  bad({ governance: '0x1111111111111111111111111111111111111111' }, /placeholder/);
+  bad({ communityFund: me }, /communityFund: the deployer .* may hold no role/);
+  bad({ guardianOwners: [me, W()] }, /guardianOwners: the deployer/);
+  bad({ governance: me }, /governance: the deployer/);
+  bad({ guardianOwners: [W()] }, /at least guardianThreshold/);
+  bad({ guardian: W() }, /guardian .* or guardianOwners .*, not both/);
+  bad({ governance: undefined }, /governance: "gov"/);
+  bad({ guardianOwners: undefined }, /guardian 0x<emergency multisig> or guardianOwners/);
+  bad({ governanse: 'gov' }, /unknown key "governanse"/);
+  bad({ deployerPrivateKey: '0x' + '1'.repeat(64) }, /refusing to store a field named like a secret|unknown key/);
+  bad({ bridge: { ...goodConfig().bridge, tokenName: 'USD Coin (bridged, testnet)' } }, /a mainnet token is not named "test"/);
+  bad({ bridge: { ...goodConfig().bridge, dailyLimit: '5000' } }, /bridge.dailyLimit: whole tokens, 1 to 1000/);
+  bad({ bridge: { ...goodConfig().bridge, lockbox: '0x00000000000000000000000000000000000Bd0C5' } }, /bridge.lockbox: <source chain id>:0x<LockBox>/);
+  bad({ bounty: { committee: [W()], maxPayout: '1', periodCap: '1' } }, /bounty.committee: at least bounty.threshold/);
+  bad({ bounty: { committee: [me, W()], maxPayout: '1', periodCap: '1' } }, /bounty.committee: the deployer/);
+  bad({ timelockExecutor: 'me' }, /timelockExecutor/);
+});
+
+test('the mainnet steps: the gate-8 set only, no testnet-only contract, the handover then a check last', () => {
+  const names = mainnetSteps().map((s) => s.name);
+  assert.deepEqual(names, ['guardian', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty', 'wire', 'timelock', 'handover', 'verify']);
+  for (const t of ['stable', 'dlmm', 'nft', 'oracle', 'configs', 'snap', 'pq', 'compute', 'identity', 'vault']) assert.ok(!names.includes(t), t);
+  const ctx = { address: W(), symbol: 'ZTPHY', mainnet: mainnetConfig(goodConfig()), guardianOwners: [W(), W()], guardianThreshold: 2, governance: GOV_MODULE, timelockDelay: MAINNET_MIN_DELAY, dexWnative: 'deploy' };
+  const all = mainnetSteps().flatMap((s) => s.plan(ctx, {}).deploys.map((d) => d.name));
+  assert.deepEqual(all, ['SimpleMultisig', 'NeuroControl', 'NeuroJobs', 'ThreatRegistry', 'ThreatReports', 'BridgeGuard', 'BridgeAirlock', 'NeuroLane', 'WZETAPHY', 'ZetaphyFactory', 'ZetaphyRouter', 'ZetaphyBounty', 'ZetaphyTimelock']);
+  const bridge = mainnetSteps().find((s) => s.name === 'bridge').plan(ctx, {});
+  assert.ok(bridge.calls.some((c) => /enabled = false\)  CLOSED/.test(c)));
+});
+
+// ---------- options and environment ----------
+
+const run = (argv, env = {}) => main(argv, { ...env }, () => {});
+
+test('mainnet refuses a plain key, keys in the environment, --devnet, --redo and testnet options', async () => {
+  const f = chainFiles();
+  const d = tmp();
+  writeFileSync(join(d, 'cfg.json'), JSON.stringify(goodConfig()));
+  const M = ['--network', 'mainnet', '--rpc', 'http://127.0.0.1:1', '--chain', f.chain, '--deploy-config', join(d, 'cfg.json')];
+  await assert.rejects(run([...M, '--key-file', join(d, 'k')]), /--key-file is refused on mainnet/);
+  await assert.rejects(run([...M, '--devnet']), /--devnet is refused on mainnet/);
+  await assert.rejects(run([...M, '--redo']), /--redo is refused on mainnet/);
+  await assert.rejects(run([...M, '--governance', 'gov']), /not a mainnet option: .* from --deploy-config/);
+  await assert.rejects(run([...M, '--stable-testnet-price', '0.01']), /not a mainnet option/);
+  for (const k of ['ZETAPHY_DEPLOYER_KEY', 'ZETAPHY_DEPLOYER_KEY_FILE', 'ZETAPHY_PASSPHRASE']) {
+    await assert.rejects(run([...M, '--keystore', join(d, 'ks.json')], { [k]: 'x' }), new RegExp(`${k} is set: refused on mainnet`));
+  }
+  await assert.rejects(run([...M]), /--keystore <encrypted keystore JSON> or as --remote-signer/);
+  await assert.rejects(run([...M, '--remote-signer', 'http://10.0.0.5:8550', '--signer-address', W()]), /http:\/\/ on 127.0.0.1 \/ localhost only/);
+  await assert.rejects(run([...M, '--remote-signer', 'http://127.0.0.1:8550']), /needs --signer-address/);
+  await assert.rejects(run(['--network', 'main']), /--network: mainnet/);
+});
+
+test('the testnet launch is unchanged and takes no mainnet option', async () => {
+  await assert.rejects(run(['--rpc', 'http://127.0.0.1:1', '--keystore', 'x.json']), /--keystore is for --network mainnet/);
+  await assert.rejects(run(['--rpc', 'http://127.0.0.1:1', '--chain', 'c.json']), /--chain is for --network mainnet/);
+  await assert.rejects(run(['--rpc', 'http://127.0.0.1:1', '--confirm-chain', '3659']), /--confirm-chain is for --network mainnet/);
+});
+
+/** A JSON-RPC stand-in that answers eth_chainId and records every method it was asked. */
+async function fakeRpc(chainIdHex) {
+  const seen = [];
+  const srv = createServer((req, res) => {
+    let b = '';
+    req.on('data', (x) => { b += x; });
+    req.on('end', () => {
+      const r = JSON.parse(b);
+      const one = (q) => { seen.push(q.method); return { jsonrpc: '2.0', id: q.id, ...(q.method === 'eth_chainId' ? { result: chainIdHex } : { error: { code: -32601, message: 'not here' } }) }; };
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(Array.isArray(r) ? r.map(one) : one(r)));
+    });
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  return { url: `http://127.0.0.1:${srv.address().port}`, seen, close: () => srv.close() };
+}
+
+test('an RPC whose eth_chainId is not the configured chain is refused before anything else is asked or signed', async () => {
+  const f = chainFiles();
+  const d = tmp();
+  writeFileSync(join(d, 'cfg.json'), JSON.stringify(goodConfig()));
+  const w = Wallet.createRandom();
+  writeFileSync(join(d, 'ks.json'), await w.encrypt('pw'), { mode: 0o600 });
+  for (const answer of ['0x12e4e' /* 77390, the testnet */, '0xe4c' /* 3660 */]) {
+    const rpc = await fakeRpc(answer);
+    try {
+      await assert.rejects(run(['--network', 'mainnet', '--rpc', rpc.url, '--chain', f.chain, '--deploy-config', join(d, 'cfg.json'), '--keystore', join(d, 'ks.json'), '--dry-run']),
+        new RegExp(`the RPC is EVM chain ${BigInt(answer)}, not zetaphy_3659-1 \\(EVM 3659\\).*refused, nothing signed`));
+      assert.deepEqual([...new Set(rpc.seen)], ['eth_chainId'], 'nothing but eth_chainId was asked');
+    } finally { rpc.close(); }
+  }
+});
+
+// ---------- keystore and passphrase ----------
+
+test('the keystore: its address is read without the passphrase; a plain key or a readable file is refused', async () => {
+  const d = tmp();
+  const w = Wallet.createRandom();
+  writeFileSync(join(d, 'ks.json'), await w.encrypt('right'), { mode: 0o600 });
+  const ks = readKeystore(join(d, 'ks.json'));
+  assert.equal(ks.address, w.address);
+  const s = await keystoreSigner(ks, 'right', null);
+  assert.equal(s.address, w.address);
+  await assert.rejects(keystoreSigner(ks, 'wrong', null), /passphrase is wrong/);
+  writeFileSync(join(d, 'plain.key'), w.privateKey + '\n', { mode: 0o600 });
+  assert.throws(() => readKeystore(join(d, 'plain.key')), /a plain private key is refused on mainnet/);
+  chmodSync(join(d, 'ks.json'), 0o644);
+  assert.throws(() => readKeystore(join(d, 'ks.json')), /can be read by other users/);
+  writeFileSync(join(d, 'other.json'), '{"hello":1}', { mode: 0o600 });
+  assert.throws(() => readKeystore(join(d, 'other.json')), /not an Ethereum keystore/);
+});
+
+test('the passphrase: one line from standard input with --passphrase-stdin; no terminal and no stdin flag is refused', async () => {
+  assert.equal(await readPassphrase({ fromStdin: true, input: Readable.from(['secret pass\nignored\n']) }), 'secret pass');
+  await assert.rejects(readPassphrase({ fromStdin: true, input: Readable.from(['']) }), /no passphrase on standard input/);
+  await assert.rejects(readPassphrase({ input: Readable.from(['x\n']) }), /no terminal to ask the keystore passphrase on/);
+});
+
+// ---------- the remote signer ----------
+
+/** A remote signer stand-in: signs what it is asked with `key`, after `tamper` changed the request. */
+function fakeSigner(key, tamper = (q) => q) {
+  const calls = [];
+  const fetchImpl = async (_url, { body }) => {
+    const r = JSON.parse(body);
+    calls.push(r.method);
+    let result;
+    if (r.method === 'eth_accounts') result = [key.address];
+    else {
+      const q = tamper({ ...r.params[0] });
+      const t = Transaction.from({ type: Number(q.type), chainId: BigInt(q.chainId), nonce: Number(q.nonce), to: q.to ?? null, value: BigInt(q.value), data: q.data, gasLimit: BigInt(q.gas),
+        maxFeePerGas: BigInt(q.maxFeePerGas), maxPriorityFeePerGas: BigInt(q.maxPriorityFeePerGas) });
+      t.signature = key.signingKey.sign(t.unsignedHash);
+      result = r.method === 'account_signTransaction' ? { raw: t.serialized, tx: {} } : t.serialized;
+    }
+    return { ok: true, json: async () => ({ jsonrpc: '2.0', id: r.id, result }) };
+  };
+  return { fetchImpl, calls };
+}
+
+const TX = () => Transaction.from({ type: 2, chainId: 3659n, nonce: 7, to: '0x00000000000000000000000000000000000Bd0C5', value: 5n, data: '0x1234', gasLimit: 100000n,
+  maxFeePerGas: parseUnits('2', 'gwei'), maxPriorityFeePerGas: parseUnits('1', 'gwei') });
+
+test('remote signer: the signed transaction is checked field by field against what was asked', async () => {
+  const key = Wallet.createRandom();
+  const ok = fakeSigner(key);
+  const s = new RemoteSigner('http://127.0.0.1:8550', key.address, null, { chainId: 3659n, fetchImpl: ok.fetchImpl });
+  assert.equal(await s.holds(), true);
+  const raw = await s.signTransaction(TX());
+  const t = Transaction.from(raw);
+  assert.equal(t.from, key.address);
+  assert.equal(t.chainId, 3659n);
+  const clef = new RemoteSigner('http://127.0.0.1:8550', key.address, null, { chainId: 3659n, method: 'account_signTransaction', fetchImpl: fakeSigner(key).fetchImpl });
+  assert.equal(Transaction.from(await clef.signTransaction(TX())).from, key.address);
+  const refused = async (tamper, re, k = key) => {
+    const f = fakeSigner(k, tamper);
+    const r = new RemoteSigner('http://127.0.0.1:8550', key.address, null, { chainId: 3659n, fetchImpl: f.fetchImpl });
+    await assert.rejects(r.signTransaction(TX()), re);
+  };
+  await refused((q) => ({ ...q, to: '0x000000000000000000000000000000000000dEaD' }), /not the one asked for \(to 0x000000000000000000000000000000000000dEaD/);
+  await refused((q) => ({ ...q, chainId: '0x12e4e' }), /chain id 77390, not 3659/);
+  await refused((q) => ({ ...q, value: '0x64' }), /value 100, not 5/);
+  await refused((q) => ({ ...q, data: '0xdeadbeef' }), /other calldata/);
+  await refused((q) => ({ ...q, nonce: '0x8' }), /nonce 8, not 7/);
+  await refused((q) => ({ ...q, maxFeePerGas: '0x' + parseUnits('50', 'gwei').toString(16) }), /higher fees than asked/);
+  await refused((q) => q, /signed by 0x[0-9a-fA-F]{40}, not/, Wallet.createRandom());
+  await assert.rejects(s.signTransaction(Transaction.from({ ...TX().toJSON(), chainId: 1n })), /chain id 1, not 3659/);
+  await assert.rejects(s.signMessage('x'), /transactions only/);
+  assert.throws(() => checkSigned('0x1234', {}, { address: key.address, chainId: 3659n }), /not a signed transaction/);
+  assert.throws(() => checkSignerUrl('http://example.org:8550'), /on 127.0.0.1/);
+  assert.equal(checkSignerUrl('https://signer.example.org'), 'https://signer.example.org');
+});
