@@ -262,8 +262,11 @@ zetaphyd tx pq-vote-key --from validator --keyring-backend file --keyring-dir ~/
 Neuro (`NeuroControl` + `NeuroJobs`, `ThreatRegistry`, `ThreatReports`); สะพาน Saphan ฝั่ง ZETAPHY (`BridgeGuard` + `BridgeAirlock` +
 `NeuroLane`) แบบ**ปิด**; DEX (factory + router ไม่มีโทเคนทดสอบ ไม่เติม pool); `ZetaphyBounty` (เติมเงิน ไม่มีคีย์ admin); แล้วจึง
 `ZetaphyTimelock` และการส่งมอบสิทธิ์ Neuro มาก่อนสะพานและ DEX เพราะทั้งสองอ่านค่าจาก Neuro; timelock มาท้ายสุดเพื่อให้ช่วง bootstrap
-(deployer เป็น proposer คนเดียวที่ delay ศูนย์ สำหรับ batch ของการส่งมอบเท่านั้น) กินเวลาแค่ไม่กี่นาที ในโหมดนี้ไม่มีของเฉพาะ testnet เลย:
-ไม่มี faucet ไม่มี stablecoin ทดสอบหรือ StableGateway ไม่มีราคาตายตัว ไม่มี DLMM ที่ยังไม่ audit ไม่มีตลาด NFT ไม่เขียน config ของเว็บแอป
+(deployer เป็น proposer คนเดียวที่ delay ศูนย์ สำหรับ batch ของการส่งมอบเท่านั้น) กินเวลาแค่ไม่กี่นาที หลังส่งมอบสิทธิ์แล้ว เครื่องมือเดียวกันนี้
+เพิ่มระบบจริงที่เหลือของ testnet ให้ครบ (16.9): `NeuroIdentity` + `NeuroValidation`, `RewardVault`, `QuantumWalletFactory`, `ComputeMarket`,
+DLMM (ยังไม่ audit), NFT factory กับ marketplace และ oracle (`TwapRecorder`, `ZetaphyPythRelay`, `ZetaphyOracle`) โดยแต่ละตัวยกสิทธิ์ให้
+timelock ตรงๆ เลย ในโหมดนี้ไม่มีของเฉพาะ testnet และแผนจะแสดงขั้นพวกนั้นว่า `skipped on mainnet` พร้อมเหตุผล: ไม่มี faucet ไม่มี
+stablecoin ทดสอบหรือ StableGateway ไม่มีราคาตายตัว ไม่มีโทเคนทดสอบหรือ pool ที่เติมไว้ ไม่เขียน config ของเว็บแอป ไม่ build snap
 
 สิ่งที่ launch บังคับบน mainnet:
 
@@ -304,8 +307,10 @@ cp zetaphy-launch/mainnet.example.json ~/mainnet-deploy.json
 
 กรอก: `governance` `"gov"`; `guardianOwners` (3 คนที่ต่างกัน ใช้ hardware wallet; หรือ `guardian` = multisig ที่มีอยู่แล้ว);
 `communityFund` (ที่อยู่ของกองทุนชุมชน แบบ 0x ของ zetaphy1…: `zetaphyd debug addr <zetaphy1…>`); `bridge.lockbox`
-(`<source chain id>:0x<lockbox>`; ลบ `bridge` ออกถ้ายังไม่ deploy สะพาน); `bounty.committee` ไฟล์นี้มีแต่ค่าสาธารณะ
-ที่อยู่ทุกตัวในตัวอย่างเป็นค่าปลอมและถูกปฏิเสธ
+(`<source chain id>:0x<lockbox>`; ลบ `bridge` ออกถ้ายังไม่ deploy สะพาน); `bounty.committee`; `identity.web` (หน้าเว็บ Neuro
+`https://<host>/web/`; ลบ `identity` ออกถ้ายังไม่เอา NeuroIdentity) ส่วนอื่นของ 16.9 (`vault`, `compute`, `dlmm`, `nft`, `oracle`,
+`proposalDeposit`) ปล่อยไว้ตามตัวอย่างได้ (ใช้ค่าตั้งต้น) ไฟล์นี้มีแต่ค่าสาธารณะ ที่อยู่ทุกตัวในตัวอย่างเป็นค่าปลอมและถูกปฏิเสธ
+host ตัวอย่างใน URL (`neuro.example`, `*.invalid`, `*.test`, `localhost`) หรือ IP เปล่าๆ ก็ถูกปฏิเสธเช่นกัน
 
 ### 16.3 Dry run [อ่าน]
 
@@ -316,13 +321,14 @@ node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json 
   --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<ไฟล์ keystore> --dry-run
 #   ZETAPHY mainnet zetaphy_3659-1 (EVM chain 3659, genesis sha256 <ค่าที่เผยแพร่>)
 #   แผน: ทุก "deploy <Contract>(<argument>=<value>, …)" พร้อม gas ทุกการเรียก แล้ว
-#   total: 12 contract(s), about 46 call(s), ~40,000,000 gas … : the deployer needs <N> ZTPHY
+#   total: <C> contract(s), about <M> call(s), ~<G> gas … : the deployer needs <N> ZTPHY
 #   dry run: nothing signed, nothing sent, no state written
 ```
 
 บนเครื่องที่มีโหนดที่ pin ไว้ ใส่ `--pin /etc/zetaphy/pinned-chain.env --genesis ~/.zetaphy/config/genesis.json` เพิ่มได้ (ทุกแหล่งต้องตรงกัน)
 ตรวจอาร์กิวเมนต์ของ constructor ทุกตัวเทียบกับ deploy config, delay (`delay 172800 s`), `enabled = false  CLOSED` ของ route สะพาน
-และต้องไม่มี `Test`, `StableGateway`, `Dlmm` หรือ faucet โผล่มา หยุด ถ้ามีอะไรต่างไป
+และต้องไม่มี `deploy Test…(`, `deploy StableGateway(` หรือ faucet โผล่มา (ขั้นเฉพาะ testnet จะขึ้นเป็น `- stable: skipped on mainnet (…)`
+และทำนองเดียวกัน) หยุด ถ้ามีอะไรต่างไป
 
 ### 16.4 เติมเงินให้ deployer [เปลี่ยนเชน]
 
@@ -386,9 +392,72 @@ bash zetaphy-chain/gov.sh broadcast signed.json                                 
 bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <proposer>           # [เปลี่ยนเชน] เมื่อ deploy แล้ว (ด้านล่าง)
 ```
 
-ยังไม่อยู่ในชุด mainnet ของ launch (ค้างอยู่): `InvariantFirewall` (ต้องใช้สัญญา audit ชุด SS1, docs/CHAIN-FIREWALL.md), RewardVault
-สำหรับ rewards pool, oracle (ต้องมี pool ของ DEX กับ stablecoin จริง), NeuroIdentity, QuantumWalletFactory, ComputeMarket, ตลาด NFT
-และ DLMM แต่ละตัวต้องมีขั้น mainnet ที่ผ่านการรีวิวของตัวเองก่อน deploy ห้ามรันขั้นของ launch แบบ testnet กับ mainnet (มันปฏิเสธเชนนี้อยู่แล้ว)
+ยังไม่อยู่ในขั้น mainnet ของ launch (ค้างอยู่): `InvariantFirewall` (ต้องใช้สัญญา audit ชุด SS1, docs/CHAIN-FIREWALL.md)
+ห้ามรันขั้นของ launch แบบ testnet กับ mainnet (มันปฏิเสธเชนนี้อยู่แล้ว)
+
+### 16.9 ระบบที่เหลือ บน mainnet ที่รันอยู่แล้ว [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+ทุกอย่างบน testnet ที่เป็นของจริง (ไม่ใช่ของไว้ทดสอบ) เพิ่มเข้า mainnet ที่รันอยู่ได้ด้วยเครื่องมือเดิม ไฟล์ state เดิม
+(`zetaphy-launch/state/3659.json`) และ keystore หรือ hardware wallet ของ deployer ตัวเดิม (เติมเงินให้ก่อนตามข้อ 16.4; ข้อ 16.7 ทำหลังขั้นนี้)
+โดยรันแบบ `--resume` ชุดของด่าน 8 และการส่งมอบสิทธิ์ยังอยู่เหมือนเดิม ขั้น handover แค่ตรวจตัวเองซ้ำ (ไม่ส่งอะไร) แล้วขั้นเหล่านี้จึงรัน:
+
+| ขั้น | สัญญา | ใครถืออะไร |
+|---|---|---|
+| `identity` | `NeuroIdentity` + `NeuroValidation` (ERC-8004) | admin ของ NeuroIdentity (เพิ่มเชน ย้ายลิงก์เว็บ): deployer ถือไว้แค่หนึ่งการเรียก แล้ว `setAdmin(timelock)` ในขั้นเดียวกัน; NeuroValidation ไม่มี admin รายการเชนของ ZETAPHY เองคือ `eip155:3659` |
+| `vault` | `RewardVault` (ปล่อยปีละ 10% ให้ NeuroJobs) | governance: timelock ตั้งแต่ constructor deployer ไม่ใส่เหรียญ rewards pool จะย้ายเข้ามาทีหลังด้วยคีย์ของมันเอง |
+| `pq` | `QuantumWalletFactory` | ไม่มี admin |
+| `compute` | `ComputeMarket` (ใช้ runner ของ NeuroJobs) | ไม่มี admin |
+| `dlmm` | `ZetaphyDlmmFactory` (+ `ZetaphyDlmmPairDeployer` ของมัน) และ `ZetaphyDlmmRouter` **ยังไม่ audit** | governance: timelock ตั้งแต่ constructor การส่งมอบของมันเป็นแบบสองจังหวะ (timelock ต้องกดรับเอง) จึงไม่เคยเป็นของ deployer เลย ส่วน preset, ThreatRegistry และ `feeTo` ตั้งโดย batch ของ timelock ด้านล่าง ระหว่างนี้ยังสร้างคู่เทรดไม่ได้ |
+| `nft` | `NFTFactory` + `NFTMarketplace` (ตรวจกับ ThreatRegistry) | governance ของ marketplace: timelock ตั้งแต่ constructor; factory ไม่มี admin |
+| `oracle` | `TwapRecorder`, `ZetaphyPythRelay`, `ZetaphyOracle` | governance ของ relay: timelock ตั้งแต่ constructor; oracle: deployer ตั้ง guardian multisig (หยุด feed ได้) และ Pyth feed ถ้ามี แล้ว `setGovernance(timelock)` ในขั้นเดียวกัน ยังไม่มี feed ราคาจาก DEX (ยังไม่มี pool กับ stablecoin จริง) |
+| `protect` | (ตรวจ) | code key ของ collection NFT ใน ThreatRegistry ซึ่ง timelock เป็นผู้ดูแล |
+| `proposal` | (เขียนไฟล์) | batch เดียวของ timelock สำหรับสิ่งที่ตอนนี้มีแต่ timelock ทำได้ (ด้านล่าง) |
+
+ไม่มีบน mainnet และแผนจะแสดงแต่ละตัวว่า `skipped on mainnet (…)`: `stable` (TestStable tUSDC/tUSDT กับ StableGateway), `skill`
+(อยู่ใน `neuro` แล้ว), `configs` (config ของเว็บแอป), `snap` (build ในเครื่อง), โทเคนทดสอบ, pool ที่เติมไว้, faucet, การจ่ายรางวัลขุด
+และราคาตายตัว สะพานยังเป็นแบบเดิม (ต้องมี lockbox: `bridge` ใน deploy config)
+
+1. เพิ่มใน `~/mainnet-deploy.json` (16.2): `"identity": { "web": "https://<host ของเว็บ Neuro>/web/" }` (หน้าจริง: host ตัวอย่างถูกปฏิเสธ;
+   ถ้าไม่มี `identity` ขั้นนั้นจะถูกข้าม) และถ้าต้องการ ส่วนอื่นจาก `mainnet.example.json`: `vault` (`validators` + `validatorsShare`),
+   `compute.minAgreed`, `dlmm.feeTo` (ค่าตั้งต้น: `dex.feeTo`), `nft.feeBps` / `nft.feeRecipient` (ค่าตั้งต้น 100 = 1% ให้ `communityFund`),
+   `oracle.relayers` / `relayerThreshold` / `pythZetaFeed`, `proposalDeposit` (ค่าตั้งต้น 10000 เท่ากับ `min_deposit` ของ mainnet)
+   ค่าปลอม key ที่ไม่รู้จัก และ deployer ในบทบาทใดๆ จะถูกปฏิเสธ
+2. Dry run [อ่าน]:
+
+   ```bash
+   node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json \
+     --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<ไฟล์ keystore> --resume --dry-run
+   #   ✓ guardian … ✓ timelock: done …   ✓ handover: done …; checked again on-chain
+   #   → identity … deploy NeuroIdentity(webBase=https://…/web/, …, caip2s=[eip155:3659, …], runners=<NeuroJobs 0x…>, …)
+   #   → vault … deploy RewardVault(governance=0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA, shares=[[<NeuroJobs>, 10000, true]])
+   #   → dlmm … deploy ZetaphyDlmmFactory(governance=0x9fC29E85…f9cA) …   → nft … deploy NFTMarketplace(governance=0x9fC29E85…f9cA, …)
+   #   → oracle … call ZetaphyOracle.setGuardian(0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519, true) … setGovernance(ZetaphyTimelock)  one step
+   #   - stable: skipped on mainnet (…)   - snap: skipped on mainnet (…)
+   #   total: 12 contract(s), about … call(s), … : the deployer needs <N> ZTPHY
+   ```
+
+   ตรวจว่า governance ทุกตัวคือ timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA`, guardian คือ
+   `0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519`, `runners=` คือ NeuroJobs `0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB`,
+   `threatRegistry=` คือ `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139` และไม่มีสัญญาของด่าน 8 ถูก deploy ซ้ำ
+   แล้วเติมเงินให้ deployer ตามที่มันบอก (16.4)
+3. Deploy [เปลี่ยนเชน]: คำสั่งเดิมโดยใช้ `--confirm-chain 3659` แทน `--dry-run` (`--only identity,…` เลือกรันบางขั้นได้; handover และ
+   verify ยังตรวจทุกอย่างเหมือนเดิม) ตอนจบจะขึ้น `checked on-chain: no EOA and not the deployer 0x… holds a role on any contract of this run`
+4. Batch ของ timelock [เปลี่ยนเชน]: ขั้น `proposal` ลองจำลองทุกการเรียกในนามของ timelock แล้วเขียนไฟล์ไว้ข้างไฟล์ state:
+   `3659.gov-proposal.json` (สำหรับ gov module ซึ่งเป็น proposer ของ timelock) และ `3659.timelock-batch.json` (รายการเรียก
+   operation id และ calldata ของ `scheduleBatch` กับ `executeBatch`) บน M-VAL:
+
+   ```bash
+   bash zetaphy-chain/gov.sh propose-file 3659.gov-proposal.json --from <คีย์ผู้เสนอ>   # มัดจำ 10,000 ZTPHY
+   bash zetaphy-chain/gov.sh vote <id> yes --from validator                          # โหวต 1 วัน
+   #   ผ่านแล้ว operation จะอยู่สถานะ Waiting; อีก 48 ชม. ใครก็สั่งรันได้:
+   cast send --rpc-url "$RPC" 0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA "$(jq -r .execute.data 3659.timelock-batch.json)" --keystore <คีย์ใดก็ได้ที่มีเงิน>
+   ```
+
+   ก่อน batch นี้รัน DLMM ยังไม่มี preset (ไม่มีใครสร้างคู่เทรดได้) และ code key ของ NFT ยังไม่ถูกป้องกัน (flag ที่ code ตัวเดียวอาจทำให้
+   collection จาก factory ทั้งหมดโดนตีตรา) ระหว่างนี้ไม่มีใครถือสิทธิ์นอกจาก timelock ดังนั้น `verify` ผ่าน และแสดง batch ว่า `Waiting`;
+   เมื่อรันแล้ว `--resume` รอบต่อไปจะไม่เขียน batch ใหม่
+5. ตรวจ [อ่าน]: `--check` (16.6) จะแสดง NeuroIdentity, ComputeMarket, DLMM, NFT factory, TwapRecorder และ batch ของ timelock เพิ่มด้วย
+   เผยแพร่ที่อยู่ใหม่พร้อมไฟล์ state (16.6) แล้วจึงเลิกใช้ deployer (16.7)
 
 ## 17. เพิ่ม validator [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 

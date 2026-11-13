@@ -6,11 +6,14 @@
 //     another eth_chainId is refused before anything is signed, and every transaction carries the configured id.
 //   - the key: an encrypted keystore or a remote/hardware signer (src/signer.js); no plain key in a file, the
 //     environment or argv. Everything runs in this process (no child tool gets a key file).
-//   - the contracts: only the gate-8 set, with mainnet parameters from a deploy config (mainnet.example.json):
+//   - the contracts: the gate-8 set, with mainnet parameters from a deploy config (mainnet.example.json):
 //     the guardian multisig; Neuro (NeuroControl + NeuroJobs, ThreatRegistry, ThreatReports); the Saphan bridge
 //     (BridgeGuard + BridgeAirlock + NeuroLane) deployed CLOSED; the DEX (factory + router, no test tokens, no
-//     seeded pools); ZetaphyBounty (funded); then the ZetaphyTimelock and the handover. No faucet, no test
-//     stablecoins, no StableGateway, no fixed test price, no unaudited DLMM, no web-app config writes.
+//     seeded pools); ZetaphyBounty (funded); then the ZetaphyTimelock and the handover. After the handover, the
+//     rest of the testnet's real systems (src/mainnetall.js: NeuroIdentity + NeuroValidation, RewardVault,
+//     QuantumWalletFactory, ComputeMarket, the DLMM, the NFT factory + marketplace, the oracle), each handing its
+//     roles straight to that timelock. No faucet, no test stablecoins, no StableGateway, no fixed test price, no
+//     test tokens or seeded pools, no web-app config writes, no snap build (MAINNET_EXCLUDED, printed in the plan).
 //     Neuro comes before the bridge and the DEX because both read it (NeuroLane runs on NeuroJobs; the bridge and the
 //     DEX router check the ThreatRegistry). The timelock is deployed just before the handover so its bootstrap
 //     (the deployer as its only proposer at a zero delay) lasts minutes, and the handover's audit of it stays short.
@@ -18,7 +21,7 @@
 //   - a dry run that prints every contract, its constructor arguments, every call and the expected gas and cost
 //     in the chain's coin, and sends nothing; a real run needs --confirm-chain <EVM chain id>.
 //   - the end: the handover (src/steps.js) gives every admin role to the timelock, then `verify` checks on-chain
-//     that no EOA, and not the deployer, keeps any role on any contract this run deployed.
+//     that no EOA, and not the deployer, keeps any role on any contract this run deployed (the added ones included).
 
 import { readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -26,6 +29,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Contract, ContractFactory, encodeBytes32String, formatEther, formatUnits, getAddress, isAddress, keccak256, parseEther, parseUnits, ZeroAddress } from 'ethers';
 import { outputs, assertNoSecrets } from './runner.js';
+import { later, isLater, real, ref, resolveArgs, dep, deployOne } from './plan.js';
+import { addedPlans, addedSteps, verifyAdded, MAINNET_EXCLUDED } from './mainnetall.js';
 import { launchSteps, art, NET, haveCode, signer, wait, same, bridgeOpen, BRIDGE_GATES, adminRoles, guardianRoles, ROOT, GOV_MODULE, EVM_CHAIN_ID as TESTNET_EVM_CHAIN_ID } from './steps.js';
 
 export const MAINNET_MIN_DELAY = 48 * 3600;
@@ -108,12 +113,21 @@ function addr(v, what, { gov = false } = {}) {
 const addrs = (v, what) => { if (!Array.isArray(v)) throw new Error(`deploy config ${what}: a list of 0x addresses`); const out = v.map((x, i) => addr(x, `${what}[${i}]`)); if (new Set(out).size !== out.length) throw new Error(`deploy config ${what}: an address is listed twice`); return out; };
 function int(v, what, min, max) { const n = Number(v); if (!Number.isInteger(n) || n < min || n > max) throw new Error(`deploy config ${what}: a whole number from ${min} to ${max}`); return n; }
 function coin(v, what, { zero = false } = {}) { const s = String(v ?? ''); if (!/^\d{1,12}(\.\d{1,18})?$/.test(s) || (!zero && parseEther(s) === 0n)) throw new Error(`deploy config ${what}: an amount of coins, e.g. "100"`); return s; }
+/** An https URL a contract stores (printable, no quotes or spaces, at most 200 bytes); example / test hosts are refused. */
+function httpsUrl(v, what, hint) {
+  let u;
+  try { u = new URL(String(v ?? '')); } catch { throw new Error(`deploy config ${what}: ${hint}`); }
+  if (u.protocol !== 'https:' || u.username || u.password || !/^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?(\/[A-Za-z0-9._~%\/+=&?#:@!$*,;-]*)?$/.test(String(v)) || String(v).length > 200) throw new Error(`deploy config ${what}: ${hint}`);
+  if (/(^|\.)(example(\.(com|org|net))?|invalid|test|localhost|local)$/i.test(u.hostname) || /^[\d.]+$/.test(u.hostname)) throw new Error(`deploy config ${what}: ${v} is a placeholder: put the real URL`);
+  return String(v);
+}
 function only(o, keys, what) { if (o == null || typeof o !== 'object' || Array.isArray(o)) throw new Error(`deploy config ${what}: an object`); for (const k of Object.keys(o)) if (!keys.includes(k) && k !== '_comment') throw new Error(`deploy config ${what}: unknown key "${k}" (known: ${keys.join(', ')})`); return o; }
 
 /** The mainnet's Neuro, registry, reports, bridge, DEX and bounty settings, checked. `deployer` may hold none of them. */
 export function mainnetConfig(raw, { deployer } = {}) {
   assertNoSecrets(raw, 'deploy config');
-  const c = only(raw, ['governance', 'timelockProposers', 'timelockExecutor', 'timelockDelay', 'guardian', 'guardianOwners', 'guardianThreshold', 'communityFund', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty'], '');
+  const c = only(raw, ['governance', 'timelockProposers', 'timelockExecutor', 'timelockDelay', 'guardian', 'guardianOwners', 'guardianThreshold', 'communityFund', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty',
+    'identity', 'vault', 'compute', 'dlmm', 'nft', 'oracle', 'proposalDeposit'], '');
   if (c.governance == null) throw new Error('deploy config governance: "gov" (the chain\'s gov module) or 0x<multisig>: the timelock\'s proposer');
   const out = {};
   out.governance = addr(c.governance, 'governance', { gov: true });
@@ -165,25 +179,39 @@ export function mainnetConfig(raw, { deployer } = {}) {
     out.bounty = { committee, threshold, maxPayout, periodCap, timelock: int(b.timelock ?? MAINNET_MIN_DELAY, 'bounty.timelock', MAINNET_MIN_DELAY, 365 * 86400),
       reportBond: coin(b.reportBond ?? '10', 'bounty.reportBond', { zero: true }), fund: b.fund == null ? null : coin(b.fund, 'bounty.fund') };
   } else out.bounty = null;
+  // the systems added after gate 8 (src/mainnetall.js): identity, vault, compute, dlmm, nft, oracle
+  if (c.identity != null) {
+    const i = only(c.identity, ['web', 'image', 'minAgreed', 'claimQuorum', 'claimMinAgreed', 'claimDelay'], 'identity');
+    out.identity = { web: httpsUrl(i.web, 'identity.web', 'the Neuro web page, https://<host>/web/'), image: i.image == null || i.image === '' ? '' : httpsUrl(i.image, 'identity.image', 'an https image URL'),
+      minAgreed: int(i.minAgreed ?? 1, 'identity.minAgreed', 1, 2 ** 32 - 1), claimQuorum: int(i.claimQuorum ?? 3, 'identity.claimQuorum', 1, 255),
+      claimMinAgreed: int(i.claimMinAgreed ?? 5, 'identity.claimMinAgreed', 1, 2 ** 32 - 1), claimDelay: int(i.claimDelay ?? 3 * 86400, 'identity.claimDelay', 3600, 30 * 86400) };
+  } else out.identity = null;
+  const v = only(c.vault ?? {}, ['validators', 'validatorsShare'], 'vault');
+  if (v.validators == null && v.validatorsShare != null) throw new Error('deploy config vault.validatorsShare: only with vault.validators (the address that rewards validators)');
+  out.vault = { validators: v.validators == null ? null : addr(v.validators, 'vault.validators'), validatorsShare: v.validators == null ? 0 : int(v.validatorsShare ?? 30, 'vault.validatorsShare', 1, 99) };
+  const cm = only(c.compute ?? {}, ['minAgreed'], 'compute');
+  out.compute = { minAgreed: int(cm.minAgreed ?? 1, 'compute.minAgreed', 1, 2 ** 32 - 1) };
+  const dl = only(c.dlmm ?? {}, ['feeTo'], 'dlmm');
+  out.dlmm = { feeTo: dl.feeTo == null ? out.dex.feeTo : addr(dl.feeTo, 'dlmm.feeTo') };
+  const nf = only(c.nft ?? {}, ['feeBps', 'feeRecipient'], 'nft');
+  out.nft = { feeBps: int(nf.feeBps ?? 100, 'nft.feeBps', 0, 500), feeRecipient: nf.feeRecipient == null ? out.communityFund : addr(nf.feeRecipient, 'nft.feeRecipient') };
+  const or = only(c.oracle ?? {}, ['relayers', 'relayerThreshold', 'twapMinSpacing', 'pythZetaFeed'], 'oracle');
+  const relayers = addrs(or.relayers ?? [], 'oracle.relayers');
+  const relayerThreshold = int(or.relayerThreshold ?? 1, 'oracle.relayerThreshold', 1, Math.max(1, relayers.length));
+  if (or.pythZetaFeed != null && (!/^0x[0-9a-fA-F]{64}$/.test(String(or.pythZetaFeed)) || /^0x(.)\1{63}$/i.test(String(or.pythZetaFeed)))) throw new Error('deploy config oracle.pythZetaFeed: the Pyth price feed id of ZTPHY/USD, 0x + 64 hex (not a placeholder)');
+  out.oracle = { relayers, relayerThreshold, twapMinSpacing: int(or.twapMinSpacing ?? 60, 'oracle.twapMinSpacing', 1, 3600), pythZetaFeed: or.pythZetaFeed == null ? null : String(or.pythZetaFeed).toLowerCase() };
+  out.proposalDeposit = coin(c.proposalDeposit ?? '10000', 'proposalDeposit');
+  out.proposalDepositWei = parseEther(out.proposalDeposit).toString();
   if (deployer) {
     const roles = [['governance', [out.governance]], ['timelockProposers', out.extraProposers], ['guardian', [out.guardian].filter(Boolean)], ['guardianOwners', out.guardianOwners],
-      ['communityFund', [out.communityFund]], ['bridge.markers', out.bridge?.markers ?? []], ['dex.feeTo', [out.dex.feeTo].filter(Boolean)], ['bounty.committee', out.bounty?.committee ?? []]];
+      ['communityFund', [out.communityFund]], ['bridge.markers', out.bridge?.markers ?? []], ['dex.feeTo', [out.dex.feeTo].filter(Boolean)], ['bounty.committee', out.bounty?.committee ?? []],
+      ['vault.validators', [out.vault.validators].filter(Boolean)], ['dlmm.feeTo', [out.dlmm.feeTo].filter(Boolean)], ['nft.feeRecipient', [out.nft.feeRecipient]], ['oracle.relayers', out.oracle.relayers]];
     for (const [k, list] of roles) if (list.some((a) => same(a, deployer))) throw new Error(`deploy config ${k}: the deployer ${deployer} is used once and retired; it may hold no role`);
   }
   return out;
 }
 
 // ---------- plans: every contract, its constructor arguments and every call, shared by the dry run and the run ----------
-
-/** A not-yet-deployed address in a plan: printed by name, priced with the deployer's address in its place. */
-const later = (label) => ({ later: label });
-const isLater = (v) => v && typeof v === 'object' && 'later' in v;
-const real = (v) => { if (isLater(v)) throw new Error(`${v.later} is not deployed yet`); return v; };
-const ref = (o, key, label) => o[key] ?? later(label);
-const resolveArgs = (args, stand) => args.map((a) => (isLater(a) ? stand : Array.isArray(a) ? a.map((x) => (isLater(x) ? stand : x)) : a));
-
-/** A deployment of `name` (zetaphy-network unless pkg) with `args`. */
-const dep = (key, name, args, { pkg = 'zetaphy-network', note } = {}) => ({ key, pkg, name, args, note });
 
 function mainnetPlans() {
   return {
@@ -262,6 +290,7 @@ function mainnetPlans() {
       };
     },
     verify: () => ({ deploys: [], calls: ['(checks) every role on every contract of this run: the timelock, the guardian multisig, the gov module or nobody; never an EOA or the deployer'] }),
+    ...addedPlans(),
   };
 }
 
@@ -272,15 +301,6 @@ function placeholderOutputs(ctx) {
 }
 
 // ---------- the steps ----------
-
-const deployOne = async (ctx, s, d) => {
-  const a = art(d.pkg, d.name);
-  const k = await new ContractFactory(a.abi, a.bytecode, s).deploy(...d.args.map(real));
-  await k.waitForDeployment();
-  const address = getAddress(await k.getAddress());
-  ctx.log(`  ${d.name} ${address}`);
-  return new Contract(address, a.abi, s);
-};
 
 async function isNativeErc20(provider, a) {
   const c = new Contract(a, ['function decimals() view returns (uint8)', 'function symbol() view returns (string)', 'function balanceOf(address) view returns (uint256)'], provider);
@@ -416,6 +436,8 @@ export function mainnetSteps() {
     withPlan({ ...base.wire, describe: 'check the DEX factory points at the ThreatRegistry (set it while the deployer is governance)' }),
     withPlan({ ...base.timelock, describe: 'ZetaphyTimelock (OpenZeppelin TimelockController 5.4.0), deployed just before the handover: the deployer as its only proposer at a zero delay for the handover\'s own batch' }),
     withPlan({ ...base.handover, describe: 'hand every admin role to the ZetaphyTimelock (its real proposers, delay >= 48 h), the emergency switches to the guardian, the deployer renounces; checked on-chain' }),
+    // the rest of the testnet's systems, after the handover (src/mainnetall.js): each hands its roles straight to the timelock
+    ...addedSteps(),
     withPlan({
       name: 'verify',
       always: true,
@@ -473,12 +495,18 @@ export async function verifyMainnet(ctx, state) {
     if (await a.isLane(me)) problems.push('BridgeAirlock: the deployer is a lane');
     if (await bridgeOpen(ctx, o)) problems.push('the bridge route is enabled: the launch leaves it closed');
   }
+  // a two-step role: nobody may be waiting to accept it
+  for (const r of adminRoles(o).filter((x) => x.twoStep)) {
+    const pending = await new Contract(r.address, r.abi, p).pendingGovernance();
+    if (!same(pending, ZeroAddress)) problems.push(`${r.label} ${r.address}: ${pending} is pending as its governance`);
+  }
   if (o.dex && same(await C(o.dex.contracts.factory, 'ZetaphyFactory', 'zetaphy-dex').feeTo(), me)) problems.push('DEX factory: feeTo is the deployer');
   if (o.zetaphyBounty) {
     const b = C(o.zetaphyBounty, 'ZetaphyBounty');
     if (await b.isMember(me)) problems.push('ZetaphyBounty: the deployer is a committee member');
     lines.push(`${'ZetaphyBounty'.padEnd(18)} ${o.zetaphyBounty}  no admin; committee ${(await b.members()).length}, holds ${formatEther(await p.getBalance(o.zetaphyBounty))} ${ctx.symbol}`);
   }
+  await verifyAdded(ctx, o, problems, lines);
   if (problems.length) throw new Error(`the mainnet check failed:\n  - ${problems.join('\n  - ')}`);
   for (const l of lines) ctx.log(`  ${l}`);
   ctx.log(`  checked on-chain: no EOA and not the deployer ${me} holds a role on any contract of this run; the bridge is closed`);
@@ -512,6 +540,8 @@ export async function mainnetPlan(ctx, state, steps) {
     const ok = st.when ? st.when(ctx, state) : true;
     if (ok !== true) { lines.push(`- ${st.name}: skipped (${ok})`); continue; }
     if (state.steps[st.name]?.doneAt && !st.always) { lines.push(`✓ ${st.name}: done ${state.steps[st.name].doneAt}`); continue; }
+    // a finished step that runs every time (the handover, wire, verify, protect, proposal): checks again, sends nothing new
+    if (state.steps[st.name]?.doneAt) { lines.push(`✓ ${st.name}: done ${state.steps[st.name].doneAt}; checked again on-chain`); continue; }
     todo.push(st.name);
     const p = st.plan(ctx, o);
     lines.push(`→ ${st.name}: ${st.describe}${p.note ? ` (${p.note})` : ''}`);
@@ -528,6 +558,7 @@ export async function mainnetPlan(ctx, state, steps) {
     gas += 150000n * BigInt(nCalls); calls += nCalls;
     if (p.value) { value += p.value; lines.push(`    puts ${formatEther(p.value)} ${ctx.symbol} into the contract`); }
   }
+  for (const [name, why] of MAINNET_EXCLUDED) lines.push(`- ${name}: skipped on mainnet (${why})`);
   const need = (gas * price * 3n) / 2n + value;
   const coin = (wei) => `${Number(formatEther(wei)).toLocaleString('en-US', { maximumFractionDigits: 6 })} ${ctx.symbol}`;
   lines.push(`total: ${contracts} contract(s), about ${calls} call(s), ~${gas.toLocaleString('en-US')} gas at ${formatUnits(price, 'gwei')} gwei = ${coin(gas * price)}; `

@@ -31,5 +31,12 @@
     "timelock": 172800,
     "reportBond": "10",
     "fund": "1000"
-  }
+  },
+  "identity": { "_comment": "NeuroIdentity + NeuroValidation (ERC-8004). web: the Neuro web page, https://<host>/web/ (example hosts are refused). Without this section the identity step is skipped.", "web": "https://neuro.example/web/", "image": "", "minAgreed": 1, "claimQuorum": 3, "claimMinAgreed": 5, "claimDelay": 259200 },
+  "vault": { "_comment": "RewardVault: 100% to NeuroJobs, or validatorsShare % (1-99) to validators (an address that rewards validators). Governance: the timelock. The deployer puts no coins in it." },
+  "compute": { "minAgreed": 1 },
+  "dlmm": { "_comment": "The DLMM (UNAUDITED): governance is the timelock from its first block; its presets, ThreatRegistry and feeTo are set by the timelock batch the launch writes (proposal step). feeTo: null = the same as dex.feeTo.", "feeTo": null },
+  "nft": { "_comment": "NFT marketplace fee, 0-500 bps; feeRecipient: null = communityFund. Governance: the timelock.", "feeBps": 100, "feeRecipient": null },
+  "oracle": { "_comment": "ZetaphyPythRelay relayers (keys that push Pyth prices; none = governance names them later) and threshold; pythZetaFeed: the Pyth ZTPHY/USD feed id, or null (no feed yet).", "relayers": [], "relayerThreshold": 1, "twapMinSpacing": 60, "pythZetaFeed": null },
+  "proposalDeposit": "10000"
 }

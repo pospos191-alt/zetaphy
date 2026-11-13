@@ -272,8 +272,12 @@ the guardian multisig; Neuro (`NeuroControl` + `NeuroJobs`, `ThreatRegistry`, `T
 ZETAPHY (`BridgeGuard` + `BridgeAirlock` + `NeuroLane`) **closed**; the DEX (factory + router, no test tokens, no
 seeded pools); `ZetaphyBounty` (funded, no admin key); then `ZetaphyTimelock` and the handover. Neuro comes before the
 bridge and the DEX because both read it; the timelock comes last so that its bootstrap (the deployer as its only
-proposer at a zero delay, for the handover's own batch) lasts minutes. Nothing testnet-only exists in this mode: no
-faucet, no test stablecoins or StableGateway, no fixed price, no unaudited DLMM, no NFT market, no web-app configs.
+proposer at a zero delay, for the handover's own batch) lasts minutes. After the handover, the same tool adds the rest
+of the testnet's real systems (16.9): `NeuroIdentity` + `NeuroValidation`, `RewardVault`, `QuantumWalletFactory`,
+`ComputeMarket`, the DLMM (unaudited), the NFT factory and marketplace, and the oracle (`TwapRecorder`,
+`ZetaphyPythRelay`, `ZetaphyOracle`), each handing its roles straight to the timelock. Nothing testnet-only exists in this
+mode, and the plan lists each such step as `skipped on mainnet` with its reason: no faucet, no test stablecoins or
+StableGateway, no fixed price, no test tokens or seeded pools, no web-app configs, no snap build.
 
 What the launch enforces on mainnet:
 
@@ -315,8 +319,11 @@ cp zetaphy-launch/mainnet.example.json ~/mainnet-deploy.json
 
 Fill it in: `governance` `"gov"`; `guardianOwners` (3 different people, hardware wallets; or `guardian` = an existing
 multisig); `communityFund` (the community pool's address, 0x form of its zetaphy1…: `zetaphyd debug addr <zetaphy1…>`);
-`bridge.lockbox` (`<source chain id>:0x<lockbox>`; drop `bridge` to deploy no bridge yet); `bounty.committee`.
-The file holds public values only. Every address in the example is a placeholder and is refused.
+`bridge.lockbox` (`<source chain id>:0x<lockbox>`; drop `bridge` to deploy no bridge yet); `bounty.committee`;
+`identity.web` (the Neuro web page, `https://<host>/web/`; drop `identity` to skip NeuroIdentity). The other sections of
+16.9 (`vault`, `compute`, `dlmm`, `nft`, `oracle`, `proposalDeposit`) may stay as in the example (their defaults).
+The file holds public values only. Every address in the example is a placeholder and is refused, and so is an example
+host (`neuro.example`, `*.invalid`, `*.test`, `localhost`) or a bare IP in a URL.
 
 ### 16.3 The dry run [อ่าน]
 
@@ -328,14 +335,15 @@ node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json 
   --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<keystore file> --dry-run
 #   ZETAPHY mainnet zetaphy_3659-1 (EVM chain 3659, genesis sha256 <the published one>)
 #   the plan: every "deploy <Contract>(<argument>=<value>, …)" with its gas, every call, then
-#   total: 12 contract(s), about 46 call(s), ~40,000,000 gas … : the deployer needs <N> ZTPHY
+#   total: <C> contract(s), about <M> call(s), ~<G> gas … : the deployer needs <N> ZTPHY
 #   dry run: nothing signed, nothing sent, no state written
 ```
 
 On a machine with the pinned node, `--pin /etc/zetaphy/pinned-chain.env --genesis ~/.zetaphy/config/genesis.json`
 may be given too (all sources must agree). Check each constructor argument against the deploy config, the delay
-(`delay 172800 s`), `enabled = false  CLOSED` on the bridge route, and that no `Test`, `StableGateway`, `Dlmm` or
-faucet appears. Stop if anything differs.
+(`delay 172800 s`), `enabled = false  CLOSED` on the bridge route, and that no `deploy Test…(`, `deploy StableGateway(`
+or faucet appears (the testnet-only steps show as `- stable: skipped on mainnet (…)` and the like). Stop if anything
+differs.
 
 ### 16.4 Fund the deployer [เปลี่ยนเชน]
 
@@ -400,10 +408,76 @@ bash zetaphy-chain/gov.sh broadcast signed.json                                 
 bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <proposer>           # [เปลี่ยนเชน] once one is deployed (below)
 ```
 
-Not covered by the launch's mainnet set (open): the `InvariantFirewall` (it needs the SS1 audit contracts,
-docs/CHAIN-FIREWALL.md), RewardVault for the rewards pool, the oracle (it needs a DEX pool with a real stablecoin),
-NeuroIdentity, QuantumWalletFactory, ComputeMarket, the NFT market and the DLMM. Each needs its own reviewed mainnet
-step before it is deployed; do not run the testnet launch's steps against the mainnet (it refuses this chain anyway).
+Not covered by the launch's mainnet steps (open): the `InvariantFirewall` (it needs the SS1 audit contracts,
+docs/CHAIN-FIREWALL.md). Do not run the testnet launch's steps against the mainnet (it refuses this chain anyway).
+
+### 16.9 The rest of the systems, on the running mainnet [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+Everything the testnet has that is real (not a test fixture) is added to the live mainnet by the same tool, with the
+same state file (`zetaphy-launch/state/3659.json`) and the same deployer keystore or hardware wallet (refund it as in
+16.4 first; 16.7 comes after this step), as a `--resume`. The gate-8 set and its handover stay as they are: the
+handover step only checks itself again (it sends nothing), then these steps run:
+
+| step | contracts | who holds what |
+|---|---|---|
+| `identity` | `NeuroIdentity` + `NeuroValidation` (ERC-8004) | NeuroIdentity's admin (add a chain, move the web link): the deployer for one call, then `setAdmin(timelock)` in the same step; NeuroValidation has no admin. ZETAPHY's own chain entry is `eip155:3659` |
+| `vault` | `RewardVault` (10% a year to NeuroJobs) | governance: the timelock in the constructor. The deployer puts no coins in it: the rewards pool is moved in later by its own keys |
+| `pq` | `QuantumWalletFactory` | no admin |
+| `compute` | `ComputeMarket` (on NeuroJobs' runners) | no admin |
+| `dlmm` | `ZetaphyDlmmFactory` (+ its `ZetaphyDlmmPairDeployer`) and `ZetaphyDlmmRouter`, **unaudited** | governance: the timelock in the constructor. Its handover would be two-step (the timelock would have to accept), so it never belongs to the deployer; its presets, ThreatRegistry and `feeTo` are set by the timelock batch below. Until then no pair can be made |
+| `nft` | `NFTFactory` + `NFTMarketplace` (checks the ThreatRegistry) | marketplace governance: the timelock in the constructor; the factory has no admin |
+| `oracle` | `TwapRecorder`, `ZetaphyPythRelay`, `ZetaphyOracle` | relay governance: the timelock in the constructor; the oracle: the deployer sets the guardian multisig (it may pause a feed) and an optional Pyth feed, then `setGovernance(timelock)` in the same step. No DEX-priced feed yet (no pool with a real stablecoin) |
+| `protect` | (checks) | the NFT collections' code keys in the ThreatRegistry, which the timelock governs |
+| `proposal` | (writes) | ONE timelock batch for what only the timelock can do now (below) |
+
+Not on mainnet, each listed as `skipped on mainnet (…)` in the plan: `stable` (TestStable tUSDC/tUSDT and the
+StableGateway), `skill` (inside `neuro`), `configs` (web-app configs), `snap` (a local build), test tokens, seeded pools,
+faucet, mining payouts and fixed prices. The bridge stays as it is (it needs a lockbox: `bridge` in the deploy config).
+
+1. Add to `~/mainnet-deploy.json` (16.2): `"identity": { "web": "https://<Neuro web host>/web/" }` (the real page:
+   example hosts are refused; without `identity` that step is skipped), and, if wanted, the other sections of
+   `mainnet.example.json`: `vault` (`validators` + `validatorsShare`), `compute.minAgreed`, `dlmm.feeTo` (default:
+   `dex.feeTo`), `nft.feeBps` / `nft.feeRecipient` (default 100 = 1% to `communityFund`), `oracle.relayers` /
+   `relayerThreshold` / `pythZetaFeed`, `proposalDeposit` (default 10000, the mainnet `min_deposit`). Placeholders,
+   unknown keys and the deployer in any role are refused.
+2. The dry run [อ่าน]:
+
+   ```bash
+   node zetaphy-launch/launch.js --network mainnet --rpc "$RPC" --chain chain.json \
+     --deploy-config ~/mainnet-deploy.json --keystore ~/zetaphy-deployer/<keystore file> --resume --dry-run
+   #   ✓ guardian … ✓ timelock: done …   ✓ handover: done …; checked again on-chain
+   #   → identity … deploy NeuroIdentity(webBase=https://…/web/, …, caip2s=[eip155:3659, …], runners=<NeuroJobs 0x…>, …)
+   #   → vault … deploy RewardVault(governance=0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA, shares=[[<NeuroJobs>, 10000, true]])
+   #   → dlmm … deploy ZetaphyDlmmFactory(governance=0x9fC29E85…f9cA) …   → nft … deploy NFTMarketplace(governance=0x9fC29E85…f9cA, …)
+   #   → oracle … call ZetaphyOracle.setGuardian(0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519, true) … setGovernance(ZetaphyTimelock)  one step
+   #   - stable: skipped on mainnet (…)   - snap: skipped on mainnet (…)
+   #   total: 12 contract(s), about … call(s), … : the deployer needs <N> ZTPHY
+   ```
+
+   Check that every governance argument is the timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA`, the guardian is
+   `0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519`, `runners=` is NeuroJobs `0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB`,
+   `threatRegistry=` is `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139`, and that no gate-8 contract is deployed again.
+   Fund the deployer with what it says (16.4).
+3. Deploy [เปลี่ยนเชน]: the same command with `--confirm-chain 3659` instead of `--dry-run` (`--only identity,…` runs
+   some of the steps; the handover and verify still check everything). It ends with
+   `checked on-chain: no EOA and not the deployer 0x… holds a role on any contract of this run`.
+4. The timelock batch [เปลี่ยนเชน]: the `proposal` step simulates each call as the timelock and writes, next to the
+   state file, `3659.gov-proposal.json` (for the gov module, the timelock's proposer) and `3659.timelock-batch.json`
+   (the calls, the operation id, the `scheduleBatch` and `executeBatch` calldata). On M-VAL:
+
+   ```bash
+   bash zetaphy-chain/gov.sh propose-file 3659.gov-proposal.json --from <proposer key>   # deposit 10,000 ZTPHY
+   bash zetaphy-chain/gov.sh vote <id> yes --from validator                             # 1 day of voting
+   #   passed: the operation is Waiting; 48 h later anyone runs it:
+   cast send --rpc-url "$RPC" 0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA "$(jq -r .execute.data 3659.timelock-batch.json)" --keystore <any funded key>
+   ```
+
+   Until it runs the DLMM has no preset (nobody can create a pair) and the NFT code keys are unprotected (a code flag
+   could mark every factory collection). No role is held by anyone but the timelock meanwhile, so `verify` passes and
+   prints the batch as `Waiting`; once it ran, a `--resume` writes no new batch.
+5. Check [อ่าน]: `--check` (16.6) now also lists NeuroIdentity, ComputeMarket, the DLMM, the NFT factory, the
+   TwapRecorder and the timelock batch. Publish the new addresses with the state file (16.6), then retire the deployer
+   (16.7).
 
 ## 17. Adding validators [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
