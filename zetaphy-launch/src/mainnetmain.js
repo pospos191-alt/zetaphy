@@ -7,6 +7,7 @@ import { JsonRpcProvider, getAddress } from 'ethers';
 import { loadState, saveState, newState, runSteps, outputs } from './runner.js';
 import { GOV_MODULE } from './steps.js';
 import { loadChain, mainnetConfig, mainnetSteps, mainnetPlan, dexWnative, verifyMainnet } from './mainnet.js';
+import { dlmmPresets, addedAddressLines } from './mainnetall.js';
 import { readKeystore, readPassphrase, keystoreSigner, RemoteSigner, checkSignerUrl } from './signer.js';
 
 const HERE = fileURLToPath(new URL('..', import.meta.url));
@@ -100,6 +101,7 @@ export async function mainnetMain(opt, env = process.env, log = console.log, { s
       network: 'mainnet', rpc, publicRpc: rpc, provider, address, log, evmChainId: chain.evmChainId, cosmosChainId: chain.chainId, symbol: chain.symbol, mainnet: cfg,
       governance: cfg.governance, handover: true, devnet: false, timelockDelay: cfg.timelockDelay, guardian: cfg.guardian, guardianOwners: cfg.guardianOwners,
       guardianThreshold: cfg.guardianThreshold, extraProposers: cfg.extraProposers, executorMode: cfg.executorMode, communityFund: cfg.communityFund,
+      stateFile,
     };
     if (opt.check) {
       // read only: the on-chain check of a finished run (no key, nothing signed)
@@ -108,6 +110,7 @@ export async function mainnetMain(opt, env = process.env, log = console.log, { s
       return 0;
     }
     ctx.dexWnative = outputs(state).dex?.contracts?.wnative ?? await dexWnative(provider);
+    await dlmmPresets(ctx); // zetaphy-dex/dlmm-cli.js DEFAULT_PRESETS, for the plan and the proposal
     const steps = mainnetSteps();
     const only = opt.only ? String(opt.only).split(',').map((s) => s.trim()).filter(Boolean) : null;
     for (const n of only ?? []) if (!steps.some((s) => s.name === n)) throw new Error(`--only ${n}: no such mainnet step (steps: ${steps.map((s) => s.name).join(', ')})`);
@@ -150,6 +153,8 @@ export async function mainnetMain(opt, env = process.env, log = console.log, { s
     log('\naddresses:');
     for (const [k, v] of Object.entries(o)) if (typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v)) log(`  ${k.padEnd(22)} ${v}`);
     if (o.dex) log(`  ${'DEX factory/router'.padEnd(22)} ${o.dex.contracts.factory} / ${o.dex.contracts.router}`);
+    for (const [k, v] of addedAddressLines(o)) log(`  ${k.padEnd(22)} ${v}`);
+    if (o.governanceProposal?.operationId) log(`\ntimelock batch ${o.governanceProposal.operationId} (${o.governanceProposal.state}): ${o.governanceProposal.calls.length} call(s) only the timelock can make; files: ${(o.governanceProposal.files ?? []).join(', ')}`);
     log(`\nstate written to ${stateFile} (addresses only, no key)`);
     return 0;
   } finally {

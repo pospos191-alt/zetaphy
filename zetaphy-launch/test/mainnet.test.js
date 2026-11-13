@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
@@ -12,7 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Wallet, Transaction, parseUnits } from 'ethers';
 import { main } from '../launch.js';
-import { loadChain, readPin, mainnetConfig, mainnetSteps, MAINNET_MIN_DELAY } from '../src/mainnet.js';
+import { loadChain, readPin, mainnetConfig, mainnetSteps, mainnetPlan, MAINNET_MIN_DELAY } from '../src/mainnet.js';
+import { MAINNET_EXCLUDED, ADDED_STEPS, identityChains } from '../src/mainnetall.js';
 import { readKeystore, readPassphrase, keystoreSigner, RemoteSigner, checkSigned, checkSignerUrl } from '../src/signer.js';
 import { GOV_MODULE } from '../src/steps.js';
 
@@ -98,15 +99,155 @@ test('the deploy config: defaults, 48 h at least, placeholders, typos, secrets a
   bad({ timelockExecutor: 'me' }, /timelockExecutor/);
 });
 
-test('the mainnet steps: the gate-8 set only, no testnet-only contract, the handover then a check last', () => {
+test('the deploy config of the added systems: defaults, placeholders, bounds and the deployer in a role refused', () => {
+  const me = W();
+  const c = mainnetConfig(goodConfig(), { deployer: me });
+  assert.equal(c.identity, null, 'no identity section: the identity step is skipped');
+  assert.deepEqual(c.vault, { validators: null, validatorsShare: 0 });
+  assert.deepEqual(c.compute, { minAgreed: 1 });
+  assert.equal(c.nft.feeBps, 100);
+  assert.equal(c.nft.feeRecipient, c.communityFund);
+  assert.equal(c.dlmm.feeTo, null);
+  assert.deepEqual(c.oracle, { relayers: [], relayerThreshold: 1, twapMinSpacing: 60, pythZetaFeed: null });
+  assert.equal(c.proposalDeposit, '10000');
+  assert.equal(c.proposalDepositWei, '10000000000000000000000');
+  const i = mainnetConfig(goodConfig({ identity: { web: 'https://neuro.zetaphy.org/web/' } }), { deployer: me }).identity;
+  assert.deepEqual(i, { web: 'https://neuro.zetaphy.org/web/', image: '', minAgreed: 1, claimQuorum: 3, claimMinAgreed: 5, claimDelay: 259200 });
+  const feeTo = W();
+  assert.equal(mainnetConfig(goodConfig({ dex: { feeTo } })).dlmm.feeTo, feeTo, 'the DLMM fee follows the DEX one by default');
+  const bad = (patch, re) => assert.throws(() => mainnetConfig({ ...goodConfig(), ...patch }, { deployer: me }), re);
+  bad({ identity: {} }, /identity.web: the Neuro web page/);
+  bad({ identity: { web: 'https://neuro.example/web/' } }, /identity.web: .* is a placeholder/);
+  bad({ identity: { web: 'https://neuro.example.org/web/' } }, /is a placeholder/);
+  bad({ identity: { web: 'http://neuro.zetaphy.org/web/' } }, /identity.web: the Neuro web page/);
+  bad({ identity: { web: 'https://neuro.zetaphy.org/web/', image: 'https://x.invalid/a.png' } }, /identity.image: .* is a placeholder/);
+  bad({ identity: { web: 'https://neuro.zetaphy.org/web/', claimDelay: 60 } }, /identity.claimDelay: a whole number from 3600/);
+  bad({ identity: { web: 'https://neuro.zetaphy.org/web/', webb: 1 } }, /unknown key "webb"/);
+  bad({ vault: { validatorsShare: 30 } }, /vault.validatorsShare: only with vault.validators/);
+  bad({ vault: { validators: W(), validatorsShare: 100 } }, /vault.validatorsShare: a whole number from 1 to 99/);
+  bad({ vault: { validators: '0x2222222222222222222222222222222222222222' } }, /vault.validators: .* is a placeholder/);
+  bad({ vault: { validators: me } }, /vault.validators: the deployer/);
+  bad({ compute: { minAgreed: 0 } }, /compute.minAgreed: a whole number from 1/);
+  bad({ dlmm: { feeTo: me } }, /dlmm.feeTo: the deployer/);
+  bad({ nft: { feeBps: 600 } }, /nft.feeBps: a whole number from 0 to 500/);
+  bad({ nft: { feeRecipient: me } }, /nft.feeRecipient: the deployer/);
+  bad({ oracle: { relayers: [me] } }, /oracle.relayers: the deployer/);
+  bad({ oracle: { relayers: [W()], relayerThreshold: 2 } }, /oracle.relayerThreshold: a whole number from 1 to 1/);
+  bad({ oracle: { pythZetaFeed: '0x' + 'f'.repeat(64) } }, /oracle.pythZetaFeed: .*not a placeholder/);
+  bad({ oracle: { pythZetaFeed: '0x1234' } }, /oracle.pythZetaFeed/);
+  bad({ proposalDeposit: 'lots' }, /proposalDeposit: an amount of coins/);
+  bad({ stable: { reserve: '100' } }, /unknown key "stable"/);
+});
+
+test('mainnet.example.json: every key is known; its placeholders (addresses, the Neuro web host) are refused until replaced', () => {
+  const ex = JSON.parse(readFileSync(new URL('../mainnet.example.json', import.meta.url), 'utf8'));
+  assert.throws(() => mainnetConfig(ex), /placeholder/);
+  // with real values in place of the placeholders it is accepted as it stands, every added section included
+  const real = JSON.parse(JSON.stringify(ex).replace(/0x(\d)\1{39}/g, () => W()).replace('https://neuro.example/web/', 'https://neuro.zetaphy.org/web/'));
+  const c = mainnetConfig(real);
+  assert.equal(c.identity.web, 'https://neuro.zetaphy.org/web/');
+  assert.equal(c.nft.feeBps, 100);
+  assert.equal(c.proposalDeposit, '10000');
+  const noWeb = JSON.parse(JSON.stringify(real));
+  noWeb.identity.web = ex.identity.web;
+  assert.throws(() => mainnetConfig(noWeb), /identity.web: https:\/\/neuro.example\/web\/ is a placeholder/);
+});
+
+test('the mainnet steps: the gate-8 set, the handover, then the rest of the testnet\'s systems, a check last; no testnet-only contract', () => {
   const names = mainnetSteps().map((s) => s.name);
-  assert.deepEqual(names, ['guardian', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty', 'wire', 'timelock', 'handover', 'verify']);
-  for (const t of ['stable', 'dlmm', 'nft', 'oracle', 'configs', 'snap', 'pq', 'compute', 'identity', 'vault']) assert.ok(!names.includes(t), t);
-  const ctx = { address: W(), symbol: 'ZTPHY', mainnet: mainnetConfig(goodConfig()), guardianOwners: [W(), W()], guardianThreshold: 2, governance: GOV_MODULE, timelockDelay: MAINNET_MIN_DELAY, dexWnative: 'deploy' };
+  assert.deepEqual(names, ['guardian', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty', 'wire', 'timelock', 'handover',
+    'identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', 'verify']);
+  // the testnet-only steps do not exist on mainnet: each is listed in the plan as skipped, with its reason
+  for (const t of ['stable', 'configs', 'snap', 'skill']) {
+    assert.ok(!names.includes(t), t);
+    assert.ok(MAINNET_EXCLUDED.some(([n, why]) => n === t && why.length > 10), `${t} has a "skipped on mainnet" reason`);
+  }
+  // the added steps come after the handover (the deployer has no timelock role left by then)
+  for (const t of ADDED_STEPS) assert.ok(names.indexOf(t) > names.indexOf('handover') && names.indexOf(t) < names.indexOf('verify'), t);
+  const me = W();
+  const ctx = { address: me, symbol: 'ZTPHY', evmChainId: 3659n, mainnet: mainnetConfig(goodConfig({ identity: { web: 'https://neuro.zetaphy.org/web/' } })), guardianOwners: [W(), W()], guardianThreshold: 2, governance: GOV_MODULE, timelockDelay: MAINNET_MIN_DELAY, dexWnative: 'deploy' };
   const all = mainnetSteps().flatMap((s) => s.plan(ctx, {}).deploys.map((d) => d.name));
-  assert.deepEqual(all, ['SimpleMultisig', 'NeuroControl', 'NeuroJobs', 'ThreatRegistry', 'ThreatReports', 'BridgeGuard', 'BridgeAirlock', 'NeuroLane', 'WZETAPHY', 'ZetaphyFactory', 'ZetaphyRouter', 'ZetaphyBounty', 'ZetaphyTimelock']);
+  assert.deepEqual(all, ['SimpleMultisig', 'NeuroControl', 'NeuroJobs', 'ThreatRegistry', 'ThreatReports', 'BridgeGuard', 'BridgeAirlock', 'NeuroLane', 'WZETAPHY', 'ZetaphyFactory', 'ZetaphyRouter', 'ZetaphyBounty', 'ZetaphyTimelock',
+    'NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']);
+  for (const n of all) assert.doesNotMatch(n, /Test|StableGateway|Faucet/i, n);
   const bridge = mainnetSteps().find((s) => s.name === 'bridge').plan(ctx, {});
   assert.ok(bridge.calls.some((c) => /enabled = false\)  CLOSED/.test(c)));
+});
+
+test('the added systems: every admin is the existing timelock (in the constructor, or one step in the same step); never the deployer', () => {
+  const me = W(), timelock = W(), jobs = W(), reg = W(), guardian = W();
+  const o = { timelock, neuroJobs: jobs, threatRegistry: reg, guardianMultisig: guardian, dex: { contracts: { wnative: W() } } };
+  const ctx = { address: me, symbol: 'ZTPHY', evmChainId: 3659n, dexWnative: o.dex.contracts.wnative,
+    mainnet: mainnetConfig(goodConfig({ identity: { web: 'https://neuro.zetaphy.org/web/' }, vault: { validators: W(), validatorsShare: 20 }, oracle: { relayers: [W(), W()], relayerThreshold: 2 } })) };
+  const steps = Object.fromEntries(mainnetSteps().map((s) => [s.name, s]));
+  const plan = (n) => steps[n].plan(ctx, o);
+  const arg = (n, contract, i) => plan(n).deploys.find((d) => d.name === contract).args[i];
+  // the constructor takes the admin: the timelock from the first block
+  assert.equal(arg('vault', 'RewardVault', 0), timelock);
+  assert.deepEqual(arg('vault', 'RewardVault', 1), [[jobs, 8000, true], [ctx.mainnet.vault.validators, 2000, false]]);
+  assert.equal(arg('dlmm', 'ZetaphyDlmmFactory', 0), timelock);
+  assert.equal(arg('dlmm', 'ZetaphyDlmmRouter', 1), o.dex.contracts.wnative);
+  assert.equal(arg('nft', 'NFTMarketplace', 0), timelock);
+  assert.equal(arg('nft', 'NFTMarketplace', 1), ctx.mainnet.communityFund, 'the fee goes to the community fund by default');
+  assert.equal(arg('nft', 'NFTMarketplace', 3), reg);
+  assert.equal(arg('oracle', 'ZetaphyPythRelay', 0), timelock);
+  assert.deepEqual(arg('oracle', 'ZetaphyPythRelay', 1), ctx.mainnet.oracle.relayers);
+  // the deployer configures first, then the one-step transfer in the same step
+  assert.equal(arg('oracle', 'ZetaphyOracle', 0), me);
+  assert.match(plan('oracle').calls[0], new RegExp(`setGuardian\\(${guardian}, true\\)`));
+  assert.match(plan('oracle').calls.at(-1), /ZetaphyOracle\.setGovernance\(ZetaphyTimelock\)  one step/);
+  assert.match(plan('identity').calls.at(-1), /NeuroIdentity\.setAdmin\(ZetaphyTimelock\)  one step/);
+  // runner bars and the chain list: ZETAPHY's own entry is this chain, never the testnet's
+  assert.equal(arg('identity', 'NeuroIdentity', 5), jobs);
+  assert.ok(arg('identity', 'NeuroIdentity', 3).includes('eip155:3659'));
+  assert.ok(!arg('identity', 'NeuroIdentity', 3).includes('eip155:77390'));
+  const [keys, caip2s] = identityChains(3659n);
+  assert.equal(caip2s[keys.indexOf('zetaphy')], 'eip155:3659');
+  assert.equal(arg('identity', 'NeuroValidation', 1), jobs);
+  assert.equal(arg('compute', 'ComputeMarket', 0), jobs);
+  // nothing in any added plan names the deployer in a constructor, except the oracle for its configuring calls
+  const json = (v) => JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? String(x) : x));
+  for (const n of ADDED_STEPS) for (const d of plan(n).deploys) if (d.name !== 'ZetaphyOracle') assert.ok(!json(d.args).includes(me), `${d.name}: no deployer in its arguments`);
+  // the DLMM set-up and the NFT code keys need the timelock itself: the proposal step, not the deployer
+  assert.match(plan('dlmm').calls[0], /^\(proposal\)/);
+  assert.match(plan('nft').calls[0], /^\(proposal\) ThreatRegistry\.setProtected/);
+  // no identity section: the step is skipped with its reason
+  const plain = { ...ctx, mainnet: mainnetConfig(goodConfig()) };
+  assert.match(steps.identity.when(plain, { steps: {} }), /no "identity" in the deploy config/);
+});
+
+test('an added step refuses to run before the handover (the timelock it hands its roles to)', async () => {
+  const ctx = { address: W(), evmChainId: 3659n, mainnet: mainnetConfig(goodConfig({ identity: { web: 'https://neuro.zetaphy.org/web/' } })), log: () => {} };
+  const state = { steps: { neuro: { doneAt: 'x', out: { neuroJobs: W() } } } };
+  for (const n of ['identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle']) {
+    await assert.rejects(mainnetSteps().find((s) => s.name === n).run(ctx, state), /the handover has not run yet/, n);
+  }
+  await assert.rejects(mainnetSteps().find((s) => s.name === 'proposal').run(ctx, state), /the handover has not run yet/);
+});
+
+test('the plan of a resume after the gate-8 set: only the added steps, their contracts, the skipped testnet-only steps', async () => {
+  const me = W();
+  const provider = { getFeeData: async () => ({ gasPrice: 10n ** 9n }), estimateGas: async () => { throw new Error('no chain here'); } };
+  const ctx = { address: me, symbol: 'ZTPHY', evmChainId: 3659n, provider, dexWnative: W(), dlmmPresets: { 1: [1, 50, 2000, 30, 600, 5000, 100000, true] },
+    mainnet: mainnetConfig(goodConfig({ bridge: undefined, identity: { web: 'https://neuro.zetaphy.org/web/' } })), governance: GOV_MODULE, timelockDelay: MAINNET_MIN_DELAY,
+    handover: true, guardianOwners: [W(), W()], guardianThreshold: 2 };
+  const done = (out) => ({ doneAt: '2026-11-13T00:00:00Z', ...(out ? { out } : {}) });
+  const state = { steps: { guardian: done({ guardianMultisig: W() }), neuro: done({ neuroControl: W(), neuroJobs: W() }), threats: done({ threatRegistry: W() }), reports: done({ threatReports: W() }),
+    dex: done({ dex: { contracts: { factory: W(), router: W(), wnative: ctx.dexWnative } } }), bounty: done({ zetaphyBounty: W() }), wire: done(), timelock: done({ timelock: W() }), handover: done(), verify: done() } };
+  const plan = await mainnetPlan(ctx, state, mainnetSteps());
+  const text = plan.lines.join('\n');
+  assert.deepEqual(plan.todo, ['identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal']);
+  for (const c of ['NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']) {
+    assert.match(text, new RegExp(`deploy ${c}\\(`), c);
+  }
+  for (const c of ['SimpleMultisig', 'NeuroControl', 'ZetaphyTimelock', 'ZetaphyBounty']) assert.doesNotMatch(text, new RegExp(`deploy ${c}\\(`), `${c} is not deployed again`);
+  assert.doesNotMatch(text, /deploy (TestStable|StableGateway|TestToken|WZETAPHY)/);
+  assert.match(text, new RegExp(`deploy RewardVault\\(governance=${state.steps.timelock.out.timelock}, shares=\\[\\[${state.steps.neuro.out.neuroJobs}, 10000, true\\]\\]\\)`));
+  assert.match(text, /✓ handover: done .*; checked again on-chain/);
+  assert.match(text, /- stable: skipped on mainnet \(test USDC\/USDT/);
+  assert.match(text, /- snap: skipped on mainnet/);
+  assert.match(text, /- bridge: skipped \(no "bridge" in the deploy config/);
+  assert.match(text, /total: 12 contract\(s\)/);
 });
 
 // ---------- options and environment ----------
