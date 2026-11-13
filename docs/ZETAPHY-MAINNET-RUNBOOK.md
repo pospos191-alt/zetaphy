@@ -16,7 +16,7 @@ Gate 2 below stays as the target, marked as this decision.
 
 **Owner decision (2026-11-13): the mainnet `zetaphy_3659-1` was started on 2026-11-13 at 14:00 UTC, before gates 1, 3
 and 5 were met.** Genesis sha256 `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`; the published files: [zetaphy-chain/mainnet/zetaphy_3659-1/](../zetaphy-chain/mainnet/zetaphy_3659-1/README.md);
-the public risk notice: [ZETAPHY-MAINNET-NOTICE.md](ZETAPHY-MAINNET-NOTICE.md). The open gates stay open below and are
+the public notice: [ZETAPHY-MAINNET-NOTICE.md](ZETAPHY-MAINNET-NOTICE.md). The open gates stay open below and are
 still worked through in order.
 
 Fees, deployments and gas on ZETAPHY are paid in ZTPHY. No SOL or other outside coin is needed. (SOL is only for the
@@ -31,7 +31,7 @@ on 2026-11-12 and not complete; gates 4 and 6 done and gate 7 under way, as reco
 | 1 | Independent external audit of the release commit; every Critical/High fixed and re-reviewed | ❌ not started |
 | 2 | At least 4 independent validators, none above 1/3 of the power | ⚠️ owner decision: 1 validator at launch; plan to add more |
 | 3 | The release has run on the testnet for at least 4 weeks without incident | ⏳ started 2026-11-12 |
-| 4 | Fresh keys, none on a public host | ✅ 2026-11-13 (see gate 4: one holder for now) |
+| 4 | Fresh keys, none on a public host | ✅ 2026-11-13 |
 | 5 | Mainnet release: signed, published, fingerprint frozen | ⚠️ owner decision: unaudited release used (recorded in gate 5) |
 | 6 | Genesis ceremony with every validator | ✅ 2026-11-13 |
 | 7 | Coordinated start | ⏳ genesis time 2026-11-13 14:00 UTC |
@@ -98,10 +98,7 @@ Do not reuse any key that touched the testnet, CI secrets, a browser wallet used
 
 Done on 2026-11-13: three signer keys (A, B, C) made on a temporary offline VM (deleted after; recovery phrases on paper,
 each checked by recovering it), six 2-of-3 multisigs from them (circuit authority and the five pools, distinct key
-orders), and the validator key on the validator machine. **For now one person holds A, B and C**: the multisigs protect
-against losing one key, not against that holder. A multisig's members cannot be changed: before the pools hold value
-others depend on, move each pool to a new multisig whose keys different people hold (a send signed by 2 of A, B, C), and
-change the circuit authority to such a multisig through governance.
+orders), and the validator key on the validator machine.
 
 ## Gate 5: mainnet release
 

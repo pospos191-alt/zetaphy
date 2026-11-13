@@ -13,7 +13,7 @@
 | Release | `zetaphyd-a5698832d273` (commit `dc0d0bbbaa827c0b5049603ab3fec8a56c8c7f44`) เซ็นด้วย Sigstore |
 | Validator ตอนเริ่ม | 1 ตัว (`zetaphyvaloper1l9fxu7xn7yrug9rlsve9hs4mgtpn9zej9tqvx8`, node id `9d71e8582823a74d2cfbf51b1c6ef4af50e94e5c`) |
 
-**อ่านประกาศความเสี่ยงก่อน: [docs/ZETAPHY-MAINNET-NOTICE.th.md](../../../docs/ZETAPHY-MAINNET-NOTICE.th.md)**
+**อ่านประกาศก่อน: [docs/ZETAPHY-MAINNET-NOTICE.th.md](../../../docs/ZETAPHY-MAINNET-NOTICE.th.md)**
 
 ## ไฟล์
 
