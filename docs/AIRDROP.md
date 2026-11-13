@@ -2,6 +2,9 @@
 
 [ภาษาไทย](AIRDROP.th.md)
 
+> **Round 1 (SWD holders, mainnet chain 3659) is open:** link your Solana wallet before 2026-12-04 14:00 UTC.
+> Dates, rules and step-by-step: [AIRDROP-ROUND1.md](AIRDROP-ROUND1.md) · link page: `https://app.sawasdeecoin.com/airdrop-link.html`.
+
 How the owner pays ZTPHY (the ZETAPHY chain's native coin) to about 100,000 people who hold their own EVM
 wallets, without any of them giving anything but an address, and without the project ever pushing coins to people
 who did not ask. Nothing here is deployed and no coin moves until the owner runs the steps below (testnet first).

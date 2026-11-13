@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="ZTPHY airdrop round 1: SWD holders link their Solana wallet to a ZETAPHY address. Free, no transaction.">
+<title>ZTPHY airdrop round 1: link your Solana wallet</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="airdrop-link.css">
+<script type="module" src="airdrop-link.js"></script>
+</head>
+<body>
+<main>
+  <select id="lang" aria-label="Language">
+    <option value="en">English</option><option value="zh">中文</option><option value="es">Español</option>
+    <option value="ko">한국어</option><option value="ja">日本語</option><option value="ru">Русский</option>
+    <option value="vi">Tiếng Việt</option><option value="th">ไทย</option>
+  </select>
+  <h1 data-t="title"></h1>
+  <p data-t="lede"></p>
+  <p data-t="round"></p>
+  <p id="dates" class="dates"></p>
+  <p id="closed" class="bad" hidden></p>
+  <div class="warn" role="note">
+    <p data-t="scam"></p>
+    <p data-t="free"></p>
+    <p data-t="public"></p>
+  </div>
+
+  <section>
+    <h2 data-t="s1"></h2>
+    <div id="wallets" class="row"></div>
+    <p id="solState" class="state" role="status" aria-live="polite"></p>
+  </section>
+
+  <section>
+    <h2 data-t="s2"></h2>
+    <input id="evm" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="42">
+    <div class="row"><button id="useEvm" type="button" class="ghost" data-t="useEvm"></button></div>
+    <p id="evmState" class="state" role="status" aria-live="polite"></p>
+  </section>
+
+  <section>
+    <h2 data-t="s3"></h2>
+    <p class="label" data-t="msgLabel"></p>
+    <pre id="message" class="mono"></pre>
+    <button id="sign" type="button" data-t="sign" disabled></button>
+    <p id="signState" class="state" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="submit" hidden>
+    <h2 data-t="s4"></h2>
+    <p class="label" data-t="sigLabel"></p>
+    <textarea id="sig" class="mono" rows="3" readonly></textarea>
+    <p><a id="open" class="btn" target="_blank" rel="noopener noreferrer" data-t="open"></a></p>
+    <p class="note" data-t="openNote"></p>
+  </section>
+
+  <p class="links"><a id="docs" href="https://github.com/pospos191-alt/zetaphy/blob/main/docs/AIRDROP-ROUND1.md" target="_blank" rel="noopener noreferrer" data-t="docs"></a> · <a href="./" data-t="back"></a></p>
+</main>
+</body>
+</html>
