@@ -14,7 +14,7 @@ import { getAmountOut, minWithSlippage, priceImpactBps, impactLevel, quote, cand
 import { checkToken, checkBadge, reasonText, DISCLAIMER } from './lib/neuro.js';
 import { cleanName, cleanSymbol, validEntry, lookalikes } from './lib/tokens.js';
 import { EVM_CHAIN_ID, EVM_CHAIN_ID_HEX, EVM_SYMBOL, nodeEndpoints, evmChainParams, discoverWallets, openInAppLinks, NETWORK } from './lib/wallets.js';
-// The network (lib/network.js, shared with the hub): mainnet unless the visitor picked the testnet; a switch reloads.
+// The network (lib/network.js, shared with the hub): mainnet, the only network since the testnet was shut down on 2026-11-14.
 import { contractsOf, hasFeature, netKey, netText, networkBadge, notOnMainnetBox, watchNetwork, linkExplorer } from './lib/network.js';
 import { parseSettings, serializeSettings, parseImported, cleanWalletId, rpcIsCustom, SLIPPAGE_MAX_BPS, SLIPPAGE_CONFIRM_BPS } from './lib/storage.js';
 import { createDlmmTab } from './dlmm.js';
