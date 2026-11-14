@@ -11,6 +11,6 @@
     "test:unit": "node --test sol-safety.test.mjs i18n.test.mjs trust.test.mjs && node gen-program-errors.mjs --check"
   },
   "devDependencies": {
-    "playwright": "1.49.1"
+    "playwright": "1.55.1"
   }
 }
