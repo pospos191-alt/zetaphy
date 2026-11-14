@@ -11,6 +11,7 @@ import { ASSIST_PAGES } from './assist.js';
 import aichain from './aichain.js';
 import offline from './offline.js';
 import { activeNetwork, hasFeature } from './network.js';
+import { readFaucet, faucetLine, faucetState, faucetText } from './faucet-core.js';
 // the Quantum safety tab (quantum.js) loads the explorer's exposure check, Neuro's Keccak and the wallet's ML-DSA code
 // from this site: fetched only when the tab opens
 const quantum = {
@@ -27,11 +28,34 @@ const audit = {
   },
 };
 
-/** The Earn words in ctx.lang (English underneath), with each method's commands, icon and tab. */
-const earnText = (ctx) => {
+/**
+ * The Earn words in ctx.lang (English underneath), with each method's commands, icon and tab. On mainnet the faucet's
+ * and browser mining's words say what is true there (real ZTPHY, a little for fees, a daily budget; faucet-i18n.js):
+ * the amounts themselves are the node's (faucet-core.js), shown on the cards.
+ */
+export const earnText = (ctx) => {
   const L = withFallback(EARN, ctx.lang);
-  return { ...L, m: EARN_METHODS.map((x) => ({ ...x, ...L.m[x.id], steps: L.m[x.id].steps.map((t, i) => [t, x.cmds[i]]) })) };
+  const main = !(ctx.net ?? activeNetwork()).testnet;
+  const F = faucetText(ctx.lang);
+  const mm = main ? {
+    faucet: { getS: F.faucetGetS, get: F.faucetGet, steps: [L.m.faucet.steps[0], L.m.faucet.steps[1], F.faucetLimit] },
+    mine: { getS: F.mineGetS, get: F.mineGet, steps: [L.m.mine.steps[0], F.mineStep2, F.mineStep3] },
+  } : {};
+  return { ...L, ...(main ? { noPow: F.earnNoPow, warn: F.earnWarn, fOk: F.sentAny } : {}),
+    m: EARN_METHODS.map((x) => ({ ...x, ...L.m[x.id], ...(mm[x.id] ?? {}), steps: (mm[x.id]?.steps ?? L.m[x.id].steps).map((t, i) => [t, x.cmds[i]]) })) };
 };
+/** A line with the faucet's amounts and budget (or why it cannot pay now), filled from the node; kind 'grant' | 'pow'. */
+function faucetStateLine(ctx, id, kind) {
+  const p = ctx.el('p', { class: 'small dim faucet-state', id, hidden: true });
+  readFaucet(ctx.evmCall).then((info) => {
+    const { state, text } = faucetLine(info, ctx.lang, (w) => formatZeta(w, 4), kind);
+    p.hidden = !text || (state === 'unknown' && (ctx.net ?? activeNetwork()).testnet);
+    p.textContent = text;
+    p.className = `small faucet-state${state === 'on' ? ' dim' : ' warnline'}`;
+    p.dataset.state = state;
+  });
+  return p;
+}
 const saphanText = (ctx) => withFallback(SAPHAN, ctx.lang);
 
 // ------------------------------------------------------------------ eth_call helpers (selectors = keccak256, checked in tests)
@@ -139,9 +163,15 @@ function faucetForm(ctx, L) {
     if (!mineAddress(raw)) { say(L.fBad, 'bad'); return; }
     btn.disabled = true;
     say('…');
+    // off, or today's budget used up (faucet-core.js): say so and ask nothing
+    const info = await readFaucet(ctx.evmCall);
+    const st = faucetState(info);
+    if (st === 'off' || st === 'spent') { say(faucetLine(info, ctx.lang, (w) => formatZeta(w, 4)).text, 'bad'); btn.disabled = false; return; }
+    const grant = info?.grant ?? info?.pow;
+    const ok = !(ctx.net ?? activeNetwork()).testnet && grant != null ? faucetText(ctx.lang).sent.replace('{amount}', formatZeta(grant, 4)) : L.fOk;
     try {
       const { txHash } = await askFaucet(ctx.ep().evm, raw);
-      say(L.fOk, 'ok');
+      say(ok, 'ok');
       if (/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
         out.append(' · ', ctx.el('a', { href: `explorer/#/tx/${txHash}`, class: 'mono', 'data-tip': txHash, text: `${L.fTx} ${ctx.short(txHash, 10, 6)}`,
           onclick: (ev) => { ev.preventDefault(); ctx.show('explorer', { hash: `#/tx/${txHash}` }); } }));
@@ -149,7 +179,7 @@ function faucetForm(ctx, L) {
     } catch (err) { say(err.down ? L.fDown : err.message, 'bad'); }
     btn.disabled = false;
   });
-  return ctx.el('div', { class: 'ef' }, ctx.el('label', { for: 'ef-addr', class: 'dim small', text: L.fAddr }), form, out);
+  return ctx.el('div', { class: 'ef' }, ctx.el('label', { for: 'ef-addr', class: 'dim small', text: L.fAddr }), form, faucetStateLine(ctx, 'ef-state', 'grant'), out);
 }
 // The Earn page: one tab per way to get coins, easiest first. Each tab: short chips (get / need / time, the long
 // text on each chip's "i"), then the steps beside the one action (two columns on wide screens); terminal commands
@@ -187,7 +217,7 @@ function earnDetail(ctx, root) {
     faucet: () => two([faucetForm(ctx, L),
       el('div', { class: 'row wrap' }, el('button', { type: 'button', class: 'btn ghost', id: 'earn-to-mine', text: `⛏ ${L.m.find((x) => x.id === 'mine').title}`, onclick: () => ctx.show('mine') }))],
     [el('h3', { text: L.fTerminal }), steps(ctx, m)]),
-    mine: () => two(steps(ctx, m), open('mine')),
+    mine: () => two(steps(ctx, m), [open('mine'), faucetStateLine(ctx, 'em-state', 'pow')]),
     validator: () => {
       hearGuide();
       return el('iframe', { class: 'earn-guide-frame', id: 'earn-guide-frame', title: L.tabs.validator, src: `validators.html?embed=1&lang=${encodeURIComponent(ctx.lang)}#start` });
@@ -409,7 +439,7 @@ const dev = {
           ['WebSocket (eth_subscribe)', `npx wscat -c ${e.ws}\n> {"jsonrpc":"2.0","id":1,"method":"eth_subscribe","params":["newHeads"]}`],
           ['CometBFT RPC', `curl -s ${e.comet}/status`],
           ['Cosmos REST', `curl -s "${e.rest}/cosmos/bank/v1beta1/supply/by_denom?denom=azetaphy"`],
-          // no faucet on mainnet (network.js)
+          // the faucet, where the network has one (network.js; mainnet: the public sentry's)
           ...(hasFeature(activeNetwork(), 'faucet') ? [[ctx.T('devFaucet'), `curl -s ${e.evm} -H "content-type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucet","params":["0xYOUR_ADDRESS"]}'`]] : []),
           [ctx.T('devRegistry'), `curl -s ${e.files}/keplr.json\ncurl -s ${e.files}/evm-chain.json`],
           [ctx.T('devCli'), 'git clone https://github.com/pospos191-alt/zetaphy.git\ncd zetaphy/zetaphy-network && npm ci --omit=dev\nnode cli.js --help']]

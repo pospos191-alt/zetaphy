@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): every job here acts on the ZETAPHY testnet (chain 77390), which no longer runs, so the schedules are off; manual runs only.
 # Risk forecasts keeper + evolving detectors (docs/future/markets.md). TESTNET ONLY.
 #
 # Not a server: scheduled jobs on the free Actions allowance.
@@ -23,10 +24,6 @@
 name: Markets
 
 on:
-  schedule:
-    - cron: '23 * * * *'   # keeper, hourly
-    - cron: '43 5 * * 2'   # evolve, Tuesdays 05:43 UTC
-    - cron: '53 */6 * * *' # detectors loop, every 6 hours
   workflow_dispatch:
     inputs:
       job:

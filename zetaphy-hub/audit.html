@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ZETAPHY audit certificate check</title>
-<meta name="description" content="Check a ZETAPHY audit certificate for a contract on Ethereum, BNB, Base, Arbitrum, Optimism, Polygon, Avalanche, Osmosis or Solana: VALID, EXPIRED, REVOKED or CODE CHANGED, read live from ZETAPHY and the contract's own chain. Testnet only.">
+<meta name="description" content="Check a ZETAPHY audit certificate for a contract on Ethereum, BNB, Base, Arbitrum, Optimism, Polygon, Avalanche, Osmosis or Solana: VALID, EXPIRED, REVOKED or CODE CHANGED, read live from ZETAPHY and the contract's own chain. On ZETAPHY mainnet once the audit network's contracts are deployed there (the testnet was shut down on 2026-11-14).">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="aas.css">
 <script type="module" src="aas-verify.js"></script>
@@ -26,14 +26,15 @@
     <p class="note" data-t="testnet"></p>
     <nav class="links"><a href="audits.html" id="to-dir" data-t="dirLink"></a></nav>
   </header>
+  <div id="net" class="net"></div>
 
-  <form class="lookup" id="form">
+  <form class="lookup" id="form" data-needs-net>
     <label><span data-t="chain"></span> <select id="chain"></select></label>
     <label class="grow"><span data-t="address"></span> <input id="address" autocomplete="off" spellcheck="false" placeholder="0x…"></label>
     <button type="submit" id="go" data-t="check"></button>
   </form>
 
-  <section id="result" aria-live="polite"></section>
+  <section id="result" aria-live="polite" data-needs-net></section>
 
   <section class="card" id="badge" hidden>
     <h2 data-t="badgeTitle"></h2>

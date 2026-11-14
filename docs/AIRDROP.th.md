@@ -194,6 +194,8 @@ node airdrop/cli.js verify round1 --rpc https://rpc.sawasdeecoin.com --distribut
 ด้วย `init-code` เดียวกัน กองแอร์ดรอป (20% ของ supply, 200,000,000 ZTPHY) เป็น multisig ตั้งแต่ genesis: โอน `summary.total`
 พอดีเข้าสัญญาด้วย bank send จาก multisig (หรือข้อเสนอ governance ถ้ากองเป็น module account) ประกาศที่อยู่สัญญา root และ
 `listSha256` ในทุกช่องทางทางการก่อน `claimStart`
+บันทึกไว้ใน `zetaphy-network/deployments/airdrop-3659.json` (`{ "chainId": 3659, "contracts": { "airdropDistributor": "0x…" }, "list": "…" }`)
+แล้ว hub ที่ build ครั้งถัดไปจะแสดงการ์ดรับ airdrop บน mainnet (`build.mjs` ใส่ไว้ใน `hub-config.json` ส่วน `mainnet` ส่วน testnet ใช้ไฟล์ของตัวเอง)
 
 **การรับ**: คนเปิด hub แท็บ Agents "รับแอร์ดรอป" ตรวจที่อยู่แล้วกดรับ การ์ดอ่าน `summary.json` กับ shard เดียว ตรวจหลักฐานในเบราว์เซอร์
 กับ root **บนเชน** (รายชื่อที่ไม่ตรงกับสัญญาจะถูกปฏิเสธ) แสดงจำนวนและช่วงเวลา แล้วส่ง `claim` คนที่ยังไม่มี ZTPHY จ่ายแก๊ส ใช้ faucet ได้

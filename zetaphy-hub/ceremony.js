@@ -6,6 +6,7 @@
 import { pickLang } from './i18n.js';
 import { CEREMONY } from './ceremony-i18n.js';
 import { checkChain, tip, nextEntry, mixEntropy, sha256Hex, validName, GITHUB_LOGIN, ZKEY_URL, MAX_NAME } from './ceremony-core.js';
+import { activeNetwork, networkBadge, watchNetwork } from './network.js';
 
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
 const qs = new URLSearchParams(globalThis.location?.search ?? '');
@@ -20,7 +21,18 @@ const S = { t: null, tOk: false, zkey: null, zOk: false, result: null, extra: []
 
 function say(id, text, cls = '') { const n = $(id); n.textContent = text; n.className = `mono ${cls}`.trim(); }
 
+/**
+ * The network (network.js: mainnet, the only network since 2026-11-14). The contribution itself touches no chain
+ * (the page cannot connect anywhere): the badge says which network the hub's other pages are on, and lets you switch.
+ */
+function network() {
+  const net = activeNetwork();
+  $('eyebrow').textContent = `ZETAPHY · ${net.cosmosChainId}${net.testnet ? ' · testnet' : ''}`;
+  $('net').replaceChildren(networkBadge(document, { lang, net }));
+}
+
 function texts() {
+  network();
   document.documentElement.lang = lang;
   for (const n of document.querySelectorAll('[data-t]')) n.textContent = T(n.dataset.t);
   $('lang').value = lang;
@@ -141,6 +153,7 @@ function save(bytes, name, type) {
 }
 
 function main() {
+  watchNetwork(window);
   texts();
   $('lang').addEventListener('change', (e) => { lang = pickLang(e.target.value); store.set('zetaphy-hub:lang', lang); texts(); });
   $('transcript').addEventListener('change', (e) => e.target.files[0] && onTranscript(e.target.files[0]));

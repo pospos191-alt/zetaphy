@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// zetaphy: one command for ZETAPHY testnet node runners and users.
+// zetaphy: one command for ZETAPHY node runners and users. The public testnet (77390) was shut down on 2026-11-14:
+// the runner and job commands (node, job, neuro status, gate) act on ZETAPHY mainnet (3659, NeuroJobs in
+// zetaphy-launch/state/3659.contracts.json) or a local devnet; the rest act on a local devnet (chain id 77390) only.
 //
 //   zetaphy node start [--auto-register]   (--auto-register: wait for the bond to arrive, then register)
 //   zetaphy node start                 check the machine, then run Neuro jobs (round-2 seats of challenges too;
@@ -347,7 +349,26 @@ export function neuroCall(action, value) {
   } else if (value != null) throw new Error(`${action} takes no value`);
   return { fn, args, data: new Interface(CONTROL.abi).encodeFunctionData(fn, args) };
 }
+/** The chain id of a local ZETAPHY devnet (the public testnet with this id was shut down on 2026-11-14). */
 const EVM_CHAIN_ID = 77390n;
+/** ZETAPHY mainnet (zetaphy_3659-1). */
+const MAINNET_EVM_CHAIN_ID = 3659n;
+export const MAINNET_RPC = 'https://129-221-199-191.sslip.io';
+/**
+ * The commands whose contracts are deployed on mainnet (NeuroJobs, NeuroControl, RewardVault in
+ * zetaphy-launch/state/3659.contracts.json): the runner (node), jobs, neuro status and gate act on mainnet or a devnet.
+ * Every other command (deploys, and contracts not on mainnet yet) stays on a local devnet only.
+ */
+export const RUNNER_CHAINS = [MAINNET_EVM_CHAIN_ID, EVM_CHAIN_ID];
+/** The refusal for an RPC on another chain: plain words for mainnet, where a devnet-only command must not act. */
+export function wrongChainMessage(id, allowed = [EVM_CHAIN_ID]) {
+  const names = allowed.map((c) => (c === MAINNET_EVM_CHAIN_ID ? `ZETAPHY mainnet (${c})` : c === EVM_CHAIN_ID ? `a local ZETAPHY devnet (${c})` : String(c)));
+  if (BigInt(id) === MAINNET_EVM_CHAIN_ID) {
+    return `that RPC is ZETAPHY mainnet (chain ${id}): this command acts on contracts that are not on mainnet yet and works on ${names.join(' or ')} only, `
+      + 'so it refuses to act on mainnet. Point --rpc (or ZETAPHY_RPC) at a local devnet (the public testnet was shut down on 2026-11-14)';
+  }
+  return `that RPC is chain ${id}, not ${names.join(' or ')}`;
+}
 
 function parse(argv) {
   const pos = [], opt = {};
@@ -373,18 +394,23 @@ function settings(opt, env) {
   return s;
 }
 
-async function connectRpc(s) {
-  if (!s.rpc) throw new Error('set the ZETAPHY testnet RPC: --rpc http://<node>:8545 (or ZETAPHY_RPC)');
-  // The network is fixed to 77390, so every tx this key signs carries chain id 77390 whatever the RPC says later;
-  // an RPC that answers another chain id is refused before anything is signed.
-  const provider = new JsonRpcProvider(s.rpc, EVM_CHAIN_ID, { staticNetwork: true, polling: true, pollingInterval: 1000 });
-  const id = BigInt(await provider.send('eth_chainId', []));
-  if (id !== EVM_CHAIN_ID) { provider.destroy(); throw new Error(`that RPC is chain ${id}, not ZETAPHY testnet (${EVM_CHAIN_ID})`); }
-  return provider;
+/**
+ * The RPC's provider. `chains`: the chain ids the command may act on (default a local devnet only; the runner and job
+ * commands, identity and msg take mainnet too). The network is fixed to the RPC's chain id once checked, so every tx this key signs carries that
+ * chain id whatever the RPC says later; an RPC that answers another chain id is refused before anything is signed.
+ */
+async function connectRpc(s, { chains = [EVM_CHAIN_ID] } = {}) {
+  if (!s.rpc) throw new Error(`set the ZETAPHY RPC: --rpc ${MAINNET_RPC} (mainnet) or http://<devnet node>:8545 (or ZETAPHY_RPC)`);
+  const probe = new JsonRpcProvider(s.rpc, EVM_CHAIN_ID, { staticNetwork: true, polling: true, pollingInterval: 1000 });
+  const id = BigInt(await probe.send('eth_chainId', []));
+  if (!chains.includes(id)) { probe.destroy(); throw new Error(wrongChainMessage(id, chains)); }
+  if (id === EVM_CHAIN_ID) return probe;
+  probe.destroy();
+  return new JsonRpcProvider(s.rpc, id, { staticNetwork: true, polling: true, pollingInterval: 1000 });
 }
 
-async function connect(s, { needJobs = true } = {}) {
-  const provider = await connectRpc(s);
+async function connect(s, { needJobs = true, chains } = {}) {
+  const provider = await connectRpc(s, chains ? { chains } : {});
   const { wallet, created, file } = loadOrCreateKey();
   const signer = new NonceManager(wallet.connect(provider));
   const me = await wallet.getAddress();
@@ -529,8 +555,9 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
     write(`machine: ${hw.cpus} CPU, ${hw.memoryGB} GB RAM${hw.gpus.length ? ', ' + hw.gpus.map((g) => g.name).join(', ') : ''}`);
     if (!profile) throw new Error(`this machine cannot run Neuro: ${reason}`);
     write(`mode: ${profile} (${reason})`);
-    const c = await connect(s);
-    write(`runner address: ${c.me}${c.created ? ` (new key saved to ${c.file}; testnet only)` : ''}`);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
+    const chainId = (await c.provider.getNetwork()).chainId;
+    write(`runner address: ${c.me}${c.created ? ` (new key saved to ${c.file})` : ''}`);
     const w = await c.jobs.workers(c.me);
     if (!w.active && opt['auto-register']) {
       // One-command installs: wait until the wallet holds the bond (+ a little for gas), then register.
@@ -575,7 +602,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
       defenderTimeout: control ? () => control.defenderTimeout() : null,
       onRoster: control ? () => control.defenderApproved(c.me) : null,
       jobs: c.jobs, me: c.me, stateFile: join(HOME, `jobs-${s.jobs.toLowerCase()}.json`),
-      zetaphyChain: { kind: 'evm', id: Number(EVM_CHAIN_ID), name: 'ZETAPHY testnet', rpcs: [s.rpc] },
+      zetaphyChain: { kind: 'evm', id: Number(chainId), name: chainId === MAINNET_EVM_CHAIN_ID ? 'ZETAPHY' : 'ZETAPHY devnet', rpcs: [s.rpc] },
       chainTime: async () => BigInt((await c.provider.getBlock('latest')).timestamp),
       log: (l) => write(`${new Date().toISOString()} ${l}`),
     });
@@ -602,7 +629,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   }
 
   if (group === 'node' && cmd === 'register') {
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const bond = opt.bond ? parseEther(String(opt.bond)) : await c.jobs.workerBond();
     await (await padded(c.jobs.register, { value: bond })).wait();
     write(`registered ${c.me} with a bond of ${zeta(bond)}`);
@@ -610,7 +637,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   }
 
   if (group === 'node' && cmd === 'status') {
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const w = await c.jobs.workers(c.me);
     write(`runner:   ${c.me}`);
     write(`wallet:   ${zeta(await c.provider.getBalance(c.me))}`);
@@ -622,7 +649,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   }
 
   if (group === 'node' && ['withdraw', 'unbond', 'withdraw-bond'].includes(cmd)) {
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const fn = { withdraw: 'withdraw', unbond: 'requestUnbond', 'withdraw-bond': 'withdrawBond' }[cmd];
     await (await padded(c.jobs[fn])).wait();
     write(`${cmd}: done`);
@@ -632,7 +659,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   if (group === 'job' && cmd === 'request') {
     const [chainKey, target] = rest;
     if (!chainKey || !target) throw new Error('usage: zetaphy job request <chain> <address> [--fee N]');
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const fee = opt.fee ? parseEther(String(opt.fee)) : await c.jobs.minFee();
     // Padded gas: the request's cost depends on the load meter's minute, which
     // may change between the estimate (latest block) and the block it lands in.
@@ -644,7 +671,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
 
   if (group === 'job' && cmd === 'settle') {
     if (!/^\d+$/.test(rest[0] ?? '')) throw new Error('usage: zetaphy job settle <id>');
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const rc = await (await padded(c.jobs.settle, BigInt(rest[0]))).wait();
     const missed = rc.logs.map((l) => { try { return c.jobs.interface.parseLog(l); } catch { return null; } }).filter((e) => e?.name === 'Missed');
     write(`job ${rest[0]} settled: ${missed.length ? missed.map((e) => `${e.args.worker} never revealed (penalized, one strike)`).join('; ') : 'nothing to penalize'}`);
@@ -655,7 +682,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
     if (!/^\d+$/.test(rest[0] ?? '')) throw new Error('usage: zetaphy job challenge <id> --verdict 0x<bytes32> [--bond N]');
     const claim = String(opt.verdict ?? '');
     if (!/^0x[0-9a-fA-F]{64}$/.test(claim)) throw new Error('--verdict 0x<64 hex>: the verdict you say is right (from your own Neuro run; it must differ from the job\'s)');
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const id = BigInt(rest[0]);
     const need = await c.jobs.challengeBondOf(id);
     const bond = opt.bond ? parseEther(String(opt.bond)) : need;
@@ -669,7 +696,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   }
 
   if (group === 'job' && cmd === 'get') {
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const id = BigInt(rest[0] ?? cmd);
     const j = await c.jobs.getJob(id);
     const out = { status: STATUS[Number(j.status)], target: j.target, fee: zeta(j.fee), verdict: j.result, commits: Number(j.commits), reveals: Number(j.reveals) };
@@ -729,7 +756,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   }
 
   if (group === 'neuro' && ['status', 'regrow', 'send', 'propose'].includes(cmd)) {
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const addr = await c.jobs.control();
     if (addr === ZERO_ADDR) throw new Error('this NeuroJobs has no NeuroControl (deployed before governance)');
     const control = new Contract(addr, CONTROL.abi, c.signer);
@@ -774,7 +801,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
   }
 
   if (group === 'gate') {
-    const c = await connect(s);
+    const c = await connect(s, { chains: RUNNER_CHAINS });
     const r = await gate1(c.provider, c.jobs, opt['block-seconds'] ? { gate: { days: 30, runners: 10, maxGapSeconds: 60, blockSeconds: Number(opt['block-seconds']) } } : {});
     write(`gate 1 at block ${r.height}: ${r.passed ? 'PASSED (still confirm the runners are different people)' : 'not yet'}`);
     for (const ch of r.checks) write(`  ${ch.ok ? '✓' : '·'} ${ch.name}: ${ch.value}`);

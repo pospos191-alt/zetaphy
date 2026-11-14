@@ -58,6 +58,15 @@ deployer ไม่เหลือสิทธิ์ใด ๆ รายการ
 ยังไม่ได้ deploy bridge สัญญา 2 ตัวจากการรันรอบแรกที่หยุดกลางทาง (อยู่ใน `notUsed` ของ contracts.json) ไม่ได้เป็นส่วนของระบบ
 ไม่มีอะไรเชื่อมไปหา
 
+### เพิ่มเมื่อ 2026-11-14 (`--resume`)
+
+NeuroIdentity, RewardVault, ComputeMarket, oracle, DLMM factory/router, NFT factory/marketplace และสัญญาของแผนที่ AI
+(ModelRegistry, NeuroScore, AgentRegistry, LabelRegistry, UsefulWork, BugBounty และอื่นๆ) สิทธิ์ admin ทุกตัวอยู่กับ timelock
+ที่อยู่: `addedOnResume` ใน [contracts.json](contracts.json) และ
+[zetaphy-launch/state/3659.contracts.json](../../../zetaphy-launch/state/3659.contracts.json) preset ของ DLMM และ code key
+ของ NFT จะถูกตั้งโดย batch ของ timelock จากข้อเสนอ governance ที่ 1 (โหวต แล้วรอ 48 ชั่วโมง) ระหว่างนี้ยังสร้างคู่เทรด DLMM ไม่ได้
+UsefulWork, BugBounty และ FederatedRounds ยังหยุดไว้จนกว่าจะมีโหวตเปิด
+
 ## ตรวจด้วยตัวเอง
 
 ```bash

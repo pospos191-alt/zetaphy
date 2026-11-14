@@ -125,7 +125,7 @@ async function contextFor(account, label) {
   });
   await ctx.addInitScript((gw) => { try { localStorage.setItem('zn.settings', JSON.stringify({ gateway: gw })); } catch {} }, GW);
   const page = await ctx.newPage();
-  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
+  await onTestnet(page); // these checks run the NFT app on the retired testnet's record (mainnet shows "not on mainnet yet")
   page.on('pageerror', (e) => problems.push(`${label} pageerror ${e.message}`));
   page.on('dialog', (d) => { problems.push(`${label} dialog ${d.message()}`); d.dismiss(); });
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(`${label} console ${m.text()}`); });
@@ -161,7 +161,7 @@ test('a first visit is in English, even from a Thai-language browser', async () 
   await chainRoutes(ctx, 'first visit');
   try {
     const page = await ctx.newPage();
-    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
+    await onTestnet(page); // these checks run the NFT app on the retired testnet's record (mainnet shows "not on mainnet yet")
     await page.goto(`${ORIGIN}/`);
     await page.waitForFunction(() => document.querySelectorAll('#lang option').length === 8);
     assert.equal(await page.getAttribute('html', 'lang'), 'en');
@@ -183,7 +183,7 @@ test('a language stored by the hub is honoured; anything else is English; every 
   await chainRoutes(ctx, 'languages');
   try {
     const page = await ctx.newPage();
-    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
+    await onTestnet(page); // these checks run the NFT app on the retired testnet's record (mainnet shows "not on mainnet yet")
     await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); localStorage.setItem('zn.lang', JSON.stringify('ja')); } });
     await page.goto(`${ORIGIN}/`);
     await page.waitForFunction(() => document.documentElement.lang === 'ja');
@@ -472,7 +472,7 @@ test('wallet safety: the banner at 1,000+ ZETAPHY, hardware-wallet help, Ledger 
   assert.deepEqual(problems, [], 'no CSP violations, script dialogs or page errors');
 });
 
-test('mainnet (the default): "testnet only for now" with the switch, the badge and risk line; no RPC, no contract, no wallet', async () => {
+test('mainnet (the only network): "not on mainnet yet" (no switch), the badge and risk line; no RPC, no contract, no wallet; a saved or linked testnet opens mainnet', async () => {
   const ctx = await browser.newContext({ locale: 'en-US' });
   await chainRoutes(ctx, 'mainnet');
   try {
@@ -481,17 +481,25 @@ test('mainnet (the default): "testnet only for now" with the switch, the badge a
     page.on('request', (r) => { if (!r.url().startsWith('data:')) asked.push(new URL(r.url()).pathname); });
     await page.goto(`${ORIGIN}/`);
     await page.waitForSelector('#main .zn-gate');
-    assert.match(await page.textContent('#main'), /Testnet only for now.*The NFT marketplace is not on ZETAPHY mainnet yet/s);
+    assert.match(await page.textContent('#main'), /Not on mainnet yet.*The NFT marketplace is not on ZETAPHY mainnet yet\. It appears here once its contracts are deployed on mainnet\. \(The testnet was shut down on 2026-11-14\.\)/s);
+    assert.equal(await page.locator('#main button, #main select, .zn-gate-switch, .zn-net-select, #net-badge select').count(), 0, 'nothing to click, no network switch');
     assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet.*single validator operated by the ZETAPHY project/s);
     assert.ok(await page.isHidden('#connect'), 'no wallet to connect on mainnet');
     assert.ok(!asked.includes('/deployments.json'), 'the testnet deployment is not read');
     assert.ok(!problems.some((p) => p.startsWith('mainnet')), problems.join('\n'));
     await page.selectOption('#lang', 'th');
-    assert.match(await page.textContent('#main'), /ตอนนี้ใช้ได้เฉพาะบน testnet.*ตลาด NFT ยังไม่มีบน ZETAPHY mainnet/s);
-    // one click: the testnet, remembered, and the marketplace is back
-    await Promise.all([page.waitForEvent('load'), page.click('#main .zn-gate-switch')]);
-    assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), 'testnet');
-    await page.waitForFunction(() => !document.querySelector('#main .zn-gate') && /ZETAPHY testnet/.test(document.getElementById('net-badge').textContent));
-    assert.ok(asked.includes('/deployments.json'), 'the testnet deployment is read');
+    assert.match(await page.textContent('#main'), /ยังไม่มีบน mainnet.*ตลาด NFT ยังไม่มีบน ZETAPHY mainnet.*testnet ปิดถาวรเมื่อ 2026-11-14/s);
+    // a testnet choice saved before the shutdown, then a ?network=testnet link: mainnet both times, the saved value cleared
+    await page.evaluate(() => localStorage.setItem('zetaphy:network', 'testnet'));
+    for (const url of [`${ORIGIN}/`, `${ORIGIN}/?network=testnet`]) {
+      await page.goto(url);
+      await page.waitForSelector('#main .zn-gate');
+      assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet/, url);
+      assert.doesNotMatch(await page.textContent('#net-badge'), /ZETAPHY testnet/, url);
+      assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), null, `${url}: nothing saved`);
+      assert.ok(await page.isHidden('#connect'), url);
+    }
+    assert.ok(!asked.includes('/deployments.json'), 'the testnet deployment is never read');
+    assert.ok(!problems.some((p) => p.startsWith('mainnet')), problems.join('\n'));
   } finally { await ctx.close(); }
 });

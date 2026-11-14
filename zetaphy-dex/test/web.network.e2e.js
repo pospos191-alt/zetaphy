@@ -1,6 +1,7 @@
-// Browser test: the Swap page on ZETAPHY mainnet (web/lib/network.js; the default) and the switch to the testnet.
-// Mainnet: its own RPC, factory and router (no pools yet), no testnet token or deployment file, DLMM "testnet only
-// for now", the wallet asked for chain 0xe4b only. A mock node and a mock wallet that starts on the testnet.
+// Browser test: the Swap page on ZETAPHY mainnet (web/lib/network.js; the only network since the testnet was shut down on
+// 2026-11-14). Mainnet: its own RPC, factory and router (no pools yet), no testnet token or deployment file, DLMM "not
+// on mainnet yet", no network switch, the wallet asked for chain 0xe4b only; a saved testnet choice or a
+// ?network=testnet link opens mainnet. A mock node and a mock wallet that starts on the old testnet chain.
 //   npm run test:web
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +14,7 @@ const FACTORY = '0x93463B001483970f8CAE63cd8B60D28F17a1C1AA';
 const ROUTER = '0xa5221A7F25cf10d99446Fde3e95c15b1f696e783';
 const word = (n) => BigInt(n).toString(16).padStart(64, '0');
 
-test('Swap on mainnet: badge and risk line, mainnet factory/router, no test tokens, DLMM gated, wallet asked for 0xe4b; switch to testnet', { timeout: 120_000 }, async () => {
+test('Swap on mainnet: badge and risk line, mainnet factory/router, no test tokens, DLMM gated, no switch, wallet asked for 0xe4b; a saved or linked testnet opens mainnet', { timeout: 120_000 }, async () => {
   const server = await servePage();
   const browser = await chromium.launch(chromiumOptions());
   const problems = [];
@@ -54,8 +55,9 @@ test('Swap on mainnet: badge and risk line, mainnet factory/router, no test toke
     assert.deepEqual(await page.$$eval('#swap-from option', (o) => o.map((x) => x.textContent.trim())).then((l) => l.filter((x) => /tUSD|tSWD/.test(x))), [], 'no test tokens');
     // DLMM: not on mainnet yet
     await page.click('.tab[data-tab="dlmm"]');
-    assert.match(await page.textContent('#tab-dlmm'), /Testnet only for now.*DLMM pools is not on ZETAPHY mainnet yet/s);
-    assert.equal(await page.locator('#tab-dlmm .zn-gate-switch').count(), 1);
+    assert.match(await page.textContent('#tab-dlmm'), /Not on mainnet yet.*DLMM pools is not on ZETAPHY mainnet yet\. It appears here once its contracts are deployed on mainnet\. \(The testnet was shut down on 2026-11-14\.\)/s);
+    assert.equal(await page.locator('#tab-dlmm .zn-gate button, #tab-dlmm .zn-gate select').count(), 0, 'nothing to click in the box');
+    assert.equal(await page.locator('select.zn-net-select, #net-badge select, .zn-gate-switch').count(), 0, 'no network switch');
     await page.click('.tab[data-tab="swap"]');
     // the wallet starts on the testnet: it is asked to move to mainnet (0xe4b), never the other way
     await page.click('#connect-btn');
@@ -68,12 +70,18 @@ test('Swap on mainnet: badge and risk line, mainnet factory/router, no test toke
     assert.ok(calls.every((to) => [FACTORY.toLowerCase(), ROUTER.toLowerCase(), '0xaacfc7cf7148b7ae530c2ab891d4220e648a2139', '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'].includes(to)),
       `only mainnet contracts are called (${[...new Set(calls)]})`);
     assert.deepEqual(problems, [], 'on mainnet: no request to the testnet or anywhere else, no page error');
-    // the switch: the testnet, remembered
-    await Promise.all([page.waitForEvent('load'), page.selectOption('#net-badge select', 'testnet')]);
-    assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), 'testnet');
-    await page.waitForFunction(() => /ZETAPHY testnet/.test(document.getElementById('net-badge').textContent));
-    assert.ok(files.includes('/deployments.json'), 'the testnet reads its deployment');
-    assert.deepEqual(problems.filter((p) => !/rpc\.sawasdeecoin\.com/.test(p)), [], 'nothing else');
+    // a testnet choice saved before the shutdown, then a ?network=testnet link: mainnet both times, the saved value cleared
+    await page.evaluate(() => localStorage.setItem('zetaphy:network', 'testnet'));
+    for (const url of [`${server.origin}/`, `${server.origin}/?network=testnet`]) {
+      await page.goto(url);
+      await page.waitForFunction(() => document.documentElement.dataset.appReady === '1', null, { timeout: 30_000 });
+      assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet/, url);
+      assert.doesNotMatch(await page.textContent('#net-badge'), /testnet/i, url);
+      assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), null, `${url}: nothing saved`);
+      assert.equal(await page.textContent('#footer-contracts'), `Router ${ROUTER} · Factory ${FACTORY}`, url);
+    }
+    assert.ok(!files.includes('/deployments.json') && !files.includes('/tokenlist.json'), 'the testnet\'s files are never read');
+    assert.deepEqual(problems, [], 'no request to the testnet or anywhere else, no page error');
   } finally {
     await browser.close();
     await server.close();

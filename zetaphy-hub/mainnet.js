@@ -1,5 +1,5 @@
 // The "ZETAPHY mainnet" card of the Overview (hub.js). The facts are network.js's (NETWORKS.mainnet), the one
-// network definition every app reads; the network switch at the top picks mainnet (the default) or the testnet.
+// network definition every app reads (mainnet is the only network: the testnet was shut down on 2026-11-14).
 //   rpc null  -> "Public RPC: coming soon", the "Add to MetaMask" button is disabled
 //   rpc set   -> the button asks the wallet to add the chain (wallet_addEthereumChain, chain 0xe4b)
 // Published files: zetaphy-chain/mainnet/zetaphy_3659-1/ and docs/ZETAPHY-MAINNET-NOTICE.md (+ .th.md).
@@ -65,11 +65,9 @@ export function renderMainnet(root, ctx, m = MAINNET) {
   root.replaceChildren(
     el('div', { class: 'card-head' }, el('h2', { text: t.title }), el('span', { class: 'info', 'data-tip': t.tip, tabindex: '0', text: 'i' })),
     el('dl', { class: 'kv' }, ...rows.flatMap(([k, v, copy]) => [el('dt', { text: k }), el('dd', { text: v, title: copy ?? v }), copy ? ctx.copyBtn(copy) : el('span')])),
-    el('p', { class: 'mainnet-risk', text: t.risk }),
     el('div', { class: 'row mainnet-links' }, add,
       el('a', { href: ctx.lang === 'th' ? m.noticeTh : m.notice, target: '_blank', rel: 'noopener', text: t.notice }),
       el('a', { href: m.files, target: '_blank', rel: 'noopener', text: t.files })),
-    el('p', { class: 'dim small', text: t.apps }),
     out);
   return { add, params };
 }

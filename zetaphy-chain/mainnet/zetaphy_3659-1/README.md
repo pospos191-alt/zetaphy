@@ -58,6 +58,15 @@ governance module); the emergency switches are held by the 2-of-3 guardian multi
 The bridge is not deployed. Two contracts from an interrupted first run (listed under `notUsed` in contracts.json) are
 not part of the system: nothing points at them.
 
+### Added on 2026-11-14 (`--resume`)
+
+NeuroIdentity, RewardVault, ComputeMarket, the oracle, the DLMM factory/router, the NFT factory/marketplace and the AI
+map's contracts (ModelRegistry, NeuroScore, AgentRegistry, LabelRegistry, UsefulWork, BugBounty and others), every admin
+role with the timelock. Addresses: `addedOnResume` in [contracts.json](contracts.json) and
+[zetaphy-launch/state/3659.contracts.json](../../../zetaphy-launch/state/3659.contracts.json). The DLMM presets and the NFT
+code keys are set by the timelock batch of governance proposal 1 (vote, then 48 h); until then no DLMM pair can be created.
+UsefulWork, BugBounty and FederatedRounds stay paused until a vote opens them.
+
 ## Check it yourself
 
 ```bash

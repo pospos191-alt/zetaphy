@@ -100,6 +100,10 @@ export function chromiumOptions() {
   return process.env.ZDEX_CHROMIUM ? { executablePath: process.env.ZDEX_CHROMIUM } : {};
 }
 
-/** The page opens on the testnet (web/lib/network.js defaults to mainnet): these tests run the testnet deployment. */
+/**
+ * Visitors only ever get mainnet (the testnet was shut down on 2026-11-14; web/lib/network.js). onTestnet opens the page on
+ * the retired testnet's record for the tests of the testnet deployment (DLMM and the rest not on mainnet yet), every
+ * request mocked: globalThis.__ZETAPHY_TEST_NETWORK, defined before the page's scripts run (no link or storage can).
+ */
 export const onNetwork = (page, id) => page.addInitScript((n) => { try { localStorage.setItem('zetaphy:network', n); } catch { /* blocked */ } }, id);
-export const onTestnet = (page) => onNetwork(page, 'testnet');
+export const onTestnet = (page) => page.addInitScript(() => { globalThis.__ZETAPHY_TEST_NETWORK = 'testnet'; });

@@ -3,14 +3,14 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo bash -s -- runner
 #
-#   runner     a Neuro runner: takes Neuro jobs and earns ZETAPHY (needs a 100 ZETAPHY testnet bond)
+#   runner     a Neuro runner on ZETAPHY mainnet: takes Neuro jobs and earns ZTPHY (it waits for its bond)
 #   agents     the Hyperlane validator for ZETAPHY Saphan (EVM route); the relayer starts later
 #   validator  a ZETAPHY chain validator: joins the running chain, gets 10 ZETAPHY from the faucet,
 #              and stakes 9 by itself once synced (your name: … | sudo MONIKER=my-name bash -s -- validator)
 #   update     a ZETAPHY node set up before: the current release and settings (keys and chain data kept)
 #
 # Several at once: ... | sudo bash -s -- runner agents
-# Safe to run again (it updates and keeps the keys). Testnet only.
+# Safe to run again (it updates and keeps the keys). ZETAPHY mainnet (3659); the testnet was shut down 2026-11-14.
 set -euo pipefail
 REPO="pospos191-alt/zetaphy"
 REF="${REF:-main}"

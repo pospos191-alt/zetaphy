@@ -7,13 +7,21 @@ import { Contract, ContractFactory, ZeroAddress, isAddress, getAddress, verifyTy
 import { HOME, loadOrCreateKey } from './keys.js';
 import {
   chainArgs, canonicalTarget, decodeAgentURI, NEURO_CHAINS, RULE, base58Decode, claimDomain, claimValues, CLAIM_TYPES, consentText,
-  remoteOwners, checkClaimBundle, signAttestation, sortedAttestations,
+  remoteOwners, checkClaimBundle, signAttestation, sortedAttestations, neuroChainsFor,
 } from './identity.js';
 import { signMessage, verifyMessage, createSeenSet, KINDS, MAX_ENVELOPE_BYTES } from './neuromsg.js';
 
 const art = (n) => JSON.parse(readFileSync(new URL(`../artifacts/${n}.json`, import.meta.url), 'utf8'));
-const EVM_CHAIN_ID = 77390n;
-const ZETAPHY_CAIP2 = `eip155:${EVM_CHAIN_ID}`;
+// ZETAPHY's chain id is the connected RPC's (mainnet 3659, the testnet 77390), never a fixed one: an identity
+// registry, a signed message and its source chain all name the network they are on.
+/** The EVM chain id of the RPC `s` points at (BigInt). `msg sign` may give it with --chain-id instead (no RPC needed). */
+export async function evmChainId(opt, s, connectRpc) {
+  if (opt['chain-id'] != null && opt['chain-id'] !== true) {
+    if (!/^[1-9][0-9]{0,18}$/.test(String(opt['chain-id']))) throw new Error('--chain-id must be a whole number (3659 mainnet, 77390 testnet)');
+    return BigInt(opt['chain-id']);
+  }
+  return BigInt((await (await connectRpc(s)).getNetwork()).chainId);
+}
 const JOBS_ABI = ['function workers(address) view returns (uint128 bond, uint64 unbondAt, bool active, uint32 agreed, uint32 rejected)'];
 
 export const IDENTITY_USAGE = `usage:
@@ -27,7 +35,8 @@ export const IDENTITY_USAGE = `usage:
   zetaphy identity finalize-claim <agentId>           (anyone, once the window has passed)
   zetaphy identity contest-claim <agentId>            (the current holder, or any runner meeting the bar)
   zetaphy identity verdict <agentId> <verdict 0x…32 bytes> <score 0-100> [--tag neuro-v1 --uri URL]
-  zetaphy msg sign <${Object.keys(KINDS).join('|')}> --from <agentId> (--payload '<json>' | --payload-file f) [--to <agentId> --ttl 3600 --source-chain ${ZETAPHY_CAIP2} --no-inline --out msg.json]
+  zetaphy msg sign <${Object.keys(KINDS).join('|')}> --from <agentId> (--payload '<json>' | --payload-file f) [--to <agentId> --ttl 3600 --source-chain eip155:<chain id> --chain-id <id> --no-inline --out msg.json]
+      (the chain id is the RPC's unless --chain-id: 3659 on mainnet, 77390 on the testnet)
   zetaphy msg verify <file> [--me <agentId>]`;
 
 // ---- settings: identity / validation addresses live next to the others in ~/.zetaphy/config.json
@@ -90,8 +99,14 @@ async function printIdentity(write, idr, id, provider, ctx) {
   }
 }
 
-export async function identityCommand({ group, cmd, rest, opt, env, write, s, connect, connectRpc }) {
+/** The ZETAPHY networks the identity commands act on: the connected RPC's (mainnet 3659 or the testnet 77390). */
+export const IDENTITY_CHAINS = [3659n, 77390n];
+
+export async function identityCommand({ group, cmd, rest, opt, env, write, s, connect: connectOn, connectRpc: connectRpcOn }) {
   const ctx = { opt, env };
+  // NeuroIdentity is on both networks: the RPC decides which one (cli.js refuses any other chain)
+  const connect = (st, o = {}) => connectOn(st, { ...o, chains: IDENTITY_CHAINS });
+  const connectRpc = (st) => connectRpcOn(st, { chains: IDENTITY_CHAINS });
   // like --jobs, addresses given on the command line are remembered
   const given = {};
   for (const k of ['identity', 'validation']) if (opt[k] != null && opt[k] !== true) given[k] = addrSetting(opt, env, k, '');
@@ -108,7 +123,9 @@ export async function identityCommand({ group, cmd, rest, opt, env, write, s, co
     if (s.jobs && (!Number.isInteger(quorum) || quorum < 1)) throw new Error('--claim-quorum must be a whole number of runners, at least 1');
     if (s.jobs && (!Number.isInteger(claimMinAgreed) || claimMinAgreed < 1 || claimMinAgreed > 2 ** 32 - 1)) throw new Error('--claim-min-agreed must be a whole number, at least 1');
     if (s.jobs && (!Number.isInteger(claimDelay) || claimDelay < 3600 || claimDelay > 30 * 86400)) throw new Error('--claim-delay must be 3600-2592000 seconds (1 hour to 30 days)');
-    const k = await new ContractFactory(I.abi, I.bytecode, c.signer).deploy(String(opt.web), opt.image ? String(opt.image) : '', ...chainArgs(),
+    // ZETAPHY's own entry is the chain this deploys on (the contract checks eip155:<block.chainid>)
+    const chainId = BigInt((await c.signer.provider.getNetwork()).chainId);
+    const k = await new ContractFactory(I.abi, I.bytecode, c.signer).deploy(String(opt.web), opt.image ? String(opt.image) : '', ...chainArgs(neuroChainsFor(chainId)),
       s.jobs ?? ZeroAddress, quorum, claimMinAgreed, claimDelay);
     await k.waitForDeployment();
     const identity = await k.getAddress();
@@ -294,10 +311,11 @@ export async function identityCommand({ group, cmd, rest, opt, env, write, s, co
       if (typeof text !== 'string') throw new Error('give the payload: --payload \'{"…":"…"}\' or --payload-file f.json');
       let payload;
       try { payload = JSON.parse(text); } catch { throw new Error('payload is not JSON'); }
+      const chainId = await evmChainId(opt, s, connectRpc);
       const { wallet } = loadOrCreateKey();
       const envl = await signMessage(wallet, {
-        chainId: EVM_CHAIN_ID, registry, fromAgent: agentArg(opt.from), toAgent: opt.to ? agentArg(opt.to) : 0n,
-        sourceChain: String(opt['source-chain'] ?? ZETAPHY_CAIP2), kind, payload, inline: !opt['no-inline'], ttl: Number(opt.ttl ?? 3600),
+        chainId, registry, fromAgent: agentArg(opt.from), toAgent: opt.to ? agentArg(opt.to) : 0n,
+        sourceChain: String(opt['source-chain'] ?? `eip155:${chainId}`), kind, payload, inline: !opt['no-inline'], ttl: Number(opt.ttl ?? 3600),
       });
       const out = JSON.stringify(envl, null, 2);
       if (opt.out) { writeFileSync(String(opt.out), out + '\n'); write(`signed ${kind} from agent ${envl.message.fromAgent} by ${wallet.address} -> ${opt.out}`); }
@@ -333,7 +351,7 @@ export async function identityCommand({ group, cmd, rest, opt, env, write, s, co
       const seen = createSeenSet({ entries });
       seen.prune(Math.floor(Date.now() / 1000));
       const r = await verifyMessage(readFileSync(file, 'utf8'), {
-        expect: { chainId: EVM_CHAIN_ID, registry }, isRunner, isOperator, isRegistryHeld, seen, me: opt.me ? agentArg(opt.me) : undefined,
+        expect: { chainId: BigInt((await provider.getNetwork()).chainId), registry }, isRunner, isOperator, isRegistryHeld, seen, me: opt.me ? agentArg(opt.me) : undefined,
       });
       if (!r.ok) { write(`NOT VERIFIED: ${r.reason}${r.signer ? ` (signer ${r.signer})` : ''}`); return 1; }
       mkdirSync(HOME, { recursive: true, mode: 0o700 });

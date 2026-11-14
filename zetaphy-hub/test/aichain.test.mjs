@@ -79,7 +79,9 @@ test('AICHAIN words: every language has every key, translated, placeholders fill
     for (const k of ['runners', 'invariant']) assert.ok(L.healKind[k]?.trim(), `${l}.healKind.${k}`);
     assert.equal(TAB_TEXT[l].aichain?.length, 3, `${l}: tab words`);
   }
-  assert.match(AICHAIN.th.insTestnet, /เทสต์เน็ต/);
+  // HackInsurance is not on mainnet (testnet only by its own terms): every language says so and warns off real money
+  assert.match(AICHAIN.th.insTestnet, /ไม่มีบน mainnet.*ห้ามใส่เงินจริง/);
+  assert.match(AICHAIN.en.insTestnet, /^Not on mainnet: .*never put real money into it\.$/);
 });
 
 test('selectors and the Scored topic match the contracts\' signatures', () => {

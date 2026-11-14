@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): it watched a bridge on the ZETAPHY testnet (chain 77390), which no longer runs; manual runs only.
 # Bridge monitor: on demand (on a schedule once a bridge exists), read the ZETAPHY lock/mint bridge on
 # the public RPC and raise alerts: daily volume over the limit's threshold, lanes disagreeing or silent,
 # any veto, pause or mark, callers of watched contracts, holds on flagged parties, governance changes

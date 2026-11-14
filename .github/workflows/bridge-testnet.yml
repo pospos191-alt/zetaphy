@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): check and dry_run read or fork the live ZETAPHY testnet (chain 77390), which no longer runs, so the pull-request run is off; manual runs only.
 # ZETAPHY Saphan, EVM route: the lock/mint bridge Sepolia ETH -> ZETAPHY on the testnets.
 #   ZETAPHY: zetaphy deploy-bridge --testnet (BridgeGuard + bridged token, BridgeAirlock, NeuroLane,
 #            HyperlaneLane), deployed CLOSED; admin = the timelock, guardian = the 2-of-2 multisig.
@@ -15,11 +16,6 @@
 name: bridge-testnet
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/bridge-testnet.yml'
-      - 'zetaphy-network/scripts/bridge-sepolia.js'
-      - 'zetaphy-network/contracts/HyperlaneLane.sol'
   workflow_dispatch:
     inputs:
       mode:

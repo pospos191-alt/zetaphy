@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): the ZETAPHY side of check / deploy was the testnet (chain 77390), which no longer runs; the pull-request dry run stays (a fresh local ZETAPHY).
 # ZETAPHY Saphan, EVM routes v2: one source chain <-> ZETAPHY, both ways, testnets only.
 # The chain comes from zetaphy-chain/hyperlane/saphan-chains.json (adding a chain = an entry there + this workflow).
 #   source chain: SimpleMultisig (guardian, proposer) + ZetaphyTimelock (governance), our multisig ISM for origin
@@ -170,6 +171,9 @@ jobs:
           mkdir -p "$W/reg/chains/zetaphy"
           sed 's#https://rpc.sawasdeecoin.com#http://127.0.0.1:8602#' ../zetaphy-chain/hyperlane/registry/chains/zetaphy/metadata.yaml > "$W/reg/chains/zetaphy/metadata.yaml"
           DEV=$(node -e 'console.log(new (require("ethers").Wallet)(process.argv[1]).address)' "$DEV_KEY")
+          # the fork keeps the source chain's real balance of the deployer (a public dev key, often swept to ~0 on public
+          # testnets): give it gas on the LOCAL fork only, so the dry run never depends on a faucet
+          curl -fsS -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"anvil_setBalance\",\"params\":[\"$DEV\",\"0x3635c9adc5dea00000\"]}" 127.0.0.1:8601 >/dev/null
           # a local stand-in for ZETAPHY's core: the same contracts (Mailbox, merkle tree hook, ISM factories), a test default ISM
           printf 'owner: "%s"\ndefaultIsm:\n  type: testIsm\ndefaultHook:\n  type: merkleTreeHook\nrequiredHook:\n  type: protocolFee\n  owner: "%s"\n  beneficiary: "%s"\n  protocolFee: "0"\n  maxProtocolFee: "1000000000"\n' "$DEV" "$DEV" "$DEV" > "$W/core.yaml"
           HYP_KEY="$DEV_KEY" hyperlane core deploy --chain zetaphy --config "$W/core.yaml" -r "$W/reg" --yes > "$W/core.log" 2>&1 || { tail -40 "$W/core.log"; exit 1; }
@@ -180,6 +184,8 @@ jobs:
           fi
           # a token route (on pull requests: token = test, a BZTPHY-like stand-in), on the same two chains
           if [ -n "$TOKEN" ]; then
+            # the ETH route above spends the deployer's fork balance (it locks and bridges ETH): top it up again, locally
+            curl -fsS -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"anvil_setBalance\",\"params\":[\"$DEV\",\"0x3635c9adc5dea00000\"]}" 127.0.0.1:8601 >/dev/null
             node scripts/saphan-dryrun.js --chain "$CHAIN" --token "$TOKEN" | tee "$W/token.log"
             grep -q '^TOKEN DRY RUN OK' "$W/token.log"
           fi

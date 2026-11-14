@@ -49,3 +49,5 @@ progress { width: min(320px, 100%); accent-color: var(--accent); }
 .kv dd { margin: 0; min-width: 0; }
 .next { margin: 0; padding-left: 20px; display: grid; gap: 6px; overflow-wrap: anywhere; }
 @media (max-width: 560px) { .kv { grid-template-columns: 1fr; } .kv dd { margin-bottom: 6px; } }
+.net { margin: 0 0 14px; }
+.net:empty { display: none; }

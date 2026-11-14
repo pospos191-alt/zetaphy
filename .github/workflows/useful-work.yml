@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): the feed acted on the ZETAPHY testnet (chain 77390), which no longer runs, so the 3-hourly schedule is off; manual runs only.
 # Useful work on the testnet (docs/future/useful-work.md, item 5). TESTNET ONLY. Free: GitHub-hosted runners,
 # no server. Keys only from GitHub Environments (docs/SECRETS-HARDENING.md); nothing here contains a secret.
 #
@@ -17,8 +18,6 @@
 name: Useful work
 
 on:
-  schedule:
-    - cron: '17 */3 * * *'   # feed, every 3 hours at :17
   workflow_dispatch:
     inputs:
       mode:

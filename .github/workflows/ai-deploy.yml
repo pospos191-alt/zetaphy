@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): this deploys on the ZETAPHY testnet (chain 77390), which no longer runs; manual runs only.
 # One button for the AI map (zetaphy-hub/flow.js, docs/future/*.md): deploys on the ZETAPHY testnet every
 # AI contract that is still missing, each owned by the ZetaphyTimelock from the launch state (the deploy key
 # keeps no role), then useful work (paused) and FederatedRounds (closed) if they are not deployed yet.

@@ -155,9 +155,9 @@ async function addFakeWallets(page, cfg) {
 async function openPage(node = {}, { ethereum, snap, wallets, clock, watchKeys, network = 'testnet' } = {}) {
   const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
-  // The network (network.js; mainnet by default): these tests are about the testnet unless they ask for mainnet.
-  // Set once, so a test that switches it in the page keeps its choice across the reload.
-  if (network) await page.addInitScript((n) => { try { if (!sessionStorage.getItem('__net')) { localStorage.setItem('zetaphy:network', n); sessionStorage.setItem('__net', '1'); } } catch { /* storage blocked */ } }, network);
+  // The network (network.js: mainnet, the only network since the testnet was shut down on 2026-11-14): these tests run
+  // the page on the retired testnet's record (test only: no link or saved value reaches it) unless they ask for mainnet.
+  if (network === 'testnet') await page.addInitScript(() => { globalThis.__ZETAPHY_TEST_NETWORK = 'testnet'; });
   // Fake timers (Playwright's clock): time runs on its own, and a test can jump it forward.
   if (clock) await page.clock.install();
   // Every 32-byte plaintext WebCrypto decrypts (the seed, unwrapped by a passphrase or a
@@ -391,7 +391,7 @@ test('page loads in English with warnings and its CSP, then switches to Thai', a
   await context.close();
 });
 
-test('network: mainnet by default (badge, risk line, chain 3659, its RPC), a testnet RPC is refused, the switch picks the testnet', async () => {
+test('network: mainnet only (badge, risk line, chain 3659, its RPC, no switch), a testnet RPC is refused, a saved or linked testnet opens mainnet', async () => {
   const { page, context, errors } = await openPage({}, { network: null });
   await page.route((url) => url.host === '129-221-199-191.sslip.io', (route) => route.abort());
   await setLang(page, 'en');
@@ -400,7 +400,7 @@ test('network: mainnet by default (badge, risk line, chain 3659, its RPC), a tes
   assert.match(badge, /ZETAPHY mainnet/);
   assert.match(badge, /single validator operated by the ZETAPHY project.*afford to lose/);
   assert.equal(await page.getAttribute('#net-badge a.zn-net-notice', 'href'), 'https://github.com/pospos191-alt/zetaphy/blob/main/docs/ZETAPHY-MAINNET-NOTICE.md');
-  assert.equal(await page.inputValue('#net-badge select'), 'mainnet');
+  assert.equal(await page.locator('#net-badge select, select.zn-net-select, .zn-gate-switch').count(), 0, 'no network switch');
   assert.doesNotMatch(await page.textContent('#warning'), /testnet/i, 'no testnet words on mainnet');
   assert.equal(await page.inputValue('#rpc'), 'https://129-221-199-191.sslip.io', 'mainnet\'s public RPC by default');
   assert.equal(await page.textContent('#m-chain'), '3659 (0xe4b)');
@@ -421,12 +421,16 @@ test('network: mainnet by default (badge, risk line, chain 3659, its RPC), a tes
   await page.click('#rpc-save');
   await statusMatches(page, /That RPC is not ZETAPHY mainnet \(chain id 77390\)/);
   assert.equal(await page.textContent('#balance').then((s) => s.includes('10 ZETAPHY')), false, 'no balance read from the wrong chain');
-  // the switch: the testnet, remembered, with its own RPC setting (the mainnet one is kept apart)
-  await Promise.all([page.waitForEvent('load'), page.selectOption('#net-badge select', 'testnet')]);
-  assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), 'testnet');
-  assert.match(await page.textContent('#net-badge'), /ZETAPHY testnet/);
-  assert.equal(await page.inputValue('#rpc'), '', 'the testnet has its own RPC setting');
-  assert.equal(await page.textContent('#m-chain'), '77390 (0x12e4e)');
+  // a testnet choice saved before the shutdown, then a ?network=testnet link: mainnet both times, the saved value cleared
+  await page.evaluate(() => localStorage.setItem('zetaphy:network', 'testnet'));
+  for (const q of ['?reload=1', '?network=testnet']) {
+    await page.goto(new URL(q, page.url()).href);
+    await page.waitForFunction(() => /ZETAPHY/.test(document.getElementById('net-badge')?.textContent ?? '') && document.getElementById('m-chain')?.textContent);
+    assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet/, q);
+    assert.doesNotMatch(await page.textContent('#net-badge'), /ZETAPHY testnet/, q);
+    assert.equal(await page.textContent('#m-chain'), '3659 (0xe4b)', q);
+    assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), null, `${q}: cleared, nothing saved`);
+  }
   assert.deepEqual(errors.filter((e) => !/net::ERR_FAILED|Failed to load resource/.test(e)), []);
   await context.close();
 });
@@ -1233,10 +1237,10 @@ const walletNames = (page) => page.$$eval('#evm-wallets button > span:last-child
 const pickedName = (page) => page.textContent('#evm-wallets button.on > span:last-child');
 
 test('wallet config files and the page build the same network settings', async () => {
-  // the zetaphy-chain/wallets templates are the testnet's: read wallets.js as a testnet page would (network.js)
-  globalThis.localStorage = { getItem: (k) => (k === 'zetaphy:network' ? 'testnet' : null), setItem: () => {} };
+  // the zetaphy-chain/wallets templates are the retired testnet's: read wallets.js on its record (network.js test flag)
+  globalThis.__ZETAPHY_TEST_NETWORK = 'testnet';
   const w = await import('../wallets.js');
-  delete globalThis.localStorage;
+  delete globalThis.__ZETAPHY_TEST_NETWORK;
   assert.equal(w.NETWORK.id, 'testnet');
   const ep = w.nodeEndpoints(RPC);
   assert.deepEqual(ep, { evm: 'https://rpc.zetaphy.test:8545', host: 'https://rpc.zetaphy.test:8545', rpc: 'https://rpc.zetaphy.test:8545/rpc', rest: 'https://rpc.zetaphy.test:8545/rest' });

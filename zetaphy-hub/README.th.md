@@ -4,7 +4,7 @@
 
 | แท็บ | คืออะไร |
 | --- | --- |
-| ภาพรวม | ตัวเลขสดของเชน (บล็อก, เวลาต่อบล็อก, validator, ยอด stake), บล็อกล่าสุด, ปุ่มเพิ่มเครือข่าย (MetaMask / Keplr), faucet ของ testnet และ endpoint |
+| ภาพรวม | ตัวเลขสดของเชน (บล็อก, เวลาต่อบล็อก, validator, ยอด stake), บล็อกล่าสุด, ปุ่มเพิ่มเครือข่าย (MetaMask / Keplr), faucet (บน mainnet คือ faucet ของ sentry สาธารณะ พร้อมจำนวนและงบของวันนี้) และ endpoint |
 | กระเป๋า | กระเป๋าต้านควอนตัม (`zetaphy-wallet`) |
 | แลกเปลี่ยน | DEX แบบ AMM + DLMM (`zetaphy-dex/web`) |
 | Stake & โหวต | **ใหม่** รายชื่อ validator, ยอด stake และรางวัลของคุณ, ข้อเสนอ ทั้ง stake / ถอน / รับรางวัล / โหวต ส่งจาก MetaMask ไปที่ precompile ของเชน (staking `0x…0800`, distribution `0x…0801`, gov `0x…0805`) |
@@ -22,6 +22,29 @@
 | ธรรมาภิบาล | **ใหม่** ข้อเสนอที่เปิดอยู่และคิว ZetaphyTimelock เป็นภาษาง่าย: เทียบพารามิเตอร์กับค่าปัจจุบัน จำลองการเรียก EVM ด้วย `eth_call` (ในฐานะ gov module / timelock) และติดธงการเปลี่ยนที่เสี่ยง (`govassist.js`; docs/future/crosschain-assist.th.md) |
 | ภูมิคุ้มกัน | **ใหม่** ความครอบคลุมของธง Neuro บนเชนอื่น (mirror NeuroOracle), ค้นใบรับรอง Neuro-checked และตัวตรวจการรับรองที่ทนควอนตัม (ML-DSA-44) ที่ทำงานในเบราว์เซอร์ (`assist.js`, `pqattest.js`) |
 | (สรุปก่อนลงนาม) | ก่อนทุกธุรกรรม สรุปจะจำลองบนบล็อกล่าสุดด้วย (ยอดเงินที่เปลี่ยนผ่านโพรบ state override, `presign.js`) และถ้าตั้งค่าโมเดลไว้ใน Neuro จะให้ AI ของคุณเองอธิบายได้ |
+
+## เครือข่าย: เปิดที่ mainnet เป็นค่าเริ่มต้น สลับไป testnet ได้ในคลิกเดียว
+
+ทุกแอป (hub, กระเป๋า, swap, NFT, explorer, Neuro และหน้าของ hub เอง: หน้าตรวจใบรับรอง `audit.html`, Audit Directory
+`audits.html`, พิธี zkML `ceremony.html`, พยากรณ์ความเสี่ยง, คู่มือ validator) เปิดที่ **ZETAPHY mainnet** (chain 3659,
+`zetaphy_3659-1`, RPC สาธารณะ `https://129-221-199-191.sslip.io`, CometBFT `/rpc` และ REST `/rest` บนโฮสต์เดียวกัน)
+ตัวสลับเครือข่ายข้างป้ายเลือก **testnet** (chain 77390) ได้ ระบบจำไว้ในเบราว์เซอร์นี้ (`localStorage` `zetaphy:network`)
+และลิงก์ `?network=testnet|mainnet` ก็ตั้งค่าได้เช่นกัน ไฟล์เดียวกำหนดทั้งสองเครือข่าย: `network.js` (`npm run sync:shared`
+คัดลอกไปยังแอปอื่น `test/safety.test.mjs` ตรวจว่าสำเนาตรงกัน)
+
+- บน mainnet ป้ายมีประโยคความเสี่ยงจากประกาศ mainnet ฟีเจอร์ที่สัญญายังไม่อยู่บน mainnet จะแสดง **"ตอนนี้ใช้ได้เฉพาะบน testnet"**
+  พร้อมปุ่มสลับ และไม่มีการเรียกสัญญาของฟีเจอร์นั้นบน mainnet
+- ที่อยู่สัญญาบน mainnet: `build.mjs` เขียนลง `dist/hub-config.json` ส่วน `mainnet` โดยอ่านจาก
+  `zetaphy-launch/state/3659.contracts.json` ของการ launch mainnet ถ้ามีไฟล์นี้ (เขียนโดย `launch.js --network mainnet --resume`)
+  ถ้าไม่มีจะใช้รายการใน `network.js` (ตรวจเทียบกับ `zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json`) ไม่มีที่อยู่ของ testnet
+  ปนอยู่ในส่วนนี้ ฟีเจอร์ที่ถูกปิดไว้จะเปิดเองในการ build ครั้งถัดไปเมื่อไฟล์นั้นมีสัญญาครบ (`network.js` `FEATURE_CONTRACTS`)
+  ไม่ต้องแก้โค้ดหลัง deploy
+- Airdrop: การ์ดรับ airdrop (แท็บ Agents) อ่าน `zetaphy-network/deployments/airdrop-77390.json` บน testnet และ
+  `zetaphy-network/deployments/airdrop-3659.json` บน mainnet (`{ "chainId": 3659, "contracts": { "airdropDistributor": "0x…" }, "list": "…" }`)
+  เมื่อมีไฟล์นี้ การ์ดจะแสดงบน mainnet ด้วย
+- Faucet: sentry สาธารณะของ mainnet มี faucet (`zetaphy_faucet`, `zetaphy_faucetPow`) หน้าภาพรวม หาเหรียญ และขุด อ่าน
+  `zetaphy_faucetPowInfo` แล้วแสดงจำนวนและงบของวันนี้ตามที่โหนดบอก (ไม่ใช่ตัวเลขตายตัว) และบอกตรง ๆ เมื่อ faucet ปิดหรืองบวันนี้หมด
+  (`faucet-core.js` ข้อความอยู่ใน `faucet-i18n.js`)
 
 ## ทำงานอย่างไร
 

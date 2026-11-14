@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#05070a">
-<title>ZETAPHY: post-quantum EVM chain (testnet)</title>
-<meta name="description" content="ZETAPHY, a post-quantum EVM chain (testnet): wallet, swap, staking and voting, NFT, explorer and Neuro contract checks on one page.">
+<title>ZETAPHY: post-quantum EVM chain (mainnet)</title>
+<meta name="description" content="ZETAPHY, a post-quantum EVM chain: mainnet live (chain 3659), the only network. Wallet, swap, staking and voting, NFT, explorer and Neuro contract checks on one page.">
 <link rel="canonical" href="https://app.sawasdeecoin.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ZETAPHY">
-<meta property="og:title" content="ZETAPHY: post-quantum EVM chain (testnet)">
-<meta property="og:description" content="ZETAPHY, a post-quantum EVM chain (testnet): wallet, swap, staking and voting, NFT, explorer and Neuro contract checks on one page.">
+<meta property="og:title" content="ZETAPHY: post-quantum EVM chain (mainnet)">
+<meta property="og:description" content="ZETAPHY, a post-quantum EVM chain: mainnet live (chain 3659), the only network. Wallet, swap, staking and voting, NFT, explorer and Neuro contract checks on one page.">
 <meta property="og:url" content="https://app.sawasdeecoin.com/">
 <meta property="og:image" content="https://app.sawasdeecoin.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -44,7 +44,6 @@
     <div class="top-actions">
       <button type="button" class="busy-pill" id="busy-pill" hidden></button>
       <span class="net-pill" id="net-pill" data-tip-key="tipNetOffline" tabindex="0" role="status" hidden><i class="dot"></i><span data-i18n="netOffline">Offline</span></span>
-      <span id="net-switch"></span>
       <button type="button" class="btn ghost" id="add-net" data-tip-key="tipAddNet"><span data-i18n="addNet">Add network</span></button>
       <select class="lang-select" id="lang" aria-label="Language" title="Language"><option value="en">English</option></select>
       <button type="button" class="btn" id="wb-btn" data-i18n="wbConnect">Connect wallet</button>
@@ -90,6 +89,7 @@
                   <input id="faucet-addr" class="mono" spellcheck="false" placeholder="0x… / zetaphy1…" aria-label="address">
                   <button type="submit" class="btn" data-i18n="faucetBtn">Get</button>
                 </form>
+                <p class="small dim faucet-state" id="faucet-state" hidden></p>
                 <div class="msg" id="faucet-msg" role="status"></div>
               </div>
             </li>

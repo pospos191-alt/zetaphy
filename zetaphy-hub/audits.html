@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>ZETAPHY Audit Directory</title>
-<meta name="description" content="Every audit certificate the ZETAPHY testnet audit network has issued, on Ethereum, BNB, Base, Arbitrum, Optimism, Polygon, Avalanche, Osmosis and Solana, with a live check for each. Testnet only.">
+<meta name="description" content="Every audit certificate the ZETAPHY audit network (not on mainnet yet; the testnet was shut down on 2026-11-14) has issued, on Ethereum, BNB, Base, Arbitrum, Optimism, Polygon, Avalanche, Osmosis and Solana, with a live check for each.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="aas.css">
 <script type="module" src="aas-directory.js"></script>
@@ -26,12 +26,13 @@
     <p class="note" data-t="testnet"></p>
     <nav class="links"><a href="audit.html" data-t="vTitle"></a></nav>
   </header>
-  <div class="filters">
+  <div id="net" class="net"></div>
+  <div class="filters" data-needs-net>
     <input id="q" type="search" autocomplete="off" spellcheck="false">
     <select id="f-chain"></select>
     <select id="f-state"></select>
   </div>
-  <section id="list" aria-live="polite"></section>
+  <section id="list" aria-live="polite" data-needs-net></section>
   <p class="status" id="status" role="status"></p>
 </div>
 </body>

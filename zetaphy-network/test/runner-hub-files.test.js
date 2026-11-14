@@ -40,3 +40,13 @@ test('setup-runner.sh copies every zetaphy-hub file the network code imports', (
   const copied = loop[1].replace(/\\\n/g, ' ').split(/\s+/).filter(Boolean).sort();
   assert.deepEqual(copied, hubImports());
 });
+
+test('setup-runner.sh defaults to ZETAPHY mainnet: its public RPC and the NeuroJobs and RewardVault of 3659.contracts.json', () => {
+  const sh = readFileSync(join(NET, 'setup-runner.sh'), 'utf8');
+  const main = JSON.parse(readFileSync(join(NET, '..', 'zetaphy-launch', 'state', '3659.contracts.json'), 'utf8'));
+  const dflt = (v) => new RegExp(`^${v}="\\$\\{ZETAPHY_${v}:-([^}]+)\\}"`, 'm').exec(sh)?.[1];
+  assert.equal(dflt('RPC'), 'https://129-221-199-191.sslip.io');
+  assert.equal(dflt('JOBS'), main.contracts.neuroJobs);
+  assert.equal(dflt('VAULT'), main.contracts.rewardVault);
+  assert.doesNotMatch(sh, /sawasdeecoin|77390/, 'no testnet left in the runner installer');
+});

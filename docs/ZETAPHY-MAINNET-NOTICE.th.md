@@ -6,6 +6,9 @@ ZETAPHY mainnet (`zetaphy_3659-1`, EVM chain id 3659, เหรียญ ZTPHY) 
 (21:00 น. เวลาไทย)** genesis sha256 คือ `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`
 ([ไฟล์ที่เผยแพร่](../zetaphy-chain/mainnet/zetaphy_3659-1/README.th.md))
 
+**ตอนนี้ ZETAPHY มีเพียง mainnet เครือข่ายเดียว** testnet (`zetaphy_77390-1`, EVM chain id 77390, https://rpc.sawasdeecoin.com)
+ปิดถาวรเมื่อ **14 พฤศจิกายน 2026** (เจ้าของโครงการตัดสินใจ) เหรียญ สัญญา และ RPC ของ testnet ไม่มีแล้ว อย่าส่งอะไรไปที่ chain 77390
+
 ## ก่อนใช้งาน
 
 ขณะนี้ ZETAPHY mainnet ทำงานบน validator เพียงตัวเดียวที่โครงการ ZETAPHY ดูแลเอง และโค้ดยังไม่ผ่านการตรวจสอบ (audit) จากภายนอก

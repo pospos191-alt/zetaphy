@@ -72,8 +72,6 @@ button, input { font: inherit; color: inherit; }
 .net-note { grid-area: note; padding: 6px 20px; border-bottom: 1px solid var(--line); background: var(--rail); min-width: 0; }
 .net-note[hidden] { display: none; }
 .net-note .zn-net { padding: 4px 10px; font-size: 12px; }
-#net-switch .zn-net-select { background: transparent; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; }
-#net-switch .zn-net-select option { color: #111; }
 .badge.mainnet { border-color: rgba(34, 197, 94, .45); color: #4ade80; background: rgba(34, 197, 94, .08); }
 .panel.gate-panel { padding: 20px; max-width: 720px; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(240, 185, 11, .35); color: var(--warn); background: rgba(240, 185, 11, .08); cursor: help; white-space: nowrap; }
@@ -130,7 +128,8 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 108, 
 .stat .k { font-size: 12px; color: var(--dim); }
 .stat .v { font-size: 20px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.home-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: calc(100% - 92px); min-height: 380px; }
+/* the grid grows with its content (min-height, not height): a long step 3 never draws over the mainnet card below */
+.home-grid { display: grid; gap: 14px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: max(380px, calc(100% - 92px)); }
 .home-grid .start { grid-row: 1 / span 2; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
 .steps li { display: flex; gap: 12px; }
@@ -155,9 +154,7 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 108, 
 .kv dt { color: var(--dim); }
 .mainnet-card { margin-top: 14px; }
 .mainnet-card .kv dd { white-space: normal; overflow-wrap: anywhere; }
-.mainnet-risk { margin: 10px 0 8px; padding: 8px 12px; border-left: 3px solid var(--warn); background: rgba(240, 185, 11, .06); border-radius: 6px; font-size: 13px; line-height: 1.5; }
 .mainnet-links { flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
-.mainnet-card .dim.small { margin: 8px 0 0; }
 .kv dd { margin: 0; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .copy { border: 0; background: none; color: var(--dim); cursor: pointer; padding: 2px 6px; border-radius: 6px; font-size: 12px; }
 .copy:hover { color: var(--text); background: rgba(255, 255, 255, .06); }
@@ -216,7 +213,6 @@ dialog form { display: flex; flex-direction: column; gap: 10px; }
   .lang-select { max-width: 116px; padding: 7px 24px 7px 10px; background-position: right 8px center; font-size: 13px; }
   /* the network: the switch says which one; the badge and the risk line stay short */
   #net-badge { display: none; }
-  #net-switch .zn-net-select { max-width: 74px; padding: 6px 0; font-size: 12px; }
   .top-actions { gap: 5px; }
   .net-note { padding: 4px 12px; }
   .panel { padding: 12px; }

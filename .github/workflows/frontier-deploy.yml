@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): this deploys on the ZETAPHY testnet (chain 77390), which no longer runs; manual runs only.
 # One button for everything still missing on the ZETAPHY testnet that can be deployed now (docs/future/deploy.md,
 # "The frontier button"): the frontier contracts (immune network, circuit breaker, quantum rescue and PQ settlement,
 # the bridge outbox, private identity, HackInsurance), then the open audit network and offline trading, the audit

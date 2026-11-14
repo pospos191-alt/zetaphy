@@ -7,13 +7,15 @@
 //     wallet/vendor/pqwallet.js) and a secret, shows the kit once, the connected account sends commit(hash).
 // Everything shown goes in with textContent; no inline styles (CSP style-src 'self'); scripts only from this site.
 import { withFallback } from './i18n.js';
+import { activeNetwork } from './network.js';
 import { QUANTUM } from './quantum-i18n.js';
 import { toBech32, toEvm, isEvmAddress } from './chainlib.js';
 import * as core from './quantum-core.js';
 
 export const QL = (lang) => withFallback(QUANTUM, lang);
 export const fmt = (s, vars) => String(s).replace(/\{(\w+)\}/g, (m, x) => (x in vars ? String(vars[x]) : m));
-const ZETAPHY = 77390;
+// the page's network (network.js; ctx.net from the hub): set when the page is drawn
+let ZETAPHY = 77390;
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 const say = (ctx, box, text, cls = 'msg small') => box.replaceChildren(ctx.el('p', { class: cls, text }));
 const hex = (b) => `0x${Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')}`;
@@ -40,6 +42,7 @@ async function readRescue(ctx, contract, account) {
 
 const page = {
   render(root, ctx) {
+    ZETAPHY = (ctx.net ?? activeNetwork()).chainId;
     const L = QL(ctx.lang);
     const el = ctx.el;
     const C = ctx.cfg.contracts ?? {};

@@ -6,6 +6,10 @@ ZETAPHY mainnet (`zetaphy_3659-1`, EVM chain id 3659, coin ZTPHY) has its genesi
 Its genesis sha256 is `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`
 ([the published files](../zetaphy-chain/mainnet/zetaphy_3659-1/README.md)).
 
+**Mainnet is the only ZETAPHY network.** The testnet (`zetaphy_77390-1`, EVM chain id 77390, https://rpc.sawasdeecoin.com)
+was shut down for good on **2026-11-14** (owner decision). Its coins, contracts and RPC are gone; do not send anything to
+chain 77390.
+
 ## Before you use it
 
 ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not yet

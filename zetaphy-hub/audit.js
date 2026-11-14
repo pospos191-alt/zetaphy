@@ -7,6 +7,7 @@
 //   - judges: vote on a finding, appeal a decision.
 // Everything shown goes in with textContent; no inline styles (CSP style-src 'self').
 import { withFallback } from './i18n.js';
+import { activeNetwork } from './network.js';
 import { AUDIT } from './audit-i18n.js';
 import { AAS } from './aas-i18n.js';
 import { keccak256 } from './neuro/src/keccak.js';
@@ -15,7 +16,8 @@ import * as core from './audit-core.js';
 
 export const AU = (lang) => withFallback(AUDIT, lang);
 const STORE = 'zetaphy-audit:v1';
-const ZETAPHY = 77390;
+// the page's network (network.js; ctx.net from the hub): set when the page is drawn
+let ZETAPHY = 77390;
 const k = keccak256;
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 const HEX32 = /^0x[0-9a-fA-F]{64}$/;
@@ -64,6 +66,7 @@ const dateOf = (ctx, sec) => { const d = new Date(Number(sec) * 1000); return Nu
 // ---------------------------------------------------------------- the page
 const page = {
   render(root, ctx) {
+    ZETAPHY = (ctx.net ?? activeNetwork()).chainId;
     const L = AU(ctx.lang);
     const el = ctx.el;
     const C = ctx.cfg.contracts ?? {};

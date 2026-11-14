@@ -1,0 +1,56 @@
+{
+  "_comment": "zetaphy-launch --network mainnet: public addresses, keys as in zetaphy-hub hub-config.json `contracts`. No secrets.",
+  "chainId": 3659,
+  "network": "zetaphy-mainnet",
+  "contracts": {
+    "neuroJobs": "0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB",
+    "neuroControl": "0x97F5D7FBc6228aA7A145505AABdbdC7825e161AE",
+    "threatRegistry": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+    "threatReports": "0x11411E0c35dA30b4a5009827770798ad79881c31",
+    "rewardVault": "0xC6688B17AE63FbE79ED269A7c0A8f84E9ec2E55d",
+    "computeMarket": "0x47Fc248DbEa74954C1E06a4670B7721BD5161C06",
+    "oracle": "0xB308b5E42825A48c3922fBaeAca179716E99e659",
+    "neuroIdentity": "0x2ffb93AB4738A8Ae2587de92489F4Df3a24349e8",
+    "usefulWork": "0x45AB974bcd11e26CB60cdAd9321dB46f00f85fa2",
+    "bugBounty": "0x060dB52E948ce375a17c8eD458Ba0Bb0AdFef72E",
+    "workerReputation": "0x3B7E5AA0417d445dd0c584CBA6A0Fb5D62b1dbe2",
+    "usefulIssuance": "0xca1345D472051a3503089f9b314BFE9C07530225",
+    "riskForecasts": "0xb5C5c878Fe2dF88ec9F1002DC96a34Cc411623Ae",
+    "foresight": "0x7Eb80da7F38bE567e8c2943E8DC80082a655CB68",
+    "detectorPool": "0xe3324c4dC8Eaf01820eD91d7aCb0a5fB176485A8",
+    "dataDao": "0x4387c4C140CdaC0a128ee3A64Ac3719Da5aB531F",
+    "arena": "0xAcAB13F2A200A8937497cDcf28ac2F0DE2d91F7c",
+    "intentExecutor": "0x4Efb8364dE552b6D9b778c9FcEbbd59242487a63",
+    "labelRegistry": "0x05193D10eCfF72339967a06d0c1e196b19475372",
+    "vouchRegistry": "0xc1164a4511692f5Dd5F2422cDD64F66856e1e45c",
+    "agentRegistry": "0x94Cc66d97449b8909ea42b668E3D14FF1DB69D09",
+    "timelock": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+    "neuroAttest": "0x16706E3Fdbb7d472ABf801fFfbDb139e405a6d9A",
+    "neuroAnchor": "0x160E9275A2d1782b7Ea4F66029e909Dbb263BBF2",
+    "modelRegistry": "0x8d759449027fbcB080fa2dEb246c9842F5417f2c",
+    "neuroScore": "0xec0a0baCB2674CEB659096EE1F8870044BCf087e",
+    "modelEpochs": "0x76D40c327d6F13387feF29bf5fF754Ba9110079C",
+    "signalBoard": "0xdc59a495AAb49CEc33b1eFA29291Cc702eC25b62",
+    "webauthn": "0xBDB4033409B839Bf1D325216505737f68Bf36553",
+    "cosignCommittee": "0x42fF91AB63d5Cd33c6B9A9C340618BA3453025F8",
+    "federatedRounds": "0x231b7Dd4E08235dB8Bd950AE662973fb872e3260",
+    "zetaphyBounty": "0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE",
+    "guardianMultisig": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+    "timelockBlock": 3104
+  },
+  "dex": {
+    "factory": "0x93463B001483970f8CAE63cd8B60D28F17a1C1AA",
+    "router": "0xa5221A7F25cf10d99446Fde3e95c15b1f696e783",
+    "dlmmFactory": "0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a",
+    "dlmmRouter": "0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B"
+  },
+  "nft": {
+    "factory": "0xc0800dBEbFFC80120f5DC0E6f2a603C00F6AF391",
+    "marketplace": "0x0402d6E7af2912D002EfCa7543eb44A3EB3Bbc14"
+  },
+  "aiItemsWithContracts": [1, 2, 3, 5, 6, 7, 9, 10, 14, 15, 16, 17, 19, 23, 24, 25, 26, 27, 29, 30, 34, 35],
+  "skipped": {
+    "hackInsurance": "HackInsurance is testnet only by its own terms: an unaudited parametric insurance pool into which \"no real money may ever be put\" (AI map item 32 stays \"not deployed\")",
+    "neuroOracleSender": "no Hyperlane Mailbox on this chain (deploy config ai.mailbox)"
+  }
+}

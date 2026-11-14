@@ -5,8 +5,9 @@
 #
 # Installs Node.js (official build, SHA-256 checked), the ZETAPHY code, a runner key made on this
 # machine, and a service that starts by itself (also after a reboot). It prints the runner's
-# address: send 100.1 ZETAPHY testnet there and the runner registers its bond by itself and
-# starts taking Neuro jobs. Nothing secret is printed or sent anywhere.
+# address: send the bond plus 0.1 ZTPHY for gas there (the log says how much) and the runner
+# registers its bond by itself and starts taking Neuro jobs. Until then it only waits: nothing is
+# signed or sent. Nothing secret is printed or sent anywhere.
 #
 #   sudo zetaphy-runner status      address, wallet, bond, earnings, network
 #   sudo zetaphy-runner address     the address to fund
@@ -16,15 +17,17 @@
 #   sudo zetaphy-runner stop|start
 #   sudo zetaphy-runner uninstall   remove the service and code (the key stays in /var/lib/zetaphy-runner)
 #
-# Testnet only: never put a key holding real money here.
+# ZETAPHY mainnet (chain 3659, zetaphy_3659-1; the testnet was shut down on 2026-11-14). The key holds
+# real ZTPHY once funded: keep only the bond and a little gas on it, withdraw earnings regularly.
+# Another network (a local devnet): ZETAPHY_RPC, ZETAPHY_JOBS and ZETAPHY_VAULT.
 set -euo pipefail
 
 NODE_VERSION="v22.22.0"
 REPO="pospos191-alt/zetaphy"
 REF="${REF:-main}"
-RPC="${ZETAPHY_RPC:-https://rpc.sawasdeecoin.com}"
-JOBS="${ZETAPHY_JOBS:-0x698dC17df6a34b02263b295d101BE39F3F3B433B}"     # NeuroJobs (zetaphy-launch/state/77390.json)
-VAULT="${ZETAPHY_VAULT:-0x6a26055803556ff891CAB11CF47aB363aC1D0Ed8}"   # RewardVault
+RPC="${ZETAPHY_RPC:-https://129-221-199-191.sslip.io}"                   # mainnet's public RPC (sentry, rpc-guard)
+JOBS="${ZETAPHY_JOBS:-0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB}"     # NeuroJobs (zetaphy-launch/state/3659.contracts.json)
+VAULT="${ZETAPHY_VAULT:-0xC6688B17AE63FbE79ED269A7c0A8f84E9ec2E55d}"   # RewardVault (same file)
 USER_NAME=zetaphy-runner
 HOME_DIR=/var/lib/zetaphy-runner
 CODE=/opt/zetaphy
@@ -119,8 +122,9 @@ install_all() {
   zcli node status | sed -n '1,3p'
   cat <<EOF
 
-Next: send 100.1 ZETAPHY testnet (or more) to the runner address above.
-The runner registers its bond by itself within a minute and starts taking jobs.
+Next: send the bond plus 0.1 ZTPHY for gas to the runner address above (sudo zetaphy-runner logs
+shows the exact amount). Until then the runner only waits. Once funded it registers its bond by
+itself within a minute and starts taking jobs.
   sudo zetaphy-runner status    see the bond and earnings
   sudo zetaphy-runner logs      see what it is doing
 EOF

@@ -46,7 +46,7 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 async function openPage({ viewport, lang = 'en', serviceWorkers = 'block' } = {}) {
   const ctx = await browser.newContext({ viewport: viewport ?? { width: 1280, height: 900 }, serviceWorkers });
   const page = await ctx.newPage();
-  await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
+  await onTestnet(page); // these checks run on the retired testnet's record (visitors only get mainnet)
   const problems = [];
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(`console: ${m.text()}`); });

@@ -5,7 +5,7 @@
 // Shows VALID / EXPIRED / REVOKED / CODE CHANGED (aas-core.js certificateStatus) and an embeddable badge.
 import { keccak256 } from './neuro/src/keccak.js';
 import * as aas from './aas-core.js';
-import { T, page, el, when, loadConfig, setupLang } from './aas-page.js';
+import { T, page, el, when, loadConfig, setupLang, showNetwork, followNetwork } from './aas-page.js';
 
 const k = keccak256;
 const sha256 = async (bytes) => new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
@@ -18,7 +18,9 @@ const status = (text, cls = '') => { const s = document.getElementById('status')
 function chainOptions() {
   const sel = document.getElementById('chain');
   const cur = sel.value;
-  sel.replaceChildren(...aas.AAS_CHAINS.map((c) => el('option', { value: c.key, text: c.name })));
+  // the page's own ZETAPHY network first (the default choice), then the rest in their order
+  const own = (c) => c.kind === 'evm' && c.chainId === CFG?.net?.chainId;
+  sel.replaceChildren(...[...aas.AAS_CHAINS].sort((a, b) => own(b) - own(a)).map((c) => el('option', { value: c.key, text: c.name })));
   if (cur) sel.value = cur;
 }
 
@@ -52,7 +54,7 @@ function render() {
     }
     const who = v.live?.proxy?.admin ?? v.live?.admin ?? v.live?.authority;
     if (who) rows.push([T('admin'), who]);
-    if (chain.kind === 'evm' && chain.key !== 'zetaphy') rows.push([T('mirror'), v.mirror == null ? T('mirrorNone') : v.mirror ? T('mirrorYes') : T('mirrorNo')]);
+    if (chain.kind === 'evm' && !chain.key.startsWith('zetaphy')) rows.push([T('mirror'), v.mirror == null ? T('mirrorNone') : v.mirror ? T('mirrorYes') : T('mirrorNo')]);
   } else if (v.live?.codeHash) rows.push([T('running'), v.live.codeHash]);
   root.replaceChildren(head, rows.length ? el('div', { class: 'card' }, factsList(rows)) : null);
   // the badge: as it looks right now (data: URL, CSP img-src allows it) + the snippet that embeds the published one
@@ -74,9 +76,10 @@ async function check(ref) {
   status(T('checking', { chain: chain.name }));
   document.getElementById('go').disabled = true;
   try {
-    const zrpc = aas.rpcClient([CFG.node], { chainId: aas.ZETAPHY_CHAIN_ID });
+    // the page's network (network.js): its node must serve its chain id, or nothing is certified
+    const zrpc = aas.rpcClient([CFG.node], { chainId: CFG.net.chainId });
     const zcall = (to, data) => zrpc('eth_call', [{ to, data }, 'latest']);
-    const rpc = chain.key === 'zetaphy' ? zrpc : chain.kind === 'cosmwasm' ? null : aas.rpcClient(chain.rpcs, { chainId: chain.kind === 'evm' ? chain.chainId : null });
+    const rpc = chain.kind === 'evm' && chain.chainId === CFG.net.chainId ? zrpc : chain.kind === 'cosmwasm' ? null : aas.rpcClient(chain.rpcs, { chainId: chain.kind === 'evm' ? chain.chainId : null });
     const rest = chain.kind === 'cosmwasm' ? aas.restClient(chain.rpcs) : null;
     const m = chain.kind === 'evm' ? CFG.mirrors.find((x) => x.chainId === chain.chainId) : null;
     const mirror = m ? { oracle: m.oracle, call: (to, data) => rpc('eth_call', [{ to, data }, 'latest']) } : null;
@@ -106,8 +109,12 @@ function fromHash() {
 
 async function main() {
   CFG = await loadConfig();
+  followNetwork();
   chainOptions();
-  setupLang(() => { chainOptions(); render(); });
+  setupLang(() => { chainOptions(); render(); showNetwork(CFG); });
+  showNetwork(CFG);
+  // the audit network is not on this network: "not on mainnet yet", no lookup
+  if (CFG.gated) return;
   document.getElementById('form').addEventListener('submit', (e) => {
     e.preventDefault();
     const chain = aas.chainOf(document.getElementById('chain').value);

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from '../build.mjs';
 import { ABOUT } from '../about-content.mjs';
 import { LANG_CODES } from '../i18n.js';
+import { NET_TEXT } from '../network.js';
 import { ORIGIN, SITES, INDEXNOW_KEY, ITEM_ICONS, aboutPath, aboutPage, siteSeoFiles, allUrls } from '../seo.mjs';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -17,7 +18,7 @@ test('"What is ZETAPHY?" in all 8 languages, with the same sections and items as
   const shape = (c) => c.sections.map((s) => [Boolean(s.p), s.items?.length ?? 0, Boolean(s.note)]);
   for (const l of LANG_CODES) {
     const c = ABOUT[l];
-    for (const k of ['title', 'description', 'h1', 'lead', 'open', 'check', 'langs', 'testnet']) assert.ok(c[k]?.trim(), `${l}.${k}`);
+    for (const k of ['title', 'description', 'h1', 'lead', 'open', 'check', 'langs', 'notice']) assert.ok(c[k]?.trim(), `${l}.${k}`);
     assert.deepEqual(shape(c), shape(ABOUT.en), l);
     c.sections.forEach((s, n) => assert.equal(s.items?.length ?? 0, ITEM_ICONS[n]?.length ?? 0, `${l}: one icon per card in section ${n}`));
     assert.equal(c.flow.steps.length, 4, `${l}: Neuro's four steps`);
@@ -40,7 +41,26 @@ test('about pages: static, canonical, every language linked, structured data par
     const data = JSON.parse(html.split(open)[1].split('</script>')[0]);
     assert.ok(data['@graph'].some((n) => n['@type'] === 'SoftwareApplication' && n.offers.price === '0'));
     assert.doesNotMatch(html, /\sstyle="|\son[a-z]+="/, 'nothing the hub CSP would block');
-    assert.ok(html.includes(ABOUT[l].testnet), 'testnet notice');
+    assert.ok(html.includes(ABOUT[l].notice), 'the mainnet / testnet notice');
+  }
+});
+
+test('the site describes mainnet, the only network (the testnet was shut down on 2026-11-14), never "(testnet)"; the footer carries mainnet\'s risk sentence', () => {
+  for (const l of LANG_CODES) {
+    const c = ABOUT[l];
+    assert.doesNotMatch(c.description, /[(（](testnet|测试网|тестовая сеть|테스트넷|テストネット)[)）]/i, `${l}: description`);
+    assert.match(c.description, /mainnet|主网|мейннет|메인넷|メインネット/i, `${l}: description names mainnet`);
+    assert.doesNotMatch(c.description, /testnet|测试网|тестнет|테스트넷|テストネット/i, `${l}: no testnet to practise on in the description`);
+    assert.match(c.lead, /(testnet|测试网|тестнет|테스트넷|テストネット).*2026-11-14/i, `${l}: the lead says the testnet was shut down`);
+    assert.ok(c.sections[0].p.includes('3659') && c.sections[0].p.includes('77390') && c.sections[0].p.includes('2026-11-14'), `${l}: mainnet's chain id, the old testnet's and its shutdown date`);
+    assert.match(c.notice, /2026-11-14/, `${l}: the notice says the testnet was shut down`);
+    assert.doesNotMatch(JSON.stringify(c), /one switch away|一键即可切换|한 번에 전환|ワンクリックで切り替え|в одном переключении|chỉ cách một lần chuyển|a un clic|ในคลิกเดียว/, `${l}: no switch to the testnet`);
+    assert.ok(c.notice.includes(NET_TEXT[l].risk.slice(0, 40)), `${l}: the mainnet notice's own risk sentence`);
+  }
+  const html = readFileSync(join(HERE, 'index.html'), 'utf8');
+  for (const m of ['<title>', '<meta name="description"', '<meta property="og:title"', '<meta property="og:description"']) {
+    const line = html.split('\n').find((x) => x.includes(m));
+    assert.ok(line && !/\(testnet\)/i.test(line) && /mainnet/i.test(line), `index.html ${m}: ${line}`);
   }
 });
 

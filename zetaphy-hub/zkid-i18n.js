@@ -28,7 +28,7 @@ export const ZKID = {
     linkWarn: 'Sending from the account that registered links the claim to it. Send from another account, or use a relayer.',
     badFiles: 'The prover files do not match their manifest: refused.', noWorker: 'This browser cannot run the prover (Web Workers / WebAssembly).',
     badAddr: 'Enter 0x… addresses.', badFee: 'The fee must be a whole number of base units, at most the airdrop amount.',
-    limits: 'Testnet. DEV trusted setup made by one machine: whoever made it could forge proofs; mainnet needs a public ceremony. Groth16 on BN254 is not post-quantum. The proof hides who you are, not your IP address or when you send. The secret is stored unencrypted in this browser; anyone with access to it can act as you.',
+    limits: 'DEV trusted setup made by one machine: whoever made it could forge proofs; mainnet needs a public ceremony. Groth16 on BN254 is not post-quantum. The proof hides who you are, not your IP address or when you send. The secret is stored unencrypted in this browser; anyone with access to it can act as you.',
   },
   th: {
     title: 'ตัวตนแบบส่วนตัว (zero-knowledge)',
@@ -57,7 +57,7 @@ export const ZKID = {
     linkWarn: 'ถ้าส่งจากบัญชีที่ใช้ลงทะเบียน การรับจะโยงกับบัญชีนั้น ให้ส่งจากบัญชีอื่น หรือใช้ผู้ส่งแทน',
     badFiles: 'ไฟล์สำหรับสร้างหลักฐานไม่ตรงกับ manifest จึงปฏิเสธ', noWorker: 'เบราว์เซอร์นี้รันตัวสร้างหลักฐานไม่ได้ (Web Workers / WebAssembly)',
     badAddr: 'ใส่ที่อยู่ 0x…', badFee: 'ค่าตอบแทนต้องเป็นจำนวนเต็มของหน่วยย่อย และไม่เกินจำนวนแอร์ดรอป',
-    limits: 'Testnet การตั้งค่าเริ่มต้น (trusted setup) แบบ DEV ทำโดยเครื่องเดียว ผู้ที่ทำสามารถปลอมหลักฐานได้ mainnet ต้องมีพิธีสาธารณะ Groth16 บน BN254 ไม่ทนต่อคอมพิวเตอร์ควอนตัม หลักฐานซ่อนว่าคุณเป็นใคร แต่ไม่ซ่อน IP หรือเวลาที่ส่ง ค่าลับถูกเก็บในเบราว์เซอร์นี้แบบไม่เข้ารหัส ใครเข้าถึงได้ก็ทำแทนคุณได้',
+    limits: 'การตั้งค่าเริ่มต้น (trusted setup) แบบ DEV ทำโดยเครื่องเดียว ผู้ที่ทำสามารถปลอมหลักฐานได้ mainnet ต้องมีพิธีสาธารณะ Groth16 บน BN254 ไม่ทนต่อคอมพิวเตอร์ควอนตัม หลักฐานซ่อนว่าคุณเป็นใคร แต่ไม่ซ่อน IP หรือเวลาที่ส่ง ค่าลับถูกเก็บในเบราว์เซอร์นี้แบบไม่เข้ารหัส ใครเข้าถึงได้ก็ทำแทนคุณได้',
   },
   zh: {
     title: '私密身份（零知识）',
@@ -86,7 +86,7 @@ export const ZKID = {
     linkWarn: '从登记账户发送会把领取与该账户关联。请用其他账户发送，或使用中继者。',
     badFiles: '证明文件与清单不符：已拒绝。', noWorker: '此浏览器无法运行证明程序（Web Workers / WebAssembly）。',
     badAddr: '请输入 0x… 地址。', badFee: '费用必须是最小单位的整数，且不超过空投数量。',
-    limits: '测试网。DEV 可信设置由一台机器完成：制作者可以伪造证明；主网需要公开仪式。BN254 上的 Groth16 不具备抗量子性。证明隐藏的是你的身份，而不是你的 IP 地址或发送时间。秘密以未加密形式保存在此浏览器中，能访问它的人可以冒充你。',
+    limits: 'DEV 可信设置由一台机器完成：制作者可以伪造证明；主网需要公开仪式。BN254 上的 Groth16 不具备抗量子性。证明隐藏的是你的身份，而不是你的 IP 地址或发送时间。秘密以未加密形式保存在此浏览器中，能访问它的人可以冒充你。',
   },
   es: {
     title: 'Identidad privada (conocimiento cero)',
@@ -115,7 +115,7 @@ export const ZKID = {
     linkWarn: 'Enviar desde la cuenta que se registró vincula el reclamo con ella. Envía desde otra cuenta o usa un relayer.',
     badFiles: 'Los archivos del probador no coinciden con su manifiesto: rechazados.', noWorker: 'Este navegador no puede ejecutar el probador (Web Workers / WebAssembly).',
     badAddr: 'Introduce direcciones 0x….', badFee: 'La comisión debe ser un número entero de unidades base, como máximo el monto del airdrop.',
-    limits: 'Testnet. Configuración de confianza DEV hecha por una sola máquina: quien la hizo podría falsificar pruebas; mainnet necesita una ceremonia pública. Groth16 sobre BN254 no es poscuántico. La prueba oculta quién eres, no tu dirección IP ni cuándo envías. El secreto se guarda sin cifrar en este navegador; quien acceda a él puede actuar como tú.',
+    limits: 'Configuración de confianza DEV hecha por una sola máquina: quien la hizo podría falsificar pruebas; mainnet necesita una ceremonia pública. Groth16 sobre BN254 no es poscuántico. La prueba oculta quién eres, no tu dirección IP ni cuándo envías. El secreto se guarda sin cifrar en este navegador; quien acceda a él puede actuar como tú.',
   },
   ko: {
     title: '프라이빗 신원 (영지식)',
@@ -144,7 +144,7 @@ export const ZKID = {
     linkWarn: '등록한 계정에서 보내면 청구가 그 계정과 연결됩니다. 다른 계정에서 보내거나 릴레이어를 쓰세요.',
     badFiles: '증명 파일이 매니페스트와 다릅니다: 거부했습니다.', noWorker: '이 브라우저는 증명기를 실행할 수 없습니다 (Web Workers / WebAssembly).',
     badAddr: '0x… 주소를 입력하세요.', badFee: '수수료는 기본 단위의 정수이고 에어드롭 금액 이하여야 합니다.',
-    limits: '테스트넷. DEV 신뢰 설정은 한 대의 컴퓨터가 만들었습니다. 만든 사람은 증명을 위조할 수 있으므로 메인넷에는 공개 세리머니가 필요합니다. BN254 위의 Groth16은 양자 내성이 없습니다. 증명은 당신이 누구인지를 숨길 뿐 IP 주소나 보낸 시각은 숨기지 않습니다. 비밀은 이 브라우저에 암호화 없이 저장되며, 접근할 수 있는 사람은 당신처럼 행동할 수 있습니다.',
+    limits: 'DEV 신뢰 설정은 한 대의 컴퓨터가 만들었습니다. 만든 사람은 증명을 위조할 수 있으므로 메인넷에는 공개 세리머니가 필요합니다. BN254 위의 Groth16은 양자 내성이 없습니다. 증명은 당신이 누구인지를 숨길 뿐 IP 주소나 보낸 시각은 숨기지 않습니다. 비밀은 이 브라우저에 암호화 없이 저장되며, 접근할 수 있는 사람은 당신처럼 행동할 수 있습니다.',
   },
   ja: {
     title: 'プライベート ID（ゼロ知識）',
@@ -173,7 +173,7 @@ export const ZKID = {
     linkWarn: '登録したアカウントから送ると、請求がそのアカウントと結び付きます。別のアカウントから送るか、リレイヤーを使ってください。',
     badFiles: '証明用ファイルがマニフェストと一致しません：拒否しました。', noWorker: 'このブラウザでは証明器を実行できません（Web Workers / WebAssembly）。',
     badAddr: '0x… アドレスを入力してください。', badFee: '手数料は最小単位の整数で、エアドロップ額以下にしてください。',
-    limits: 'テストネット。DEV のトラステッドセットアップは 1 台のマシンで作成：作成者は証明を偽造できるため、メインネットには公開セレモニーが必要です。BN254 上の Groth16 は耐量子ではありません。証明が隠すのはあなたが誰かであって、IP アドレスや送信時刻ではありません。秘密はこのブラウザに暗号化なしで保存され、アクセスできる人はあなたになりすませます。',
+    limits: 'DEV のトラステッドセットアップは 1 台のマシンで作成：作成者は証明を偽造できるため、メインネットには公開セレモニーが必要です。BN254 上の Groth16 は耐量子ではありません。証明が隠すのはあなたが誰かであって、IP アドレスや送信時刻ではありません。秘密はこのブラウザに暗号化なしで保存され、アクセスできる人はあなたになりすませます。',
   },
   ru: {
     title: 'Приватная личность (нулевое разглашение)',
@@ -202,7 +202,7 @@ export const ZKID = {
     linkWarn: 'Отправка с аккаунта, который регистрировался, связывает получение с ним. Отправьте с другого аккаунта или через релеера.',
     badFiles: 'Файлы доказательства не совпадают с манифестом: отклонено.', noWorker: 'Этот браузер не может запустить прувер (Web Workers / WebAssembly).',
     badAddr: 'Введите адреса 0x….', badFee: 'Комиссия — целое число базовых единиц, не больше суммы аирдропа.',
-    limits: 'Тестнет. Доверенная настройка DEV сделана одной машиной: её автор мог бы подделывать доказательства; для мейннета нужна публичная церемония. Groth16 на BN254 не постквантовый. Доказательство скрывает, кто вы, но не ваш IP-адрес и не время отправки. Секрет хранится в этом браузере без шифрования; любой, кто получит к нему доступ, может действовать от вашего имени.',
+    limits: 'Доверенная настройка DEV сделана одной машиной: её автор мог бы подделывать доказательства; для мейннета нужна публичная церемония. Groth16 на BN254 не постквантовый. Доказательство скрывает, кто вы, но не ваш IP-адрес и не время отправки. Секрет хранится в этом браузере без шифрования; любой, кто получит к нему доступ, может действовать от вашего имени.',
   },
   vi: {
     title: 'Danh tính riêng tư (zero-knowledge)',
@@ -231,6 +231,6 @@ export const ZKID = {
     linkWarn: 'Gửi từ tài khoản đã đăng ký sẽ liên kết yêu cầu nhận với tài khoản đó. Hãy gửi từ tài khoản khác hoặc dùng relayer.',
     badFiles: 'Tệp tạo bằng chứng không khớp manifest: đã từ chối.', noWorker: 'Trình duyệt này không chạy được trình tạo bằng chứng (Web Workers / WebAssembly).',
     badAddr: 'Nhập địa chỉ 0x….', badFee: 'Phí phải là số nguyên đơn vị cơ sở, không vượt quá số lượng airdrop.',
-    limits: 'Testnet. Thiết lập tin cậy DEV do một máy tạo: người tạo có thể làm giả bằng chứng; mainnet cần một nghi thức công khai. Groth16 trên BN254 không kháng lượng tử. Bằng chứng che giấu bạn là ai, không che địa chỉ IP hay thời điểm bạn gửi. Bí mật được lưu không mã hóa trong trình duyệt này; ai truy cập được có thể hành động thay bạn.',
+    limits: 'Thiết lập tin cậy DEV do một máy tạo: người tạo có thể làm giả bằng chứng; mainnet cần một nghi thức công khai. Groth16 trên BN254 không kháng lượng tử. Bằng chứng che giấu bạn là ai, không che địa chỉ IP hay thời điểm bạn gửi. Bí mật được lưu không mã hóa trong trình duyệt này; ai truy cập được có thể hành động thay bạn.',
   },
 };

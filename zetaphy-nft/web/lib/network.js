@@ -1,10 +1,13 @@
 // ZETAPHY networks: the one definition every web app reads (hub, wallet, swap, NFT, explorer, Neuro).
-// Mainnet is the default; a visitor can pick the testnet with the network switch, remembered in this
-// browser (localStorage "zetaphy:network"; a ?network=testnet|mainnet link sets it too).
+// ZETAPHY mainnet is the only network: the public testnet (chain 77390) was shut down on 2026-11-14 (owner
+// decision). There is no network switch; a ?network=testnet link or a saved "zetaphy:network" = testnet from
+// before opens mainnet (the saved value is cleared). What is not deployed on mainnet yet shows a plain
+// "not on mainnet yet" box (notOnMainnetBox) and its contracts are never called.
 //
-// The pages read the chosen network ONCE when they load (activeNetwork()) and reload when it changes, so
-// every chain id, RPC, contract address and wallet check on a page belongs to one network: a signature can
-// never be asked for one chain while the page talks to the other.
+// NETWORKS.testnet stays only as the retired testnet's record, for the browser tests of pages whose features are
+// not on mainnet yet: a test opens a page on it by defining globalThis.__ZETAPHY_TEST_NETWORK = 'testnet' before
+// the page's scripts run (test/net.mjs onTestnet) and mocks every request. No link, saved value or control
+// reaches it. The page reads its network ONCE when it loads (activeNetwork()).
 //
 // Canonical copy: zetaphy-hub/network.js. `npm run sync:shared` in zetaphy-hub copies it to every site that
 // serves it (each site is its own origin with CSP script-src 'self'); test/shared.test.mjs checks the copies.
@@ -18,8 +21,9 @@ const TESTNET_RPC = 'https://rpc.sawasdeecoin.com';
 /** The native coin as an ERC-20 (precompile): the DEX router's wrapped native on both networks. */
 export const NATIVE_ERC20 = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
-// What exists on each network. A feature that is false shows "testnet only for now" with a switch;
-// its contracts are never called on that network.
+// What exists on each network. A feature that is false on mainnet shows "not on mainnet yet" (notOnMainnetBox);
+// its contracts are never called there. On mainnet a feature of FEATURE_CONTRACTS also turns on by itself
+// once the hub's build finds all its contracts deployed there (withDeployed; zetaphy-hub/build.mjs `mainnet`).
 const ALL_FEATURES = ['wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'nft', 'dlmm', 'bridge', 'faucet', 'mining',
   'usefulWork', 'testTokens', 'stableGateway', 'rewardVault', 'computeMarket', 'identity', 'quantumWallet', 'airdrop', 'agents',
   'offline', 'audit', 'aiMap', 'immune', 'forecasts', 'federated', 'validators'];
@@ -65,10 +69,14 @@ export const NETWORKS = Object.freeze({
       timelock: '0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA',
       guardian: '0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519', // guardian multisig (2 of 3)
     },
-    features: only('wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex'),
+    // faucet / mining: the public sentry's faucet (zetaphy_faucet, zetaphy_faucetPow; its amounts and daily budget
+    // come from zetaphy_faucetPowInfo, and the pages say so when it is off or today's budget is used up)
+    features: only('wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining'),
   }),
+  // retired 2026-11-14: never chosen by a visitor (see the top of this file)
   testnet: freeze({
     id: 'testnet',
+    retired: '2026-11-14',
     testnet: true,
     name: 'ZETAPHY Testnet',
     label: 'ZETAPHY testnet',
@@ -95,48 +103,35 @@ export const NETWORKS = Object.freeze({
   }),
 });
 
-export const isNetworkId = (id) => id === 'mainnet' || id === 'testnet';
+/** The networks a visitor can be on: mainnet only (the testnet was shut down on 2026-11-14). */
+export const isNetworkId = (id) => id === 'mainnet';
 
 /**
- * The network this page uses: a ?network= link (remembered), else the one remembered in this browser, else mainnet.
- * storage / search are passed by tests; any storage error (private mode, blocked) falls back to the default.
+ * The network this page uses: always mainnet. A ?network= link of any value changes nothing; a choice saved in this
+ * browser before the testnet was shut down ("zetaphy:network" = testnet) is cleared. storage / search are passed by
+ * tests; any storage error (private mode, blocked) is ignored.
  */
-export function readNetworkId({ storage, search } = {}) {
-  let fromUrl = null;
-  try { fromUrl = new URLSearchParams(search ?? '').get('network'); } catch { /* none */ }
-  if (isNetworkId(fromUrl)) {
-    try { storage?.setItem(NETWORK_KEY, fromUrl); } catch { /* not remembered */ }
-    return fromUrl;
-  }
-  let saved = null;
-  try { saved = storage?.getItem(NETWORK_KEY) ?? null; } catch { /* default */ }
-  return isNetworkId(saved) ? saved : DEFAULT_NETWORK;
+export function readNetworkId({ storage } = {}) {
+  try {
+    const saved = storage?.getItem(NETWORK_KEY) ?? null;
+    if (saved != null && !isNetworkId(saved)) storage.removeItem(NETWORK_KEY);
+  } catch { /* nothing saved, or storage blocked */ }
+  return DEFAULT_NETWORK;
 }
 
 const browserStorage = () => { try { return globalThis.localStorage ?? null; } catch { return null; } };
-const browserSearch = () => { try { return globalThis.location?.search ?? ''; } catch { return ''; } };
 
 let active = null;
 /** The page's network (read once per page load; see the top of this file). */
 export function activeNetwork() {
-  if (!active) active = NETWORKS[readNetworkId({ storage: browserStorage(), search: browserSearch() })];
+  if (!active) {
+    const id = readNetworkId({ storage: browserStorage() });
+    active = globalThis.__ZETAPHY_TEST_NETWORK === 'testnet' ? NETWORKS.testnet : NETWORKS[id];
+  }
   return active;
 }
 
-/** Remembers `id` in this browser and (by default) reloads the page so everything on it follows. */
-export function setNetwork(id, { storage = browserStorage(), reload = true } = {}) {
-  if (!isNetworkId(id)) throw new Error(`unknown network ${id}`);
-  try { storage?.setItem(NETWORK_KEY, id); } catch { /* not remembered: still switch this page */ }
-  if (reload) {
-    try {
-      const u = new URL(globalThis.location.href);
-      if (u.searchParams.has('network')) { u.searchParams.set('network', id); globalThis.location.replace(u.href); return; }
-      globalThis.location.reload();
-    } catch { /* not in a browser */ }
-  }
-}
-
-/** Another tab or frame of this site switched the network: reload, so this page never mixes the two. */
+/** Another tab or frame of this site changed "zetaphy:network": reload, so this page never mixes networks. */
 export function watchNetwork(win = globalThis) {
   try {
     win.addEventListener('storage', (e) => {
@@ -147,6 +142,41 @@ export function watchNetwork(win = globalThis) {
 
 /** Does `feature` exist on `net`? (Unknown features: no.) */
 export const hasFeature = (net, feature) => net?.features?.[feature] === true;
+
+/**
+ * The contracts (hub-config.json `contracts` keys) a feature needs: on a network where the feature is off, it turns on
+ * once ALL of them are deployed there (the hub reads them from its build, hub-config.json `mainnet`). Features not
+ * listed here (the NFT app, DLMM, the bridge, joining as a validator, test tokens, and the pages that still sign for the
+ * testnet's chain id only: offline trading, the immune network, risk forecasts) change only with this file.
+ */
+export const FEATURE_CONTRACTS = Object.freeze({
+  airdrop: ['airdropDistributor'],
+  audit: ['auditNetwork', 'auditCertificate'],
+  identity: ['neuroIdentity'],
+  rewardVault: ['rewardVault'],
+  computeMarket: ['computeMarket'],
+  stableGateway: ['stableGateway'],
+  usefulWork: ['usefulWork', 'bugBounty', 'workerReputation'],
+  agents: ['intentExecutor', 'labelRegistry', 'agentRegistry'],
+  aiMap: ['modelRegistry'],
+  federated: ['federatedRounds'],
+  quantumWallet: ['quantumRescue'],
+});
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+/** Which features `contracts` (hub-config.json `contracts` of this network) has every contract for. */
+export const deployedFeatures = (contracts) => Object.keys(FEATURE_CONTRACTS)
+  .filter((f) => FEATURE_CONTRACTS[f].every((k) => ADDRESS.test(String(contracts?.[k] ?? ''))));
+
+/**
+ * `net` with the features whose contracts the build found on it (deployedFeatures) turned on: what the owner deploys
+ * later shows up without a code change. Never turns a feature off; the testnet (everything on) is returned as is.
+ */
+export function withDeployed(net, contracts) {
+  const add = deployedFeatures(contracts).filter((f) => !hasFeature(net, f));
+  if (!add.length) return net;
+  return Object.freeze({ ...net, features: Object.freeze({ ...net.features, ...Object.fromEntries(add.map((f) => [f, true])) }) });
+}
 
 /** `net`'s contract addresses: mainnet's own list; on the testnet, the app's deployment files (`testnet`). */
 export const contractsOf = (net, testnet = {}) => (net.contracts ? { ...net.contracts } : { ...(testnet ?? {}) });
@@ -166,10 +196,11 @@ export function addChainParams(net, rpc = net.rpc) {
   };
 }
 
-/** Links to the explorer site (its own origin: it starts on mainnet) open on this page's network (?network=<id>). */
+/** Links to the explorer site (its own origin) open on mainnet (?network=mainnet), whatever the link said before. */
 export function linkExplorer(doc, net = activeNetwork(), host = 'explorer.sawasdeecoin.com') {
+  void net; // mainnet is the only network
   for (const a of doc.querySelectorAll(`a[href^="https://${host}/"]`)) {
-    try { const u = new URL(a.getAttribute('href')); u.searchParams.set('network', net.id); a.setAttribute('href', u.href); } catch { /* left as is */ }
+    try { const u = new URL(a.getAttribute('href')); u.searchParams.set('network', 'mainnet'); a.setAttribute('href', u.href); } catch { /* left as is */ }
   }
 }
 
@@ -180,96 +211,80 @@ export const noticeUrl = (net, lang) => (lang === 'th' ? net.noticeTh : net.noti
 // `risk` is the mainnet notice's own sentence (docs/ZETAPHY-MAINNET-NOTICE*.md). {feature} is a FEATURE_NAME.
 export const NET_TEXT = {
   en: {
-    network: 'Network', mainnet: 'Mainnet', testnet: 'Testnet', badgeMainnet: 'ZETAPHY mainnet', badgeTestnet: 'ZETAPHY testnet',
-    switchTip: 'The network this site uses. Remembered in this browser.',
+    badgeMainnet: 'ZETAPHY mainnet', badgeTestnet: 'ZETAPHY testnet',
     risk: 'ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not yet completed an independent external audit. Use it only with amounts you can afford to lose.',
     notice: 'Mainnet notice',
     testnetNote: 'Testnet: coins have no value and the contracts are not audited yet. Do not use real money.',
-    gateTitle: 'Testnet only for now',
-    gateBody: '{feature} is not on ZETAPHY mainnet yet: its contracts are deployed on the testnet only. Switch to the testnet to try it (test coins have no value).',
-    gateSwitch: 'Switch to testnet',
+    gateTitle: 'Not on mainnet yet',
+    gateBody: '{feature} is not on ZETAPHY mainnet yet. It appears here once its contracts are deployed on mainnet. (The testnet was shut down on 2026-11-14.)',
     wrongChain: 'Switch your wallet to {net} (chain {id}).',
   },
   th: {
-    network: 'เครือข่าย', mainnet: 'Mainnet', testnet: 'Testnet', badgeMainnet: 'ZETAPHY mainnet', badgeTestnet: 'ZETAPHY testnet',
-    switchTip: 'เครือข่ายที่เว็บนี้ใช้ ระบบจะจำไว้ในเบราว์เซอร์นี้',
+    badgeMainnet: 'ZETAPHY mainnet', badgeTestnet: 'ZETAPHY testnet',
     risk: 'ขณะนี้ ZETAPHY mainnet ทำงานบน validator เพียงตัวเดียวที่โครงการ ZETAPHY ดูแลเอง และโค้ดยังไม่ผ่านการตรวจสอบ (audit) จากภายนอกที่เป็นอิสระ โปรดใช้เฉพาะจำนวนที่ยอมเสียได้',
     notice: 'ประกาศ mainnet',
     testnetNote: 'Testnet: เหรียญไม่มีมูลค่า สัญญายังไม่ผ่านการตรวจสอบความปลอดภัย (audit) ห้ามใช้เงินจริง',
-    gateTitle: 'ตอนนี้ใช้ได้เฉพาะบน testnet',
-    gateBody: '{feature} ยังไม่มีบน ZETAPHY mainnet เพราะสัญญายัง deploy ไว้บน testnet เท่านั้น สลับไป testnet เพื่อลองใช้ได้ (เหรียญทดลองไม่มีมูลค่า)',
-    gateSwitch: 'สลับไป testnet',
+    gateTitle: 'ยังไม่มีบน mainnet',
+    gateBody: '{feature} ยังไม่มีบน ZETAPHY mainnet จะแสดงที่นี่เมื่อ deploy สัญญาบน mainnet แล้ว (testnet ปิดถาวรเมื่อ 2026-11-14)',
     wrongChain: 'เปลี่ยนกระเป๋าไปที่ {net} (chain {id})',
   },
   zh: {
-    network: '网络', mainnet: '主网', testnet: '测试网', badgeMainnet: 'ZETAPHY 主网', badgeTestnet: 'ZETAPHY 测试网',
-    switchTip: '本站使用的网络。保存在此浏览器中。',
+    badgeMainnet: 'ZETAPHY 主网', badgeTestnet: 'ZETAPHY 测试网',
     risk: 'ZETAPHY 主网目前仅由 ZETAPHY 项目运营的一个验证者运行，其代码尚未完成独立的外部审计。请只投入您能承受损失的金额。',
     notice: '主网公告',
     testnetNote: '测试网：代币没有价值，合约尚未经过审计。请勿使用真实资金。',
-    gateTitle: '目前仅限测试网',
-    gateBody: '{feature}尚未上线 ZETAPHY 主网：其合约目前只部署在测试网上。切换到测试网即可试用（测试币没有价值）。',
-    gateSwitch: '切换到测试网',
+    gateTitle: '尚未上线主网',
+    gateBody: '{feature}尚未上线 ZETAPHY 主网。其合约部署到主网后会显示在这里。（测试网已于 2026-11-14 关闭。）',
     wrongChain: '请将钱包切换到 {net}（chain {id}）。',
   },
   es: {
-    network: 'Red', mainnet: 'Mainnet', testnet: 'Testnet', badgeMainnet: 'Mainnet de ZETAPHY', badgeTestnet: 'Testnet de ZETAPHY',
-    switchTip: 'La red que usa este sitio. Se recuerda en este navegador.',
+    badgeMainnet: 'Mainnet de ZETAPHY', badgeTestnet: 'Testnet de ZETAPHY',
     risk: 'La mainnet de ZETAPHY funciona actualmente con un solo validador operado por el proyecto ZETAPHY, y su código aún no ha completado una auditoría externa independiente. Úsala solo con cantidades que puedas permitirte perder.',
     notice: 'Aviso de la mainnet',
     testnetNote: 'Testnet: las monedas no tienen valor y los contratos aún no están auditados. No uses dinero real.',
-    gateTitle: 'Por ahora solo en la testnet',
-    gateBody: '{feature} aún no está en la mainnet de ZETAPHY: sus contratos solo están desplegados en la testnet. Cambia a la testnet para probarlo (las monedas de prueba no tienen valor).',
-    gateSwitch: 'Cambiar a la testnet',
+    gateTitle: 'Aún no está en la mainnet',
+    gateBody: '{feature} aún no está en la mainnet de ZETAPHY. Aparecerá aquí cuando sus contratos estén desplegados en la mainnet. (La testnet se cerró el 2026-11-14).',
     wrongChain: 'Cambia tu billetera a {net} (cadena {id}).',
   },
   ko: {
-    network: '네트워크', mainnet: '메인넷', testnet: '테스트넷', badgeMainnet: 'ZETAPHY 메인넷', badgeTestnet: 'ZETAPHY 테스트넷',
-    switchTip: '이 사이트가 사용하는 네트워크입니다. 이 브라우저에 저장됩니다.',
+    badgeMainnet: 'ZETAPHY 메인넷', badgeTestnet: 'ZETAPHY 테스트넷',
     risk: 'ZETAPHY 메인넷은 현재 ZETAPHY 프로젝트가 운영하는 단일 검증인으로 운영되며, 코드는 아직 독립적인 외부 감사를 마치지 않았습니다. 잃어도 괜찮은 금액으로만 사용하세요.',
     notice: '메인넷 공지',
     testnetNote: '테스트넷: 코인은 가치가 없으며 컨트랙트는 아직 감사를 받지 않았습니다. 실제 돈을 사용하지 마세요.',
-    gateTitle: '지금은 테스트넷 전용',
-    gateBody: '{feature}은(는) 아직 ZETAPHY 메인넷에 없습니다: 컨트랙트가 테스트넷에만 배포되어 있습니다. 테스트넷으로 전환해 사용해 보세요(테스트 코인은 가치가 없습니다).',
-    gateSwitch: '테스트넷으로 전환',
+    gateTitle: '아직 메인넷에 없음',
+    gateBody: '{feature}은(는) 아직 ZETAPHY 메인넷에 없습니다. 컨트랙트가 메인넷에 배포되면 여기에 표시됩니다. (테스트넷은 2026-11-14에 종료되었습니다.)',
     wrongChain: '지갑을 {net}(체인 {id})으로 전환하세요.',
   },
   ja: {
-    network: 'ネットワーク', mainnet: 'メインネット', testnet: 'テストネット', badgeMainnet: 'ZETAPHY メインネット', badgeTestnet: 'ZETAPHY テストネット',
-    switchTip: 'このサイトが使うネットワークです。このブラウザーに保存されます。',
+    badgeMainnet: 'ZETAPHY メインネット', badgeTestnet: 'ZETAPHY テストネット',
     risk: 'ZETAPHY メインネットは現在、ZETAPHY プロジェクトが運用する 1 つのバリデーターだけで動いており、コードは独立した外部監査をまだ完了していません。失っても構わない金額だけで使ってください。',
     notice: 'メインネットのお知らせ',
     testnetNote: 'テストネット: コインに価値はなく、コントラクトはまだ監査を受けていません。実際のお金は使わないでください。',
-    gateTitle: '現在はテストネットのみ',
-    gateBody: '{feature}はまだ ZETAPHY メインネットにありません: コントラクトはテストネットにだけデプロイされています。テストネットに切り替えると試せます（テスト用コインに価値はありません）。',
-    gateSwitch: 'テストネットに切り替える',
+    gateTitle: 'まだメインネットにありません',
+    gateBody: '{feature}はまだ ZETAPHY メインネットにありません。コントラクトがメインネットにデプロイされると、ここに表示されます。（テストネットは 2026-11-14 に終了しました。）',
     wrongChain: 'ウォレットを {net}（チェーン {id}）に切り替えてください。',
   },
   ru: {
-    network: 'Сеть', mainnet: 'Мейннет', testnet: 'Тестнет', badgeMainnet: 'Мейннет ZETAPHY', badgeTestnet: 'Тестнет ZETAPHY',
-    switchTip: 'Сеть, которую использует этот сайт. Запоминается в этом браузере.',
+    badgeMainnet: 'Мейннет ZETAPHY', badgeTestnet: 'Тестнет ZETAPHY',
     risk: 'Сейчас мейннет ZETAPHY работает на одном валидаторе, которым управляет проект ZETAPHY, и его код ещё не прошёл независимый внешний аудит. Используйте его только с суммами, потерю которых можете себе позволить.',
     notice: 'Уведомление о мейннете',
     testnetNote: 'Тестнет: монеты ничего не стоят, контракты ещё не прошли аудит. Не используйте реальные деньги.',
-    gateTitle: 'Пока только в тестнете',
-    gateBody: '{feature}: этого ещё нет в мейннете ZETAPHY, контракты развёрнуты только в тестнете. Переключитесь на тестнет, чтобы попробовать (тестовые монеты ничего не стоят).',
-    gateSwitch: 'Переключиться на тестнет',
+    gateTitle: 'Пока нет в мейннете',
+    gateBody: '{feature}: этого ещё нет в мейннете ZETAPHY. Появится здесь, когда контракты будут развёрнуты в мейннете. (Тестнет закрыт 2026-11-14.)',
     wrongChain: 'Переключите кошелёк на {net} (сеть {id}).',
   },
   vi: {
-    network: 'Mạng', mainnet: 'Mainnet', testnet: 'Testnet', badgeMainnet: 'Mainnet ZETAPHY', badgeTestnet: 'Testnet ZETAPHY',
-    switchTip: 'Mạng mà trang này dùng. Được ghi nhớ trong trình duyệt này.',
+    badgeMainnet: 'Mainnet ZETAPHY', badgeTestnet: 'Testnet ZETAPHY',
     risk: 'Mainnet ZETAPHY hiện chạy trên một validator duy nhất do dự án ZETAPHY vận hành, và mã nguồn chưa hoàn tất kiểm toán độc lập từ bên ngoài. Chỉ dùng với số tiền bạn có thể chấp nhận mất.',
     notice: 'Thông báo mainnet',
     testnetNote: 'Testnet: coin không có giá trị và hợp đồng chưa được kiểm toán. Đừng dùng tiền thật.',
-    gateTitle: 'Hiện chỉ có trên testnet',
-    gateBody: '{feature} chưa có trên mainnet ZETAPHY: hợp đồng mới chỉ được triển khai trên testnet. Hãy chuyển sang testnet để dùng thử (coin thử nghiệm không có giá trị).',
-    gateSwitch: 'Chuyển sang testnet',
+    gateTitle: 'Chưa có trên mainnet',
+    gateBody: '{feature} chưa có trên mainnet ZETAPHY. Tính năng sẽ hiện ở đây khi hợp đồng được triển khai trên mainnet. (Testnet đã đóng vào 2026-11-14.)',
     wrongChain: 'Hãy chuyển ví sang {net} (chuỗi {id}).',
   },
 };
 
-/** What each testnet-only feature is called in the "testnet only for now" box. */
+/** What each feature not on mainnet yet is called in the "not on mainnet yet" box. */
 export const FEATURE_NAME = {
   en: { nft: 'The NFT marketplace', dlmm: 'DLMM pools', bridge: 'ZETAPHY Saphan (the bridge)', faucet: 'The faucet', mining: 'Browser mining and useful-work payouts', usefulWork: 'Useful work', testTokens: 'Test tokens', stableGateway: 'The stable gateway', rewardVault: 'The reward vault', computeMarket: 'The compute market', identity: 'Neuro identity', quantumWallet: 'Quantum-safe wallets', airdrop: 'The airdrop', agents: 'AI agents', offline: 'Offline trading', audit: 'The audit network', aiMap: 'The AI map', immune: 'The immune network', forecasts: 'Risk forecasts', federated: 'Federated learning rounds', validators: 'Joining as a validator', other: 'This feature' },
   th: { nft: 'ตลาด NFT', dlmm: 'พูล DLMM', bridge: 'ZETAPHY Saphan (สะพานข้ามเชน)', faucet: 'Faucet แจกเหรียญทดลอง', mining: 'การขุดบนเบราว์เซอร์และรางวัลงานที่มีประโยชน์', usefulWork: 'งานที่มีประโยชน์ (useful work)', testTokens: 'โทเคนทดลอง', stableGateway: 'Stable gateway', rewardVault: 'คลังรางวัล', computeMarket: 'ตลาดพลังประมวลผล', identity: 'ตัวตน Neuro', quantumWallet: 'กระเป๋าต้านควอนตัม', airdrop: 'Airdrop', agents: 'AI agent', offline: 'การซื้อขายแบบออฟไลน์', audit: 'เครือข่ายตรวจสอบโค้ด', aiMap: 'แผนที่ AI', immune: 'เครือข่ายภูมิคุ้มกัน', forecasts: 'พยากรณ์ความเสี่ยง', federated: 'รอบการเรียนรู้แบบ federated', validators: 'การเข้าร่วมเป็น validator', other: 'ฟีเจอร์นี้' },
@@ -291,7 +306,7 @@ export function netText(lang) {
 /** "Switch your wallet to ZETAPHY (chain 3659)." for the page's network, in `lang`. */
 export const wrongChainText = (net, lang) => netText(lang).wrongChain.replace('{net}', net.chainName).replace('{id}', String(net.chainId));
 
-// ------------------------------------------------------------------ the badge, the switch and the "testnet only" box
+// ------------------------------------------------------------------ the badge and the "not on mainnet yet" box
 // Plain DOM, every string set as text. Styles go through element.style (allowed by the sites' CSP style-src 'self').
 const make = (doc, tag, props = {}, ...kids) => {
   const e = doc.createElement(tag);
@@ -303,21 +318,11 @@ const make = (doc, tag, props = {}, ...kids) => {
   return e;
 };
 
-/** The network <select> (Mainnet / Testnet); changing it remembers the choice and reloads. */
-export function networkSelect(doc, { lang = 'en', net = activeNetwork(), onSwitch = (id) => setNetwork(id) } = {}) {
-  const t = netText(lang);
-  const sel = make(doc, 'select', { class: 'zn-net-select', 'aria-label': t.network, title: t.switchTip, 'data-network': net.id },
-    make(doc, 'option', { value: 'mainnet', text: t.mainnet }), make(doc, 'option', { value: 'testnet', text: t.testnet }));
-  sel.value = net.id;
-  sel.addEventListener('change', () => { if (sel.value !== net.id) onSwitch(sel.value); });
-  return sel;
-}
-
 /**
- * The network badge: on mainnet "ZETAPHY mainnet", the risk sentence and the notice link; on the testnet the app's
- * own testnet words (`testnetText`, else testnetNote). With the switch unless `select: false`.
+ * The network badge: on mainnet "ZETAPHY mainnet", the risk sentence and the notice link (on the retired testnet's
+ * record, used by browser tests only, the app's own testnet words: `testnetText`, else testnetNote). No switch.
  */
-export function networkBadge(doc, { lang = 'en', net = activeNetwork(), testnetText = null, select = true, onSwitch } = {}) {
+export function networkBadge(doc, { lang = 'en', net = activeNetwork(), testnetText = null } = {}) {
   const t = netText(lang);
   const box = make(doc, 'div', { class: `zn-net zn-net-${net.id}`, role: 'note', 'data-network': net.id,
     style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', padding: '6px 12px', fontSize: '13px', lineHeight: '1.4',
@@ -329,17 +334,14 @@ export function networkBadge(doc, { lang = 'en', net = activeNetwork(), testnetT
     const href = noticeUrl(net, lang);
     if (href) box.append(make(doc, 'a', { class: 'zn-net-notice', href, target: '_blank', rel: 'noopener noreferrer', text: t.notice }));
   }
-  if (select) box.append(networkSelect(doc, { lang, net, ...(onSwitch ? { onSwitch } : {}) }));
   return box;
 }
 
-/** "Testnet only for now": what is missing on this network, and a one-click switch to the testnet. */
-export function testnetOnlyBox(doc, { lang = 'en', feature = 'other', onSwitch = (id) => setNetwork(id) } = {}) {
+/** "Not on mainnet yet": a plain box saying which feature is not deployed on mainnet yet (nothing to click). */
+export function notOnMainnetBox(doc, { lang = 'en', feature = 'other' } = {}) {
   const t = netText(lang);
-  const btn = make(doc, 'button', { type: 'button', class: 'zn-gate-switch btn', text: t.gateSwitch, onclick: () => onSwitch('testnet') });
   return make(doc, 'div', { class: 'zn-gate', role: 'status', 'data-feature': feature,
     style: { padding: '16px', margin: '12px 0', borderRadius: '10px', border: '1px solid rgba(234,179,8,.55)', background: 'rgba(234,179,8,.08)', lineHeight: '1.5' } },
   make(doc, 'h3', { class: 'zn-gate-title', text: t.gateTitle, style: { margin: '0 0 6px' } }),
-  make(doc, 'p', { class: 'zn-gate-body', text: t.gateBody.replace('{feature}', t.feature(feature)), style: { margin: '0 0 10px' } }),
-  btn);
+  make(doc, 'p', { class: 'zn-gate-body', text: t.gateBody.replace('{feature}', t.feature(feature)), style: { margin: '0' } }));
 }

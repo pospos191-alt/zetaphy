@@ -17,6 +17,11 @@ export { decodeCertificate, LEVELS, calldata, decodeArgs };
 
 export const ZETAPHY_CHAIN_ID = 77390;
 export const ZETAPHY_RPC = 'https://rpc.sawasdeecoin.com';
+/** ZETAPHY mainnet (zetaphy-hub/network.js): its contracts can be audited too (the only network since the testnet was shut down on 2026-11-14). */
+export const ZETAPHY_MAINNET_CHAIN_ID = 3659;
+export const ZETAPHY_MAINNET_RPC = 'https://129-221-199-191.sslip.io';
+/** Both ZETAPHY networks: there AuditCertificate.valid also checks the live code itself (EXTCODEHASH). */
+export const ZETAPHY_CHAIN_IDS = [ZETAPHY_CHAIN_ID, ZETAPHY_MAINNET_CHAIN_ID];
 
 // ------------------------------------------------------------------ chains
 // rpcs: free, keyless public endpoints (first that answers wins). sourcify: Sourcify v2 covers it.
@@ -26,6 +31,7 @@ export const ZETAPHY_RPC = 'https://rpc.sawasdeecoin.com';
 const evm = (key, name, chainId, testnet, rpcs, explorer, extra = {}) => ({ key, name, kind: 'evm', chainId, caip2: `eip155:${chainId}`, testnet, rpcs, explorer, sourcify: true, ...extra });
 export const AAS_CHAINS = [
   evm('zetaphy', 'ZETAPHY testnet', ZETAPHY_CHAIN_ID, true, [ZETAPHY_RPC], 'https://explorer.sawasdeecoin.com/address/', { sourcify: false, hyperlane: 77390 }),
+  evm('zetaphy-mainnet', 'ZETAPHY mainnet', ZETAPHY_MAINNET_CHAIN_ID, false, [ZETAPHY_MAINNET_RPC], 'https://explorer.sawasdeecoin.com/address/', { sourcify: false }),
   evm('ethereum', 'Ethereum', 1, false, ['https://ethereum-rpc.publicnode.com', 'https://eth.llamarpc.com'], 'https://etherscan.io/address/'),
   evm('sepolia', 'Ethereum Sepolia', 11155111, true, ['https://ethereum-sepolia-rpc.publicnode.com', 'https://rpc.sepolia.org'], 'https://sepolia.etherscan.io/address/', { hyperlane: 11155111 }),
   evm('bsc', 'BNB Smart Chain', 56, false, ['https://bsc-dataseed.bnbchain.org', 'https://bsc-rpc.publicnode.com'], 'https://bscscan.com/address/'),
@@ -328,7 +334,7 @@ export function certificateStatus({ cert, valid, live = null, impl = null, now }
   if (t >= big(cert.expiresAt)) return { status: 'expired', reason: 'expired', level };
   if (!valid && !codeDiffers) {
     // on ZETAPHY the contract's `valid` also checks EXTCODEHASH: without the live code we cannot tell which one failed
-    if (Number(cert.chainId) === ZETAPHY_CHAIN_ID && !live?.codeHash) return { status: 'unverifiable', reason: 'rpc', level };
+    if (ZETAPHY_CHAIN_IDS.includes(Number(cert.chainId)) && !live?.codeHash) return { status: 'unverifiable', reason: 'rpc', level };
     return { status: 'revoked', reason: 'codeRevoked', level }; // the same codeHash was revoked under another request
   }
   if (codeDiffers) return { status: 'code_changed', reason: 'code', level };

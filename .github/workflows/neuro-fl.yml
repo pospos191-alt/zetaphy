@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): the deploy mode targeted the ZETAPHY testnet (chain 77390), which no longer runs; the weekly aggregate (committed inbox, no chain until a deployment record exists) and the pull-request tests (local) stay.
 # Neuro federated learning: aggregate one round of browser updates
 # (zetaphy-neuro/ml/fl, docs/future/federated.md).
 #

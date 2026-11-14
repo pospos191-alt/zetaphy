@@ -17,11 +17,13 @@ import * as walletLib from './wallet/wallets.js';
 import { A as assistText, badgeOf, presignHooks, immuneWarnings } from './assist.js';
 import * as txg from './txguard.js';
 import { renderMainnet } from './mainnet.js';
-import { activeNetwork, contractsOf, hasFeature, networkBadge, networkSelect, testnetOnlyBox, watchNetwork, netText } from './network.js';
+import { activeNetwork, contractsOf, hasFeature, networkBadge, notOnMainnetBox, watchNetwork, netText, withDeployed } from './network.js';
+import { readFaucet, faucetLine, faucetState } from './faucet-core.js';
 
 // The network this page uses (network.js: mainnet unless the visitor picked the testnet). Read once; a switch reloads
 // the page (and every app frame in it), so every chain id, RPC and contract below belongs to one network.
-const NET = activeNetwork();
+// On mainnet, the features whose contracts the build found deployed there turn on once hub-config.json is read (start()).
+let NET = activeNetwork();
 watchNetwork(window);
 const EVM_CHAIN_ID = NET.chainId;
 const DEFAULT_NODE = NET.rpc;
@@ -63,11 +65,12 @@ const TABS = [
   { id: 'wallet', src: 'wallet/' },
   { id: 'swap', src: 'swap/' },
   { id: 'stake', fresh: true },
-  // feature: the network.js feature the tab needs; where the network has none, the tab shows "testnet only for now"
+  // feature: the network.js feature the tab needs; where mainnet has none yet, the tab shows "not on mainnet yet"
   { id: 'earn', page: true, fresh: true, feature: 'faucet' },
   { id: 'mine', page: true, fresh: true, feature: 'mining' },
   { id: 'saphan', page: true, fresh: true, feature: 'bridge' },
-  { id: 'agents', page: true, fresh: true, feature: 'agents' },
+  // also: the tab opens when any of these is on (on mainnet the airdrop card can come before the agent contracts)
+  { id: 'agents', page: true, fresh: true, feature: 'agents', also: ['airdrop'] },
   { id: 'offline', page: true, fresh: true, feature: 'offline' },
   { id: 'audit', page: true, fresh: true, feature: 'audit' },
   { id: 'quantum', page: true, fresh: true, feature: 'quantumWallet' },
@@ -90,14 +93,14 @@ const APP_THEME = [['zetaphy-dex:theme', 'dark'], ['zn.theme', '"dark"'], ['zeta
 
 let lang = pickLang(store.get('zetaphy-hub:lang'));
 // on mainnet: its own words where the testnet's would be wrong (tipNetMain…), and its chain id in place of 77390
-const MAIN_KEYS = { tipNet: 'tipNetMain', tipFaucet: 'tipFaucetMain' };
+const MAIN_KEYS = { tipNet: 'tipNetMain', tipFaucet: 'tipFaucetMain', step2: 'step2Main', faucetOk: 'faucetOkMain' };
 const T = (k) => {
   const key = !NET.testnet && MAIN_KEYS[k] ? MAIN_KEYS[k] : k;
   const s = TEXT[lang]?.[key] ?? TEXT.en[key] ?? k;
   return NET.testnet || typeof s !== 'string' ? s : s.replaceAll('77390', String(NET.chainId));
 };
-/** Is this tab "testnet only for now" on the page's network? */
-const gated = (t) => !!t?.feature && !hasFeature(NET, t.feature);
+/** Is this tab "not on mainnet yet" on the page's network? */
+const gated = (t) => !!t?.feature && !hasFeature(NET, t.feature) && !(t.also ?? []).some((f) => hasFeature(NET, f));
 /** A tab's label / title / hover text in the current language (English if missing). */
 const tabText = (t, i) => TAB_TEXT[lang]?.[t.id]?.[i] ?? TAB_TEXT.en[t.id][i];
 const LABEL = 0, TITLE = 1, TIP = 2;
@@ -182,7 +185,7 @@ function buildTabs() {
     const head = t.group && t.group !== last ? el('span', { class: 'group', text: GROUP[t.group] }) : null;
     last = t.group;
     return [head, el('a', { class: 'tab', href: `?tab=${t.id}`, 'data-tab': t.id, 'data-tip': tabText(t, TIP), 'data-gated': gated(t) ? '1' : null },
-      svg(t.id), el('span', { text: tabText(t, LABEL) }), gated(t) ? el('span', { class: 'new', text: 'testnet' }) : t.fresh ? el('span', { class: 'new', text: 'new' }) : null)];
+      svg(t.id), el('span', { text: tabText(t, LABEL) }), gated(t) ? el('span', { class: 'new soon', text: T('tabSoon') }) : null)];
   }).filter(Boolean),
   // the validator guide is a page of its own on this site (validators.html), not a tab
   el('a', { class: 'tab', href: 'validators.html', id: 'nav-guide', 'data-tip': T('tipGuide') }, svg('guide'), el('span', { text: T('navGuide') })),
@@ -203,12 +206,12 @@ function show(id, { hash, push = true } = {}) {
   $('panel-home').hidden = tab.id !== 'home';
   $('panel-stake').hidden = tab.id !== 'stake';
   for (const p of document.querySelectorAll('.panel[data-page]')) p.hidden = p.dataset.page !== tab.id;
-  // a tab whose contracts are not on this network: "testnet only for now" and a switch, never its page or app
+  // a tab whose contracts are not on mainnet yet: "not on mainnet yet", never its page or app
   const gate = gated(tab);
   let gp = $('panel-gate');
   if (gate) {
     if (!gp) { gp = el('section', { class: 'panel gate-panel', id: 'panel-gate' }); $('stage').insertBefore(gp, $('frames')); }
-    gp.replaceChildren(testnetOnlyBox(document, { lang, feature: tab.feature }));
+    gp.replaceChildren(notOnMainnetBox(document, { lang, feature: tab.feature }));
     gp.hidden = false;
   } else if (gp) gp.hidden = true;
   if (tab.page && !gate) openPage(tab.id);
@@ -283,7 +286,7 @@ window.addEventListener('hub:busy', (e) => {
 
 // The data pages (pages.js): drawn once per language, refreshed while shown.
 const pageCtx = () => ({
-  T, lang, ep, cfg: HUB, getJson, evmCall, el, short, formatZeta, show, account: () => account, connect, send, signTyped,
+  T, lang, ep, cfg: HUB, net: NET, getJson, evmCall, el, short, formatZeta, show, account: () => account, connect, send, signTyped,
   copyBtn: (text) => el('button', { type: 'button', class: 'copy', text: T('copy'), onclick: async (ev) => {
     try { await navigator.clipboard.writeText(text); ev.target.textContent = T('copied'); setTimeout(() => { ev.target.textContent = T('copy'); }, 1200); } catch { /* blocked */ }
   } }),
@@ -370,21 +373,36 @@ function syncApps() {
   for (const [k, v] of APP_THEME) store.set(k, v);
 }
 
-// ------------------------------------------------------------------ the network: badge, switch, mainnet risk line, no faucet on mainnet
+// ------------------------------------------------------------------ the network: badge, mainnet risk line, the faucet where the network has one
 function renderNetwork() {
   const b = $('net-badge');
   const t = netText(lang);
   b.textContent = NET.testnet ? 'Testnet' : t.badgeMainnet;
   b.classList.toggle('mainnet', !NET.testnet);
   if (NET.testnet) { b.dataset.tipKey = 'tipTestnet'; delete b.dataset.tip; } else { delete b.dataset.tipKey; b.dataset.tip = t.risk; }
-  $('net-switch').replaceChildren(networkSelect(document, { lang, net: NET }));
   const note = $('net-note');
   note.hidden = NET.testnet;
-  note.replaceChildren(...(NET.testnet ? [] : [networkBadge(document, { lang, net: NET, select: false })]));
+  note.replaceChildren(...(NET.testnet ? [] : [networkBadge(document, { lang, net: NET })]));
   const faucetOn = hasFeature(NET, 'faucet');
   $('faucet-form').hidden = !faucetOn;
   $('faucet-gate').hidden = faucetOn;
-  $('faucet-gate').replaceChildren(...(faucetOn ? [] : [testnetOnlyBox(document, { lang, feature: 'faucet' })]));
+  $('faucet-gate').replaceChildren(...(faucetOn ? [] : [notOnMainnetBox(document, { lang, feature: 'faucet' })]));
+  if (faucetOn) showFaucet();
+}
+/** Step 2's line under the form: the node's own amounts and budget, or why the faucet cannot pay now (faucet-core.js). */
+let faucetNow = null;
+async function showFaucet() {
+  const info = await readFaucet(evmCall);
+  faucetNow = info;
+  const n = $('faucet-state');
+  if (!n) return info;
+  const { state, text } = faucetLine(info, lang, (w) => formatZeta(w, 4));
+  // the testnet's node may not report it: say nothing rather than "cannot be read"
+  n.hidden = !text || (state === 'unknown' && NET.testnet);
+  n.textContent = text;
+  n.className = `small faucet-state${state === 'on' ? ' dim' : ' warnline'}`;
+  n.dataset.state = state;
+  return info;
 }
 
 // ------------------------------------------------------------------ overview
@@ -456,11 +474,14 @@ async function validatorNames() {
 
 async function faucet(e) {
   e.preventDefault();
-  if (!hasFeature(NET, 'faucet')) return; // no faucet, no free coins on mainnet
+  if (!hasFeature(NET, 'faucet')) return; // a network without a faucet: no free coins
   const out = $('faucet-msg');
   const a = $('faucet-addr').value.trim();
   if (!isEvmAddress(a) && !/^zetaphy1[02-9ac-hj-np-z]{38}$/.test(a)) { msg(out, T('badAddr'), 'bad'); return; }
   msg(out, '…');
+  // off, or today's budget used up: say so, ask nothing
+  const st = faucetState(await showFaucet());
+  if (st === 'off' || st === 'spent') { msg(out, faucetLine(faucetNow, lang, (w) => formatZeta(w, 4)).text, 'bad'); return; }
   try {
     const r = await askFaucet(ep().evm, a);
     msg(out, `${T('faucetOk')}${r?.txHash ? ` · ${short(r.txHash, 10, 6)}` : ''}`, 'ok');
@@ -656,22 +677,37 @@ function stakeDialog(v, kind) {
 }
 
 // ------------------------------------------------------------------ start
-/** The hub's config on mainnet: its deployed contracts (network.js), the DEX factory and router, nothing of the testnet's. */
-export function mainnetConfig(hub, net = NET) {
+/**
+ * The hub's config on mainnet: hub-config.json `mainnet` (build.mjs mainnetHub: the mainnet launch's contracts file,
+ * else network.js's list), else network.js's deployed contracts; the DEX factory and router; nothing of the testnet's.
+ * network.js's `bugBounty` is the ZetaphyBounty program (`zetaphyBounty` here): the hub's `bugBounty` is useful work's.
+ */
+export function mainnetConfig(cfg, net = NET) {
   const c = contractsOf(net);
-  return { contracts: Object.fromEntries(['neuroJobs', 'neuroControl', 'threatRegistry', 'threatReports', 'bugBounty', 'timelock'].filter((k) => c[k]).map((k) => [k, c[k]])),
-    dex: { factory: c.factory, router: c.router }, nft: {}, tokens: [], saphan: [], saphanTokens: [], immune: null, immuneNet: null, qsafe: hub?.qsafe ?? null };
+  const m = cfg?.mainnet && typeof cfg.mainnet === 'object' && cfg.mainnet.chainId === net.chainId ? cfg.mainnet : null;
+  const addrs = (o) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([, v]) => isEvmAddress(v)));
+  const contracts = m ? addrs(m.contracts)
+    : addrs({ neuroJobs: c.neuroJobs, neuroControl: c.neuroControl, threatRegistry: c.threatRegistry, threatReports: c.threatReports, timelock: c.timelock, zetaphyBounty: c.bugBounty, guardianMultisig: c.guardian });
+  if (m && Number.isInteger(m.contracts?.timelockBlock) && contracts.timelock) contracts.timelockBlock = m.contracts.timelockBlock;
+  const dex = m && isEvmAddress(m.dex?.factory) && isEvmAddress(m.dex?.router) ? addrs(m.dex) : { factory: c.factory, router: c.router };
+  const list = m?.airdrop?.list;
+  return { contracts, dex, nft: m ? addrs(m.nft) : {}, tokens: [], saphan: [], saphanTokens: [], immune: null, immuneNet: null, qsafe: cfg?.qsafe && typeof cfg.qsafe === 'object' ? cfg.qsafe : null,
+    ...(typeof list === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(list) ? { airdrop: { list } } : {}) };
 }
 async function start() {
   $('lang').replaceChildren(...LANGS.map(([code, name]) => el('option', { value: code, lang: code, text: name })));
   $('lang').value = lang;
-  try { const c = await getJson('./hub-config.json'); if (NET.testnet && /^https:\/\/[^/]+$/.test(c.node ?? '')) NODE = c.node; HUB = { contracts: c.contracts ?? {}, dex: c.dex ?? {}, nft: c.nft ?? {}, tokens: Array.isArray(c.tokens) ? c.tokens.filter((x) => isEvmAddress(x?.address)) : [], saphan: Array.isArray(c.saphan) ? c.saphan : [], saphanTokens: Array.isArray(c.saphanTokens) ? c.saphanTokens.filter((x) => x && typeof x === 'object' && Array.isArray(x.destinations)) : [],
+  let raw = null;
+  try { const c = await getJson('./hub-config.json'); raw = c; if (NET.testnet && /^https:\/\/[^/]+$/.test(c.node ?? '')) NODE = c.node; HUB = { contracts: c.contracts ?? {}, dex: c.dex ?? {}, nft: c.nft ?? {}, tokens: Array.isArray(c.tokens) ? c.tokens.filter((x) => isEvmAddress(x?.address)) : [], saphan: Array.isArray(c.saphan) ? c.saphan : [], saphanTokens: Array.isArray(c.saphanTokens) ? c.saphanTokens.filter((x) => x && typeof x === 'object' && Array.isArray(x.destinations)) : [],
     // the Neuro oracle's sender and mirrors (Immunity tab, item 18)
     immune: c.immune && typeof c.immune === 'object' ? c.immune : null, immuneNet: c.immuneNet && typeof c.immuneNet === 'object' ? c.immuneNet : null,
     // the quantum-exposure inventory's summary (Quantum tab; quantum-core.js readiness() checks it)
-    qsafe: c.qsafe && typeof c.qsafe === 'object' ? c.qsafe : null }; } catch { /* default */ }
-  // hub-config.json is the testnet's (build.mjs); on mainnet only network.js's deployed contracts, no testnet address
-  if (!NET.testnet) HUB = mainnetConfig(HUB);
+    qsafe: c.qsafe && typeof c.qsafe === 'object' ? c.qsafe : null,
+    // where the airdrop round's list is published (Agents tab, airdrop.js)
+    ...(typeof c.airdrop?.list === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(c.airdrop.list) ? { airdrop: { list: c.airdrop.list } } : {}) }; } catch { /* default */ }
+  // hub-config.json's top level is the testnet's (build.mjs); on mainnet only its `mainnet` part (or network.js's
+  // list), never a testnet address, and the features whose contracts are deployed there turn on (network.js withDeployed)
+  if (!NET.testnet) { HUB = mainnetConfig(raw); NET = withDeployed(NET, HUB.contracts); }
   syncApps();
   bindTips(document, $('tip'));
   document.addEventListener('click', (e) => {

@@ -18,7 +18,7 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
-    await onTestnet(page); // these checks are about the testnet (network.js defaults to mainnet)
+    await onTestnet(page); // these checks run the hub on the retired testnet's record (visitors only get mainnet: network.e2e.mjs)
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.route('**/*', async (route) => {
@@ -56,8 +56,11 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
     assert.ok(fits, 'everything fits in one screen');
     assert.equal(await page.locator('text=SAWASDEE COIN').count(), 0, 'the chain name only');
     await shot('home');
-    // the mainnet card (mainnet.js): facts, the public RPC and the risk sentence; Add to MetaMask is enabled
-    assert.match(await page.textContent('#mainnet'), /3659 · zetaphy_3659-1.*ZTPHY.*ca0efb15…0a94667.*129-221-199-191\.sslip\.io.*single validator/s);
+    // the mainnet card (mainnet.js): facts and the public RPC; the risk sentence only once, in the network bar on top;
+    // no testnet line; Add to MetaMask is enabled
+    assert.match(await page.textContent('#mainnet'), /3659 · zetaphy_3659-1.*ZTPHY.*ca0efb15…0a94667.*129-221-199-191\.sslip\.io/s);
+    assert.doesNotMatch(await page.textContent('#mainnet'), /single validator|testnet|77390/);
+    assert.equal(await page.locator('#mainnet .mainnet-risk').count(), 0, 'no risk box of its own (the network bar on mainnet has it: network.e2e.mjs)');
     assert.ok(!(await page.isDisabled('#mainnet-add')), 'Add to MetaMask enabled now that the public RPC is published');
 
     // hover text instead of paragraphs
