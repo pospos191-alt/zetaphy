@@ -529,12 +529,14 @@ test('i18n: the 8 languages, each with exactly the English keys and placeholders
 });
 
 test('i18n: every key the app uses exists', () => {
-  const src = ['src/app.js', 'index.html', 'src/flow.js', 'src/quantum.js', 'src/risk.js', 'src/audit.js', 'src/crosschain.js', 'src/ask.js', ...['validators2', 'gov', 'holders', 'nft', 'gas', 'tools'].map((m) => `src/${m}.js`)].map(read).join('\n');
+  const src = ['src/app.js', 'index.html', 'src/flow.js', 'src/quantum.js', 'src/risk.js', 'src/audit.js', 'src/crosschain.js', 'src/ask.js', 'src/richlist.js', ...['validators2', 'gov', 'holders', 'nft', 'gas', 'tools'].map((m) => `src/${m}.js`)].map(read).join('\n');
   const used = new Set([...src.matchAll(/\bt\('([A-Za-z0-9_]+)'/g), ...src.matchAll(/data-i18n(?:-placeholder|-title)?="([A-Za-z_]+)"/g)].map((m) => m[1]));
   // keys built at run time in the page modules
   for (const k of ['gas_slow', 'gas_normal', 'gas_fast', 'gasActTransfer', 'gasActErc20', 'gasActSwap', 'gasActNftMint', 'gasActApprove',
     'govDeposit', 'govVoting', 'govPassed', 'govRejected', 'govFailedStatus', 'govYes', 'govNo', 'govAbstain', 'govVeto']) used.add(k);
   for (const w of ['address', 'code', 'fingerprint']) used.add(`what_${w}`);
+  for (const g of ['project', 'module', 'others']) used.add(`nhGroup_${g}`); // richlist.js
+  for (const k of ['multisig', 'validator', 'faucet', 'airdrop', 'timelock', 'guardian', 'deployer', 'contract', 'project', 'module']) used.add(`nhKind_${k}`);
   for (const m of src.matchAll(/'(help[A-Z][A-Za-z]+)'/g)) used.add(m[1]);
   for (const k of used) assert.ok(k in T.en, `missing key ${k}`);
   assert.equal(makeT('th')('pqCoverage', { p: '50%' }), '50% ของพลังโหวตมีกุญแจโหวต PQ');

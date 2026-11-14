@@ -40,6 +40,8 @@ export const BUSY_HEX = '0x' + 'b5'.repeat(20);
 export const BUSY = toBech32(hexToBytes('b5'.repeat(20)), 'zetaphy');
 export const BUSY_TXS = 57;
 export const PER_PAGE_CAP = 25;
+/** The bank module's holder count (DenomOwners count_total) the mock node gives. */
+export const HOLDERS_LIVE = 100234;
 // A 6-hop chain of native transfers FLOW[0] -> FLOW[1] -> … -> FLOW[6] (100, 90, … 50 ZETAPHY), plus one
 // transfer back FLOW[4] -> FLOW[2] (a cycle), in the node's tx index only: for the fund-flow "follow" test.
 export const FLOW_HEX = Array.from({ length: 7 }, (_, i) => '0x' + `f${i}`.repeat(20));
@@ -341,6 +343,8 @@ export function buildChain() {
           const msg = concat(lenField(1, utf8('/cosmos.bank.v1beta1.MsgSend')), lenField(2, encodeMsgSend({ fromAddress: GOV_ADDR, toAddress: ME, amount: [{ denom: 'azetaphy', amount: '5000000000000000000000' }] })));
           return { response: { code: 0, value: b64(lenField(1, concat(uintField(1, 2), lenField(2, msg), uintField(3, 2)))), height: '30' } };
         }
+        // the holders page's live count: count_total on a one-owner page (PageResponse { total = 2 })
+        if (p.path === '/cosmos.bank.v1beta1.Query/DenomOwners') return { response: { code: 0, value: b64(concat(lenField(1, concat(lenField(1, utf8(ME)), lenField(2, coinBytes(10n ** 18n)))), lenField(2, uintField(2, HOLDERS_LIVE)))), height: '30' } };
         if (p.path === '/cosmos.bank.v1beta1.Query/SupplyOf') return { response: { code: 0, value: b64(lenField(1, coinBytes(Number(p.height) < 0 ? SUPPLY : SUPPLY_1H_AGO))), height: String(p.height) } };
         return { response: { code: 1, log: 'unknown path' } };
       }

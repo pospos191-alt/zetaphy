@@ -201,8 +201,8 @@ async function pageHome(view) {
         stat(t('chainId'), h('span', { class: 'mono' }, safeText(st.chainId, 60)), `EVM ${cfg.evmChainId}`),
         stat(t('height'), h('span', { id: 'stat-height' }, blockLink(H)), h('span', { id: 'stat-age' }, ago(st.time, Date.now(), lang))),
         stat(t('supply'), slot(chain.supply(), (s) => (s == null ? '—' : formatZtphy(s, { maxFrac: 2 })), { inline: true }),
-          slot(Promise.all([chain.supply(), chain.supplyAt(Math.max(1, Number(H) - 720))]), ([now, then]) => (now != null && then != null && then >= now
-            ? t('burned1h', { x: formatZtphy(then - now, { maxFrac: 4 }) }) : t('supplyNote')), { inline: true })),
+          h('span', null, slot(Promise.all([chain.supply(), chain.supplyAt(Math.max(1, Number(H) - 720))]), ([now, then]) => (now != null && then != null && then >= now
+            ? t('burned1h', { x: formatZtphy(then - now, { maxFrac: 4 }) }) : t('supplyNote')), { inline: true }), ' · ', routeLink('holders', t('nhLink'), { class: 'nh-link' }))),
         stat(t('bonded'), slot(Promise.all([chain.stakingPool(), chain.supply()]), ([p, s]) => formatZtphy(p.bonded, { maxFrac: 0 }), { inline: true }),
           slot(Promise.all([chain.stakingPool(), chain.supply()]), ([p, s]) => (s ? t('bondedRatio', { p: percent(p.bonded, s) }) : ''), { inline: true })),
         stat(t('validators'), slot(getValidators(H), (rows) => String(rows.filter((r) => r.active).length), { inline: true }),
@@ -817,6 +817,7 @@ const ROUTES = {
   gas: lazy(() => import('./gas.js'), 'pageGas'), tools: lazy(() => import('./tools.js'), 'pageTools'),
   live: (view) => pageLive(view, ctx()),
   flow: (v, p) => pageFlow(v, p, ui()), quantum: (v, p) => pageQuantum(v, p, ui()), ask: (v, p) => pageAsk(v, p, ui()),
+  holders: async (v, p) => (await import('./richlist.js')).pageNativeHolders(v, p, ui()), // ZTPHY holders (daily snapshot)
 };
 
 async function route() {

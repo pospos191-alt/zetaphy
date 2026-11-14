@@ -1,7 +1,7 @@
 // "Ask the explorer": the search box also understands short plain questions, in
 // English and Thai, offline and rule based (no AI service, nothing leaves the page):
 //   "largest transfers today"       -> #/ask/largest?s=86400
-//   "biggest ZETAPHY holders seen"  -> #/ask/holders
+//   "biggest ZETAPHY holders seen"  -> #/ask/holders (links to #/holders, the full daily list: richlist.js)
 //   "txs of 0x… last hour"          -> #/ask/txs?address=0x…&s=3600
 //   "failed txs"                    -> #/ask/failed
 //   "is 0x… safe?" / "ที่อยู่นี้ปลอดภัยไหม 0x…" -> #/ask/risk?address=0x…
@@ -133,14 +133,21 @@ export async function pageAsk(view, param, ui) {
       h('span', { class: 'fromto' }, x.from ? addrLink(x.from) : '—', ' → ', x.to ? addrLink(x.to) : '—'), formatZtphy(x.value, { maxFrac: 4 })]), { empty: t('askNothing') })));
     parts.push(card(t('askLargestTokens'), slot(largestTokens(ui, Number(r.from), Number(r.to)), (x) => x)));
   } else if (kind === 'holders') {
-    const addrs = seenAddresses(r.txs, 40);
-    const bals = await Promise.all(addrs.map((x) => chain.evmCall('eth_getBalance', [x, 'latest']).then((v) => BigInt(v)).catch(() => null)));
-    const rows = addrs.map((x, i) => ({ x, b: bals[i] })).filter((y) => y.b != null).sort((p1, p2) => (p2.b > p1.b ? 1 : p2.b < p1.b ? -1 : (p1.x < p2.x ? -1 : 1)));
-    const total = rows.reduce((s, y) => s + y.b, 0n);
-    parts.push(card(null, table(['#', t('address'), t('balance'), t('askShare')], rows.slice(0, 25).map((y, i) => [String(i + 1), addrLink(y.x), formatZtphy(y.b, { maxFrac: 2 }), percent(y.b, total || 1n)]), { empty: t('askNothing') }),
-      note(t('askHoldersNote', { n: groupDigits(addrs.length) }), 'warn')));
+    parts.push(h('p', { class: 'note note-info' }, ui.routeLink('holders', t('nhOpenFull'))));
+    parts.push(card(null, await seenHoldersCard(ui, r)));
   }
   body.replaceChildren(...parts, scope);
+}
+
+/** The top 25 among the addresses seen in scanned txs, by live balance (not a full rich list; #/holders is). */
+export async function seenHoldersCard(ui, r) {
+  const { t, chain, table, note, addrLink, h } = ui;
+  const addrs = seenAddresses(r.txs, 40);
+  const bals = await Promise.all(addrs.map((x) => chain.evmCall('eth_getBalance', [x, 'latest']).then((v) => BigInt(v)).catch(() => null)));
+  const rows = addrs.map((x, i) => ({ x, b: bals[i] })).filter((y) => y.b != null).sort((p1, p2) => (p2.b > p1.b ? 1 : p2.b < p1.b ? -1 : (p1.x < p2.x ? -1 : 1)));
+  const total = rows.reduce((s, y) => s + y.b, 0n);
+  return h('div', null, table(['#', t('address'), t('balance'), t('askShare')], rows.slice(0, 25).map((y, i) => [String(i + 1), addrLink(y.x), formatZtphy(y.b, { maxFrac: 2 }), percent(y.b, total || 1n)]), { empty: t('askNothing') }),
+    note(t('askHoldersNote', { n: groupDigits(addrs.length) }), 'warn'));
 }
 
 async function largestTokens(ui, from, to) {

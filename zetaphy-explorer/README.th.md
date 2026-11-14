@@ -20,6 +20,7 @@ Block explorer ของ ZETAPHY mainnet (Cosmos SDK v0.54 + Cosmos EVM v0.7.3, 
 | สด `#/live` | บล็อกใหม่ทันทีที่สร้าง (websocket หรือ polling), **ธุรกรรมที่รอดำเนินการ** (`num_unconfirmed_txs` และ `unconfirmed_txs` ถ้าโหนดเปิดให้), **ติดตามธุรกรรม** จนยืนยัน |
 | โทเคน `#/token/<0x…>` | ERC-20 / ERC-721 / ERC-1155: ชื่อ, สัญลักษณ์, ทศนิยม, อุปทาน, ลิงก์รายงาน Neuro (ตั้ง URL ได้), ThreatRegistry, การโอนล่าสุด, การ์ดสัญญา |
 | Validator `#/validators` | พลังโหวต, สถานะ, ค่าคอมมิชชัน, **ลงทะเบียนกุญแจโหวต PQ แล้วหรือยัง** (อ่านสโตร์ `zetaphypq` ด้วย `abci_query`), อัปไทม์, ค่า Nakamoto, เรียง/กรอง; หน้าของแต่ละ validator: ดู "หน้าเพิ่มเติม" ด้านล่าง |
+| ผู้ถือ ZTPHY `#/holders` | ผู้ถือเหรียญหลักทุกราย จาก **สแนปช็อตรายวัน** ของโมดูล bank: จำนวนผู้ถือ, 100 อันดับแรกพร้อมป้ายชื่อและสัดส่วนของอุปทาน, กระเป๋าของโปรเจกต์เทียบกับคนอื่นทั้งหมด, ช่วงยอดคงเหลือ, ยอดสดของที่อยู่ใดก็ได้: ดู "ผู้ถือ ZTPHY" ด้านล่าง |
 | ธรรมาภิบาล, ผู้ถือ, NFT, ค่าแก๊ส, เครื่องมือ | `#/gov`, `#/token/<0x…>/holders`, `#/nft/<0x…>`, `#/gas`, `#/tools`: ดู "หน้าเพิ่มเติม" ด้านล่าง |
 | ตั้งค่า `#/settings` | URL ของโหนด (เก็บในเบราว์เซอร์นี้), ThreatRegistry, URL รายงาน Neuro, จำนวนบล็อกที่สแกน |
 
@@ -200,6 +201,43 @@ CSP: `connect-src 'self' https:` อนุญาต RPC เหล่านั้
 การตรวจทำเป็น **ชุด**: ทุกที่อยู่ที่หน้าแสดงภายใน ~30 ms ส่งเป็น JSON-RPC batch เดียว (`evmBatch` ใน `src/rpc.js` ผ่านคิวและแคชเดียวกัน) และอีกชุดสำหรับสัญญา ผลถูกจำไว้ตลอดการเยี่ยมชม ถ้าโหนดไม่รองรับ batch จะถามทีละรายการ
 หน้าที่อยู่และหน้าโทเคนมีกล่อง **สรุปความเสี่ยง**: ธงของที่อยู่นั้นเอง (พร้อมข้อความ "ข้อมูลวิเคราะห์โค้ดอัตโนมัติ ไม่ใช่คำกล่าวหา" เมื่อติดธง) จำนวนคู่ธุรกรรมล่าสุดที่ติดธง และลิงก์รายงาน Neuro (`neuroReportUrl`) การ์ด ThreatRegistry เต็ม (หลักฐาน คำชี้แจงของเจ้าของ proxy) ยังอยู่ด้านล่าง
 
+## ผู้ถือ ZTPHY `#/holders` (สแนปช็อตรายวัน)
+
+ผู้ถือเหรียญหลัก (denom `azetaphy`) มีมากเกินกว่าจะหาได้จากบล็อกล่าสุด (ราว 100,000 ที่อยู่หลังแอร์ดรอป 10 ZTPHY ด้วย
+`MsgMultiSend`) และ explorer ไม่มี indexer จึงให้งาน GitHub Actions อ่านผู้ถือทั้งหมดจากโมดูล bank ของเชนวันละครั้ง
+แล้วเผยแพร่เป็นไฟล์เดียวพร้อมกับเว็บ หน้าเว็บอ่านไฟล์นั้น
+
+| ส่วน | ทำอะไร |
+|---|---|
+| `.github/workflows/holders-snapshot.yml` | ทุกวัน (01:37 UTC) และกดเอง (`workflow_dispatch`, `rpc` ใส่หรือไม่ก็ได้): รันสคริปต์ ดัน `holders.json` ไปที่ **branch `holders-data`** (commit เดียวแบบ force เหมือน `immune-feed`; main ไม่มี commit รายวัน) แล้วสั่ง `cf-pages.yml` ให้ deploy explorer |
+| `scripts/holders-snapshot.js` | ผ่าน rpc-guard ของ sentry สาธารณะ (CometBFT `abci_query` ซึ่งเป็นเมธอดที่อนุญาต): `status` (ความสูงและเวลาบล็อก) แล้ว **ที่ความสูงเดียวกันนั้น** อ่าน `SupplyOf` และ `DenomOwners` (หน้าละ 1,000 ราย, `count_total` ในหน้าแรก; ราว 100 หน้าสำหรับ 100,000 ราย ทีละคำขอ รอเมื่อเจอ 429/503) `--check <file>` ตรวจสแนปช็อต |
+| `src/holders-core.js` | ส่วนที่เป็นฟังก์ชันล้วน: protobuf ของสองคำขอเขียนเอง, การแบ่งหน้า (หยุดเมื่อ `next_key` ว่าง; ไม่ยอมรับหน้าว่างที่ยังมี key, key ซ้ำ, หรือหน้ามากเกินไป), การเรียง, ช่วงยอด, กลุ่ม, `parseSnapshot` |
+| `cf-pages.yml` (deploy, explorer) | ดึง `holders.json` จาก `holders-data` รัน `--check` แล้วคัดลอกเข้าเว็บ: ให้บริการที่ `/holders.json` จาก origin ของ explorer เอง (`connect-src 'self'`; `Cache-Control: no-cache`) |
+| `src/richlist.js` | หน้าเว็บ: จำนวนผู้ถือ, บล็อกและเวลาของสแนปช็อต ("อัปเดตทุกวัน"), จำนวนผู้ถือ **สด** (`abci_query DenomOwners` พร้อม `count_total`), กระเป๋าของโปรเจกต์ / โมดูลของเชน / คนอื่นทั้งหมด, กระเป๋าที่มีป้ายชื่อ, 100 อันดับแรก, ช่วงยอดคงเหลือ และช่องค้นหา (ยอดสดของที่อยู่ใดก็ได้ด้วย `eth_getBalance` พร้อมสัดส่วน อันดับ และช่วงยอด ณ สแนปช็อต) |
+
+`holders.json`: `height`, `time` (ของบล็อกสแนปช็อต), `holders` (`count_total` ของโมดูล bank), `holdersCounted`, `supply`,
+`balanceSum` / `sumMatchesSupply` (รวมยอดทุกรายเทียบกับอุปทาน), `groups` (`project`, `module`, `others`: จำนวน ยอด สัดส่วน),
+`bands` (หน่วย ZTPHY เต็ม: 0, 1, 10, 100, 1k, 10k, 100k, 1M, 10M ขึ้นไป; จำนวน ยอด สัดส่วน), `top` (อันดับ, `address` 0x, `bech32` zetaphy1, ยอด,
+สัดส่วน, ป้ายชื่อ) และ `wallets` (กระเป๋าที่มีป้ายชื่อทุกใบพร้อมยอดและอันดับ ไม่ว่าจะมียอดหรือไม่) จำนวนเงินทั้งหมดเป็นสตริงหน่วย azetaphy
+
+**ป้ายชื่อ** อ่านตอนทำสแนปช็อต แหล่งแรกที่ระบุชนะ: `scripts/project-wallets.json` (แก้ด้วยมือ: ก๊อกน้ำ
+`0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160` และแถว `airdrop` ที่ที่อยู่ยังว่างจนกว่าจะสร้างกุญแจ), ตาราง Allocations ของ
+`zetaphy-chain/mainnet/zetaphy_3659-1/README.md` (มัลติซิกและผู้ดำเนินการ validator), บัญชีโมดูลของเชน (พูล bonded, fee collector,
+distribution, gov, …), `zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json` (ผู้ deploy, timelock, มัลติซิก guardian และเจ้าของ, สัญญา) และ
+`zetaphy-launch/state/3659.contracts.json` **เพิ่มป้ายชื่อ** (เช่นกุญแจ hot ของแอร์ดรอป) โดยเติมแถวใน `project-wallets.json`: `address` (0x หรือ
+zetaphy1), `name` (ไม่เกิน 60 ตัวอักษร), `kind` (multisig, validator, faucet, airdrop, timelock, guardian, deployer, contract หรือ project)
+สแนปช็อตถัดไปจะใช้ทันที เหรียญที่ใครก็ตามสเตกไว้อยู่ในพูล bonded tokens (โมดูล) จึงนับอยู่ใน "โมดูลของเชน" ไม่ใช่ของผู้สเตก
+
+**เมื่อไม่มีไฟล์ อ่านไม่ได้ หรือเก่ากว่า 36 ชั่วโมง** หน้าเว็บบอกตรง ๆ และแสดงที่อยู่ที่พบในบล็อกล่าสุดพร้อมยอดสด
+(มุมมอง `#/ask/holders`); สแนปช็อตเก่ายังแสดงอยู่ใต้คำเตือน ลิงก์: การ์ดอุปทานในหน้าภาพรวม ("ผู้ถือทั้งหมด →") และ
+`#/ask/holders` ข้อความมีครบ 8 ภาษาของ UI (`HOLDERS` ใน `src/i18n.js`)
+
+**รันเอง:** `npm ci && node scripts/holders-snapshot.js --out /tmp/holders.json` (`--rpc https://<host>`, `--limit`, `--delay-ms`);
+`EXPLORER_HOLDERS=/tmp/holders.json npm run serve` ให้บริการที่ `/holders.json` ทดสอบ: `test/holders.test.js` (protobuf, การแบ่งหน้าและจุดที่ต้องหยุด,
+การเรียง, ช่วงยอด, ป้ายชื่อ, 0x / zetaphy1, `parseSnapshot`, การลองใหม่ของไคลเอนต์ rpc, การรันทั้งหมดกับโหนดจำลอง, `--check`) และ
+`test/holders.e2e.js` (หน้าเว็บใน Chromium บน mainnet ด้วย CSP จริง: สแนปช็อตใหม่ ไม่มี เก่า อ่านไม่ได้ และมีข้อความอันตราย, การค้นหา, ลิงก์,
+ภาษาไทย, ความกว้างมือถือ) ค่าใช้จ่าย: ฟรี (runner ของ GitHub ไม่กี่นาทีต่อวัน, อ่าน RPC สาธารณะราว 100 ครั้ง, Cloudflare Pages แผนฟรี)
+
 ## หน้าเพิ่มเติม: validator, ธรรมาภิบาล, ผู้ถือโทเคน, NFT, ค่าแก๊ส, เครื่องมือ, ติดตั้งเป็นแอป
 
 ทุกหน้าอ่านจากโหนดโดยตรง (ไม่มี indexer มีขอบเขต ผ่านคิวเดียวกัน) โค้ด: `src/validators2.js`, `src/gov.js`, `src/holders.js`, `src/nft.js`,
@@ -335,6 +373,8 @@ src/labels.js    ชื่อที่อยู่ที่รู้จัก (l
 src/risk.js      ป้ายความเสี่ยง Neuro แบบชุด กล่องสรุปความเสี่ยง
 src/crosschain.js  ข้อความ Hyperlane (การส่งถึงบนเชนปลายทาง) แพ็กเก็ต IBC
 src/ask.js       คำถามในช่องค้นหา (ไทย/อังกฤษ แบบกฎ)
+src/richlist.js  ผู้ถือ ZTPHY #/holders (สแนปช็อตรายวัน)   src/holders-core.js  protobuf การแบ่งหน้า ตัวสร้างและตัวตรวจสแนปช็อต
+scripts/holders-snapshot.js  สร้าง holders.json (holders-snapshot.yml)   scripts/project-wallets.json  ป้ายชื่อที่แก้ด้วยมือ
 src/insight.css  สไตล์ของส่วนข้างบน
 scripts/known.js สร้าง labels.json และ crosschain.json (npm run build)
 vendor/zetaphy-lib.js  bundle ของ pqcert.js, pqtx.js, vaccine.js และ @noble (สร้างด้วย npm run build)

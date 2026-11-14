@@ -20,6 +20,7 @@ so it can be hosted on Vercel for free
 | Live `#/live` | new blocks as they are made (websocket, or polling), **pending transactions** (`num_unconfirmed_txs`, and `unconfirmed_txs` where the node shares it), **watch a transaction** until it is confirmed |
 | Token `#/token/<0x…>` | ERC-20 / ERC-721 / ERC-1155: name, symbol, decimals, supply, Neuro report link (URL is configurable), ThreatRegistry, latest transfers, the contract card |
 | Validator `#/validators` | voting power, status, commission, **whether a PQ vote key is registered** (reads the `zetaphypq` store with `abci_query`), uptime, Nakamoto coefficient, sort/filter; each validator's own page: see "More pages" below |
+| ZTPHY holders `#/holders` | every holder of the native coin from a **daily snapshot** of the bank module: holder count, top 100 with labels and share of supply, project wallets vs everyone else, balance bands, live balance of any address: see "ZTPHY holders" below |
 | Governance, holders, NFT, gas, tools | `#/gov`, `#/token/<0x…>/holders`, `#/nft/<0x…>`, `#/gas`, `#/tools`: see "More pages" below |
 | Settings `#/settings` | node URL (stored in this browser), ThreatRegistry, Neuro report URL, number of blocks to scan |
 
@@ -201,6 +202,44 @@ Every address and token the pages render gets a **"Flagged by Neuro · <category
 Lookups are **batched**: everything a page renders within ~30 ms goes out as one JSON-RPC batch (`evmBatch` in `src/rpc.js`, through the same queue and cache), a second one for contracts; results are cached for the visit; a node without batches is asked one call at a time
 Address and token pages have a **risk summary** box: the address's own flag (with the disclaimer when flagged), how many recent counterparties are flagged, and the Neuro report link (`neuroReportUrl`). The full ThreatRegistry card (evidence, the owner's response, proxies) stays below
 
+## ZTPHY holders `#/holders` (daily snapshot)
+
+The native coin's holders (denom `azetaphy`) are too many to find from recent blocks (about 100,000 addresses after the
+10 ZTPHY airdrop by `MsgMultiSend`), and the explorer has no indexer. So once a day a GitHub Actions job reads them all
+from the chain's bank module and publishes one file with the site; the page reads that file.
+
+| Part | What it does |
+|---|---|
+| `.github/workflows/holders-snapshot.yml` | daily (01:37 UTC) and by hand (`workflow_dispatch`, optional `rpc`): runs the script, pushes `holders.json` to the **`holders-data` branch** (one forced commit, like `immune-feed`; main gets no daily commits), then starts `cf-pages.yml` for the explorer |
+| `scripts/holders-snapshot.js` | through the public sentry's rpc-guard (CometBFT `abci_query`, an allowed method): `status` (height and block time), then **at that one height** `SupplyOf` and `DenomOwners` (1,000 owners a page, `count_total` on the first; ~100 pages for 100,000 holders, one request at a time, 429/503 waited out). `--check <file>` validates a snapshot |
+| `src/holders-core.js` | the pure parts: protobuf of the two queries by hand, paging (stops on an empty `next_key`; refuses an empty page with a key, a repeated key, too many pages), sorting, bands, groups, `parseSnapshot` |
+| `cf-pages.yml` (deploy, explorer) | fetches `holders.json` from `holders-data`, runs `--check`, and copies it into the site: served at `/holders.json` from the explorer's own origin (`connect-src 'self'`; `Cache-Control: no-cache`) |
+| `src/richlist.js` | the page: holder count, snapshot block and time ("updated daily"), the **live** holder count (`abci_query DenomOwners` with `count_total`), project wallets / chain modules / everyone else, the labelled wallets, the top 100, the balance bands, and a search box (any address's live balance by `eth_getBalance`, its share, rank and band at the snapshot) |
+
+`holders.json`: `height`, `time` (the snapshot block's), `holders` (the bank module's `count_total`), `holdersCounted`, `supply`,
+`balanceSum` / `sumMatchesSupply` (every balance added up against the supply), `groups` (`project`, `module`, `others`: count, balance, share),
+`bands` (whole ZTPHY: 0, 1, 10, 100, 1k, 10k, 100k, 1M, 10M+; count, balance, share), `top` (rank, `address` 0x, `bech32` zetaphy1, balance,
+share, label) and `wallets` (every labelled wallet with its balance and rank, held or not). All amounts are azetaphy strings.
+
+**Labels.** Read when the snapshot is made, first source wins: `scripts/project-wallets.json` (hand-kept: the faucet
+`0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160`, and an `airdrop` row whose address is empty until the key is made), the
+Allocations table of `zetaphy-chain/mainnet/zetaphy_3659-1/README.md` (the multisigs and the validator operator), the chain's
+module accounts (bonded pool, fee collector, distribution, gov, …), `zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json` (deployer,
+timelock, guardian multisig and owners, contracts) and `zetaphy-launch/state/3659.contracts.json`. **To add one** (e.g. the airdrop hot
+key), fill in a row of `project-wallets.json`: `address` (0x or zetaphy1), `name` (≤ 60 characters), `kind` (multisig, validator, faucet,
+airdrop, timelock, guardian, deployer, contract or project); the next snapshot uses it. Coins anyone has staked sit in the bonded tokens
+pool (a module), so they count under "chain modules", not under the staker.
+
+**When the file is missing, unreadable or older than 36 hours**, the page says so plainly and shows the addresses seen in recent blocks
+with live balances (the `#/ask/holders` view); an old snapshot is still shown under the warning. Links: the Overview's supply card
+("All holders →") and `#/ask/holders`. Texts in the 8 UI languages (`HOLDERS` in `src/i18n.js`).
+
+**Run it by hand:** `npm ci && node scripts/holders-snapshot.js --out /tmp/holders.json` (`--rpc https://<host>`, `--limit`, `--delay-ms`);
+`EXPLORER_HOLDERS=/tmp/holders.json npm run serve` serves it at `/holders.json`. Tests: `test/holders.test.js` (protobuf, paging and where it
+stops, sorting, bands, labels, 0x / zetaphy1, `parseSnapshot`, the rpc client's retries, the whole run against a stub node, `--check`) and
+`test/holders.e2e.js` (the page in Chromium, mainnet, real CSP: fresh, missing, old, unreadable and hostile snapshots, search, links, Thai,
+phone width). Cost: free (a GitHub-hosted runner for a few minutes a day, ~100 reads of the public RPC, Cloudflare Pages' free plan).
+
 ## More pages: validators, governance, holders, NFTs, gas, tools, installable app
 
 All read the node directly (no indexer, bounded, through the same polite queue). Code: `src/validators2.js`, `src/gov.js`,
@@ -337,6 +376,8 @@ src/labels.js    known-address labels (labels.json)
 src/risk.js      batched Neuro risk badges, risk summary box
 src/crosschain.js  Hyperlane messages (delivery on the destination chain), IBC packets
 src/ask.js       plain questions in the search box (EN/TH, rule based)
+src/richlist.js  ZTPHY holders #/holders (daily snapshot)   src/holders-core.js  its protobuf, paging, snapshot builder and checks
+scripts/holders-snapshot.js  makes holders.json (holders-snapshot.yml)   scripts/project-wallets.json  hand-kept labels
 src/insight.css  styles of the above
 scripts/known.js builds labels.json and crosschain.json (npm run build)
 vendor/zetaphy-lib.js  bundle of pqcert.js, pqtx.js, vaccine.js and @noble (built with npm run build)
