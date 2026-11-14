@@ -10,7 +10,9 @@ MetaMask can only sign ECDSA. This snap adds a **native PQ account (ML-DSA-44, F
 - **Vaccine in plain MetaMask** (transaction insight): for every EVM transaction on every chain that the user is about to confirm in MetaMask,
   the snap checks the destination against ZETAPHY's `ThreatRegistry`. No ZETAPHY wallet site is needed (see [Vaccine](#vaccine-check-every-transaction-in-metamask))
 
-> **For testnet only, not real money**
+> **ZETAPHY mainnet (`zetaphy_3659-1`, EVM chain 3659): real ZTPHY.** Mainnet runs on a single validator and its code has not passed an
+> independent audit yet: use it only with amounts you can afford to lose ([mainnet notice](../docs/ZETAPHY-MAINNET-NOTICE.md)).
+> The testnet (`zetaphy_77390-1`) was shut down on 2026-11-14.
 > This snap has not been audited yet and is not yet on MetaMask's allowlist (see [Publishing](#publishing-the-real-situation))
 
 ## Where the account comes from
@@ -69,7 +71,7 @@ const acct = await invoke('zetaphy_getAccount');
 
 ```js
 const signed = await invoke('zetaphy_signTx', {
-  chainId: 'zetaphy_77390-1',   // must start with zetaphy- (chains other than testnet show a warning in the window)
+  chainId: 'zetaphy_3659-1',    // must start with zetaphy- (chains other than mainnet show a warning in the window)
   accountNumber: '12', sequence: '4',          // from zetaphy_pqAccount
   gasLimit: '400000', gasPrice: '1200000000',  // fee = gasLimit × gasPrice (azetaphy)
   memo: '',                                    // optional, at most 256 characters, no control characters
@@ -133,7 +135,7 @@ Before the user confirms any EVM transaction in MetaMask (every chain, every sit
 2. **On the transaction's chain** (through the snap's `ethereum.request`, only when MetaMask is on that chain; it does not switch networks): reads the code of each destination, then follows to the real code behind proxies of type EIP-1167 (and the PUSH0 form), EIP-1967 implementation, and beacon, up to 3 levels
    - MetaMask on a different chain: the code cannot be read. It still asks about flags on the address. If no flag is found, it shows "couldn't check this chain" (in Thai and English) (it does not say there is no flag)
    - Uses the same code as the wallet site: `zetaphy-network/src/vaccine.js` (`proxyTargets`, `threatQueries`)
-3. **Ask ZETAPHY** with a single JSON-RPC batch: `eth_chainId` (must be 77390), then `eth_call` to `ThreatRegistry` for each destination, at both the warning and enforced levels
+3. **Ask ZETAPHY** with a single JSON-RPC batch: `eth_chainId` (must be 3659, ZETAPHY mainnet), then `eth_call` to `ThreatRegistry` for each destination, at both the warning and enforced levels
    - `isAddressFlagged` / `isAddressEnforced(chainId of the transaction, address)`
    - `isCodeFlagged` / `isCodeEnforced(keccak256(code))`
    - `isFlagged` / `isEnforced(fp1)`: the Neuro fingerprint (`fp1`) is computed inside the snap (a copy of the formula from `zetaphy-neuro/src/fingerprint.js` in `vaccine.js`, without pulling in the whole bytecode reader; tests compare it with Neuro's byte for byte)
@@ -172,9 +174,10 @@ Results shown in MetaMask (Thai and English together, because the insight does n
 
 ### Threat source (RPC and ThreatRegistry)
 
-- Build-time values are in `snap.config.js` (`environment`). **They are currently placeholder values that do not work yet**: RPC `https://rpc.zetaphy.invalid`, registry `0x000…0`.
-  So every transaction shows "could not check: no ThreatRegistry configured" until the owner puts in real values and rebuilds (the shasum changes, so the manifest must be committed)
-- The ZETAPHY wallet site can change the source with `zetaphy_setThreatSource`, only from an origin in `ZETAPHY_WALLET_ORIGINS` (default `https://wallet.zetaphy.invalid`; put in the real domain once known),
+- Build-time values are in `snap.config.js` (`environment`): ZETAPHY mainnet's public RPC `https://129-221-199-191.sslip.io` and its ThreatRegistry `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139`
+  ([contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json)). Change them there and rebuild (the shasum changes, so the manifest must be committed).
+  With registry `0x000…0` every transaction shows "could not check: no ThreatRegistry configured"
+- The ZETAPHY wallet site can change the source with `zetaphy_setThreatSource`, only from an origin in `ZETAPHY_WALLET_ORIGINS` (`https://wallet.sawasdeecoin.com`),
   and the user must confirm in a MetaMask window every time. Other sites get error 4100
 
 ```js
@@ -259,7 +262,7 @@ Not testable on this machine: the real window in MetaMask Flask (snaps-jest chec
 5. **Publish**: `npm login`, then `npm publish --access public` (`prepublishOnly` builds and checks the manifest once more)
    - After publishing, that name+version cannot be changed. To change it, release a new version
 6. **Test in Flask**: open the wallet site in MetaMask Flask and click "Use MetaMask (ZETAPHY Snap)" (snap ID `npm:@zetaphy/snap`).
-   Try send, stake, and deploy on testnet, and check the text in the window
+   Try send, stake, and deploy on mainnet with small amounts, and check the text in the window
 7. **Request the allowlist** (if you want it usable in regular MetaMask):
    - Put the real vaccine values in `snap.config.js` (ZETAPHY RPC, ThreatRegistry, wallet site domain), then rebuild
    - Remove logs and unused permissions (none right now), and scan with [Snapper](https://github.com/sayfer-io/Snapper)

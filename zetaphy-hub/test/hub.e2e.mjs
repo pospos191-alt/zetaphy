@@ -94,7 +94,7 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
     await page.waitForFunction(() => document.getElementById('e-bond')?.textContent === '100');
     assert.match(await page.textContent('.earn-detail'), /node cli\.js node start/);
     assert.match(await page.textContent('.earn-detail'), /0x698dC17df6a34b02263b295d101BE39F3F3B433B/, 'the real NeuroJobs address in the commands');
-    assert.match(await page.textContent('.earn-detail'), /100 ZETAPHY/, 'the live bond in the steps');
+    assert.match(await page.textContent('.earn-detail'), /100 ZTPHY/, 'the live bond in the steps');
     assert.doesNotMatch(await page.textContent('.earn-detail'), /null|undefined/);
     // arrow keys move between the ways
     await page.focus('.earn-tab[data-id="runner"]');
@@ -117,13 +117,10 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
     await fitted();
     assert.ok(await vg.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1), 'no scrollbar inside the frame');
     assert.ok(await vg.evaluate(() => { const t = document.getElementById('vtabs'); return t.scrollWidth <= t.clientWidth; }), 'topics fit on wide screens');
-    // a guide opens where the reader is, not in the middle of the tall frame
-    await vg.click('[data-guide="oracle"]');
-    const dTop = await page.evaluate(() => { const f = document.getElementById('earn-guide-frame'); return f.getBoundingClientRect().top + f.contentDocument.getElementById('guide').getBoundingClientRect().top; });
-    assert.ok(dTop >= 0 && dTop < 768 - 100, `dialog on screen (${dTop})`);
-    await vg.click('#g-close');
-    await vg.click('#t-get');
-    assert.ok(await vg.isVisible('#vf-form'), 'the guide\'s faucet form');
+    // the key and stake steps (your own ZTPHY; no faucet form): the frame grows to them too
+    await vg.click('#t-stake');
+    assert.ok(await vg.isVisible('#stake-cmd'), 'the stake command');
+    assert.equal(await vg.locator('#vf-form').count(), 0, 'no faucet form');
     await fitted();
     assert.doesNotMatch(await page.textContent('.earn-detail'), /null|undefined/);
     await shot('earn');
@@ -152,13 +149,13 @@ test('the hub: tabs, one screen, hover text, embedded apps, stake and vote', { t
     await page.click('#wb-dialog .wb-wallet');
     await page.waitForFunction(() => /0x6af5…a245/.test(document.getElementById('wb-btn').textContent));
     assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:wallet')), '"injected:ethereum"', 'the choice is kept for the whole site (the id only)');
-    await page.waitForFunction(() => /1,000 ZETAPHY/.test(document.getElementById('wb-btn').textContent), null, { timeout: 10000 });
-    assert.match(await page.textContent('#wb-body'), /On the ZETAPHY chain[\s\S]*ZETAPHY[\s\S]*1,000/, 'balances on the ZETAPHY chain');
+    await page.waitForFunction(() => /1,000 ZTPHY/.test(document.getElementById('wb-btn').textContent), null, { timeout: 10000 });
+    assert.match(await page.textContent('#wb-body'), /On the ZETAPHY chain[\s\S]*ZTPHY[\s\S]*1,000/, 'balances on the ZETAPHY chain');
     assert.ok(await page.isVisible('#wb-body [data-ws="help"]'), 'the hardware-wallet help is one click away');
     await page.click('#wb-close');
-    // 1,000 ZETAPHY: the hardware-wallet banner, hidden for 7 days on request
+    // 1,000 ZTPHY: the hardware-wallet banner, hidden for 7 days on request
     await page.waitForSelector('#stage > .ws-banner');
-    assert.match(await page.textContent('.ws-banner'), /1,000 ZETAPHY[\s\S]*hardware wallet/);
+    assert.match(await page.textContent('.ws-banner'), /1,000 ZTPHY[\s\S]*hardware wallet/);
     await page.click('.ws-banner [data-ws="banner-how"]');
     await page.waitForSelector('#ws-help[open]');
     assert.match(await page.textContent('#ws-help'), /MetaMask[\s\S]*Ledger \(USB\)[\s\S]*connect\.trezor\.io[\s\S]*Keplr[\s\S]*cannot lock your wallet extension/);

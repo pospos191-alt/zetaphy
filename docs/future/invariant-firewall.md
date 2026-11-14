@@ -2,6 +2,8 @@
 
 # Invariant firewall and the certificate rule
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Testnet only. Nothing here holds or pays real money, and none of it has been audited by an outside firm.
 
 This page covers two parts of the SS tier of the [open audit network](audit-network.md):

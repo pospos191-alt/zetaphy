@@ -18,9 +18,13 @@
 #   gov.sh ratelimits                                    the IBC limits in force
 #   gov.sh delegate <zetaphyvaloper1…> <ZETAPHY> [key]   stake from a fund (default community)
 #   gov.sh validators                                    who validates, and their share
-#   gov.sh airdrop <list> [ZETAPHY each] [key]           testnet airdrop: send to every 0x…/zetaphy1… in a file (one per line,
-#                                                        "address,amount" also works), default 100 each from community;
-#                                                        shows the total first, pays each address once (SEND=1: no question)
+#   gov.sh transfer <zetaphy1…|0x…> <ZTPHY> --from <key>  a plain bank send (decimals allowed); a multisig: --from <its
+#                                                        zetaphy1…> --generate-only <file>, then tx multisign + broadcast
+#   gov.sh airdrop <list> [ZETAPHY each] [key]           airdrop: send to every 0x…/zetaphy1… in a file (one per line,
+#                                                        "address,amount" also works); testnet: default 100 each from community;
+#                                                        shows the total first, pays each address once (SEND=1: no question).
+#                                                        Mainnet: AIRDROP_MAINNET=1, default 10 each from the "airdrop" hot key,
+#                                                        each batch confirmed in a block before it counts (docs/AIRDROP.md)
 #   gov.sh quantum-lock <ML-DSA controller>              hand the FROM account to a PQ account, for good
 #   gov.sh vote-key                                      register or replace this node's ML-DSA vote key
 #   gov.sh pq-evidence on|off                            propose to stop (on) / resume (off) slashing on
@@ -79,7 +83,9 @@
 #   - a multisig: --generate-only <file> (GENERATE_ONLY) writes the unsigned transaction from --from <the multisig's
 #     zetaphy1… address> (fixed gas: GAS, default 900000) and prints the signing steps (tx sign --multisig by each
 #     member, tx multisign, then gov.sh broadcast <signed.json>).
-#   - testnet-only commands are refused: airdrop (the faucet coins; the mainnet SWD airdrop is the claim contract).
+#   - airdrop only with AIRDROP_MAINNET=1 (the owner's push airdrop of 2026-11-14, docs/AIRDROP.md): a dry run unless
+#     SEND=1 or y at the question; MAX_EACH default 10; one transaction in flight, each confirmed in a block (code 0)
+#     before its addresses go in the ledger; an unconfirmed batch is kept in <ledger>.pending and checked first.
 # Without a pin file and without --network mainnet: the testnet, exactly as before (test keyring, zetaphy_77390-1).
 set -euo pipefail
 # options for mainnet mode, anywhere after the command; taken out before the command reads its arguments
@@ -112,6 +118,7 @@ if [ -z "$MAINNET" ]; then
 fi
 CHAIN_ID_GIVEN=${CHAIN_ID:-}
 KEYS_DIR=${KEYS_DIR:-$([ -n "$MAINNET" ] && echo "$HOME/.zetaphy-keys" || echo "$HOME/.zetaphy-genesis-keys")}
+FROM_GIVEN=${FROM:-}
 FROM=${FROM:-validator}
 NODE=${NODE:-tcp://127.0.0.1:26657}
 CHAIN_ID=${CHAIN_ID:-zetaphy_77390-1}
@@ -152,7 +159,7 @@ if [ -n "$MAINNET" ]; then
     *)       echo "--keyring-backend: file, os or ledger"; exit 2 ;;
   esac
   case "${1:-}" in
-    airdrop) echo "refused: gov.sh airdrop is the testnet airdrop (faucet coins); on mainnet the SWD airdrop is claimed from its contract (docs/AIRDROP*)"; exit 1 ;;
+    airdrop) [ "${AIRDROP_MAINNET:-}" = 1 ] || { echo "refused: gov.sh airdrop on mainnet moves real ZTPHY: set AIRDROP_MAINNET=1 (the owner's push airdrop, docs/AIRDROP.md \"Push airdrop on mainnet\"); the SWD rounds are claimed from their contract"; exit 1; } ;;
   esac
 fi
 
@@ -205,6 +212,37 @@ send() {
   fi
   out=$(echo "$out" | tail -1)
   [ "$(echo "$out" | jq -r .code 2>/dev/null)" = 0 ] || { echo "rejected: $(echo "$out" | jq -r .raw_log 2>/dev/null || echo "$out")"; exit 1; }
+  SENT=$out
+}
+
+# bech32 (BIP-173) in bash arithmetic, for airdrop lists of 100,000 addresses (a zetaphyd call per address would take
+# an hour): 0x… -> zetaphy1…, and the checksum of a zetaphy1… address. The airdrop checks the first conversion
+# against `zetaphyd debug addr` before it trusts the rest.
+B32=qpzry9x8gf2tvdw0s3jn54khce6mua7l
+B32_G=(); for ((b = 0; b < 32; b++)); do g=0
+  ((b & 1)) && : $((g ^= 0x3b6a57b2)); ((b & 2)) && : $((g ^= 0x26508e6d)); ((b & 4)) && : $((g ^= 0x1ea119fa))
+  ((b & 8)) && : $((g ^= 0x3d4233dd)); ((b & 16)) && : $((g ^= 0x2a1462b3)); B32_G[b]=$g; done
+unset b g
+b32_init() { # the polymod state after the human-readable part
+  local h=$1 i o c=1; B32_HRP=$h
+  for ((i = 0; i < ${#h}; i++)); do printf -v o '%d' "'${h:i:1}"; : $((c = ((c & 0x1ffffff) << 5 ^ o >> 5) ^ B32_G[c >> 25])); done
+  : $((c = ((c & 0x1ffffff) << 5) ^ B32_G[c >> 25]))
+  for ((i = 0; i < ${#h}; i++)); do printf -v o '%d' "'${h:i:1}"; : $((c = ((c & 0x1ffffff) << 5 ^ (o & 31)) ^ B32_G[c >> 25])); done
+  B32_H=$c
+}
+hex_to_bech32() { # 0x + 40 hex -> B32_OUT
+  local hex=${1#0x} i j v d c=$B32_H s=""
+  for ((i = 0; i < 40; i += 10)); do v=$((16#${hex:i:10}))
+    for ((j = 35; j >= 0; j -= 5)); do : $((d = v >> j & 31, c = ((c & 0x1ffffff) << 5 ^ d) ^ B32_G[c >> 25])); s+=${B32:d:1}; done
+  done
+  for ((j = 0; j < 6; j++)); do : $((c = ((c & 0x1ffffff) << 5) ^ B32_G[c >> 25])); done
+  : $((c ^= 1)); for ((j = 25; j >= 0; j -= 5)); do s+=${B32:c >> j & 31:1}; done
+  B32_OUT=${B32_HRP}1$s
+}
+bech32_ok() { # a lower-case <hrp>1… address whose checksum is right
+  local t=${1#"${B32_HRP}1"} i p c=$B32_H
+  for ((i = 0; i < ${#t}; i++)); do p=${B32%%"${t:i:1}"*}; : $((c = ((c & 0x1ffffff) << 5 ^ ${#p}) ^ B32_G[c >> 25])); done
+  ((c == 1))
 }
 
 # Mainnet: the deposit of a proposal is the chain's full min_deposit (voting starts at once), unless DEPOSIT is set.
@@ -373,61 +411,285 @@ case "${1:-}" in
     TXF=${TXF/--from $FROM/--from $key}
     send tx staking delegate "$val" "${amt}000000000000000000azetaphy"
     echo "delegated $amt ZETAPHY from $key to $val" ;;
+  transfer)
+    # A plain bank send from --from (never the default key: it must be named). From a multisig (the Community pool):
+    # --from <its zetaphy1…> --generate-only unsigned.json writes the unsigned tx and prints the signing steps.
+    to=${2:?receiver: zetaphy1… or 0x…}; amt=${3:?ZTPHY, e.g. 1000100 or 0.5}
+    [ -n "$FROM_GIVEN" ] || { echo "transfer: name the sender with --from <key name | multisig zetaphy1…>"; exit 1; }
+    b32_init zetaphy
+    if [[ "$to" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+      hex_to_bech32 "$to"
+      ref=$("$ZETAPHYD" debug addr "$to" 2>/dev/null | awk '/Bech32 Acc/ {print $3}') || ref=""
+      [ "$ref" = "$B32_OUT" ] || { echo "refused: $to is $B32_OUT here, but zetaphyd debug addr says ${ref:-nothing}"; exit 1; }
+      to=$B32_OUT
+    fi
+    [[ "$to" =~ ^zetaphy1[02-9ac-hj-np-z]{38}$ ]] && bech32_ok "$to" || { echo "receiver: a zetaphy1… address with a valid checksum, or 0x…"; exit 1; }
+    [[ "$amt" =~ ^([0-9]{1,12})(\.([0-9]{1,18}))?$ ]] || { echo "amount: ZTPHY, up to 18 decimals (e.g. 1000100 or 0.5)"; exit 1; }
+    frac=${BASH_REMATCH[3]}; zeros=000000000000000000
+    base=$(echo "${BASH_REMATCH[1]}$frac${zeros:0:$((18 - ${#frac}))}" | sed 's/^0*//')
+    [ -n "$base" ] || { echo "amount: above 0"; exit 1; }
+    echo "transfer $amt ZTPHY ($base azetaphy) from $FROM to $to on $CHAIN_ID"
+    if [ -z "${GENERATE_ONLY:-}" ] && [ "${SEND:-}" != 1 ] && [ -t 0 ]; then
+      read -r -p "send it? [y/N] " ok; [[ "$ok" =~ ^[yY]$ ]] || { echo "nothing sent"; exit 0; }
+    fi
+    send tx bank send "$FROM" "$to" "${base}azetaphy"
+    echo "sent (in the mempool; check with zetaphyd q tx <hash>): txhash $(echo "$SENT" | jq -r .txhash)" ;;
   airdrop)
-    # Testnet airdrop: the same coins anyone can get from the faucet, sent to a list at once. Addresses are
-    # checked and turned into zetaphy1… (0x… works too), duplicates dropped; nothing is sent before the total
-    # is shown and confirmed. Paid addresses go to $AIRDROP_LEDGER, so running it again pays only new ones.
+    # Testnet: the coins anyone can get from the faucet, sent to a list at once. Mainnet (AIRDROP_MAINNET=1): the
+    # owner's push airdrop of 2026-11-14 (docs/AIRDROP.md "Push airdrop on mainnet"), from the "airdrop" hot key.
+    # Addresses are checked (bech32 checksum) and turned into zetaphy1… (0x… works too), duplicates dropped; nothing
+    # is sent before the total is shown and confirmed. Paid addresses go to $AIRDROP_LEDGER, so running it again pays
+    # only new ones. On mainnet a batch counts as paid only once it is in a block with code 0; until then it is kept in
+    # <ledger>.pending (tx hash, sequence, timeout height, addresses) and the next run settles it before anything else.
     list=${2:?a file with one address per line (0x… or zetaphy1…), optionally "address,amount"}
-    each=${3:-100}; key=${4:-community}
-    LEDGER=${AIRDROP_LEDGER:-$NODE_HOME/airdrop-paid.txt}
-    MAX_EACH=${MAX_EACH:-10000}   # whole ZETAPHY per address; a typo guard
-    BATCH=${BATCH:-50}
     [ -r "$list" ] || { echo "cannot read $list"; exit 1; }
-    [[ "$each" =~ ^[1-9][0-9]*$ ]] || { echo "amount: whole ZETAPHY, e.g. 100"; exit 1; }
+    if [ -n "$MAINNET" ]; then
+      each=${3:-10}; key=${4:-airdrop}
+      LEDGER=${AIRDROP_LEDGER:-$NODE_HOME/airdrop-$CHAIN_ID-paid.txt}
+      MAX_EACH_GIVEN=${MAX_EACH:-}
+      MAX_EACH=${MAX_EACH:-10}           # whole ZTPHY per address: the owner's 10; more only by setting MAX_EACH
+      BATCH=${BATCH:-180}                # outputs per MsgMultiSend: ~23-35k gas each x 1.5 -> at most ~9.6M gas (docs/AIRDROP.md)
+      MAX_TX_GAS=${MAX_TX_GAS:-10000000} # a batch whose gas limit is above this is refused (block max_gas 30,000,000)
+      ADJ=${GAS_ADJUSTMENT:-1.5}
+      TIMEOUT_BLOCKS=${AIRDROP_TIMEOUT_BLOCKS:-12}   # --timeout-height: a batch not in a block by then never will be
+      WAIT=${AIRDROP_TIMEOUT:-180}       # seconds to wait for a block before stopping (the batch stays pending)
+      POLL=${AIRDROP_POLL:-2}
+      [ -z "${GENERATE_ONLY:-}" ] || { echo "refused: a push airdrop is hundreds of transactions; a multisig cannot sign them: move the coins to a hot key (docs/AIRDROP.md)"; exit 1; }
+      [[ "$MAX_TX_GAS" =~ ^[1-9][0-9]*$ ]] && [ "$MAX_TX_GAS" -le 15000000 ] || { echo "MAX_TX_GAS: at most 15000000 (half a block)"; exit 1; }
+      [[ "$TIMEOUT_BLOCKS" =~ ^[1-9][0-9]{0,3}$ && "$WAIT" =~ ^[1-9][0-9]*$ && "$POLL" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "AIRDROP_TIMEOUT_BLOCKS / AIRDROP_TIMEOUT / AIRDROP_POLL: numbers"; exit 1; }
+      [[ "$ADJ" =~ ^[1-9](\.[0-9]{1,3})?$ ]] || { echo "GAS_ADJUSTMENT: e.g. 1.5"; exit 1; }
+    else
+      each=${3:-100}; key=${4:-community}
+      LEDGER=${AIRDROP_LEDGER:-$NODE_HOME/airdrop-paid.txt}
+      MAX_EACH=${MAX_EACH:-10000}   # whole ZETAPHY per address; a typo guard
+      BATCH=${BATCH:-50}
+    fi
+    [[ "$each" =~ ^[1-9][0-9]{0,11}$ ]] || { echo "amount: whole ZETAPHY, e.g. 100"; exit 1; }
+    [[ "$MAX_EACH" =~ ^[1-9][0-9]{0,11}$ ]] || { echo "MAX_EACH: whole ZETAPHY"; exit 1; }
+    [[ "$BATCH" =~ ^[1-9][0-9]{0,3}$ ]] && [ "$BATCH" -le 1000 ] || { echo "BATCH: 1 to 1000 addresses a transaction"; exit 1; }
+    if [ -n "$MAINNET" ] && [ "$each" -gt "$MAX_EACH" ]; then
+      echo "refused: $each ZTPHY each is above MAX_EACH ($MAX_EACH$([ -z "$MAX_EACH_GIVEN" ] && echo ", the mainnet default")): set MAX_EACH=<whole ZTPHY> to allow it"; exit 1
+    fi
     touch "$LEDGER"
-    declare -A want=()
-    bad=0; dup=0; paid=0
+    b32_init zetaphy
+
+    if [ -n "$MAINNET" ]; then
+      # one airdrop at a time on this ledger: never two transactions in flight
+      if command -v flock >/dev/null; then exec 9>>"$LEDGER.lock"; flock -n 9 || { echo "refused: another gov.sh airdrop is running on $LEDGER"; exit 1; }; fi
+      FROM=$key; mainnet_preflight
+      PENDING=$LEDGER.pending
+      unset KPASS
+      if [ "$KEYRING" = "--keyring-backend file" ] && [ -t 0 ]; then
+        # asked once and handed to each zetaphyd call on its stdin (never in a file, an argument or the environment)
+        read -rs -p "passphrase of the keyring in $KEYS_DIR (asked once for the whole airdrop): " KPASS; echo
+      fi
+      kz() { if [ -n "${KPASS+x}" ]; then "$ZETAPHYD" "$@" <<<"$KPASS"$'\n'"$KPASS"; else "$ZETAPHYD" "$@" </dev/null; fi; }
+      from=$(kz keys show "$key" -a $KEYRING --keyring-dir "$KEYS_DIR" --home "$NODE_HOME" 2>/dev/null | tail -1) || from=""
+      [[ "$from" =~ ^zetaphy1[02-9ac-hj-np-z]{38}$ ]] || { echo "refused: no key \"$key\" in $KEYS_DIR ($KEYRING_BACKEND keyring), or a wrong passphrase"; exit 1; }
+      AFL="--home $NODE_HOME --node $NODE $KEYRING --keyring-dir $KEYS_DIR --from $key --chain-id $CHAIN_ID${SIGN_MODE:+ $SIGN_MODE}"
+      chain_height() { local h; h=$("$ZETAPHYD" status --home "$NODE_HOME" --node "$NODE" 2>/dev/null | jq -r '.sync_info.latest_block_height // .SyncInfo.latest_block_height // empty' 2>/dev/null) || h=""
+        [[ "$h" =~ ^[0-9]+$ ]] && echo "$h"; }
+      acct_seq() { local s; s=$("$ZETAPHYD" q auth account "$1" $QF 2>/dev/null | jq -r '[.. | objects | select(has("sequence")) | .sequence][0] // "0"' 2>/dev/null) || s=""
+        [[ "$s" =~ ^[0-9]+$ ]] && echo "$s"; }
+      pending_write() { # <txhash or -> <sequence> <timeout height> <batch k/n> <address>…
+        local hash=$1 seq=$2 t=$3 b=$4; shift 4
+        { printf 'txhash=%s\nsequence=%s\ntimeout_height=%s\nbatch=%s\nsender=%s\n--\n' "${hash#-}" "$seq" "$t" "$b" "$from"; printf '%s\n' "$@"; } >"$PENDING.tmp"
+        mv -f "$PENDING.tmp" "$PENDING"
+      }
+      pv() { sed -n "s/^$1=//p" "$PENDING" | head -1; }
+      # settle: what became of the batch in $PENDING. 0: in a block with code 0 (its addresses go in the ledger);
+      # 1: failed in a block, or past its timeout height without being in one (not paid, may be sent again);
+      # 2: cannot tell yet (kept pending). Waits for blocks up to $WAIT seconds.
+      settle() {
+        local hash seq t snd r h s until=$((SECONDS + WAIT))
+        hash=$(pv txhash); seq=$(pv sequence); t=$(pv timeout_height); snd=$(pv sender)
+        S_HEIGHT=""; S_CODE=""; S_LOG=""; S_HASH=$hash
+        while :; do
+          h=$(chain_height) || h=""
+          r=""
+          if [ -n "$hash" ]; then r=$("$ZETAPHYD" q tx "$hash" $QF 2>/dev/null) || r=""; fi
+          if [ -z "$r" ] && { [ -z "$hash" ] || { [ -n "$h" ] && [ "$h" -gt "$t" ]; }; }; then
+            # no hash, or not found: look the sender's sequence up (every signed tx carries tx.acc_seq)
+            r=$("$ZETAPHYD" q txs --query "tx.acc_seq='$snd/$seq'" $QF 2>/dev/null | jq -c '(.txs // [])[0] // empty' 2>/dev/null) || r=""
+          fi
+          if [ -n "$r" ] && echo "$r" | jq -e '.txhash' >/dev/null 2>&1; then
+            S_HASH=$(echo "$r" | jq -r .txhash); S_HEIGHT=$(echo "$r" | jq -r '.height // empty')
+            S_CODE=$(echo "$r" | jq -r '.code // 0'); S_LOG=$(echo "$r" | jq -r '.raw_log // ""' | head -c 300)
+            if [ "$S_CODE" = 0 ]; then sed '1,/^--$/d' "$PENDING" >>"$LEDGER"; rm -f "$PENDING"; return 0; fi
+            rm -f "$PENDING"; return 1
+          fi
+          # two blocks past the timeout height (the tx index can trail the block by a moment): it never will be in one
+          if [ -n "$h" ] && [ "$h" -gt $((t + 1)) ]; then
+            s=$(acct_seq "$snd") || s=""
+            if [ "$s" = "$seq" ]; then S_LOG="not in a block by its timeout height $t (the sender's sequence is still $seq)"; rm -f "$PENDING"; return 1; fi
+            S_LOG="the sender's sequence moved from $seq to ${s:-<no answer>}, but the tx is not found"; return 2
+          fi
+          [ "$SECONDS" -lt "$until" ] || { S_LOG="no answer within ${WAIT}s (block ${h:-<no answer>}, timeout height $t)"; return 2; }
+          sleep "$POLL"
+        done
+      }
+      if [ -f "$PENDING" ]; then
+        echo "an earlier batch ($(pv batch), tx $(pv txhash)) was not confirmed: checking it first"
+        if settle; then echo "  it is in block $S_HEIGHT with code 0 (tx $S_HASH): its addresses are recorded as paid"
+        else rc=$?
+          if [ "$rc" = 1 ]; then echo "  not paid ($([ -n "$S_CODE" ] && echo "code $S_CODE in block $S_HEIGHT: $S_LOG" || echo "$S_LOG")): its addresses are sent again"
+          else echo "refused: cannot tell yet whether that batch was paid: $S_LOG. Nothing sent. Run again later; $PENDING keeps it"; exit 1; fi
+        fi
+      fi
+    fi
+
+    declare -A want=() paidset=()
+    order=()
+    while IFS= read -r a || [ -n "$a" ]; do [ -n "$a" ] && paidset[$a]=1; done <"$LEDGER"
+    bad=0; dup=0; paid=0; checked=""
     while IFS= read -r line || [ -n "$line" ]; do
-      line=${line%%#*}; line=$(tr -d ' \t\r' <<<"$line"); [ -n "$line" ] || continue
+      line=${line%%#*}; line=${line//[[:space:]]/}; [ -n "$line" ] || continue
       a=${line%%,*}; amt=$each; [[ "$line" == *,* ]] && amt=${line#*,}
-      if ! [[ "$amt" =~ ^[1-9][0-9]*$ ]] || [ "$amt" -gt "$MAX_EACH" ]; then echo "skip (amount $amt): $a"; bad=$((bad + 1)); continue; fi
+      if ! [[ "$amt" =~ ^[1-9][0-9]{0,11}$ ]] || [ "$amt" -gt "$MAX_EACH" ]; then echo "skip (amount $amt): $a"; bad=$((bad + 1)); continue; fi
       if [[ "$a" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
-        h=$a; a=$("$ZETAPHYD" debug addr "$h" 2>/dev/null | awk '/Bech32 Acc/ {print $3}')
-        [ -n "$a" ] || a=$("$ZETAPHYD" debug addr "${h#0x}" 2>/dev/null | awk '/Bech32 Acc/ {print $3}')
-      elif ! [[ "$a" =~ ^zetaphy1[02-9ac-hj-np-z]{38}$ ]]; then a=""; fi
-      [[ "$a" =~ ^zetaphy1[02-9ac-hj-np-z]{38}$ ]] || { echo "skip (not an address): ${line%%,*}"; bad=$((bad + 1)); continue; }
+        h=$a; lc=${h,,}
+        # never a person: the zero address, precompiles and system addresses (below 0x…10000), burn / placeholders
+        if [[ "$lc" =~ ^0x0{36} || "$lc" =~ ^0x(e{40}|f{40}|0{36}dead|dead0{36})$ ]]; then echo "skip (system / precompile address): $h"; bad=$((bad + 1)); continue; fi
+        hex_to_bech32 "$h"; a=$B32_OUT
+        if [ -z "$checked" ]; then
+          ref=$("$ZETAPHYD" debug addr "$h" 2>/dev/null | awk '/Bech32 Acc/ {print $3}') || ref=""
+          [ -n "$ref" ] || ref=$("$ZETAPHYD" debug addr "${h#0x}" 2>/dev/null | awk '/Bech32 Acc/ {print $3}') || ref=""
+          [ "$ref" = "$a" ] || { echo "refused: $h is $a here, but zetaphyd debug addr says ${ref:-nothing}: nothing sent"; exit 1; }
+          checked=1
+        fi
+      elif ! [[ "$a" =~ ^zetaphy1[02-9ac-hj-np-z]{38}$ ]] || ! bech32_ok "$a"; then a=""; fi
+      [ -n "$a" ] || { echo "skip (not an address): ${line%%,*}"; bad=$((bad + 1)); continue; }
       if [ -n "${want[$a]:-}" ]; then dup=$((dup + 1)); continue; fi
-      if grep -qxF "$a" "$LEDGER"; then paid=$((paid + 1)); continue; fi
-      want[$a]=$amt
+      if [ -n "${paidset[$a]:-}" ]; then paid=$((paid + 1)); continue; fi
+      want[$a]=$amt; order+=("$a")
     done <"$list"
-    n=${#want[@]}; total=0
-    for a in "${!want[@]}"; do total=$((total + want[$a])); done
-    from=$("$ZETAPHYD" keys show "$key" -a --keyring-backend test --keyring-dir "$KEYS_DIR" --home "$NODE_HOME" 2>/dev/null) || { echo "no key \"$key\" in $KEYS_DIR"; exit 1; }
-    bal=$("$ZETAPHYD" q bank balances "$from" $QF | jq -r '[.balances[]? | select(.denom == "azetaphy") | .amount][0] // "0"')
-    have=$(awk -v b="$bal" 'BEGIN { printf "%d", b / 1e18 }')
-    echo "airdrop from $key ($from): $n addresses, $total ZETAPHY in all; the fund has $have ZETAPHY"
+    n=${#order[@]}; total=0
+    for a in "${order[@]}"; do total=$((total + want[$a])); done
+    amounts=$(for a in "${order[@]}"; do echo "${want[$a]}"; done | sort -un)
+    batches=0
+    for amt in $amounts; do c=0; for a in "${order[@]}"; do [ "${want[$a]}" = "$amt" ] && c=$((c + 1)); done; batches=$((batches + (c + BATCH - 1) / BATCH)); done
+
+    if [ -z "$MAINNET" ]; then
+      from=$("$ZETAPHYD" keys show "$key" -a --keyring-backend test --keyring-dir "$KEYS_DIR" --home "$NODE_HOME" 2>/dev/null) || { echo "no key \"$key\" in $KEYS_DIR"; exit 1; }
+      bal=$("$ZETAPHYD" q bank balances "$from" $QF | jq -r '[.balances[]? | select(.denom == "azetaphy") | .amount][0] // "0"')
+      have=$(awk -v b="$bal" 'BEGIN { printf "%d", b / 1e18 }')
+      echo "airdrop from $key ($from): $n addresses, $total ZETAPHY in all; the fund has $have ZETAPHY"
+      echo "  skipped: $bad bad, $dup repeated, $paid paid before ($LEDGER)"
+      [ "$n" -gt 0 ] || { echo "nothing to send"; exit 0; }
+      awk -v t="$total" -v h="$have" 'BEGIN { exit !(t + 1 <= h) }' || { echo "refused: the fund has $have ZETAPHY, the airdrop needs $total (+ gas)"; exit 1; }
+      if [ "${SEND:-}" != 1 ]; then
+        [ -t 0 ] || { echo "dry run: nothing sent (SEND=1 sends)"; exit 0; }
+        read -r -p "send $total ZETAPHY to $n addresses? [y/N] " ok
+        [[ "$ok" =~ ^[yY]$ ]] || { echo "nothing sent"; exit 0; }
+      fi
+      TXF=${TXF/--from $FROM/--from $key}
+      # one multi-send per amount and per $BATCH addresses; the ledger is written after each accepted batch
+      for amt in $amounts; do
+        group=(); for a in "${order[@]}"; do [ "${want[$a]}" = "$amt" ] && group+=("$a"); done
+        for ((i = 0; i < ${#group[@]}; i += BATCH)); do
+          part=("${group[@]:i:BATCH}")
+          if [ ${#part[@]} -eq 1 ]; then send tx bank send "$key" "${part[0]}" "${amt}000000000000000000azetaphy"
+          else send tx bank multi-send "$key" "${part[@]}" "${amt}000000000000000000azetaphy"; fi
+          printf '%s\n' "${part[@]}" >>"$LEDGER"
+          echo "sent $amt ZETAPHY each to ${#part[@]} addresses"
+          sleep 6   # the next block, so the sender's sequence number moves on
+        done
+      done
+      echo "airdrop done: $n addresses, $total ZETAPHY"; exit 0
+    fi
+
+    # ---- mainnet ----
+    gp=${GAS_PRICES%%[!0-9]*}; gd=${GAS_PRICES#"$gp"}
+    # the price actually charged: the feemarket base fee when it is above the genesis minimum
+    bf=$("$ZETAPHYD" q feemarket base-fee $QF 2>/dev/null | jq -r '.base_fee // empty' 2>/dev/null) || bf=""
+    if [[ "$bf" =~ ^([0-9]+)(\.([0-9]*))?$ ]]; then
+      bfi=${BASH_REMATCH[1]}; [[ "${BASH_REMATCH[3]}" =~ [1-9] ]] && bfi=$((10#$bfi + 1))
+      [ "${#bfi}" -le 15 ] && [ "$((10#$bfi))" -gt "$gp" ] && gp=$((10#$bfi))
+    fi
+    bal=$("$ZETAPHYD" q bank balances "$from" $QF 2>/dev/null | jq -r --arg d "$gd" '[.balances[]? | select(.denom == $d) | .amount][0] // "0"') || bal=""
+    [[ "$bal" =~ ^[0-9]+$ ]] || { echo "refused: cannot read the balance of $from"; exit 1; }
+    have=0; [ ${#bal} -le 18 ] || have=${bal:0:$((${#bal} - 18))}   # whole ZTPHY, rounded down
+    # the gas reserve: every batch at the most it may cost (its gas limit is at most MAX_TX_GAS), at the price in force
+    reserve=$(awk -v b="$batches" -v g="$MAX_TX_GAS" -v p="$gp" 'BEGIN { r = b * g * p / 1e18; printf "%d", (r == int(r)) ? r : int(r) + 1 }')
+    echo "push airdrop on $CHAIN_ID from $key ($from): $n addresses, $total ZTPHY in all; the key has $have ZTPHY"
     echo "  skipped: $bad bad, $dup repeated, $paid paid before ($LEDGER)"
+    [ "$bad" = 0 ] || { echo "refused: $bad lines of $list are not a clean address (above): prepare the list with node airdrop/cli.js push-list"; exit 1; }
     [ "$n" -gt 0 ] || { echo "nothing to send"; exit 0; }
-    awk -v t="$total" -v h="$have" 'BEGIN { exit !(t + 1 <= h) }' || { echo "refused: the fund has $have ZETAPHY, the airdrop needs $total (+ gas)"; exit 1; }
+    echo "  $batches batches of up to $BATCH addresses, one transaction in flight (each waits for its block, then the next block)"
+    echo "  gas price $gp$gd; gas reserve $reserve ZTPHY ($batches batches x at most $MAX_TX_GAS gas)"
+    [ "$have" -ge $((total + reserve)) ] || { echo "refused: the key has $have ZTPHY; the airdrop needs $total + $reserve gas reserve = $((total + reserve)) ZTPHY"; exit 1; }
+    AFL="$AFL --gas-prices $gp$gd"
+    bcmd() { # the tx of one batch, in BCMD: <amount> <address>…
+      local amt=$1; shift
+      if [ $# -eq 1 ]; then BCMD=(tx bank send "$key" "$1" "${amt}000000000000000000$gd")
+      else BCMD=(tx bank multi-send "$key" "$@" "${amt}000000000000000000$gd"); fi
+    }
+    sim() { # simulate BCMD: SIM_GAS = the gas limit it would get (simulated x GAS_ADJUSTMENT). --generate-only with
+      # --gas auto simulates with the key's own public key and signs nothing (--dry-run would need an address in
+      # --from and simulate with a placeholder secp256k1 key, which an eth_secp256k1 chain may refuse).
+      local o; SIM_GAS=""; SIM_ERR=""
+      o=$(kz "${BCMD[@]}" $AFL --gas auto --gas-adjustment "$ADJ" --generate-only 2>&1 >/dev/null) || true
+      SIM_GAS=$(echo "$o" | grep -oE 'gas estimate: [0-9]+' | tail -1 | grep -oE '[0-9]+$') || SIM_GAS=""
+      [ -n "$SIM_GAS" ] || SIM_ERR=$(echo "$o" | grep -m1 -E 'rpc error|Error|error' || echo "$o" | tail -1)
+      [ -n "$SIM_GAS" ]
+    }
+    first_amt=$(echo "$amounts" | head -1); first=()
+    for a in "${order[@]}"; do [ "${want[$a]}" = "$first_amt" ] && first+=("$a"); [ ${#first[@]} -lt "$BATCH" ] || break; done
+    bcmd "$first_amt" "${first[@]}"
+    sim || { echo "refused: the first batch does not simulate: $SIM_ERR"; exit 1; }
+    est=$(awk -v g="$SIM_GAS" -v k="${#first[@]}" -v n="$n" -v p="$gp" 'BEGIN { t = g / k * n; printf "%d gas, fee ~%.4f ZTPHY", t, t * p / 1e18 }')
+    echo "  first batch: ${#first[@]} outputs, gas limit $SIM_GAS (simulated x $ADJ; cap $MAX_TX_GAS); whole airdrop ~$est"
+    [ "$SIM_GAS" -le "$MAX_TX_GAS" ] || { echo "refused: a batch of ${#first[@]} needs $SIM_GAS gas, above MAX_TX_GAS $MAX_TX_GAS: set BATCH=$((${#first[@]} * MAX_TX_GAS * 9 / 10 / SIM_GAS))"; exit 1; }
+    echo "  expected time: ~$(((batches * 11 + 59) / 60)) minutes (~11 s a batch with 5 s blocks)"
     if [ "${SEND:-}" != 1 ]; then
       [ -t 0 ] || { echo "dry run: nothing sent (SEND=1 sends)"; exit 0; }
-      read -r -p "send $total ZETAPHY to $n addresses? [y/N] " ok
+      read -r -p "send $total ZTPHY to $n addresses in $batches batches on $CHAIN_ID? [y/N] " ok
       [[ "$ok" =~ ^[yY]$ ]] || { echo "nothing sent"; exit 0; }
     fi
-    TXF=${TXF/--from $FROM/--from $key}
-    # one multi-send per amount and per $BATCH addresses; the ledger is written after each accepted batch
-    for amt in $(printf '%s\n' "${want[@]}" | sort -un); do
-      group=(); for a in "${!want[@]}"; do [ "${want[$a]}" = "$amt" ] && group+=("$a"); done
+    stop() { echo "STOPPED at batch $1: $2"; echo "  paid so far: $(sort -u "$LEDGER" | wc -l | tr -d ' ') addresses in $LEDGER; run the same command again to go on (only unpaid addresses are sent)"; exit 1; }
+    k=0; sent=0
+    for amt in $amounts; do
+      group=(); for a in "${order[@]}"; do [ "${want[$a]}" = "$amt" ] && group+=("$a"); done
       for ((i = 0; i < ${#group[@]}; i += BATCH)); do
-        part=("${group[@]:i:BATCH}")
-        if [ ${#part[@]} -eq 1 ]; then send tx bank send "$key" "${part[0]}" "${amt}000000000000000000azetaphy"
-        else send tx bank multi-send "$key" "${part[@]}" "${amt}000000000000000000azetaphy"; fi
-        printf '%s\n' "${part[@]}" >>"$LEDGER"
-        echo "sent $amt ZETAPHY each to ${#part[@]} addresses"
-        sleep 6   # the next block, so the sender's sequence number moves on
+        part=("${group[@]:i:BATCH}"); k=$((k + 1)); b="$k/$batches"
+        bcmd "$amt" "${part[@]}"
+        sim || stop "$b" "the batch does not simulate: $SIM_ERR. Nothing sent for it"
+        [ "$SIM_GAS" -le "$MAX_TX_GAS" ] || stop "$b" "gas limit $SIM_GAS is above MAX_TX_GAS $MAX_TX_GAS. Nothing sent for it; set a smaller BATCH"
+        h0=$(chain_height) || stop "$b" "no block height from $NODE. Nothing sent for it"
+        seq=$(acct_seq "$from") || stop "$b" "cannot read the sequence of $from. Nothing sent for it"
+        t=$((h0 + TIMEOUT_BLOCKS))
+        pending_write - "$seq" "$t" "$b" "${part[@]}"      # before the broadcast: a crash cannot lose it
+        errf=$(mktemp); rc=0
+        out=$(kz "${BCMD[@]}" $AFL --gas "$SIM_GAS" --timeout-height "$t" -y -o json 2>"$errf") || rc=$?
+        out=$(echo "$out" | tail -1); err=$(grep -m1 -E 'rpc error|Error|error' "$errf" || tail -1 "$errf"); rm -f "$errf"
+        code=$(echo "$out" | jq -r '.code // empty' 2>/dev/null) || code=""
+        hash=$(echo "$out" | jq -r '.txhash // empty' 2>/dev/null) || hash=""
+        if [ "$rc" = 0 ] && [ -n "$code" ] && [ "$code" != 0 ]; then
+          rm -f "$PENDING"   # CheckTx refused it: it never entered the mempool
+          stop "$b" "the node refused the tx (code $code: $(echo "$out" | jq -r '.raw_log // ""' | head -c 300)). Not paid"
+        fi
+        if [ "$rc" = 0 ] && [ "$code" = 0 ] && [ -n "$hash" ]; then pending_write "$hash" "$seq" "$t" "$b" "${part[@]}"
+        else echo "batch $b: zetaphyd did not confirm the broadcast (${err:-no output}): checking the chain"; fi
+        if settle; then
+          sent=$((sent + ${#part[@]}))
+          echo "batch $b: ${#part[@]} x $amt ZTPHY, tx $S_HASH in block $S_HEIGHT (code 0); $sent of $n paid"
+        else
+          rc=$?
+          [ "$rc" = 1 ] && stop "$b" "tx ${S_HASH:-<none>} $([ -n "$S_CODE" ] && echo "failed in block $S_HEIGHT with code $S_CODE: $S_LOG" || echo "$S_LOG"). Not paid"
+          stop "$b" "tx ${S_HASH:-<none>}: $S_LOG. Kept in $PENDING: the next run checks it first, so it is never paid twice"
+        fi
+        # the next block before the next tx: the sequence has moved on and the mempool holds nothing of ours
+        [[ "$S_HEIGHT" =~ ^[0-9]+$ ]] || S_HEIGHT=$h0
+        until_t=$((SECONDS + WAIT))
+        while :; do
+          h=$(chain_height) || h=""
+          [ -n "$h" ] && [ "$h" -gt "$S_HEIGHT" ] && break
+          [ "$SECONDS" -lt "$until_t" ] || stop "$b" "batch $b is paid, but no block came after $S_HEIGHT within ${WAIT}s"
+          sleep "$POLL"
+        done
       done
     done
-    echo "airdrop done: $n addresses, $total ZETAPHY" ;;
+    echo "airdrop done: $n addresses, $total ZTPHY; ledger $LEDGER ($(sort -u "$LEDGER" | wc -l | tr -d ' ') addresses)" ;;
   validators)
     $ZETAPHYD q staking validators $QF | jq -r '[.validators[] | select(.status=="BOND_STATUS_BONDED")] as $v
       | ($v | map(.tokens | tonumber) | add) as $t
@@ -747,5 +1009,5 @@ case "${1:-}" in
     $ZETAPHYD q wasm list-code $QF | jq -c '.code_infos[]? | {code_id, creator, data_hash, instantiate_permission}' ;;
 
   *)
-    sed -n '8,63p' "$0" | sed 's/^# //'; exit 2 ;;
+    sed -n '8,67p' "$0" | sed 's/^# //'; exit 2 ;;
 esac

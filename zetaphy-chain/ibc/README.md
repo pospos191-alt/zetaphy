@@ -2,6 +2,10 @@
 
 # ZETAPHY Saphan: real USDC from Noble into the ZETAPHY chain via IBC (testnet first)
 
+> **Testnet record.** The ZETAPHY testnet this guide used (`zetaphy_77390-1`) was shut down on 2026-11-14; the guide is kept
+> as the record of how the route ran. No IBC channel for ZETAPHY mainnet (`zetaphy_3659-1`) is published in this
+> repository yet: this route is not on mainnet yet.
+
 **ZETAPHY Saphan** ("bridge" in Thai) is ZETAPHY's cross-chain system; its first route is Noble over IBC.
 People use it from the **Saphan** tab at app.sawasdeecoin.com:
 - **Out:** from MetaMask through the ICS-20 precompile (`0x…0802`), no Keplr needed

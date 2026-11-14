@@ -1,5 +1,7 @@
 # ZETAPHY Offline Cash and ZETAPHY Mesh
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 **Testnet only.** No real money. Prototype; the contract has not been audited.
 
 Money that works with no internet, and can travel a long way without it:

@@ -15,6 +15,7 @@
 // Safety (wallet-safety.js): "Use a hardware wallet" help, a banner above BIG_BALANCE, the account
 // forgotten after 30 minutes without activity (60 / 120 / 240 to choose in the help), and a summary before each transaction (hub.js send()).
 import { safety } from './wallet-safety.js';
+import { activeNetwork } from './network.js';
 import { LEDGER_ID_RE, ledgerId, ledgerProvider, hidSupported, preloadTransport } from './ledger.js';
 import { PQSNAP_ID, snapHost, snapProvider, pqsText } from './pqsnap.js';
 
@@ -226,7 +227,7 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
         !balances ? el('p', { class: 'dim', text: '…' })
           : balances.error ? el('p', { class: 'dim', text: T('wbNoNode') })
             : el('ul', { class: 'wb-bal' },
-              el('li', {}, el('span', {}, tokIcon('logo.svg', 'Z'), 'ZETAPHY'), el('b', { class: 'mono', text: formatUnits(balances.native) })),
+              el('li', {}, el('span', {}, tokIcon('logo.svg', 'Z'), activeNetwork().symbol), el('b', { class: 'mono', text: formatUnits(balances.native) })),
               saphanLine(nativeSaphan()),
               balances.tokens.flatMap((x) => [el('li', {}, el('span', { title: x.address },
                 tokIcon(x.logo, x.symbol), x.symbol,
@@ -286,7 +287,7 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
   function render() {
     const b = $('wb-btn');
     if (!b) return;
-    const bal = account && balances && !balances.error ? ` · ${formatUnits(balances.native)} ZETAPHY` : '';
+    const bal = account && balances && !balances.error ? ` · ${formatUnits(balances.native)} ${activeNetwork().symbol}` : '';
     b.textContent = account ? `${short(account)}${bal}` : T('wbConnect');
     b.classList.toggle('ghost', !!account);
     if ($('wb-dialog')?.open) renderDialog();
@@ -295,7 +296,7 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
 
   /** The large-balance banner (a hardware account, or one under BIG_BALANCE, gets none). */
   function banner() {
-    sf.balanceBanner({ host: bannerHost(), amount: account && balances && !balances.error ? balances.native : null, threshold: BIG_BALANCE, symbol: 'ZETAPHY', hardware: isHardware(), help: HELP });
+    sf.balanceBanner({ host: bannerHost(), amount: account && balances && !balances.error ? balances.native : null, threshold: BIG_BALANCE, symbol: activeNetwork().symbol, hardware: isHardware(), help: HELP });
   }
 
   function mount() {

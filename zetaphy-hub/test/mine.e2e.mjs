@@ -179,36 +179,33 @@ test('mine testnet ZETAPHY in the browser, and the faucet forms', { timeout: 120
     assert.match(await page.textContent('.page-mine'), /ไม่ใช่การขุดจริง/);
     await page.selectOption('#lang', 'en');
 
-    // the validator guide: topics as tabs (hash in the address, arrow keys), its own faucet form, the mining page
+    // the validator guide: topics as tabs (hash in the address, arrow keys); joining mainnet with your own key and stake
     await page.goto(`${site.url}validators.html`);
-    assert.deepEqual(await page.$$eval('#vtabs [role="tab"]', (b) => b.map((x) => x.dataset.tab)), ['start', 'check', 'get', 'fix', 'rewards', 'keys', 'advanced']);
-    assert.ok(await page.isVisible('#cmd') && !(await page.isVisible('#k-status')), 'Start open, the others closed');
-    assert.equal(await page.textContent('#t-check'), 'Check it works');
-    assert.match(await page.textContent('#p-start .tab-lede'), /Pick where/);
+    assert.deepEqual(await page.$$eval('#vtabs [role="tab"]', (b) => b.map((x) => x.dataset.tab)), ['start', 'stake', 'check', 'fix', 'keys', 'advanced']);
+    assert.ok(await page.isVisible('#cmd') && !(await page.isVisible('#k-status')), 'Install open, the others closed');
+    assert.equal(await page.textContent('#cmd'), 'curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=my-node bash -s -- validator');
+    await page.fill('#moniker', 'My Node!');
+    assert.match(await page.textContent('#cmd'), /sudo MONIKER=my-node bash -s -- validator$/, 'the name is cleaned');
+    assert.equal(await page.textContent('#t-stake'), 'Key and stake');
     await page.focus('#t-start');
     await page.keyboard.press('ArrowRight');
-    await page.waitForFunction(() => location.hash === '#check'); // the tab switch updates the address after the key event
-    assert.equal(await page.getAttribute('#t-check', 'aria-selected'), 'true');
-    assert.equal(new URL(page.url()).hash, '#check');
-    assert.ok(await page.isVisible('#k-status'));
+    await page.waitForFunction(() => location.hash === '#stake'); // the tab switch updates the address after the key event
+    assert.equal(await page.getAttribute('#t-stake', 'aria-selected'), 'true');
+    assert.equal(await page.textContent('#k-key'), 'sudo zetaphy-validator key');
+    await page.fill('#stake-amt', '250');
+    assert.equal(await page.textContent('#stake-cmd'), 'sudo zetaphy-validator stake 250');
+    assert.match(await page.textContent('#n-cap'), /3333 bps.*1\/3/);
+    assert.match(await page.textContent('#n-single'), /single validator operated by the ZETAPHY project/);
+    await page.focus('#t-stake');
     await page.keyboard.press('End');
     await page.waitForFunction(() => location.hash === '#advanced');
-    assert.equal(new URL(page.url()).hash, '#advanced');
     assert.equal(await page.getAttribute('#t-advanced', 'aria-selected'), 'true');
     await page.goto(`${site.url}validators.html#resume`); // an old link: the restart steps
     assert.equal(await page.getAttribute('#t-fix', 'aria-selected'), 'true');
     assert.ok(await page.isVisible('#r-unjail'));
-    await page.goto(`${site.url}validators.html#get`);
-    assert.ok(await page.isVisible('#vf-form'));
-    await page.fill('#vf-addr', ACC);
-    await page.click('#vf-get');
-    await page.waitForFunction(() => document.getElementById('vf-msg').classList.contains('ok'));
-    assert.match(await page.textContent('#vf-msg'), /10 test ZETAPHY/);
-    nodeDown = true;
-    await page.click('#vf-get');
-    await page.waitForFunction(() => /cannot be reached/.test(document.getElementById('vf-msg').textContent));
-    nodeDown = false;
-    assert.equal(await page.getAttribute('#vf-mine', 'href'), './?tab=mine');
+    await page.goto(`${site.url}validators.html#get`); // the old faucet tab: the key and stake steps now
+    assert.equal(await page.getAttribute('#t-stake', 'aria-selected'), 'true');
+    assert.equal(await page.locator('#vf-form').count(), 0, 'no faucet form');
     assert.deepEqual(errors, [], 'no page errors, nothing blocked by the CSP');
   } finally {
     await browser.close();

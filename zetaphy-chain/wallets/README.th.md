@@ -4,7 +4,13 @@
 
 วิธีเพิ่ม ZETAPHY Testnet ในกระเป๋าที่คนใช้กันทั่วไป ไฟล์ตั้งค่าสำหรับกระเป๋า และขั้นตอนการขึ้นรายชื่อ (chainlist, Keplr, chain-registry)
 
-> testnet เท่านั้น เหรียญทดลอง ไม่มีมูลค่า
+> **ค่าของ mainnet (ตอนนี้มีเครือข่ายเดียว):** ชื่อเครือข่าย `ZETAPHY`, EVM chain ID `3659` (`0xe4b`), Cosmos chain-id
+> `zetaphy_3659-1`, สัญลักษณ์ `ZTPHY`, ทศนิยม 18, denom `azetaphy`, RPC `https://129-221-199-191.sslip.io` (CometBFT `/rpc`,
+> REST `/rest`), explorer https://explorer.sawasdeecoin.com/?network=mainnet ไฟล์สำหรับขึ้นรายชื่อของ mainnet อยู่ใน
+> [`../listings/`](../listings/README.md) hub และเว็บกระเป๋าเพิ่มเครือข่ายได้ด้วยปุ่มเดียว
+>
+> **ส่วนที่เหลือของหน้านี้เป็นของ testnet** (`ZETAPHY Testnet`, 77390) ซึ่งปิดถาวรแล้วเมื่อ 2026-11-14 template และขั้นตอนขึ้นรายชื่อ
+> เก็บไว้เป็นบันทึก อย่าเพิ่ม chain 77390 ในกระเป๋าหรือส่งไฟล์ของมัน
 
 ## ค่าของเครือข่าย
 

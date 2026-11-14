@@ -3,9 +3,16 @@
 # ZETAPHY DEX (ZETAPHY Swap)
 
 กระดานแลกเปลี่ยนเหรียญแบบ AMM (สูตร x·y = k) พร้อมพูลสภาพคล่อง สำหรับเชน **ZETAPHY** (Cosmos EVM,
-EVM chain id `77390`, chain id `zetaphy_77390-1`, เหรียญหลัก ZETAPHY ตัวย่อในกระเป๋า **ZTPHY**, ทศนิยม 18)
+EVM chain id `3659` (`0xe4b`), chain id `zetaphy_3659-1`, เหรียญหลัก ZTPHY, denom `azetaphy`, ทศนิยม 18)
 
-> ⚠️ **Testnet เท่านั้น เหรียญไม่มีมูลค่า สัญญายังไม่ผ่านการตรวจสอบความปลอดภัย (unaudited)** อ่านหัวข้อ "ความเสี่ยง" ก่อนใช้
+> ⚠️ **ZETAPHY mainnet: ใช้ ZTPHY จริง สัญญายังไม่ผ่านการตรวจสอบความปลอดภัยจากภายนอกที่เป็นอิสระ (unaudited)** อ่านหัวข้อ "ความเสี่ยง" และ
+> [ประกาศ mainnet](../docs/ZETAPHY-MAINNET-NOTICE.th.md) ก่อนใช้ และใช้เฉพาะจำนวนที่เสียได้
+> testnet (chain 77390) ปิดถาวรแล้วเมื่อ 2026-11-14 พูล เหรียญทดสอบ และสัญญาของมันไม่มีแล้ว
+
+บน mainnet: factory `0x93463B001483970f8CAE63cd8B60D28F17a1C1AA`, router `0xa5221A7F25cf10d99446Fde3e95c15b1f696e783`, wrapped native = precompile ของ ZTPHY
+`0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` สิทธิ์ผู้ดูแลทั้งหมดอยู่กับ timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA`
+([contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json)) ยังไม่มีพูล สัญญา DLMM deploy แล้ว
+(factory `0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a`, router `0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B`) แต่แท็บ DLMM ของหน้าเว็บ **ยังไม่มีบน mainnet** (หน้าเว็บบอกไว้)
 
 - สัญญา, สคริปต์ build, CLI สำหรับ deploy และชุดทดสอบ: โฟลเดอร์นี้ (`zetaphy-dex/`)
 - หน้าเว็บ: `web/` เผยแพร่ที่ **https://swap.sawasdeecoin.com/** (โปรเจกต์ Vercel ของตัวเอง บน origin ของตัวเอง)
@@ -19,7 +26,7 @@ EVM chain id `77390`, chain id `zetaphy_77390-1`, เหรียญหลัก
 | `contracts/ZetaphyPair.sol` | พูล x·y = k + เหรียญ LP (ZLP) |
 | `contracts/ZetaphyRouter.sol` | ฟังก์ชันที่ผู้ใช้เรียก: เพิ่ม/ถอนสภาพคล่อง แลกเปลี่ยน (หลายทอด), deadline, slippage, เหรียญหักค่าธรรมเนียมเมื่อโอน, ตรวจ Neuro |
 | `contracts/WZETAPHY.sol` | wrapped native แบบ WETH (ใช้ในเทสต์ และบนเชนอื่นที่ไม่มี precompile) |
-| `contracts/TestToken.sol` | เหรียญทดสอบ (ไม่มีมูลค่า) สำหรับ testnet |
+| `contracts/TestToken.sol` | เหรียญทดสอบ (ไม่มีมูลค่า) สำหรับ devnet (เคยใช้บน testnet ที่ปิดแล้ว ไม่มีบน mainnet) |
 | `contracts/test/*.sol` | สัญญาที่ใช้เฉพาะในเทสต์ (flash borrower, เหรียญ reentrancy, mock runners, `RevertProbe` ตรวจยอดหลัง revert, registry ที่กินแก๊ส, `ForceSend`) |
 | `artifacts/*.json` | ผล compile (commit ไว้ CLI ไม่ต้องใช้ compiler) `npm run build -- --check` ตรวจว่าตรงกับซอร์ส |
 | `cli.js` | deploy และตั้งค่า governance |
@@ -116,10 +123,11 @@ CLI ปฏิเสธไฟล์กุญแจที่คนอื่นอ�
 
 ## Deploy สัญญา
 
-ใช้กุญแจสำหรับ testnet เท่านั้น เก็บในไฟล์ **ห้ามวางกุญแจในแชตหรือบน command line** CLI รับเฉพาะ `--key-file <ไฟล์>`
+เก็บกุญแจในไฟล์ **ห้ามวางกุญแจในแชตหรือบน command line** CLI รับเฉพาะ `--key-file <ไฟล์>`
 (หรือตัวแปร `ZETAPHY_DEX_KEY_FILE`) ไฟล์เป็น private key แบบ hex หรือ keystore JSON (ถอดรหัสด้วย `ZETAPHY_PASSPHRASE`)
 **CLI ปฏิเสธไฟล์กุญแจที่ group หรือคนอื่นอ่าน/เขียนได้** (แจ้งให้ `chmod 600 <ไฟล์>`)
-`deploy` ทำงานเฉพาะบน ZETAPHY (EVM chain id 77390) ถ้า RPC ตอบ chain id อื่นจะปฏิเสธ เว้นแต่ใส่ `--any-chain`
+`deploy` ทำงานเฉพาะบน EVM chain id 77390 (testnet ที่ปิดแล้ว: ยังไม่ได้เปลี่ยนการตรวจใน CLI) ถ้า RPC ตอบ chain id อื่นจะปฏิเสธ เว้นแต่ใส่ `--any-chain`
+mainnet ไม่ต้อง deploy: factory และ router deploy แล้ว (ดูต้นไฟล์นี้) และอยู่ใต้ timelock
 
 ```bash
 cd zetaphy-dex
@@ -163,14 +171,15 @@ node cli.js deploy ... --governance <0xMultisig>     # หรือเรีย�
    และ `curl -sI https://swd-amm.sawasdeecoin.com/zetaphy/` ต้องได้ 308 ไปที่ `https://swap.sawasdeecoin.com/`
 
 - ตั้งค่า: `web/deployments.json` (จาก `cli.js deploy --web`) และ `web/tokenlist.json`
-  (รูปแบบ token list ของ Uniswap: `{ chainId: 77390, address, name, symbol, decimals }`)
+  (รูปแบบ token list ของ Uniswap: `{ chainId, address, name, symbol, decimals }`) เป็นของ testnet ที่ปิดแล้ว อ่านเฉพาะบนระเบียนของมันในการทดสอบเบราว์เซอร์
+  บน mainnet factory, router และ ThreatRegistry มาจาก `web/lib/network.js` (sync จาก `zetaphy-hub/network.js`) และ RPC คือ RPC สาธารณะของ mainnet `https://129-221-199-191.sslip.io`
 - RPC ที่หน้าเว็บใช้ต้องเป็น https และเปิด CORS ให้เบราว์เซอร์เรียกได้ (เหมือนที่ zetaphy-wallet ใช้) ผู้ใช้เปลี่ยน RPC ได้ใน "ตั้งค่า"
   แต่ถ้าไม่ใช่ RPC ของ `deployments.json` หน้าเว็บแสดงแถบเตือนตลอด (พร้อมปุ่มกลับไปใช้ค่าเริ่มต้น) และ **ไม่ส่ง RPC นั้นให้กระเป๋า**
   (`wallet_addEthereumChain` ใช้ RPC ของ `deployments.json` เสมอ) ถ้าไม่มี RPC หน้าเว็บจะอ่านผ่านกระเป๋าที่เชื่อมต่อและอยู่บน ZETAPHY
 - พูลที่มี reserve แต่ยังไม่มีใครถือ LP (มีคนโอนเหรียญเข้าแล้ว `sync`): หน้าเว็บถือเป็นพูลใหม่ ไม่คำนวณจำนวนอีกฝั่งจาก reserve
   ให้ผู้ใช้ใส่ทั้งสองฝั่งเอง แสดงคำเตือน "พูลนี้มียอดเหรียญอยู่แต่ยังไม่มีใครถือ LP — คุณเป็นผู้กำหนดราคา" และส่ง **ขั้นต่ำ = จำนวนที่ใส่**
   (router จึง revert ถ้าสัดส่วนเปลี่ยน) ฝั่งสัญญา router ก็ใช้จำนวนที่ใส่ตรง ๆ เมื่อ `totalSupply == 0` (ดู "การออกแบบ")
-- ก่อน `eth_sendTransaction` ทุกครั้ง หน้าเว็บถาม `eth_chainId` จากกระเป๋าอีกครั้ง ถ้าไม่ใช่ 77390 จะไม่ส่ง และใส่ `chainId: 0x12e4e` ในธุรกรรม
+- ก่อน `eth_sendTransaction` ทุกครั้ง หน้าเว็บถาม `eth_chainId` จากกระเป๋าอีกครั้ง ถ้าไม่ใช่ 3659 จะไม่ส่ง และใส่ `chainId: 0xe4b` ในธุรกรรม
 - ก่อนซื้อและก่อนเพิ่มสภาพคล่อง ถาม Neuro ใหม่ (ไม่ใช้แคช) อีกครั้งตอนกดยืนยัน
 - ความปลอดภัย: `web/vercel.json` ใส่ CSP เข้มงวดให้ทุก path (`default-src 'none'; script-src 'self'; style-src 'self'`
   ไม่มี inline, ไม่มีสคริปต์จากที่อื่น, `connect-src` เฉพาะ https และ localhost, `frame-ancestors 'none'`)
@@ -190,7 +199,7 @@ node cli.js deploy ... --governance <0xMultisig>     # หรือเรีย�
   swap / เพิ่ม / ถอนสภาพคล่อง (ไม่เก็บการยืนยันไว้)
 - RPC ที่เก็บไว้ต้องอยู่ในรูปที่หน้าเว็บบันทึกเองพอดี (https หรือ localhost) ถ้าไม่ใช่ค่าเริ่มต้นมีแถบเตือนตลอดและไม่ส่งให้กระเป๋า
 - สวิตช์ "เหรียญหักค่าธรรมเนียมเมื่อโอน" ไม่ถูกเก็บ (ปิดทุกครั้งที่เปิดหน้า)
-- เหรียญที่นำเข้าเอง: อ่านกลับเฉพาะรายการของ chain 77390 ที่ผ่านการตรวจ ไม่ซ้ำ ไม่เกิน 50 รายการ แสดงป้าย
+- เหรียญที่นำเข้าเอง: อ่านกลับเฉพาะรายการของ chain 3659 ที่ผ่านการตรวจ ไม่ซ้ำ ไม่เกิน 50 รายการ แสดงป้าย
   **"นำเข้าเอง ไม่อยู่ในรายการ"** ในตัวเลือกเหรียญและในรายการ และเตือนพร้อมที่อยู่สัญญาเมื่อเลือกใช้ และถาม Neuro ใหม่ตอนกดยืนยัน
 - id กระเป๋า ภาษา และธีม ต้องตรงรูปแบบที่กำหนด
 
@@ -199,7 +208,7 @@ node cli.js deploy ... --governance <0xMultisig>     # หรือเรีย�
 
 ## ความเสี่ยง
 
-- **ยังไม่ผ่านการตรวจสอบความปลอดภัย (audit)** ใช้บน testnet เท่านั้น เหรียญไม่มีมูลค่า ไม่ใช่คำแนะนำการลงทุน
+- **ยังไม่ผ่านการตรวจสอบความปลอดภัย (audit)** นี่คือ mainnet ใช้ ZTPHY จริง swap แล้วยกเลิกไม่ได้ ใช้เฉพาะจำนวนที่เสียได้ ไม่ใช่คำแนะนำการลงทุน
 - ผู้ให้สภาพคล่องรายแรกเป็นผู้กำหนดราคาเริ่มต้น พูลเล็กราคาเปลี่ยนแรง (price impact) และถูก front-run / sandwich ได้: ตั้ง slippage ให้แคบ
   พูลที่มี LP น้อยมากแต่ราคาผิดจากตลาด (มีคนฝากครั้งแรกไว้นิดเดียวที่ราคาแปลก ๆ) หน้าเว็บจะคำนวณตามราคาของพูลนั้น ตรวจราคาก่อนเพิ่มสภาพคล่องเสมอ
 - TWAP ของพูลที่สภาพคล่องต่ำถูกบิดได้ง่าย อย่าใช้เป็น oracle ราคาโดยไม่มีมาตรการเพิ่ม
@@ -217,7 +226,8 @@ MIT (ดู `LICENSE`) เขียนใหม่ทั้งหมด ไม�
 
 ## DLMM (สภาพคล่องแบบแบ่งช่องราคา / bins) — ⚠️ ยังไม่ผ่านการตรวจสอบความปลอดภัย (UNAUDITED)
 
-> ⚠️ **ส่วนนี้ใหม่ ยังไม่ผ่าน audit ใช้บน testnet เท่านั้น** เหรียญทดสอบไม่มีมูลค่า ไม่ใช่คำแนะนำการลงทุน
+> ⚠️ **ส่วนนี้ใหม่ ยังไม่ผ่าน audit** บน mainnet สัญญา DLMM deploy แล้ว (factory `0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a`, router `0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B`) แต่ยังสร้างคู่ไม่ได้
+> จนกว่า timelock จะตั้ง preset (ข้อเสนอ governance ที่ 1) และแท็บ DLMM ของหน้าเว็บยังไม่มีบน mainnet ไม่ใช่คำแนะนำการลงทุน
 
 DLMM คือพูลที่แบ่งสภาพคล่องเป็น **ช่องราคา (bin)** แต่ละช่องมีราคาคงที่ ผู้ให้สภาพคล่องเลือกช่วงราคาที่จะวางเหรียญเองได้
 (สภาพคล่องกระจุกตัว) เป็นการพอร์ตการออกแบบ DLMM ของเราเองบน Solana (`programs/swd_amm/src/dlmm.rs`
@@ -293,7 +303,7 @@ node dlmm-cli.js status --rpc <url>
 node dlmm-cli.js set-registry <ThreatRegistry|0x0> --rpc <url> --key-file <file>
 ```
 
-กฎของไฟล์กุญแจเหมือน `cli.js` (ไฟล์เท่านั้น chmod 600, ไม่รับกุญแจทาง command line) และ deploy ได้เฉพาะเชน 77390 ยกเว้นใส่ `--any-chain`
+กฎของไฟล์กุญแจเหมือน `cli.js` (ไฟล์เท่านั้น chmod 600, ไม่รับกุญแจทาง command line) และ deploy ได้เฉพาะเชน 77390 (testnet ที่ปิดแล้ว ยังไม่ได้เปลี่ยน) ยกเว้นใส่ `--any-chain`
 preset เริ่มต้น: bin step 1 / 10 / 25 / 100 bps, ค่าธรรมเนียมพื้นฐานเท่ากับ bin step, ค่าตามความผันผวนสูงสุด +50 / +100 / +150 / +300 bps
 
 แท็บ **DLMM** ในหน้าเว็บอ่าน `contracts.dlmmFactory` / `contracts.dlmmRouter` จาก `web/deployments.json` (ไม่มี = แสดงว่ายังไม่ได้ deploy)
@@ -330,7 +340,7 @@ ZETAPHYD=/path/to/zetaphyd flock /tmp/ci-test/devnet.lock npm run test:devnet:dl
 (คอลัมน์ devnet ใช้ preset เริ่มต้นของ `dlmm-cli.js` ซึ่งมีค่าธรรมเนียมตามความผันผวน; คอลัมน์ในหน่วยความจำใช้ preset ไม่มีค่าตามความผันผวน)
 
 **ยังไม่ได้ทำ:** TWAP/oracle ของ DLMM (ห้ามใช้ราคา active bin เป็น oracle), เส้นทาง swap อัตโนมัติข้ามหลายพูลในหน้าเว็บ (แท็บ DLMM swap ภายในพูลที่เลือก; router รองรับหลายทอดแล้ว)
-และยังไม่ได้ deploy บน testnet
+และแท็บ DLMM บน mainnet (สัญญา deploy แล้ว แท็บแสดง "ยังไม่มีบน mainnet")
 
 **ความเสี่ยง (สำหรับผู้ใช้):** ยังไม่ผ่าน audit; ผู้ให้สภาพคล่องรายแรกของพูลเป็นผู้กำหนดราคาเริ่มต้น ตรวจ active bin ก่อนฝากเสมอ
 (ตั้ง `idSlippage` ให้แคบ); สภาพคล่องที่อยู่ในช่วงราคาแคบจะกลายเป็นเหรียญอีกฝั่งทั้งหมดเมื่อราคาวิ่งผ่าน (impermanent loss

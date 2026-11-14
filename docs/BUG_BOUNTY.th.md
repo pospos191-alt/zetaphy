@@ -2,6 +2,11 @@
 
 # โครงการล่าบั๊ก (Bug Bounty) ของ ZETAPHY
 
+> **สถานะ (2026-11-14):** ZETAPHY mainnet (`zetaphy_3659-1`) รันตั้งแต่ 2026-11-13 และ testnet ปิดถาวรแล้วเมื่อ
+> 2026-11-14 บน mainnet สัญญา `ZetaphyBounty` (`0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE`) ถือ 1,000 ZTPHY คณะกรรมการ (2 ใน 3)
+> อนุมัติการจ่าย ซึ่งรอ 48 ชั่วโมง ([สัญญาบน mainnet](../zetaphy-chain/mainnet/zetaphy_3659-1/README.th.md)) จำนวนเป้าหมาย
+> ในตารางด้านล่างยังไม่มีเงินจริงรองรับและไม่ใช่คำสัญญา ข้อความเรื่อง testnet ด้านล่างเป็นบันทึกของโครงการ
+>
 > **ตอนนี้ยังไม่มีเงินรางวัลจริง** ZETAPHY อยู่ใน testnet เหรียญไม่มีมูลค่า และยังไม่มีกองเงินรางวัล
 > - **ช่วง testnet:** รางวัลเป็นการ **ให้เครดิต** เท่านั้น (ชื่อใน Hall of Fame ด้านล่าง, ขอบคุณในบันทึกการแก้ไขและรายงาน) ไม่มีเงิน ไม่มีโทเคน
 > - **ก่อน mainnet:** ต้องโอนเงินรางวัลจริงเข้ากองแยก (กองทุนชุมชน ถือโดย multisig) ด้วยการโหวตของ governance **ก่อน** เปิดรับเงินจริง และประกาศยอดในไฟล์นี้
@@ -48,8 +53,8 @@ DoS ด้วยการยิงคำขอจำนวนมาก (spam/flo
 
 ## กติกา
 
-1. ทดสอบบน **devnet ของคุณเอง** (`zetaphy-network/scripts/devnet.sh`, `npm run test:devnet*`) หรือ testnet สาธารณะเท่านั้น ห้ามแตะ mainnet ของเชนอื่นหรือเงินของคนอื่น
-2. บน testnet สาธารณะ: ใช้บัญชีของคุณเอง ห้ามขโมย/แช่แข็งเหรียญทดลองของผู้อื่นเกินที่จำเป็นเพื่อพิสูจน์ ห้ามทำให้เชนหยุด (แจ้งเราก่อน เราช่วยตั้งเชนทดสอบให้)
+1. ทดสอบบน **devnet ของคุณเอง** (`zetaphy-network/scripts/devnet.sh`, `npm run test:devnet*`) เท่านั้น testnet สาธารณะปิดแล้วเมื่อ 2026-11-14 ห้ามแตะเงินบน ZETAPHY mainnet หรือ mainnet ของเชนอื่น หรือเงินของคนอื่น
+2. บน ZETAPHY mainnet (ZTPHY จริง): อ่านอย่างเดียวด้วยบัญชีของคุณเอง ห้ามย้าย แช่แข็ง หรือทำให้เหรียญของผู้อื่นเสี่ยง และห้ามทำให้เชนหยุด ถ้าต้องทำมากกว่านั้น แจ้งเราก่อน เราช่วยตั้งเชนทดสอบให้
 3. ห้ามเปิดเผยต่อสาธารณะก่อนแก้เสร็จ (ดูกำหนดเวลาด้านล่าง)
 4. ห้าม DoS, spam, social engineering, เข้าถึงข้อมูลส่วนบุคคล
 5. แนบวิธีทำซ้ำ: commit ที่ทดสอบ, ขั้นตอน, สคริปต์หรือเทสต์ (ดีที่สุดคือเทสต์ `node --test` ที่ล้มก่อนแก้) และผลกระทบที่คาดไว้
@@ -111,7 +116,7 @@ not promises. The lock/mint bridge stays closed until this program is funded.
 - **Severity / target rewards after mainnet (USD equivalent):** Critical 10% of funds at risk, 10,000–50,000 · High
   5,000–10,000 · Medium 1,000–5,000 · Low 100–1,000 (Immunefi severity system v2.3). Paid from the community fund
   after a governance vote; first complete report wins; one root cause, one report.
-- **Rules:** test on your own devnet or the public testnet only, with your own accounts; no DoS, spam, social engineering
+- **Rules:** test on your own devnet only (the public testnet was shut down on 2026-11-14; on mainnet: reads only, with your own accounts); no DoS, spam, social engineering
   or privacy violations; no public disclosure before the fix; include a reproduction (ideally a failing `node --test`).
 - **Safe harbor:** good-faith research under these rules is authorized; we will not pursue or support legal action
   against you for it. This binds the project maintainers only, and is not legal advice.

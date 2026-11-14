@@ -9,6 +9,7 @@ import { chmodSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { toBech32 } from '../src/pqtx.js';
 
 const GOV = new URL('../../zetaphy-chain/gov.sh', import.meta.url).pathname;
 const MS = 'zetaphy1msmsmsmsmsmsmsmsmsmsmsmsmsmsmsmsms0q';
@@ -96,13 +97,13 @@ test('mainnet refuses: a genesis that is not the pinned one, another --chain-id,
   assert.deepEqual(n.txs(), []);
 });
 
-test('mainnet refuses the testnet airdrop (faucet coins) before anything else', () => {
+test('mainnet refuses gov.sh airdrop before anything else unless AIRDROP_MAINNET=1 (test/govairdrop-mainnet.test.js)', () => {
   const n = node();
   const f = join(n.dir, 'list.txt');
   writeFileSync(f, `zetaphy1${'q'.repeat(38)}\n`);
   const r = n.run(['airdrop', f, '100'], { SEND: '1' });
   assert.equal(r.code, 1);
-  assert.match(r.out, /refused: gov\.sh airdrop is the testnet airdrop/);
+  assert.match(r.out, /refused: gov\.sh airdrop on mainnet moves real ZTPHY: set AIRDROP_MAINNET=1/);
   assert.deepEqual(n.txs(), []);
 });
 
@@ -151,4 +152,26 @@ test('a Ledger key: amino-json on the device; a key that is not a Ledger key is 
   const ok = hw.run(['vote', '2', 'yes', '--keyring-backend', 'ledger', '--from', 'hw']);
   assert.equal(ok.code, 0, ok.out);
   assert.match(hw.txs()[0], /tx gov vote 2 yes .*--keyring-backend file .*--from hw --chain-id zetaphy_3659-1 .*--sign-mode amino-json -y -o json$/);
+});
+
+test('transfer: a named sender only; from the Community multisig it writes the unsigned bank send (decimals to azetaphy)', () => {
+  const n = node();
+  const hot = toBech32(Uint8Array.from({ length: 20 }, () => 0x22));
+  const none = n.run(['transfer', hot, '1000100']);
+  assert.equal(none.code, 1);
+  assert.match(none.out, /transfer: name the sender with --from/);
+  const out = join(n.dir, 'unsigned.json');
+  const r = n.run(['transfer', hot, '1000100', '--from', MS, '--generate-only', out]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`transfer 1000100 ZTPHY \\(1000100000000000000000000 azetaphy\\) from ${MS} to ${hot} on zetaphy_3659-1`));
+  assert.match(r.out, /unsigned transaction written to .*unsigned\.json .*nothing was sent/);
+  assert.match(n.txs()[0], new RegExp(`^tx bank send ${MS} ${hot} 1000100000000000000000000azetaphy .*--from ${MS} .*--generate-only$`));
+  const community = toBech32(Uint8Array.from({ length: 20 }, () => 0x33));
+  const back = n.run(['transfer', community, '95.25', '--from', 'airdrop'], { SEND: '1' });
+  assert.equal(back.code, 0, back.out);
+  assert.match(n.txs()[1], new RegExp(`^tx bank send airdrop ${community} 95250000000000000000azetaphy .*--keyring-backend file .*--from airdrop .*-y -o json$`));
+  assert.match(back.out, /txhash AB/);
+  const typo = hot.slice(0, -1) + (hot.endsWith('q') ? 'p' : 'q');
+  assert.match(n.run(['transfer', typo, '1', '--from', 'airdrop']).out, /receiver: a zetaphy1… address with a valid checksum/);
+  assert.equal(n.txs().length, 2);
 });

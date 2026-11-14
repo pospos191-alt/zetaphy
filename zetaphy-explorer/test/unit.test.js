@@ -65,8 +65,10 @@ test('formatUnits / formatZtphy / formatCoin', () => {
   assert.equal(formatUnits(-25n, 1), '-2.5');
   assert.equal(formatUnits(123456789n, 0), '123,456,789');
   assert.equal(formatUnits('nope'), '?');
-  assert.equal(formatZtphy(10n ** 18n * 2n), '2 ZETAPHY');
-  assert.equal(formatCoin({ denom: 'azetaphy', amount: '500000000000000000' }), '0.5 ZETAPHY');
+  // every amount in the network's own symbol (network.js: ZTPHY), never the chain's name
+  assert.equal(formatZtphy(10n ** 18n * 2n), '2 ZTPHY');
+  assert.equal(formatZtphy(999999999930000000000000000n, { maxFrac: 2 }), '999,999,999.93 ZTPHY');
+  assert.equal(formatCoin({ denom: 'azetaphy', amount: '500000000000000000' }), '0.5 ZTPHY');
   assert.equal(formatCoin({ denom: 'ibc/AB‮CD', amount: '1000' }), '1,000 ibc/ABCD');
   assert.equal(groupDigits('-1234567'), '-1,234,567');
 });
@@ -75,6 +77,12 @@ test('percent, short, ago, utcTime, hexPreview', () => {
   assert.equal(percent(2n, 3n), '66.7%');
   assert.equal(percent(1, 1), '100.0%');
   assert.equal(percent(0n, 0n), '0%');
+  // a small share keeps two significant digits: 500,000 staked of 1,000,000,000 is 0.05 %, not a rounded-up 0.1 %
+  assert.equal(percent(500000n * 10n ** 18n, 10n ** 27n), '0.050%');
+  assert.equal(percent(1n, 3000n), '0.033%');
+  assert.equal(percent(9n, 1000n), '0.90%');
+  assert.equal(percent(1n, 100n), '1.0%');
+  assert.equal(percent(0n, 10n), '0.0%');
   assert.equal(short('0x' + 'a'.repeat(40), 6, 4), '0xaaaa…aaaa');
   assert.equal(short('abc'), 'abc');
   const now = Date.parse('2026-10-21T00:10:00Z');

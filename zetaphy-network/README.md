@@ -1,6 +1,17 @@
 **English** | [ภาษาไทย](README.th.md)
 
-# zetaphy-network: ZETAPHY stages 1–5 (testnet)
+# zetaphy-network: ZETAPHY stages 1–5
+
+> **ZETAPHY mainnet** (`zetaphy_3659-1`, EVM chain 3659, coin ZTPHY; public RPC `https://129-221-199-191.sslip.io`) is the only
+> ZETAPHY network: the testnet (chain 77390, `rpc.sawasdeecoin.com`) was shut down on 2026-11-14. Read the
+> [mainnet notice](../docs/ZETAPHY-MAINNET-NOTICE.md) first: one validator, no independent audit yet, use only amounts you can afford to lose.
+> On mainnet: NeuroJobs, NeuroControl, ThreatRegistry, ThreatReports, RewardVault, ComputeMarket, the oracle, NeuroIdentity,
+> NeuroAttest, NeuroAnchor and the AI map contracts are deployed (addresses:
+> [contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json),
+> [3659.contracts.json](../zetaphy-launch/state/3659.contracts.json)); UsefulWork, BugBounty and FederatedRounds are paused until
+> a vote opens them. **Not on mainnet yet:** the bridge (closed), StableGateway and the test stablecoins, HackInsurance,
+> NeuroOracleSender, offline cheques. The sections below that say "testnet" describe how a feature ran on the retired testnet
+> (or runs on a local devnet); the CLI acts on mainnet only for the runner and job commands (node, job, neuro status, gate).
 
 | Plan stage | What is available now |
 |---|---|
@@ -30,7 +41,7 @@
 
 All of this has been tested on a real ZETAPHY chain (`npm run test:devnet`)
 
-Anyone can run Neuro with one command and earn rewards in ZETAPHY on testnet
+Anyone can run Neuro with one command and earn rewards in ZTPHY on ZETAPHY mainnet (the runner, NeuroJobs `0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB`)
 
 ## How it works
 
@@ -61,26 +72,26 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
 ```
 
 - Installs everything: Node.js (SHA-256 checked), the ZETAPHY code, the runner key (made on the machine, never shown) and a service that keeps running, also after a reboot
-- At the end it prints the runner address: send **100.1** testnet ZETAPHY (or more) there and the runner posts its bond by itself within about a minute and starts taking jobs
+- At the end it prints the runner address: send the bond plus 0.1 ZTPHY for gas there (`sudo zetaphy-runner logs` shows the exact amount) and the runner posts its bond by itself within about a minute and starts taking jobs. It is real ZTPHY: keep only the bond and a little gas on that key
 - After install: `sudo zetaphy-runner status` · `address` · `withdraw` · `logs` · `update` · `stop` · `start` · `uninstall`
 - Safe to run again (updates the code, keeps the key) · `uninstall` keeps the key
 - No machine: the "Deploy to Oracle Cloud" button in `deploy/oracle/README.md` creates a free one and installs everything
-- Runners earn BZTPHY reward points, converted to real ZETAPHY at mainnet: `zetaphy-chain/rewards/README.md`
+- On mainnet, runners earn ZTPHY from NeuroJobs. The testnet's BZTPHY reward points: `zetaphy-chain/rewards/README.md` (the testnet was shut down on 2026-11-14)
 
 ### Manual install (step by step)
 
 ```
 npm i -g ./zetaphy-network          # or: node zetaphy-network/cli.js ...
-zetaphy node start --rpc http://<ZETAPHY node>:8545 --jobs 0x<NeuroJobs>
+zetaphy node start --rpc https://129-221-199-191.sslip.io --jobs 0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB   # mainnet (or a local devnet)
 ```
 
 - The first time, the system creates the runner's key at `~/.zetaphy/worker.key` (permissions 0600)
-  - Use it on testnet only. Never use a key that holds real money
+  - On mainnet it holds real ZTPHY once funded: keep only the bond and a little gas on it, and withdraw earnings regularly
   - The key never leaves the machine
 - The system checks the machine itself: an ordinary CPU machine runs light mode; a machine with an NVIDIA GPU of 8 GB or more runs heavy mode
   - Right now every job is still Neuro tier 1, which uses CPU only
 - Steps:
-  1. Send testnet ZETAPHY to the runner's address, then `zetaphy node register` to post the bond (default 100 ZETAPHY)
+  1. Send ZTPHY to the runner's address, then `zetaphy node register` to post the bond (default: NeuroJobs' `workerBond`)
   2. `zetaphy node start` to start taking jobs
   3. `zetaphy node status` to see earnings and stats, then `zetaphy node withdraw` to withdraw earnings
   4. To stop running: `zetaphy node unbond`, wait 1 hour, then `zetaphy node withdraw-bond` and `zetaphy node withdraw`
@@ -109,7 +120,7 @@ zetaphy job get 0          # result + "confirmedBy" (confirmed by N runners) + c
 zetaphy job challenge 0 --verdict 0x<correct answer>   # do not trust this result: post a stake, state the answer you believe is correct, and open a challenge round
 ```
 
-Supported chains: `zetaphy` (the ZETAPHY testnet itself) and every chain in `zetaphy-neuro/src/chains.js` (`eth`, `bsc`, `base`, `arbitrum`, `sol`, `sui`, `aptos`, `osmosis`, `neutron`, `near`, `starknet`, `bitcoin`, `ton`)
+Supported chains: `zetaphy` (the ZETAPHY chain the jobs run on: mainnet, or a local devnet) and every chain in `zetaphy-neuro/src/chains.js` (`eth`, `bsc`, `base`, `arbitrum`, `sol`, `sui`, `aptos`, `osmosis`, `neutron`, `near`, `starknet`, `bitcoin`, `ton`)
 - Only chains on the NeuroControl list are accepted (`zetaphy deploy` sets up this list). For other chains `request` reverts (`UnknownChain`). Add/remove with the `approve-chain` / `remove-chain` votes
 
 ## Users without ZETAPHY: pay in test USDC/USDT (stage 2)
@@ -347,7 +358,7 @@ zetaphy bridge open --testnet --audit-report https://github.com/pospos191-alt/ze
 
 - **Separate multisigs:** guardian (presses pause) and governance (sets config, opens routes, reopens) are different multisigs. **One person holds one key.** No owner is shared between the two. No deployer key
 - **Each owner uses a hardware wallet** (Ledger or Trezor) through MetaMask: MetaMask → account icon → **Add account or hardware wallet → Add hardware wallet** → choose Ledger/Trezor → choose the account
-  - Add the ZETAPHY network in MetaMask (chain id 77390, public RPC), then use that hardware account's address as the owner
+  - Add the ZETAPHY network in MetaMask (mainnet: chain id 3659, RPC https://129-221-199-191.sslip.io), then use that hardware account's address as the owner
   - Confirm every transaction on the device screen (check `to` and data). Never store the device seed on a computer or in the cloud
 - **SimpleMultisig** (in this folder): `zetaphy deploy-multisig --owners 0xA,0xB,0xC --threshold 2`. Each owner does `propose` / `confirm` / `execute` from MetaMask (e.g. the explorer's "Write contract" page)
 - **Safe:** the chain has the Safe singleton factory (`0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7`) installed from genesis, so Safe (singleton, proxy factory) can be deployed at the same addresses as on other chains with
@@ -906,7 +917,7 @@ zetaphy pq native handover 0x<owner> zetaphy1<new controller>
     and `pqClient` builds the tx itself around the returned signature. If the `txHex` the signer returns does not match, it is not sent
 - Tested on a real chain (`npm run test:devnet:pq`, also run in CI): sending works, and the chain rejects transactions using another key to impersonate the account, tampered signatures, and replayed old transactions
   - The same suite tests `token-send`, `call --value`, `stake`, `rewards`, `unstake`, and that a reverted call must not move money (requires a `zetaphyd` with `MsgEVMCall`)
-- Local test chain (chain id other than `zetaphy_77390-1`): set `ZETAPHY_CHAIN_ID`
+- The `pq` commands expect the Cosmos chain id `zetaphy_77390-1` (a local devnet's) unless `ZETAPHY_CHAIN_ID` is set: on mainnet set `ZETAPHY_CHAIN_ID=zetaphy_3659-1`
 - Validators sign votes with ML-DSA-44 in addition to ed25519, and every block carries an ML-DSA certificate for the previous block (check with `zetaphy pq verify-block`)
 
 ### Security in the chain core: `zetaphy security` (Q-day, consent, IBC hold)
@@ -1027,7 +1038,9 @@ Still requiring real people: multiple validators (Gate 1) and audits (Gates 2–
 
 ## Before real money (do not skip)
 
-Everything in this folder is for **testnet only**. Before mainnet or before accepting real money, these conditions must be met (per the plan)
+This was the plan for the testnet. ZETAPHY mainnet launched on 2026-11-13 before gates 2 and 3 were met (one validator, no independent
+audit yet): the [mainnet notice](../docs/ZETAPHY-MAINNET-NOTICE.md) says so. The gates below still have to be met before the bridge opens or large
+amounts are at stake (per the plan)
 
 | Gate | Condition | Who does it |
 |---|---|---|

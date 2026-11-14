@@ -33,7 +33,8 @@ node cli.js near token.near        # contract/token on NEAR
 node cli.js starknet 0x...        # Cairo contract on Starknet
 node cli.js bitcoin DOG•GO•TO•THE•MOON  # Rune token on Bitcoin (or ID 840000:3)
 node cli.js osmosis osmo1...      # CosmWasm (Rust) contract or factory/osmo1.../name
-node cli.js zetaphy-wasm zetaphy1... --rest https://<ZETAPHY node>/rest   # CosmWasm contract on ZETAPHY (you specify the node)
+node cli.js zetaphyMainnet 0x...   # contract on ZETAPHY mainnet (chain 3659); `zetaphy` is the retired testnet's entry
+node cli.js zetaphy-wasm zetaphy1... --rest https://129-221-199-191.sslip.io/rest --chain-id zetaphy_3659-1   # CosmWasm contract on ZETAPHY mainnet (the default --chain-id is the retired testnet's)
 node cli.js arbitrum 0x... --json # full report
 npm run web                       # open the web page at http://localhost:8080/
 ```
@@ -82,18 +83,22 @@ every block is not counted. The page shows it under the form; the explorer shows
 - Asks the node for counts only (`tx_search` with `per_page=1`, reading `total_count`): a few dozen small requests per
   refresh, whatever the chain's size. Refreshed by a daily Vercel cron (`vercel.json`) or the first view after 6 hours,
   at most once an hour, so page views do not spend the node's outbound data.
-- Stored in the counter's store (D1 or Redis, see above). No new settings; optional `NEURO_ZETAPHY_COMET` (default
-  `https://rpc.sawasdeecoin.com/rpc/`).
+- Stored in the counter's store (D1 or Redis, see above). No new settings; optional `NEURO_ZETAPHY_COMET` (default: ZETAPHY mainnet's
+  `https://129-221-199-191.sslip.io/rpc/`; the testnet's `rpc.sawasdeecoin.com` was shut down on 2026-11-14). A month start
+  remembered from another chain (higher than the node's head) is searched again.
 - Not in `src/`: no skill vote needed. A rare transaction with two message types of one kind counts twice in that kind.
 
 ## Telegram bot (`api/telegram.js`, `server/telegram.js`)
 
-The ZETAPHY bot (@awasdeebot) answers in English (`TELEGRAM_BOT_LANG`: another of the 8 languages, or `auto` for each user's Telegram language; open `?setup=1` again after changing it) and keeps the testnet
-airdrop list. It holds no key and no coin: the admin exports the list and sends with `gov.sh airdrop`.
+The ZETAPHY bot (@awasdeebot) answers in English (`TELEGRAM_BOT_LANG`: another of the 8 languages, or `auto` for each user's Telegram language; open `?setup=1` again after changing it) and keeps a list of
+wallets. It was the testnet airdrop's list; the testnet was shut down on 2026-11-14, and no mainnet airdrop has been
+announced for this list, which `/start` and `/claim` say. `/start` points to the ZTPHY airdrop round 1 for SWD holders
+([docs/AIRDROP-ROUND1.md](../docs/AIRDROP-ROUND1.md), link page `https://app.sawasdeecoin.com/airdrop-link.html`).
+It holds no key and no coin: the admin exports the list and sends with `gov.sh airdrop`.
 
 | Command | Who | What |
 |---|---|---|
-| `/start` | anyone | what ZETAPHY is, buttons to the app, Neuro and "What is ZETAPHY?" |
+| `/start` | anyone | what ZETAPHY is (mainnet, chain 3659, ZTPHY, the risk sentence), the round 1 airdrop link, buttons to the app, Neuro and "What is ZETAPHY?" |
 | `/claim <0x… or zetaphy1…>` | anyone, private chat | puts the wallet on the list: one wallet per Telegram account, one account per wallet, at most `AIRDROP_MAX`; members of `TELEGRAM_CHANNEL` only, when it is set |
 | `/check <address> [chain]` | anyone | a link to Neuro's check |
 | `/count`, `/export`, `/announce <text>` | `TELEGRAM_ADMIN_IDS` | how many, the list as `airdrop.txt`, a post to the channel |
@@ -107,8 +112,9 @@ Set it up (once):
 4. Redeploy, then open `https://neuro-api.sawasdeecoin.com/api/telegram?setup=1` once: it points Telegram at the
    webhook (with a secret derived from the token, checked on every call) and sets the command menu.
 
-To send: `/export` in the bot, copy `airdrop.txt` to the genesis node, `gov.sh airdrop airdrop.txt 100`
-(zetaphy-chain/README.md, "Testnet airdrop"); paid wallets are remembered there.
+To send (only once the owner announces an airdrop for this list): `/export` in the bot, copy `airdrop.txt` to the node,
+`gov.sh airdrop airdrop.txt 100` (zetaphy-chain/README.md, "Testnet airdrop", which describes how it ran on the
+retired testnet); paid wallets are remembered there.
 
 ## Recognising tokens created by the ZETAPHY launcher
 
@@ -355,8 +361,10 @@ Today it is the learned risk score with fixed templates, not a language model. T
 ZETAPHY chain" adds ThreatRegistry flags and past verdicts as `CHAIN<n>` context for any provider (`ai/onchain.js`).
 Pack a model: `npm run model-pack -- --in <file> --name <n> --version <v> --runtime <r> --license <spdx>`.
 Browsers find each other by themselves through the SignalBoard contract on the ZETAPHY chain (signed, encrypted,
-short-lived offers; `ai/browser/discovery.js`), once it is deployed and set in `ai/browser/config.js`; the manual codes
-still work without it. The box "Tiny language model, split across browsers" runs a 0.34M-parameter Llama-style model
+short-lived offers; `ai/browser/discovery.js`), once it is set in `ai/browser/config.js`; the manual codes
+still work without it. **Not on mainnet yet:** `signalBoard` is `null` (the testnet's board and the faucet that paid
+its throwaway posting keys are gone with the testnet; paying such keys from the mainnet faucet, which gives real ZTPHY,
+is the owner's decision). The panel reads ThreatRegistry records from ZETAPHY mainnet (`graph/sources.js` `ZETAPHY`). The box "Tiny language model, split across browsers" runs a 0.34M-parameter Llama-style model
 trained on these docs (`web/models/zetaphy-docs-tiny/1`, `ai/browser/llama.js`), here or with its layers split across
 two browsers, with the same tokens either way (it writes doc-like text, not answers).
 Design, limits and what is missing: [docs/future/browser-ai.md](../docs/future/browser-ai.md).

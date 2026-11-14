@@ -71,7 +71,8 @@ export const NETWORKS = Object.freeze({
     },
     // faucet / mining: the public sentry's faucet (zetaphy_faucet, zetaphy_faucetPow; its amounts and daily budget
     // come from zetaphy_faucetPowInfo, and the pages say so when it is off or today's budget is used up)
-    features: only('wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining'),
+    // validators: joining as a validator (install.sh validator, zetaphy-chain/join-validator.sh; validators.html)
+    features: only('wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining', 'validators'),
   }),
   // retired 2026-11-14: never chosen by a visitor (see the top of this file)
   testnet: freeze({
@@ -146,8 +147,8 @@ export const hasFeature = (net, feature) => net?.features?.[feature] === true;
 /**
  * The contracts (hub-config.json `contracts` keys) a feature needs: on a network where the feature is off, it turns on
  * once ALL of them are deployed there (the hub reads them from its build, hub-config.json `mainnet`). Features not
- * listed here (the NFT app, DLMM, the bridge, joining as a validator, test tokens, and the pages that still sign for the
- * testnet's chain id only: offline trading, the immune network, risk forecasts) change only with this file.
+ * listed here (DLMM, the bridge, test tokens, and the page that still signs for the testnet's chain id only: risk
+ * forecasts) change only with this file. The NFT app has its own rule (nftReady).
  */
 export const FEATURE_CONTRACTS = Object.freeze({
   airdrop: ['airdropDistributor'],
@@ -161,19 +162,28 @@ export const FEATURE_CONTRACTS = Object.freeze({
   aiMap: ['modelRegistry'],
   federated: ['federatedRounds'],
   quantumWallet: ['quantumRescue'],
+  offline: ['zetaphyCheques', 'offlineOrders', 'offlineCash'],
+  immune: ['immuneRegistry'],
 });
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
-/** Which features `contracts` (hub-config.json `contracts` of this network) has every contract for. */
-export const deployedFeatures = (contracts) => Object.keys(FEATURE_CONTRACTS)
-  .filter((f) => FEATURE_CONTRACTS[f].every((k) => ADDRESS.test(String(contracts?.[k] ?? ''))));
+/**
+ * The NFT app on a network where it is off: its factory and marketplace deployed (hub-config.json `nft`) AND the
+ * collections' shared code keys protected in the ThreatRegistry: `nftCodeKeysProtected: true` in the mainnet config
+ * (zetaphy-launch/state/3659.contracts.json; its `contracts` step writes it from the chain once the timelock batch that
+ * protects them has run, docs/ZETAPHY-MAINNET-PROCEDURE.md 16.11). Until then the NFT tab stays "not on mainnet yet".
+ */
+export const nftReady = (extra) => extra?.nftCodeKeysProtected === true && ADDRESS.test(String(extra?.nft?.factory ?? '')) && ADDRESS.test(String(extra?.nft?.marketplace ?? ''));
+/** Which features `contracts` (hub-config.json `contracts` of this network) has every contract for; `extra`: { nft, nftCodeKeysProtected }. */
+export const deployedFeatures = (contracts, extra = {}) => [...Object.keys(FEATURE_CONTRACTS)
+  .filter((f) => FEATURE_CONTRACTS[f].every((k) => ADDRESS.test(String(contracts?.[k] ?? '')))), ...(nftReady(extra) ? ['nft'] : [])];
 
 /**
  * `net` with the features whose contracts the build found on it (deployedFeatures) turned on: what the owner deploys
  * later shows up without a code change. Never turns a feature off; the testnet (everything on) is returned as is.
  */
-export function withDeployed(net, contracts) {
-  const add = deployedFeatures(contracts).filter((f) => !hasFeature(net, f));
+export function withDeployed(net, contracts, extra = {}) {
+  const add = deployedFeatures(contracts, extra).filter((f) => !hasFeature(net, f));
   if (!add.length) return net;
   return Object.freeze({ ...net, features: Object.freeze({ ...net.features, ...Object.fromEntries(add.map((f) => [f, true])) }) });
 }

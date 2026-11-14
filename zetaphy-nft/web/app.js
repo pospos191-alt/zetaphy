@@ -15,9 +15,9 @@ import { safety, ledgerReason } from './lib/wallet-safety.js';
 import { LEDGER_ID_RE, ledgerId, ledgerProvider, hidSupported, preloadTransport } from './lib/ledger.js';
 import * as txg from './lib/txguard.js';
 import { PQSNAP_ID, snapHost, snapProvider, pqsText } from './lib/pqsnap.js';
-// The network (lib/network.js, shared with the hub): mainnet unless the visitor picked the testnet. The NFT contracts
-// are on the testnet only, so on mainnet this page shows "not on mainnet yet" and never reads or calls them.
-import { activeNetwork, hasFeature, networkBadge, notOnMainnetBox, watchNetwork, linkExplorer } from './lib/network.js';
+// The network (lib/network.js, shared with the hub): mainnet (chain 3659). Its NFT contracts come from
+// deployments-3659.json; until its nftCodeKeysProtected is true the page shows "not on mainnet yet" and calls nothing.
+import { activeNetwork, hasFeature, nftReady, networkBadge, notOnMainnetBox, watchNetwork, linkExplorer } from './lib/network.js';
 const NET = activeNetwork();
 watchNetwork(window);
 
@@ -276,7 +276,7 @@ async function renderSafetyBanner() {
   let amount = null;
   if (S.wallet?.account && S.rpc) amount = await S.rpc.call('eth_getBalance', [S.wallet.account, 'latest']).then(BigInt).catch(() => null);
   if (seq !== bannerSeq) return;
-  sf.balanceBanner({ host: $('#ws-host'), amount, threshold: BIG_BALANCE, symbol: 'ZETAPHY', hardware: isHardware(), help: HELP });
+  sf.balanceBanner({ host: $('#ws-host'), amount, threshold: BIG_BALANCE, symbol: EVM_SYMBOL, hardware: isHardware(), help: HELP });
 }
 
 /** Forgets the account here and on every page of the site (idle). */
@@ -313,7 +313,7 @@ async function needWallet() {
 
 /** Simulates, then sends through the wallet, then waits for the receipt. The
  *  wallet's chain id is read again right before signing (the user may have
- *  switched networks meanwhile) and the transaction names chain 77390 itself. */
+ *  switched networks meanwhile) and the transaction names the network's chain id itself. */
 async function sendTx(to, data, value = 0n, what = '') {
   const w = await needWallet();
   if (!S.rpc) throw new Error(T('noRpc'));
@@ -974,13 +974,23 @@ function startGated() {
   gate();
 }
 
+/** The deployment record of the page's network: deployments.json on the testnet's record, deployments-<chain id>.json on mainnet. */
+const depFile = () => (NET.testnet ? './deployments.json' : `./deployments-${NET.chainId}.json`);
+/** A record that is for this network, with its own node: its rpc must be the network's (never another chain's). */
+function depFor(d) {
+  if (!d || typeof d !== 'object' || d.chainId !== NET.chainId) return {};
+  return NET.testnet ? d : { ...d, rpc: NET.rpc };
+}
+
 async function start() {
-  if (!hasFeature(NET, 'nft')) { startGated(); return; }
-  document.getElementById('explorer-link')?.setAttribute('href', EXPLORER_URL);
   try {
-    const r = await fetch('./deployments.json', { cache: 'no-cache' });
-    if (r.ok) S.dep = await r.json();
+    const r = await fetch(depFile(), { cache: 'no-cache' });
+    if (r.ok) S.dep = depFor(await r.json());
   } catch { /* none yet */ }
+  // Mainnet: open once the factory and marketplace are in the record AND the collections' code keys are protected
+  // (nftCodeKeysProtected, lib/network.js nftReady: the same rule as the hub's NFT tab); else "not on mainnet yet".
+  if (!hasFeature(NET, 'nft') && !nftReady({ nft: S.dep, nftCodeKeysProtected: S.dep.nftCodeKeysProtected })) { S.dep = {}; startGated(); return; }
+  document.getElementById('explorer-link')?.setAttribute('href', EXPLORER_URL);
   S.wallets = discoverWallets(window, () => {});
   applyChrome();
   $('#lang').addEventListener('change', (ev) => { S.lang = pickLang(ev.target.value); save('zn.lang', S.lang); applyChrome(); route(); });

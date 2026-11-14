@@ -1,11 +1,15 @@
 [English](README.md) | **ภาษาไทย**
 
-# ZETAPHY Chain — ขั้น 0: เชนทดลอง (testnet)
+# ZETAPHY Chain — ขั้น 0: เชนทดลอง (testnet ปิดถาวรแล้ว 2026-11-14)
 
 > **Mainnet:** `zetaphy_3659-1` (EVM 3659, ZTPHY) เริ่มเชน 2026-11-13 14:00 UTC (21:00 น. เวลาไทย) genesis sha256
 > `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667` ไฟล์และวิธีตรวจ:
 > [mainnet/zetaphy_3659-1/](mainnet/zetaphy_3659-1/README.th.md) อ่าน
-> [ประกาศ](../docs/ZETAPHY-MAINNET-NOTICE.th.md) ก่อน หน้านี้อธิบาย testnet
+> [ประกาศ](../docs/ZETAPHY-MAINNET-NOTICE.th.md) ก่อน RPC สาธารณะ `https://129-221-199-191.sslip.io` explorer
+> https://explorer.sawasdeecoin.com/?network=mainnet ถ้าจะรัน validator: `install.sh validator` (ด้านล่าง)
+>
+> **หน้านี้อธิบาย testnet** (`zetaphy_77390-1`, EVM 77390, `rpc.sawasdeecoin.com`) ซึ่ง **ปิดถาวรแล้วเมื่อ
+> 2026-11-14**: RPC, faucet และเหรียญของมันไม่มีแล้ว ขั้นตอนเก็บไว้เป็นบันทึกว่าเคยรันอย่างไร ห้ามส่งอะไรไปที่ chain 77390
 
 เชนทดลอง validator ตัวเดียว รันบน **Oracle Cloud** ทั้งหมด ทำผ่านหน้าเว็บ Oracle อย่างเดียว
 ไม่ต้องรันอะไรบนคอมพิวเตอร์ของคุณ
@@ -182,14 +186,18 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
    ```
    เป้าของประตู 3: validator อิสระ ≥ 20 ราย และไม่มีใครถือเกิน 33%
 
-**Faucet (testnet):** `zetaphy_faucet` (ผ่าน https เท่านั้น) ให้ 10 ZETAPHY ต่อที่อยู่ วันละครั้ง ไม่เกิน 3 ครั้งต่อวันต่อ IP (IPv6 นับทั้ง /64 เป็นหนึ่ง) และรวมไม่เกิน 200 ครั้งต่อวัน
+**Faucet ของ mainnet:** มีเฉพาะบน sentry สาธารณะของ mainnet: `zetaphy_faucet` ให้ 1 ZTPHY ต่อที่อยู่วันละครั้ง และ `zetaphy_faucetPow`
+(หน้า Mine ของ hub) ให้ 5 ZTPHY ต่อ proof ที่ผ่าน รวมกันไม่เกิน 200 ZTPHY ต่อวัน (UTC) (การตัดสินใจของเจ้าของ ขั้น 12.1 ของ
+[docs/ZETAPHY-MAINNET-PROCEDURE.th.md](../docs/ZETAPHY-MAINNET-PROCEDURE.th.md)) faucet ของ testnet ด้านล่างหายไปพร้อม testnet แล้ว
+
+**Faucet (testnet ปิดแล้ว):** `zetaphy_faucet` (ผ่าน https เท่านั้น) ให้ 10 ZETAPHY ต่อที่อยู่ วันละครั้ง ไม่เกิน 3 ครั้งต่อวันต่อ IP (IPv6 นับทั้ง /64 เป็นหนึ่ง) และรวมไม่เกิน 200 ครั้งต่อวัน
 และไม่ให้ที่อยู่ที่มีเงินอยู่แล้ว ใช้กุญแจแยกที่ถือ 1,000,000 ZETAPHY ทดลอง (จากส่วนสภาพคล่อง) เท่านั้น
 ```bash
 curl -s https://<ชื่อ>.sslip.io -H 'content-type: application/json' \
   --data '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucet","params":["0xที่อยู่ของคุณ"]}'
 ```
 
-**Faucet แบบ proof of work (testnet):** `zetaphy_faucetPow(address, height, nonce)` ให้ 10 ZETAPHY เท่ากัน แลกกับการให้เบราว์เซอร์คำนวณ
+**Faucet แบบ proof of work (testnet ปิดแล้ว):** `zetaphy_faucetPow(address, height, nonce)` ให้ 10 ZETAPHY เท่ากัน แลกกับการให้เบราว์เซอร์คำนวณ
 ไม่กี่นาที แทนการเชื่อ IP ของผู้ขอ: `sha256(chainId 8 ไบต์ || แฮชของบล็อก height || ที่อยู่ 20 ไบต์ || nonce 8 ไบต์)` ต้องขึ้นต้นด้วยบิตศูนย์ 30 บิต
 (`zetaphy_faucetPowInfo` บอกความยาก รางวัล และสิทธิ์ที่เหลือวันนี้) โดยบล็อกต้องอยู่ใน 100 บล็อกล่าสุด คำตอบผูกกับที่อยู่และใช้ได้ครั้งเดียว
 ข้อจำกัดวันละครั้งต่อที่อยู่ ยอดรวม 200 ต่อวัน และ "ยังไม่มีเงิน" ใช้ร่วมกับ `zetaphy_faucet` ส่วน rpc-guard ให้ขอแบบนี้ได้วันละ 10 ครั้งต่อ IP
@@ -541,6 +549,10 @@ handler `zetaphy-v4`) และบนเชนจริง `npm run test:devnet:
 ทดสอบ: `fork-tests/evmd/zetaphy_firewall_test.go`, `zetaphy_firewall_core_test.go`
 
 ### แอร์ดรอปบน testnet (`gov.sh airdrop`)
+
+บน mainnet `gov.sh airdrop` รันได้เฉพาะเมื่อตั้ง `AIRDROP_MAINNET=1`: แอร์ดรอปแบบส่งให้เลยที่เจ้าของตัดสินใจเมื่อ 2026-11-14
+(คนละ 10 ZTPHY ให้ 100,000 ที่อยู่ แต่ละชุดต้องยืนยันว่าเข้าบล็อกก่อนจึงนับว่าจ่ายแล้ว): [docs/AIRDROP.th.md](../docs/AIRDROP.th.md) หัวข้อ 7
+ส่วนที่เหลือของหัวข้อนี้คือ testnet
 
 ส่ง ZETAPHY ทดสอบให้หลายกระเป๋าพร้อมกัน จากกองทุน `community` (200 ล้านของผู้ถือ SWD ไม่ถูกแตะ)
 ใส่ที่อยู่บรรทัดละหนึ่งในไฟล์ (`0x…` จาก MetaMask, Trust หรือกระเป๋า EVM ใดก็ได้ หรือ `zetaphy1…` จาก Keplr;

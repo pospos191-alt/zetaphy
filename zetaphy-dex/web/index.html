@@ -6,12 +6,12 @@
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="dark light">
 <title>ZETAPHY Swap</title>
-<meta name="description" content="Swap tokens on the ZETAPHY testnet in AMM and DLMM pools. Static page, no third-party code.">
+<meta name="description" content="Swap tokens on ZETAPHY mainnet (chain 3659, ZTPHY) in AMM pools. Static page, no third-party code.">
 <link rel="canonical" href="https://swap.sawasdeecoin.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ZETAPHY">
 <meta property="og:title" content="ZETAPHY Swap">
-<meta property="og:description" content="Swap tokens on the ZETAPHY testnet in AMM and DLMM pools. Static page, no third-party code.">
+<meta property="og:description" content="Swap tokens on ZETAPHY mainnet (chain 3659, ZTPHY) in AMM pools. Static page, no third-party code.">
 <meta property="og:url" content="https://swap.sawasdeecoin.com/">
 <meta property="og:image" content="https://swap.sawasdeecoin.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -27,7 +27,7 @@
 <body>
 <header class="app-header">
   <a class="brand" href="https://swd-amm.sawasdeecoin.com/" rel="noopener" title="SWD AMM"><img class="brand-logo" src="./logo.svg" alt="" width="28" height="28"><span class="brand-text" data-i18n="title">ZETAPHY Swap</span></a>
-  <span class="badge" data-i18n="badge">Testnet · Unaudited</span>
+  <span class="badge" data-i18n="badge">ZETAPHY mainnet · Unaudited</span>
   <nav class="tabs" role="tablist">
     <button type="button" class="tab" role="tab" data-tab="swap" data-i18n="tabSwap" aria-selected="true">Swap</button>
     <button type="button" class="tab" role="tab" data-tab="pool" data-i18n="tabPool" aria-selected="false">Pool</button>
@@ -35,7 +35,7 @@
     <button type="button" class="tab" role="tab" data-tab="dlmm" aria-selected="false">DLMM</button>
   </nav>
   <div class="hdr-actions">
-    <a class="explorer-link" href="https://explorer.sawasdeecoin.com/" target="_blank" rel="noopener noreferrer">Explorer ↗</a>
+    <a class="explorer-link" href="https://explorer.sawasdeecoin.com/?network=mainnet" target="_blank" rel="noopener noreferrer">Explorer ↗</a>
     <select id="lang-btn" class="lang-select" data-i18n-title="langLabel" aria-label="Language" autocomplete="off">
       <option value="en" lang="en">English</option>
       <option value="zh" lang="zh">中文</option>
@@ -53,7 +53,7 @@
 </header>
 
 <main>
-  <!-- the network badge and switch (lib/network.js): mainnet by default, the testnet selectable -->
+  <!-- the network badge (lib/network.js): mainnet is the only network (the testnet was shut down on 2026-11-14) -->
   <div id="net-badge" class="net-badge"></div>
   <div id="banner" class="banner" role="status" hidden></div>
   <div id="ws-host"></div>

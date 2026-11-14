@@ -1,6 +1,7 @@
-// The ZETAPHY Telegram bot (api/telegram.js is its webhook). It keeps a list of wallets for the testnet
-// airdrop and never holds a key or a coin: the list is exported to the admin, who sends with
-// `gov.sh airdrop` on the genesis node (zetaphy-chain/README.md, "Testnet airdrop").
+// The ZETAPHY Telegram bot (api/telegram.js is its webhook). It keeps a list of wallets (it was the testnet
+// airdrop's list; the testnet was shut down on 2026-11-14, and no mainnet airdrop is announced for it, which the
+// bot says) and never holds a key or a coin: the list is exported to the admin (`gov.sh airdrop`).
+// The ZTPHY airdrop round 1 (SWD holders) is not this list: docs/AIRDROP-ROUND1.md, linked from /start.
 // It answers in English (TELEGRAM_BOT_LANG: another of the 8 codes, or "auto" for each user's language).
 //   /start            what ZETAPHY is, buttons to the apps
 //   /claim <address>  put a wallet on the list: private chat only, one wallet per Telegram account, one
@@ -145,7 +146,7 @@ export async function handleUpdate(update, { api, store, cfg, me = 'awasdeebot' 
       if (!admin) return 'ignored';
       if (!store) { await say(L.noStore); return 'export-nostore'; }
       const [list] = await store.pipeline([['SMEMBERS', K_ADDRS]]);
-      const text = `# ZETAPHY testnet airdrop list (${list.length} wallets), for: gov.sh airdrop airdrop.txt ${cfg.amount}\n${list.join('\n')}\n`;
+      const text = `# ZETAPHY Telegram airdrop list (${list.length} wallets), for: gov.sh airdrop airdrop.txt ${cfg.amount}\n${list.join('\n')}\n`;
       await api.sendFile(chat, 'airdrop.txt', text, fill(L.exported, { n: list.length, amount: cfg.amount }));
       return 'export';
     }

@@ -45,7 +45,7 @@ const quote = (v) => `'${String(v).replace(/'/g, '')}'`;
 
 /**
  * A minimal CometBFT JSON-RPC client.
- * @param {string} url e.g. https://rpc.sawasdeecoin.com/rpc/
+ * @param {string} url e.g. https://129-221-199-191.sslip.io/rpc/ (ZETAPHY mainnet)
  */
 export function cometClient(url, { fetchImpl = globalThis.fetch, timeoutMs = 10_000 } = {}) {
   let id = 0;
@@ -122,7 +122,8 @@ export async function refresh(store, comet, { now = () => Date.now() } = {}) {
   const month = monthOf(t);
   let [ms] = await store.pipeline([['GET', `${P}ms:${month}`]]);
   ms = ms == null ? null : Number(ms);
-  if (!ms) {
+  // a month start above the chain's head was found on another chain (the testnet, before it was shut down): find it again
+  if (!ms || ms > latest + 1) {
     const d = new Date(t);
     ms = await firstBlockAt(comet, Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1), earliest, latest);
     await store.pipeline([['SET', `${P}ms:${month}`, ms]]);

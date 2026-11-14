@@ -2,12 +2,14 @@
 
 # ZETAPHY PQ Wallet
 
-A web wallet for **native PQ accounts** on ZETAPHY testnet
+A web wallet for **native PQ accounts** on ZETAPHY mainnet (`zetaphy_3659-1`, EVM chain 3659, coin ZTPHY)
 - The account is controlled by an ML-DSA-44 key (FIPS 204) only. There is no ECDSA key at all
 - Transactions are Cosmos SDK messages (`MsgSend`, `MsgDelegate`, `MsgEVMCall`, etc.) whose ML-DSA signatures the chain verifies itself
 - It is a static site with no server-side code
 
-> **For testnet only, not real money**
+> **Mainnet: real ZTPHY.** A transfer cannot be undone. Mainnet runs on a single validator and its code has not yet passed an
+> independent external audit: use it only with amounts you can afford to lose ([mainnet notice](../docs/ZETAPHY-MAINNET-NOTICE.md)).
+> The testnet (chain 77390) was shut down on 2026-11-14.
 > The seed is the wallet's only key. If you lose it or forget the password, the funds are lost forever
 
 ## Why it is separate from zetaphy-neuro
@@ -41,7 +43,7 @@ zetaphy-neuro promises users that it "never touches keys". This wallet has to ho
 - Lock a MetaMask account to this wallet (quantum lock, permanent)
   - You must tick to accept the warning first, then confirm again in the window that shows both accounts
   - Uses `window.ethereum`: `eth_requestAccounts`, then `eth_sendTransaction` `{to: 0x…5051, value: 0x0, data: this wallet's 0x address}`
-  - Checks first that this wallet has sent a transaction before (the chain knows its public key), that MetaMask is on chain 77390, and that the account is not already locked
+  - Checks first that this wallet has sent a transaction before (the chain knows its public key), that MetaMask is on chain 3659 (ZETAPHY mainnet), and that the account is not already locked
   - After locking, that account's MetaMask key can no longer be used on ZETAPHY. If this wallet's seed is lost, that account is lost too
 - Accounts this wallet controls
   - Enter the address of a locked account. The page asks `zetaphy_pqAccount` to confirm that `quantumLockedTo` really is this wallet before using it
@@ -71,7 +73,7 @@ zetaphy-neuro promises users that it "never touches keys". This wallet has to ho
 
 Before signing a ZETAPHY send, a token send (checking both the token contract and the recipient), and EVM transactions this page builds for other wallets (quantum lock), the page checks the destination against `ThreatRegistry` (see zetaphy-network/README.md Step 4)
 - Reads the code with `eth_getCode` and computes the Neuro fingerprint (`fp1`, the same code as `zetaphy-neuro/src/fingerprint.js`, included in the bundle) and the keccak-256 of the code
-- Queries `isFlagged(fp1)`, `isCodeFlagged(codehash)`, and `isAddressFlagged(77390, destination)` (warning), together with `isEnforced` / `isCodeEnforced` / `isAddressEnforced` (enforced: flagged for longer than `enforceDelay`, or through the fast track)
+- Queries `isFlagged(fp1)`, `isCodeFlagged(codehash)`, and `isAddressFlagged(3659, destination)` (warning), together with `isEnforced` / `isCodeEnforced` / `isAddressEnforced` (enforced: flagged for longer than `enforceDelay`, or through the fast track)
 - Proxies (best effort): checks the real code behind a proxy the same way, namely the EIP-1967 implementation slot, the EIP-1967 beacon (and its `implementation()`), and the target of an EIP-1167 minimal proxy, up to 3 levels deep. Other proxy types (custom slots, target chosen at call time) cannot be seen
   - The views queried and the proxy following come from `zetaphy-network/src/vaccine.js` (included in the bundle), the same code ZETAPHY Snap uses to check every transaction in plain MetaMask
 - Checks when you click "Check before sending" and checks again when you confirm before signing, both with the key in this page and in MetaMask Snap mode (so the snap is never even asked to sign)
@@ -82,9 +84,9 @@ Before signing a ZETAPHY send, a token send (checking both the token contract an
   the evidence (`evidenceOf`: reportHash, URI, and how to re-check with Neuro), responses (`responseAt(key, 0..2)`: kept per author, each shown with the author's address; responders appointed by governance first, then newest first, at most 3, from the flagged key and other keys of the same destination; control/bidi characters removed),
   and the line "Automated code analysis, not an accusation". If the evidence cannot be read, it says so, but that does not let a refused transaction be sent.
   Contract owners can respond or appeal on-chain (zetaphy-network/README.md Step 4). See [`docs/LEGAL.md`](../docs/LEGAL.md)
-- The registry address comes from `<meta name="zetaphy-threat-registry">` in `index.html` or from "Advanced settings" under the RPC field (remembered in this browser)
+- The registry address is mainnet's ThreatRegistry `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139` (from `network.js`), or the one set in "Advanced settings" under the RPC field (remembered in this browser). The `<meta name="zetaphy-threat-registry">` tag in `index.html` is the retired testnet's value and is read only on its record in the browser tests
 - **Registry set but the check fails** (node does not respond, the address is not a registry): does not sign (fails closed)
-- **Registry not set yet**: sending is allowed, but the confirm screen shows a clear warning box "destination code has not been checked yet", so the wallet is usable before there is a registry on testnet
+- **Registry not set yet**: sending is allowed, but the confirm screen shows a clear warning box "destination code has not been checked yet", so the wallet stays usable when no registry is set
 - Not checked: deploy (there is no destination yet; the confirm screen says so) and stake (goes to a precompile, which has no code)
 
 ## WalletConnect: next step
@@ -156,18 +158,18 @@ When this page's account holds more than 1,000 ZETAPHY (native balance; staked c
 
 - **Native PQ account → ZETAPHY Snap (key inside MetaMask):** install MetaMask (Flask until the snap is published) and back up its Secret
   Recovery Phrase; lock this wallet and click "Connect MetaMask"; copy the zetaphy1… address it shows; unlock this wallet again and send the funds there
-- **EVM accounts → hardware wallet:** connect a Ledger or Trezor to MetaMask or Rabby, add ZETAPHY Testnet with the buttons on this page,
+- **EVM accounts → hardware wallet:** connect a Ledger or Trezor to MetaMask or Rabby, add ZETAPHY (chain 3659) with the buttons on this page,
   send the funds to the hardware account's 0x… address, and confirm every transaction on the device's own screen
-- This is testnet: none of it is real money
+- This is mainnet: real ZTPHY
 
 ## Using it with a node
 
-Enter the JSON-RPC address of a ZETAPHY node (port 8545) in the RPC field. There is no default. The browser remembers it
+Enter the JSON-RPC address of a ZETAPHY node (port 8545) in the RPC field. The default is the public mainnet RPC `https://129-221-199-191.sslip.io`; a saved RPC wins. The browser remembers it
 - The web page on Vercel is https, so the RPC must be https too (browsers block http)
   - Nodes installed with `zetaphy-chain/setup-node.sh` (or `cloud-init.sh`) already have https:
     `https://<IP with dots changed to dashes>.sslip.io`, for example `https://1-2-3-4.sslip.io` (ports 80 and 443 must be open)
 - The node must answer CORS (preflight `OPTIONS`) for the wallet's domain
-- The web page checks `eth_chainId` to confirm it is ZETAPHY testnet (77390) every time before use
+- The web page checks `eth_chainId` to confirm it is ZETAPHY mainnet (3659) every time before use; any other chain (the retired testnet 77390 too) is refused
 - The account exists on-chain only after it first receives funds. Before that it cannot send. The web page will tell you to fund it first
 
 ## Files

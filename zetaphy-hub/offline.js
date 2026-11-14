@@ -14,11 +14,14 @@ import { withFallback } from './i18n.js';
 import { OFFLINE } from './offline-i18n.js';
 import * as core from './offline-core.js';
 import { cashCards } from './offline-cash.js';
+import { activeNetwork, netText } from './network.js';
 
 export const OF = (lang) => withFallback(OFFLINE, lang);
 const STORE = 'zetaphy-offline:v1';
 const LOCK_AFTER_MS = 15 * 60 * 1000;
-/** ZETAPHY's native coin as an ERC-20 (the router's WETH() on chain 77390): sell native ZETAPHY in an order with it. */
+// the page's network (network.js; ctx.net from the hub): every cheque and order is signed and checked for its chain id
+let CHAIN = activeNetwork().chainId;
+/** ZETAPHY's native coin as an ERC-20 (the router's WETH() on both networks): sell native ZETAPHY in an order with it. */
 export const NATIVE_ERC20 = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 // ---------------------------------------------------------------- what this browser keeps (localStorage, in try/catch)
@@ -164,6 +167,8 @@ async function syncChannel(ctx, contract, id, s) {
 
 const page = {
   render(root, ctx) {
+    const net0 = ctx.net ?? activeNetwork();
+    CHAIN = net0.chainId;
     const L = OF(ctx.lang);
     const el = ctx.el;
     const C = ctx.cfg.contracts ?? {};
@@ -362,8 +367,8 @@ const page = {
       try {
         const { secp, keccak } = await libs();
         const [contract, id] = k.split(':');
-        const sig = core.signDigest(secp, core.chequeDigest(keccak, { contract, channelId: id, cumulative: total }), unlocked.sk);
-        const text = core.encodeCheque({ contract, channelId: id, cumulative: total, sig });
+        const sig = core.signDigest(secp, core.chequeDigest(keccak, { contract, chainId: CHAIN, channelId: id, cumulative: total }), unlocked.sk);
+        const text = core.encodeCheque({ contract, chainId: CHAIN, channelId: id, cumulative: total, sig });
         // remember the new total BEFORE showing it: the next cheque builds on it
         s.signed[k] = total.toString();
         if (!save(s)) throw new Error(L.noStorage);
@@ -387,7 +392,7 @@ const page = {
       const s = load();
       const k = channelKey(ch.contract, ch.channelId);
       const snap = s.channels[k] ?? null;
-      const v = core.verifyCheque(ch, { snapshot: snap, lastSeen: BigInt(s.cheques[k]?.cumulative ?? '0'), me: ctx.account?.() ?? null, keccak, secp, contract: cheques ?? ch.contract });
+      const v = core.verifyCheque(ch, { snapshot: snap, lastSeen: BigInt(s.cheques[k]?.cumulative ?? '0'), me: ctx.account?.() ?? null, keccak, secp, contract: cheques ?? ch.contract, chainId: CHAIN });
       const dec = snap?.decimals ?? 18, sym = snap?.symbol ?? 'ZTPHY';
       const kids = [el('p', { class: v.ok ? 'msg ok off-verdict' : 'msg bad off-verdict', 'data-ok': v.ok ? '1' : '0',
         text: v.ok ? L.chequeOk(core.formatAmount(v.covered, dec), core.formatAmount(ch.cumulative, dec), sym, ch.channelId) : L.chequeBad })];
@@ -448,9 +453,9 @@ const page = {
         if (!core.isAddr(maker)) throw new Error(L.badAddress);
         const order = { maker: core.lc(maker), tokenIn: core.lc(tokenIn), tokenOut: core.lc(tokenOut), amountIn: amountIn.toString(), minAmountOut: minOut.toString(),
           deadline: String(nowSec() + hours * 3600), nonce: core.newNonce(), relayerFee: fee.toString() };
-        const sig = useKey ? core.signDigest(secp, core.orderDigest(keccak, { contract: orders, order }), unlocked.sk) : await ctx.signTyped(core.orderTypedData({ contract: orders, order }));
-        if (core.lc(core.recoverSigner(secp, keccak, core.orderDigest(keccak, { contract: orders, order }), sig) ?? '') !== core.lc(order.maker)) throw new Error(L.problem.badSignature);
-        const text = core.encodeOrder({ contract: orders, order, sig });
+        const sig = useKey ? core.signDigest(secp, core.orderDigest(keccak, { contract: orders, chainId: CHAIN, order }), unlocked.sk) : await ctx.signTyped(core.orderTypedData({ contract: orders, chainId: CHAIN, order }));
+        if (core.lc(core.recoverSigner(secp, keccak, core.orderDigest(keccak, { contract: orders, chainId: CHAIN, order }), sig) ?? '') !== core.lc(order.maker)) throw new Error(L.problem.badSignature);
+        const text = core.encodeOrder({ contract: orders, chainId: CHAIN, order, sig });
         const s = load(); s.orders.push({ text, at: nowSec() }); s.orders = s.orders.slice(-50); save(s);
         const box = await shareBox(ctx, L, text, `zetaphy-order-${order.nonce}.txt`, L.orderQr);
         const appr = el('p', { class: 'msg small', role: 'status' });
@@ -472,7 +477,7 @@ const page = {
       let p;
       try { p = core.decodeOrder(text); } catch { return relOut.replaceChildren(el('p', { class: 'msg bad', 'data-ok': '0', text: core.payloadKind(text) === 'cheque' ? L.isCheque : L.badFormat })); }
       const { secp, keccak } = await libs();
-      const v = core.verifyOrder(p, { keccak, secp, contract: orders ?? p.contract });
+      const v = core.verifyOrder(p, { keccak, secp, contract: orders ?? p.contract, chainId: CHAIN });
       const o = p.order;
       const kids = [el('p', { class: v.ok ? 'msg ok off-verdict' : 'msg bad off-verdict', 'data-ok': v.ok ? '1' : '0', text: v.ok ? L.orderOk : L.orderBad }),
         el('ul', { class: 'off-problems small' }, v.problems.map((x) => el('li', { class: 'bad', 'data-code': x.code, text: L.problem[x.code] ?? x.code }))),
@@ -510,7 +515,7 @@ const page = {
     root.replaceChildren(
       el('p', { class: 'dim small sp-intro', text: L.intro }), net,
       el('div', { class: 'grid3 off-grid' },
-        card('off-risks', L.riskTitle, null, el('ul', { class: 'off-risks small' }, L.risks.map((r) => el('li', { text: r }))), el('p', { class: 'warnline small', text: L.testnet })),
+        card('off-risks', L.riskTitle, null, el('ul', { class: 'off-risks small' }, L.risks.map((r) => el('li', { text: r }))), el('p', { class: 'warnline small', id: 'off-risk-net', text: net0.testnet ? L.testnet : netText(ctx.lang).risk })),
         card('off-keycard', L.keyTitle, L.keyTip, keyBox),
         card('off-channels', L.chTitle, L.chTip, cheques ? null : el('p', { class: 'warnline small', 'data-state': 'not-deployed', text: L.notDeployed }),
           el('h3', { text: L.openTitle }), openForm, el('h3', { text: L.syncTitle }), syncForm, syncOut, chBox),

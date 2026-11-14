@@ -33,7 +33,8 @@ node cli.js near token.near        # สัญญา/เหรียญบน NE
 node cli.js starknet 0x...        # สัญญา Cairo บน Starknet
 node cli.js bitcoin DOG•GO•TO•THE•MOON  # เหรียญ Rune บน Bitcoin (หรือรหัส 840000:3)
 node cli.js osmosis osmo1...      # สัญญา CosmWasm (Rust) หรือ factory/osmo1.../ชื่อ
-node cli.js zetaphy-wasm zetaphy1... --rest https://<โหนด ZETAPHY>/rest   # สัญญา CosmWasm บน ZETAPHY (ระบุโหนดเอง)
+node cli.js zetaphyMainnet 0x...   # สัญญาบน ZETAPHY mainnet (chain 3659) ส่วน `zetaphy` เป็นของ testnet ที่ปิดแล้ว
+node cli.js zetaphy-wasm zetaphy1... --rest https://129-221-199-191.sslip.io/rest --chain-id zetaphy_3659-1   # สัญญา CosmWasm บน ZETAPHY mainnet (--chain-id ค่าเริ่มต้นเป็นของ testnet ที่ปิดแล้ว)
 node cli.js arbitrum 0x... --json # รายงานเต็ม
 npm run web                       # เปิดหน้าเว็บที่ http://localhost:8080/
 ```
@@ -80,17 +81,21 @@ npm run web                       # เปิดหน้าเว็บที�
   อัปเดตโดย Vercel cron วันละครั้ง (`vercel.json`) หรือคนแรกที่เปิดหน้าหลังผ่านไป 6 ชั่วโมง ไม่เกินชั่วโมงละครั้ง
   การเปิดหน้าจึงไม่กินข้อมูลขาออกของโหนด
 - เก็บในที่เก็บเดียวกับตัวนับผู้ใช้ (D1 หรือ Redis) ไม่ต้องตั้งค่าเพิ่ม (ตั้ง `NEURO_ZETAPHY_COMET` ได้ถ้าต้องการ
-  ค่าเริ่มต้น `https://rpc.sawasdeecoin.com/rpc/`)
+  ค่าเริ่มต้นคือของ ZETAPHY mainnet `https://129-221-199-191.sslip.io/rpc/` ส่วน `rpc.sawasdeecoin.com` ของ testnet ปิดถาวรแล้วเมื่อ 2026-11-14
+  ถ้าจุดเริ่มเดือนที่จำไว้มาจากเชนอื่น (สูงกว่าบล็อกล่าสุดของโหนด) จะหาใหม่)
 - ไม่อยู่ใน `src/` จึงไม่ต้องโหวตทักษะ ธุรกรรมที่มีข้อความสองชนิดในประเภทเดียวกัน (พบน้อย) จะถูกนับสองครั้งในประเภทนั้น
 
 ## บอท Telegram (`api/telegram.js`, `server/telegram.js`)
 
-บอท ZETAPHY (@awasdeebot) ตอบเป็นภาษาอังกฤษ (`TELEGRAM_BOT_LANG`: เปลี่ยนเป็นภาษาอื่นใน 8 ภาษา หรือ `auto` ให้ตอบตามภาษา Telegram ของแต่ละคน เปลี่ยนแล้วเปิด `?setup=1` อีกครั้ง) และเก็บรายชื่อแอร์ดรอป testnet
+บอท ZETAPHY (@awasdeebot) ตอบเป็นภาษาอังกฤษ (`TELEGRAM_BOT_LANG`: เปลี่ยนเป็นภาษาอื่นใน 8 ภาษา หรือ `auto` ให้ตอบตามภาษา Telegram ของแต่ละคน เปลี่ยนแล้วเปิด `?setup=1` อีกครั้ง) และเก็บรายชื่อกระเป๋า
+รายชื่อนี้เคยเป็นของแอร์ดรอปบน testnet ซึ่งปิดถาวรแล้วเมื่อ 2026-11-14 และยังไม่มีการประกาศแอร์ดรอปบน mainnet สำหรับรายชื่อนี้
+ซึ่ง `/start` และ `/claim` บอกไว้ `/start` ชี้ไปที่แอร์ดรอป ZTPHY รอบ 1 สำหรับผู้ถือ SWD
+([docs/AIRDROP-ROUND1.th.md](../docs/AIRDROP-ROUND1.th.md) หน้าเชื่อมกระเป๋า `https://app.sawasdeecoin.com/airdrop-link.html`)
 บอทไม่ถือกุญแจหรือเหรียญเลย แอดมินดึงรายชื่อออกมาแล้วส่งด้วย `gov.sh airdrop`
 
 | คำสั่ง | ใครใช้ | ทำอะไร |
 |---|---|---|
-| `/start` | ทุกคน | ZETAPHY คืออะไร พร้อมปุ่มไปแอป Neuro และหน้า "ZETAPHY คืออะไร" |
+| `/start` | ทุกคน | ZETAPHY คืออะไร (mainnet, chain 3659, ZTPHY พร้อมประโยคเรื่องความเสี่ยง) ลิงก์แอร์ดรอปรอบ 1 พร้อมปุ่มไปแอป Neuro และหน้า "ZETAPHY คืออะไร" |
 | `/claim <0x… หรือ zetaphy1…>` | ทุกคน ในแชทส่วนตัว | ใส่กระเป๋าในรายชื่อ: หนึ่งบัญชี Telegram ต่อหนึ่งกระเป๋า หนึ่งกระเป๋าต่อหนึ่งบัญชี ไม่เกิน `AIRDROP_MAX` ถ้าตั้ง `TELEGRAM_CHANNEL` ต้องเป็นสมาชิกช่องก่อน |
 | `/check <ที่อยู่> [เชน]` | ทุกคน | ลิงก์ไปหน้าเช็กของ Neuro |
 | `/count`, `/export`, `/announce <ข้อความ>` | `TELEGRAM_ADMIN_IDS` | นับจำนวน ดึงรายชื่อเป็น `airdrop.txt` และโพสต์ลงช่อง |
@@ -104,8 +109,8 @@ npm run web                       # เปิดหน้าเว็บที�
 4. Redeploy แล้วเปิด `https://neuro-api.sawasdeecoin.com/api/telegram?setup=1` ครั้งเดียว ระบบจะผูกบอทกับ webhook
    (มีรหัสลับที่สร้างจาก token ตรวจทุกครั้ง) และตั้งเมนูคำสั่ง
 
-ตอนแจก: พิมพ์ `/export` ในบอท คัดลอก `airdrop.txt` ไปเครื่องโหนดแรก แล้วรัน `gov.sh airdrop airdrop.txt 100`
-(zetaphy-chain/README.th.md หัวข้อ "แอร์ดรอปบน testnet") ระบบจำกระเป๋าที่จ่ายแล้วไว้
+ตอนแจก (เฉพาะเมื่อเจ้าของประกาศแอร์ดรอปสำหรับรายชื่อนี้): พิมพ์ `/export` ในบอท คัดลอก `airdrop.txt` ไปเครื่องโหนด แล้วรัน
+`gov.sh airdrop airdrop.txt 100` (zetaphy-chain/README.th.md หัวข้อ "แอร์ดรอปบน testnet" ซึ่งเล่าวิธีที่ใช้บน testnet ที่ปิดแล้ว) ระบบจำกระเป๋าที่จ่ายแล้วไว้
 
 ## จำเหรียญที่สร้างจาก ZETAPHY launcher
 
@@ -345,8 +350,9 @@ AI เพิ่มสิ่งต่อไปนี้ และทุกจุ�
 ตัวเลือก "ในเบราว์เซอร์นี้": โหลดโมเดลด้วยตัวโหลดที่ตรวจทุกชิ้น (จากเว็บนี้, GitHub Releases, IPFS หรือเบราว์เซอร์อื่นผ่าน WebRTC)
 กับค่า hash ใน ModelRegistry บนเชน แล้วรันด้วย JS ธรรมดา (CSP ไม่เปลี่ยน) ตอนนี้เป็นคะแนนความเสี่ยงที่เรียนรู้กับแม่แบบตายตัว ไม่ใช่โมเดลภาษา
 ช่องติ๊ก "ใช้ข้อมูลบนเชน ZETAPHY" เพิ่มธงใน ThreatRegistry และผลตัดสินในอดีตเป็นบริบท `CHAIN<n>` ให้ทุกผู้ให้บริการ (`ai/onchain.js`)
-เบราว์เซอร์หากันเจอเองผ่านสัญญา SignalBoard บนเชน ZETAPHY (ข้อเสนอที่เซ็น เข้ารหัส และมีอายุสั้น; `ai/browser/discovery.js`) เมื่อ deploy
-และใส่ไว้ใน `ai/browser/config.js` แล้ว ระหว่างนี้ยังแลกรหัสเองได้ กล่อง "โมเดลภาษาจิ๋ว แบ่งรันหลายเบราว์เซอร์" รันโมเดลแบบ Llama 0.34 ล้านพารามิเตอร์
+เบราว์เซอร์หากันเจอเองผ่านสัญญา SignalBoard บนเชน ZETAPHY (ข้อเสนอที่เซ็น เข้ารหัส และมีอายุสั้น; `ai/browser/discovery.js`) เมื่อใส่ไว้ใน
+`ai/browser/config.js` แล้ว ระหว่างนี้ยังแลกรหัสเองได้ **ยังไม่มีบน mainnet:** `signalBoard` เป็น `null` (board ของ testnet และ faucet ที่จ่ายค่า key ชั่วคราว
+หายไปพร้อม testnet การจ่ายจาก faucet ของ mainnet ซึ่งให้ ZTPHY จริงเป็นการตัดสินใจของเจ้าของ) แผงนี้อ่านข้อมูล ThreatRegistry จาก ZETAPHY mainnet (`graph/sources.js` `ZETAPHY`) กล่อง "โมเดลภาษาจิ๋ว แบ่งรันหลายเบราว์เซอร์" รันโมเดลแบบ Llama 0.34 ล้านพารามิเตอร์
 ที่ฝึกจากเอกสารเหล่านี้ (`web/models/zetaphy-docs-tiny/1`, `ai/browser/llama.js`) ในเบราว์เซอร์นี้ หรือแบ่งชั้นไปรันสองเบราว์เซอร์ ได้โทเคนเหมือนกัน
 (มันเขียนข้อความคล้ายเอกสาร ไม่ใช่คำตอบ)
 รายละเอียด ข้อจำกัด และสิ่งที่ยังขาด: [docs/future/browser-ai.th.md](../docs/future/browser-ai.th.md)

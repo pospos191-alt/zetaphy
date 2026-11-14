@@ -2,6 +2,8 @@
 
 # Cross-chain security and assistants (testnet)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Workstream `fut-crosschain`. Eight items: the Neuro cross-chain security oracle (18), herd immunity (28),
 "Neuro-checked" certificates (19), quantum-safe AI attestations (30), parametric hack insurance (32), the pre-sign
 assistant (20), the governance assistant (21) and the validator assistant (22).

@@ -89,6 +89,17 @@ test('refresh + read: this month and since genesis, month start found once', asy
   assert.ok(headers > 0);
 });
 
+test('refresh: a month start remembered from another chain (above this head, e.g. the retired testnet\'s) is found again', async () => {
+  const store = memoryStore();
+  const now = () => Date.parse('2026-10-01T00:05:00Z');
+  await store.pipeline([['SET', 'neuro:cs:ms:2026-10', 2_500_000]]);
+  const { comet, calls } = fakeNode(SAMPLE, 50);
+  await refresh(store, comet, { now });
+  assert.ok(calls.some((c) => c.method === 'header'), 'searched again');
+  assert.equal(Number((await store.pipeline([['GET', 'neuro:cs:ms:2026-10']]))[0]), 11);
+  assert.deepEqual((await read(store, { now })).thisMonth, { all: 6, transfers: 1, staking: 0, crossChain: 2, evm: 2, governance: 1 });
+});
+
 test('handleChainStats: refreshes when old, one caller per hour, keeps numbers when the node is down', async () => {
   const store = memoryStore();
   let clock = Date.parse('2026-10-27T10:00:00Z');

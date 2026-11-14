@@ -4,9 +4,12 @@
 // Pure: no snap APIs here, so tests can read the words directly.
 import { keccak_256 } from '@noble/hashes/sha3.js';
 import {
-  CHAIN_ID, DENOM, formatZeta, normalizeAddress, toChecksumHex, validatorAddress, bytesToHex, hexToBytes,
+  DENOM, formatZeta, normalizeAddress, toChecksumHex, validatorAddress, bytesToHex, hexToBytes,
   STAKING_PRECOMPILE, DISTRIBUTION_PRECOMPILE, PQ_LOCK_ADDRESS, SECURITY_PRECOMPILE,
 } from './pqtx.js';
+
+/** The chain the dialog expects: ZETAPHY mainnet (the testnet, zetaphy_77390-1, was shut down on 2026-11-14). */
+export const MAINNET_CHAIN_ID = 'zetaphy_3659-1';
 
 const T = {
   en: {
@@ -14,8 +17,8 @@ const T = {
     requestedBy: 'Requested by',
     signer: 'Your ML-DSA-44 account',
     chain: 'Chain',
-    otherChainTitle: 'Not ZETAPHY testnet',
-    otherChain: 'This transaction is for the chain {chain}, not {testnet}.',
+    otherChainTitle: 'Not ZETAPHY mainnet',
+    otherChain: 'This transaction is for the chain {chain}, not {mainnet}.',
     send: 'Send',
     delegate: 'Stake (delegate)',
     undelegate: 'Unstake (undelegate)',
@@ -88,8 +91,8 @@ const T = {
     requestedBy: 'ขอโดย',
     signer: 'บัญชี ML-DSA-44 ของคุณ',
     chain: 'เชน',
-    otherChainTitle: 'ไม่ใช่ ZETAPHY testnet',
-    otherChain: 'ธุรกรรมนี้เป็นของเชน {chain} ไม่ใช่ {testnet}',
+    otherChainTitle: 'ไม่ใช่ ZETAPHY mainnet',
+    otherChain: 'ธุรกรรมนี้เป็นของเชน {chain} ไม่ใช่ {mainnet}',
     send: 'โอน',
     delegate: 'Stake (delegate)',
     undelegate: 'ถอน stake (undelegate)',
@@ -357,7 +360,7 @@ export function describeTx({ origin, signer, req, messages, lang = 'en' }) {
   const t = T[lang] ?? T.en;
   const ctx = { t, origin, many: messages.length > 1 };
   const fee = req.gasLimit * req.gasPrice;
-  const banners = req.chainId === CHAIN_ID ? [] : [{ severity: 'warning', title: t.otherChainTitle, text: fill(t.otherChain, { chain: req.chainId, testnet: CHAIN_ID }) }];
+  const banners = req.chainId === MAINNET_CHAIN_ID ? [] : [{ severity: 'warning', title: t.otherChainTitle, text: fill(t.otherChain, { chain: req.chainId, mainnet: MAINNET_CHAIN_ID }) }];
   const summary = [
     [t.fee, zeta(fee)],
     [t.gas, `${req.gasLimit} × ${req.gasPrice} azetaphy`],

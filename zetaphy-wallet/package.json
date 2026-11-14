@@ -2,7 +2,7 @@
   "name": "zetaphy-wallet",
   "version": "0.1.0",
   "private": true,
-  "description": "ZETAPHY testnet web wallet for native post-quantum (ML-DSA-44) accounts. Static site: keys stay in the browser.",
+  "description": "ZETAPHY mainnet web wallet for native post-quantum (ML-DSA-44) accounts. Static site: keys stay in the browser.",
   "license": "BUSL-1.1",
   "type": "module",
   "scripts": {

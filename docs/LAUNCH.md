@@ -2,6 +2,10 @@
 
 # ZETAPHY testnet launch day: the owner's checklist
 
+> **Record of the testnet launch (shut down for good on 2026-11-14).** Do not follow it for mainnet: use
+> [ZETAPHY-MAINNET-PROCEDURE.md](ZETAPHY-MAINNET-PROCEDURE.md) and [ZETAPHY-MAINNET-RUNBOOK.md](ZETAPHY-MAINNET-RUNBOOK.md),
+> and read the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 Work from top to bottom, from zero to a testnet that actually works.
 - **Every step is done in a web page** (Oracle, GitHub, Vercel, MetaMask, your DNS provider); you do not need to run anything on your computer
 - **Everything is free** (Oracle Always Free, GitHub Actions, Vercel Hobby, public npm, free Reown)

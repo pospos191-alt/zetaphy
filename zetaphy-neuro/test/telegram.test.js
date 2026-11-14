@@ -40,7 +40,8 @@ test('/claim: one wallet per account and one account per wallet, then the list i
   const t = fakeApi();
   const go = (text, o) => handleUpdate(msg(text, o), { api: t.api, store, cfg });
   assert.equal(await go(`/claim ${A}`, { id: 1 }), 'claim-ok');
-  assert.match(t.texts().at(-1), new RegExp(`Registered: ${A}[\\s\\S]*100 test ZETAPHY`));
+  assert.match(t.texts().at(-1), new RegExp(`Registered: ${A}[\\s\\S]*nothing is promised[\\s\\S]*chain ID 3659 \\(ZTPHY\\)`));
+  assert.doesNotMatch(t.texts().at(-1), /test ZETAPHY|77390/, 'no testnet coins promised on mainnet');
   assert.equal(await go(`/claim ${B}`, { id: 1 }), 'claim-already');
   assert.equal(await go(`/claim ${A.toUpperCase().replace('0X', '0x')}`, { id: 2 }), 'claim-taken');
   assert.equal(await go(`/claim ${B}`, { id: 2 }), 'claim-ok', 'the refused try did not keep user 2');
@@ -76,6 +77,9 @@ test('English for everyone by default, whatever the user\'s Telegram language', 
   await handleUpdate(msg('/start', { lang: 'th' }), { api: t.api, store: memoryStore(), cfg: botConfig({}) });
   const [, p] = t.calls.find(([m]) => m === 'sendMessage');
   assert.equal(p.text, BOT.en.start.replace('{amount}', '100'));
+  assert.match(p.text, /Mainnet: chain ID 3659, coin ZTPHY/);
+  assert.match(p.text, /app\.sawasdeecoin\.com\/airdrop-link\.html/);
+  for (const l of BOT_LANGS) assert.match(BOT[l].start, /3659[\s\S]*airdrop-link\.html[\s\S]*2026-11-14/, l);
   assert.equal(p.reply_markup.inline_keyboard.flat().at(-1).url, 'https://app.sawasdeecoin.com/about/');
   assert.equal(botConfig({ TELEGRAM_BOT_LANG: 'ja' }).lang, 'ja');
   assert.equal(botConfig({ TELEGRAM_BOT_LANG: 'xx' }).lang, 'en');

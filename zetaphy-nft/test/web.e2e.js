@@ -433,7 +433,7 @@ test('create, mint, list, buy, offer, withdraw, stale listing, Neuro, external, 
   assert.ok(shim.stats.calls.eth_getLogs > 0);
 });
 
-test('wallet safety: the banner at 1,000+ ZETAPHY, hardware-wallet help, Ledger (USB), idle forget, cancel sends nothing', { timeout: 120_000 }, async () => {
+test('wallet safety: the banner at 1,000+ ZTPHY, hardware-wallet help, Ledger (USB), idle forget, cancel sends nothing', { timeout: 120_000 }, async () => {
   const p = await contextFor(other, 'safety');
   await p.clock.install();
   await go(p, '#/');
@@ -447,7 +447,7 @@ test('wallet safety: the banner at 1,000+ ZETAPHY, hardware-wallet help, Ledger 
   await p.click('dialog .wallet-choice');
   await p.waitForFunction(() => /^0x/.test(document.querySelector('#connect').textContent));
   await p.waitForSelector('#ws-host .ws-banner');
-  assert.match(await p.textContent('.ws-banner'), /1,000,000 ZETAPHY[\s\S]*hardware wallet/);
+  assert.match(await p.textContent('.ws-banner'), /1,000,000 ZTPHY[\s\S]*hardware wallet/);
   // "Cancel" on the summary: nothing reaches the wallet
   const sentBefore = wallet.sent.length;
   await go(p, '#/me');
@@ -501,5 +501,95 @@ test('mainnet (the only network): "not on mainnet yet" (no switch), the badge an
     }
     assert.ok(!asked.includes('/deployments.json'), 'the testnet deployment is never read');
     assert.ok(!problems.some((p) => p.startsWith('mainnet')), problems.join('\n'));
+  } finally { await ctx.close(); }
+});
+
+// Mainnet (chain 3659): the app reads web/deployments-3659.json; it stays "not on mainnet yet" until that record says
+// nftCodeKeysProtected: true (the collections' code keys protected by the timelock batch), then it runs on mainnet's
+// node with the wallet on chain 0xe4b, and every transaction names 0xe4b.
+test('mainnet: closed until nftCodeKeysProtected, then the app on chain 3659 (mainnet RPC, deployments-3659.json, transactions for 0xe4b)', { timeout: 120_000 }, async () => {
+  const MAIN_RPC = 'https://129-221-199-191.sslip.io';
+  const main = await createShim({ chainId: 3659, fund: [other, deployer] });
+  const f2 = await main.deploy(artifacts.NFTFactory, [], deployer);
+  const r2 = await main.deploy(mockArtifacts().MockThreatRegistry, [], deployer);
+  const m2 = await main.deploy(artifacts.NFTMarketplace, [deployer, deployer, 100, r2.address, f2.address], deployer);
+  const sent = [], seen = [];
+  const open = async (flag) => {
+    const ctx = await browser.newContext({ locale: 'en-US' });
+    await ctx.route('**/*', (route) => {
+      const url = route.request().url();
+      if (url.startsWith(`${ORIGIN}/`) || url.startsWith('data:') || url === 'about:blank') return route.fallback();
+      problems.push(`mainnet-open left the test network: ${route.request().method()} ${url}`);
+      return route.abort('blockedbyclient');
+    });
+    await ctx.route(`${MAIN_RPC}/**`, async (route) => {
+      seen.push(route.request().url());
+      const body = JSON.parse(route.request().postData());
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(await main.handle(body)) });
+    });
+    await ctx.route(MAIN_RPC, async (route) => {
+      seen.push(route.request().url());
+      const body = JSON.parse(route.request().postData());
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(await main.handle(body)) });
+    });
+    await ctx.route(`${ORIGIN}/deployments-3659.json`, (route) => route.fulfill({ status: 200, contentType: 'application/json',
+      // the record's own rpc is never used on mainnet: the page uses network.js's node
+      body: JSON.stringify({ chainId: 3659, rpc: 'https://elsewhere.invalid', factory: f2.address, marketplace: m2.address, threatRegistry: r2.address, nftCodeKeysProtected: flag }) }));
+    await ctx.exposeBinding('__walletRequest', async (_src, method, params) => {
+      if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [other];
+      if (method === 'eth_chainId') return '0xe4b';
+      if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
+      if (method === 'eth_sendTransaction') { sent.push(params[0]); return main.send({ from: params[0].from, to: params[0].to, data: params[0].data, value: BigInt(params[0].value ?? 0) }); }
+      throw new Error(`wallet: ${method} not supported`);
+    });
+    await ctx.addInitScript(() => {
+      new MutationObserver(() => {
+        const d = document.querySelector('#ws-confirm[open]:not([data-seen])');
+        if (!d) return;
+        d.setAttribute('data-seen', '');
+        window.__summary = d.textContent;
+        setTimeout(() => d.querySelector('[data-ws="go"]').click(), 0);
+      }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
+      const provider = { request: ({ method, params }) => window.__walletRequest(method, params ?? []) };
+      const announce = () => window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: Object.freeze({ info: { uuid: 'main-wallet', name: 'Test Wallet', rdns: 'test.wallet', icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>' }, provider }) }));
+      window.addEventListener('eip6963:requestProvider', announce);
+      announce();
+    });
+    const page = await ctx.newPage();
+    page.on('pageerror', (e) => problems.push(`mainnet-open pageerror ${e.message}`));
+    return { ctx, page };
+  };
+  // the flag still false (the timelock batch has not run): closed, nothing read from the node
+  const closed = await open(false);
+  try {
+    await closed.page.goto(`${ORIGIN}/`);
+    await closed.page.waitForSelector('#main .zn-gate');
+    assert.match(await closed.page.textContent('#main'), /Not on mainnet yet/);
+    assert.ok(await closed.page.isHidden('#connect'));
+    assert.deepEqual(seen, [], 'no RPC while closed');
+  } finally { await closed.ctx.close(); }
+  // the flag true: the app on mainnet
+  const { ctx, page } = await open(true);
+  try {
+    await page.goto(`${ORIGIN}/#/me`);
+    await page.waitForSelector('.page[data-ready]', { timeout: 20_000 });
+    assert.equal(await page.locator('#main .zn-gate').count(), 0, 'no "not on mainnet yet"');
+    assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet/);
+    assert.ok(seen.length > 0 && seen.every((u) => { const a = new URL(u), b = new URL(MAIN_RPC); return a.origin === b.origin && a.pathname.startsWith(b.pathname); }), 'it reads mainnet\'s node');
+    await page.click('#connect');
+    await page.click('dialog .wallet-choice');
+    await page.waitForFunction(() => /^0x/.test(document.querySelector('#connect').textContent));
+    await page.waitForSelector('.page[data-ready]');
+    await page.getByRole('button', { name: 'Cancel all my listings', exact: true }).click();
+    await page.waitForFunction(() => window.__summary != null);
+    assert.match(await page.evaluate(() => window.__summary), /ZETAPHY \(3659\)[\s\S]*Marketplace/);
+    await page.waitForFunction(() => /^0x/.test(document.querySelector('#connect').textContent));
+    await new Promise((r) => setTimeout(r, 500));
+    assert.ok(sent.length >= 1, 'a transaction was sent');
+    for (const tx of sent) {
+      assert.equal(tx.chainId, '0xe4b', 'every transaction names chain 3659');
+      assert.equal(tx.to.toLowerCase(), m2.address.toLowerCase(), 'mainnet\'s marketplace from deployments-3659.json');
+    }
+    assert.ok(!problems.some((p) => p.startsWith('mainnet-open')), problems.join('\n'));
   } finally { await ctx.close(); }
 });

@@ -44,6 +44,7 @@
     "dlmmFactory": "0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a",
     "dlmmRouter": "0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B"
   },
+  "nftCodeKeysProtected": false,
   "nft": {
     "factory": "0xc0800dBEbFFC80120f5DC0E6f2a603C00F6AF391",
     "marketplace": "0x0402d6E7af2912D002EfCa7543eb44A3EB3Bbc14"

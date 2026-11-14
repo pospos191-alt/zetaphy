@@ -211,7 +211,7 @@ node ml/cli.js bsc 0x...                # score a real token
 - The model sees only what Neuro reads; a trap behind an unknown proxy or in another contract is only partly visible.
 - A model can be studied and evaded like any rule: that is what the weekly red team is for.
 
-## Federated learning (testnet-ready, not deployed; `fl/`)
+## Federated learning (not on mainnet yet; `fl/`)
 
 Browsers can improve the score from labels users confirm after the outcome, without sending the labels: a small
 logistic-regression head on top of the fixed trees (`fl/head.js`, theta = 0 = this model), local updates clipped
@@ -219,4 +219,4 @@ and noised on the device (local differential privacy, epsilon 5.3 per round at t
 commit-reveal on chain or signed envelopes, a coordinate-wise trimmed mean, a canary gate, and a trust region.
 The model + head in force at a block height is chosen by the on-chain ModelEpochs (`manifest.json` is what it
 schedules). Design, privacy accounting, simulated honest vs poisoned clients and limits:
-[docs/future/federated.md](../../docs/future/federated.md). The opt-in browser panel is `web/fl-panel.js` (user and automatic outcome labels in `fl/labels.js`); the round contract is not deployed yet (`fl/deployment.json`).
+[docs/future/federated.md](../../docs/future/federated.md). The opt-in browser panel is `web/fl-panel.js` (user and automatic outcome labels in `fl/labels.js`); on ZETAPHY mainnet the FederatedRounds contract is deployed (`0x231b7Dd4E08235dB8Bd950AE662973fb872e3260`, zetaphy-launch/state/3659.contracts.json) but paused until a vote opens it, `fl/deployment.json` is the retired testnet's rounds contract (read only on its record in the browser tests), and the panel says "not on mainnet yet" (the testnet it was ready for was shut down on 2026-11-14).

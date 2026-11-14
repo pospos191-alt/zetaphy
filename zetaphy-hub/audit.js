@@ -7,7 +7,7 @@
 //   - judges: vote on a finding, appeal a decision.
 // Everything shown goes in with textContent; no inline styles (CSP style-src 'self').
 import { withFallback } from './i18n.js';
-import { activeNetwork } from './network.js';
+import { activeNetwork, netText } from './network.js';
 import { AUDIT } from './audit-i18n.js';
 import { AAS } from './aas-i18n.js';
 import { keccak256 } from './neuro/src/keccak.js';
@@ -281,7 +281,7 @@ const page = {
 
     root.replaceChildren(
       el('p', { class: 'small', id: 'au-intro', text: L.intro }),
-      el('p', { class: 'small dim', text: `${L.meaning} ${L.testnet}` }),
+      el('p', { class: 'small dim', id: 'au-meaning', text: `${L.meaning} ${(ctx.net ?? activeNetwork()).testnet ? L.testnet : netText(ctx.lang).risk}` }),
       // Audit-as-a-Service (docs/future/audit-as-a-service.md): the live check for any chain and the public directory
       el('p', { class: 'small', id: 'au-aas' }, el('a', { href: 'audit.html', text: withFallback(AAS, ctx.lang).vTitle }), ' · ', el('a', { href: 'audits.html', text: withFallback(AAS, ctx.lang).dTitle })),
       el('div', { class: 'au-grid' },

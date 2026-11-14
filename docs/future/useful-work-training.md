@@ -2,6 +2,8 @@
 
 # Proof of useful work for AI training: the network's compute trains Neuro
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Testnet only. Nothing here holds or pays real money, and the training data in the simulation is **synthetic**
 (labelled as such). This page describes what exists in the repository, what it proves, and what it does not.
 

@@ -1,6 +1,17 @@
 [English](README.md) | **ภาษาไทย**
 
-# zetaphy-network: ขั้น 1–5 ของ ZETAPHY (testnet)
+# zetaphy-network: ขั้น 1–5 ของ ZETAPHY
+
+> **ZETAPHY mainnet** (`zetaphy_3659-1`, EVM chain 3659, เหรียญ ZTPHY, RPC สาธารณะ `https://129-221-199-191.sslip.io`) เป็นเครือข่าย
+> ZETAPHY เดียว testnet (chain 77390, `rpc.sawasdeecoin.com`) ปิดถาวรแล้วเมื่อ 2026-11-14 อ่าน
+> [ประกาศ mainnet](../docs/ZETAPHY-MAINNET-NOTICE.th.md) ก่อน: validator ตัวเดียว ยังไม่ผ่าน audit จากภายนอกที่เป็นอิสระ ใช้เฉพาะจำนวนที่เสียได้
+> บน mainnet มี NeuroJobs, NeuroControl, ThreatRegistry, ThreatReports, RewardVault, ComputeMarket, oracle, NeuroIdentity,
+> NeuroAttest, NeuroAnchor และสัญญาของแผนที่ AI แล้ว (ที่อยู่:
+> [contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json),
+> [3659.contracts.json](../zetaphy-launch/state/3659.contracts.json)) ส่วน UsefulWork, BugBounty และ FederatedRounds หยุดไว้จนกว่า
+> จะมีการโหวตเปิด **ยังไม่มีบน mainnet:** bridge (ปิดอยู่), StableGateway และ stablecoin ทดสอบ, HackInsurance,
+> NeuroOracleSender, เช็คออฟไลน์ หัวข้อด้านล่างที่เขียนว่า "testnet" เล่าว่าฟีเจอร์นั้นทำงานอย่างไรบน testnet ที่ปิดแล้ว
+> (หรือบน devnet ในเครื่อง) CLI ทำงานบน mainnet เฉพาะคำสั่งของร่างและงาน (node, job, neuro status, gate)
 
 | ขั้นในแผน | สิ่งที่มีให้แล้ว |
 |---|---|
@@ -30,7 +41,7 @@
 
 ทั้งหมดนี้ผ่านการทดสอบบนเชน ZETAPHY จริงแล้ว (`npm run test:devnet`)
 
-ใครก็รัน Neuro ได้ด้วยคำสั่งเดียว แล้วรับรางวัลเป็น ZETAPHY บน testnet
+ใครก็รัน Neuro ได้ด้วยคำสั่งเดียว แล้วรับรางวัลเป็น ZTPHY บน ZETAPHY mainnet (ร่าง, NeuroJobs `0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB`)
 
 ## ทำงานอย่างไร
 
@@ -61,7 +72,7 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
 ```
 
 - ติดตั้งให้ครบ: Node.js (ตรวจ SHA-256), โค้ด ZETAPHY, กุญแจของร่าง (สร้างในเครื่อง ไม่แสดง) และบริการที่รันเองตลอด รวมถึงหลังรีสตาร์ต
-- จบแล้วแสดงที่อยู่ของร่าง: โอน ZETAPHY testnet ไป **100.1** (หรือมากกว่า) แล้วร่างจะวางเงินค้ำเองภายในราว 1 นาที และเริ่มรับงาน
+- จบแล้วแสดงที่อยู่ของร่าง: โอนเงินค้ำบวก 0.1 ZTPHY สำหรับค่า gas ไปที่นั่น (`sudo zetaphy-runner logs` บอกจำนวนที่ต้องใช้) แล้วร่างจะวางเงินค้ำเองภายในราว 1 นาที และเริ่มรับงาน เป็น ZTPHY จริง เก็บไว้ในกุญแจนั้นแค่เงินค้ำกับค่า gas เล็กน้อย
 - คำสั่งหลังติดตั้ง: `sudo zetaphy-runner status` · `address` · `withdraw` · `logs` · `update` · `stop` · `start` · `uninstall`
 - รันซ้ำได้ปลอดภัย (อัปเดตโค้ด กุญแจเดิมอยู่ครบ) · `uninstall` ไม่ลบกุญแจ
 - ไม่มีเครื่อง: ใช้ปุ่ม "Deploy to Oracle Cloud" ใน `deploy/oracle/README.md` สร้างเครื่องฟรีพร้อมติดตั้งให้เอง
@@ -70,16 +81,16 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
 
 ```
 npm i -g ./zetaphy-network          # หรือ: node zetaphy-network/cli.js ...
-zetaphy node start --rpc http://<โหนด ZETAPHY>:8545 --jobs 0x<NeuroJobs>
+zetaphy node start --rpc https://129-221-199-191.sslip.io --jobs 0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB   # mainnet (หรือ devnet ในเครื่อง)
 ```
 
 - ครั้งแรกระบบจะสร้างกุญแจของคนรันร่างไว้ที่ `~/.zetaphy/worker.key` (สิทธิ์ 0600)
-  - ใช้กับ testnet เท่านั้น ห้ามเอากุญแจที่มีเงินจริงมาใช้
+  - บน mainnet กุญแจนี้ถือ ZTPHY จริงเมื่อโอนเข้าแล้ว เก็บไว้แค่เงินค้ำกับค่า gas เล็กน้อย และถอนรายได้ออกเป็นประจำ
   - กุญแจไม่ถูกส่งออกจากเครื่อง
 - ระบบตรวจเครื่องให้เอง: เครื่อง CPU ธรรมดาจะรันโหมด light ส่วนเครื่องที่มี GPU NVIDIA 8 GB ขึ้นไปจะรันโหมด heavy
   - ตอนนี้งานทุกงานยังเป็น Neuro ชั้น 1 ซึ่งใช้แค่ CPU
 - ขั้นตอน:
-  1. โอน ZETAPHY testnet เข้าที่อยู่ของคนรันร่าง แล้ว `zetaphy node register` เพื่อวางเงินค้ำ (ค่าเริ่มต้น 100 ZETAPHY)
+  1. โอน ZTPHY เข้าที่อยู่ของคนรันร่าง แล้ว `zetaphy node register` เพื่อวางเงินค้ำ (ค่าเริ่มต้น: `workerBond` ของ NeuroJobs)
   2. `zetaphy node start` เพื่อเริ่มรับงาน
   3. `zetaphy node status` ดูรายได้และสถิติ แล้ว `zetaphy node withdraw` เพื่อถอนรายได้
   4. จะเลิกรัน: `zetaphy node unbond` แล้วรอ 1 ชั่วโมง จากนั้น `zetaphy node withdraw-bond` และ `zetaphy node withdraw`
@@ -108,7 +119,7 @@ zetaphy job get 0          # ผลตรวจ + "confirmedBy" (ยืนยั
 zetaphy job challenge 0 --verdict 0x<คำตอบที่ถูก>   # ไม่เชื่อผลนี้: วางเงิน ระบุคำตอบที่เชื่อว่าถูก แล้วเปิดรอบท้าทาย
 ```
 
-เชนที่รองรับ: `zetaphy` (ตัว ZETAPHY testnet เอง) และทุกเชนใน `zetaphy-neuro/src/chains.js` (`eth`, `bsc`, `base`, `arbitrum`, `sol`, `sui`, `aptos`, `osmosis`, `neutron`, `near`, `starknet`, `bitcoin`, `ton`)
+เชนที่รองรับ: `zetaphy` (เชน ZETAPHY ที่งานรันอยู่: mainnet หรือ devnet ในเครื่อง) และทุกเชนใน `zetaphy-neuro/src/chains.js` (`eth`, `bsc`, `base`, `arbitrum`, `sol`, `sui`, `aptos`, `osmosis`, `neutron`, `near`, `starknet`, `bitcoin`, `ton`)
 - รับเฉพาะเชนที่อยู่ในรายชื่อของ NeuroControl (`zetaphy deploy` ใส่ชุดนี้ให้) เชนอื่น `request` จะ revert (`UnknownChain`) เพิ่ม/ถอดด้วยโหวต `approve-chain` / `remove-chain`
 
 ## ผู้ใช้ที่ไม่มี ZETAPHY: จ่ายเป็น test USDC/USDT (ขั้น 2)
@@ -348,7 +359,7 @@ zetaphy bridge open --testnet --audit-report https://github.com/pospos191-alt/ze
 
 - **คนละ multisig:** guardian (กด pause) กับ governance (ตั้งค่า เปิด route เปิดคืน) เป็น multisig คนละตัว **คนหนึ่งถือ key เดียว** ไม่มี owner ซ้ำกันระหว่างสองตัว ไม่มี key ของคน deploy
 - **owner แต่ละคนใช้ hardware wallet** (Ledger หรือ Trezor) ผ่าน MetaMask: MetaMask → รูปบัญชี → **Add account or hardware wallet → Add hardware wallet** → เลือก Ledger/Trezor → เลือกบัญชี
-  - เพิ่มเครือข่าย ZETAPHY ใน MetaMask (chain id 77390, RPC สาธารณะ) แล้วใช้ที่อยู่ของบัญชี hardware นั้นเป็น owner
+  - เพิ่มเครือข่าย ZETAPHY ใน MetaMask (mainnet: chain id 3659, RPC https://129-221-199-191.sslip.io) แล้วใช้ที่อยู่ของบัญชี hardware นั้นเป็น owner
   - ยืนยันทุกธุรกรรมบนหน้าจอของอุปกรณ์ (ตรวจ `to` และ data) อย่าเก็บ seed ของอุปกรณ์ไว้ในคอมพิวเตอร์หรือคลาวด์
 - **SimpleMultisig** (ในโฟลเดอร์นี้): `zetaphy deploy-multisig --owners 0xA,0xB,0xC --threshold 2` แต่ละ owner `propose` / `confirm` / `execute` จาก MetaMask (เช่นหน้า "Write contract" ของ explorer)
 - **Safe:** เชนมี Safe singleton factory (`0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7`) ติดตั้งตั้งแต่ genesis จึง deploy Safe (singleton, proxy factory) ที่อยู่เดียวกับเชนอื่นได้ด้วย
@@ -907,7 +918,7 @@ zetaphy pq native handover 0x<owner> zetaphy1<controller ใหม่>
     แล้ว `pqClient` สร้าง tx เองรอบลายเซ็นที่ได้ ถ้า `txHex` ที่ผู้เซ็นส่งกลับไม่ตรงจะไม่ส่ง
 - ทดสอบบนเชนจริงแล้ว (`npm run test:devnet:pq`, รันใน CI ด้วย): ส่งได้ และเชนปฏิเสธธุรกรรมที่ใช้กุญแจอื่นสวมบัญชี ลายเซ็นที่ถูกแก้ และธุรกรรมเก่าที่ส่งซ้ำ
   - ชุดเดียวกันมีทดสอบ `token-send`, `call --value`, `stake`, `rewards`, `unstake` และการเรียกที่ revert ต้องไม่ขยับเงิน (ต้องใช้ `zetaphyd` ที่มี `MsgEVMCall`)
-- เชนทดลองในเครื่อง (chain id ไม่ใช่ `zetaphy_77390-1`): ตั้ง `ZETAPHY_CHAIN_ID`
+- คำสั่ง `pq` คาดว่า Cosmos chain id เป็น `zetaphy_77390-1` (ของ devnet ในเครื่อง) เว้นแต่ตั้ง `ZETAPHY_CHAIN_ID`: บน mainnet ให้ตั้ง `ZETAPHY_CHAIN_ID=zetaphy_3659-1`
 - validator เซ็นโหวตด้วย ML-DSA-44 เพิ่มจาก ed25519 และทุกบล็อกมีใบรับรอง ML-DSA ของบล็อกก่อนหน้า (ตรวจด้วย `zetaphy pq verify-block`)
 
 ### ความปลอดภัยในแกนกลางของเชน: `zetaphy security` (Q-day, ความยินยอม, IBC hold)
@@ -1028,7 +1039,8 @@ zetaphy pq verify-block 12345 --json                 # ผลแบบ JSON; --c
 
 ## ก่อนเงินจริง (ห้ามข้าม)
 
-ทุกอย่างในโฟลเดอร์นี้ใช้กับ **testnet เท่านั้น** ก่อน mainnet หรือก่อนรับเงินจริงต้องผ่านเงื่อนไขเหล่านี้ (ตามแผน)
+นี่คือแผนสำหรับ testnet ZETAPHY mainnet เปิดเมื่อ 2026-11-13 ก่อนผ่านประตู 2 และ 3 (validator ตัวเดียว ยังไม่ผ่าน audit จากภายนอกที่เป็นอิสระ)
+ตามที่ [ประกาศ mainnet](../docs/ZETAPHY-MAINNET-NOTICE.th.md) บอกไว้ ประตูด้านล่างยังต้องผ่านก่อนเปิด bridge หรือก่อนมีเงินจำนวนมาก (ตามแผน)
 
 | ประตู | เงื่อนไข | ใครทำ |
 |---|---|---|

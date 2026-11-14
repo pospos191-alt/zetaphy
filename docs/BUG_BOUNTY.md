@@ -2,6 +2,11 @@
 
 # ZETAPHY Bug Bounty program
 
+> **Status (2026-11-14):** ZETAPHY mainnet (`zetaphy_3659-1`) runs since 2026-11-13 and the testnet was shut down for good on
+> 2026-11-14. On mainnet the on-chain `ZetaphyBounty` (`0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE`) holds 1,000 ZTPHY; its committee (2 of 3)
+> approves payouts, which wait 48 h ([mainnet contracts](../zetaphy-chain/mainnet/zetaphy_3659-1/README.md)). The target amounts in
+> the table below are not funded yet and are not promises. The notes below about the testnet are the program's record.
+>
 > **There is no real reward money yet.** ZETAPHY is on a testnet, its coins have no value, and there is no reward pool yet
 > - **During the testnet:** rewards are **credit** only (a name in the Hall of Fame below, thanks in fix notes and reports); no money, no tokens
 > - **Before mainnet:** real reward money must be transferred into a separate pool (the community fund, held by a multisig) by a governance vote **before** real money is accepted, and the amount announced in this file
@@ -48,8 +53,8 @@ The Immunefi Vulnerability Severity Classification System v2.3 is used as the ma
 
 ## Rules
 
-1. Test only on **your own devnet** (`zetaphy-network/scripts/devnet.sh`, `npm run test:devnet*`) or the public testnet. Do not touch other chains' mainnets or other people's funds
-2. On the public testnet: use your own accounts; do not steal/freeze other people's test coins beyond what is needed for proof; do not halt the chain (tell us first; we will help set up a test chain for you)
+1. Test only on **your own devnet** (`zetaphy-network/scripts/devnet.sh`, `npm run test:devnet*`). The public testnet was shut down on 2026-11-14. Do not touch ZETAPHY mainnet's or other chains' funds, or other people's funds
+2. On ZETAPHY mainnet (real ZTPHY): reads only, with your own accounts; never move, freeze or put at risk other people's coins and never halt the chain. Anything more: tell us first and we will help set up a test chain for you
 3. Do not disclose publicly before the fix is finished (see the timeline below)
 4. No DoS, spam, social engineering, or accessing personal data
 5. Include how to reproduce: the commit tested, the steps, a script or test (best is a `node --test` test that fails before the fix), and the expected impact
@@ -111,7 +116,7 @@ not promises. The lock/mint bridge stays closed until this program is funded.
 - **Severity / target rewards after mainnet (USD equivalent):** Critical 10% of funds at risk, 10,000–50,000 · High
   5,000–10,000 · Medium 1,000–5,000 · Low 100–1,000 (Immunefi severity system v2.3). Paid from the community fund
   after a governance vote; first complete report wins; one root cause, one report.
-- **Rules:** test on your own devnet or the public testnet only, with your own accounts; no DoS, spam, social engineering
+- **Rules:** test on your own devnet only (the public testnet was shut down on 2026-11-14; on mainnet: reads only, with your own accounts); no DoS, spam, social engineering
   or privacy violations; no public disclosure before the fix; include a reproduction (ideally a failing `node --test`).
 - **Safe harbor:** good-faith research under these rules is authorized; we will not pursue or support legal action
   against you for it. This binds the project maintainers only, and is not legal advice.

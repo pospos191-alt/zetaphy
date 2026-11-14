@@ -26,6 +26,7 @@ import { later, dep, deployOne } from './plan.js';
 import { AI_DEFAULTS } from '../../zetaphy-network/src/aideploy.js';
 import { DEFAULT_PARAMS as UW_PARAMS, DEFAULT_BOUNTY as UW_BOUNTY, MIN_TIMELOCK_DELAY as UW_MIN_DELAY } from '../../zetaphy-network/src/usefulworkops.js';
 import { FL_DEFAULTS } from '../../zetaphy-network/src/flcli.js';
+import { APP_HUB_KEYS, APP_EXCLUDED } from './mainnetapps.js';
 
 /** The AI-map items (zetaphy-hub/flow.js) each hub key serves: what a deployed contract switches to "Works now". */
 export const AI_ITEMS = {
@@ -39,7 +40,7 @@ export const AI_ITEMS = {
 export const HUB_KEYS = ['neuroJobs', 'neuroControl', 'threatRegistry', 'threatReports', 'rewardVault', 'computeMarket', 'oracle', 'neuroIdentity',
   'usefulWork', 'bugBounty', 'workerReputation', 'usefulIssuance', 'riskForecasts', 'foresight', 'detectorPool', 'dataDao', 'arena', 'intentExecutor',
   'labelRegistry', 'vouchRegistry', 'agentRegistry', 'timelock', 'neuroAttest', 'neuroAnchor', 'neuroOracleSender', 'hackInsurance',
-  'modelRegistry', 'neuroScore', 'modelEpochs', 'signalBoard', 'webauthn', 'cosignCommittee', 'federatedRounds'];
+  'modelRegistry', 'neuroScore', 'modelEpochs', 'signalBoard', 'webauthn', 'cosignCommittee', 'federatedRounds', ...APP_HUB_KEYS];
 
 /** Not deployed on mainnet whatever the config says. */
 export const AI_EXCLUDED = [
@@ -326,10 +327,14 @@ export function hubContracts(ctx, o) {
   const dex = { ...(o.dex?.contracts?.factory ? { factory: o.dex.contracts.factory, router: o.dex.contracts.router } : {}),
     ...(o.dlmm?.contracts ? { dlmmFactory: o.dlmm.contracts.dlmmFactory, dlmmRouter: o.dlmm.contracts.dlmmRouter } : {}) };
   const nft = o.nft ? { factory: o.nft.factory, marketplace: o.nft.marketplace } : {};
+  // the hub opens its NFT app only once the collections' shared code keys are protected (zetaphy-hub/network.js nftReady):
+  // the protect step reads them on-chain every run, so a --resume after the timelock batch ran writes true here
+  const keys = Object.values(o.nft?.collectionCodeKeys ?? {});
+  const nftCodeKeysProtected = !!o.nft && keys.length > 0 && Array.isArray(o.protectedKeys) && Array.isArray(o.unprotectedKeys) && o.unprotectedKeys.length === 0 && keys.every((k) => o.protectedKeys.includes(k));
   const live = Object.entries(AI_ITEMS).filter(([k]) => contracts[k]).flatMap(([, it]) => it);
-  const skipped = Object.fromEntries([...AI_EXCLUDED, ...(contracts.neuroOracleSender ? [] : [['neuroOracleSender', 'no Hyperlane Mailbox on this chain (deploy config ai.mailbox)']])]);
+  const skipped = Object.fromEntries([...AI_EXCLUDED, ...APP_EXCLUDED, ...(contracts.immuneBroadcaster ? [] : [['immuneBroadcaster', 'no Hyperlane Mailbox on this chain (deploy config ai.mailbox)']]), ...(contracts.neuroOracleSender ? [] : [['neuroOracleSender', 'no Hyperlane Mailbox on this chain (deploy config ai.mailbox)']])]);
   return { _comment: 'zetaphy-launch --network mainnet: public addresses, keys as in zetaphy-hub hub-config.json `contracts`. No secrets.',
-    chainId: Number(ctx.evmChainId), network: 'zetaphy-mainnet', contracts, dex, nft, aiItemsWithContracts: [...new Set(live)].sort((a, b) => a - b), skipped };
+    chainId: Number(ctx.evmChainId), network: 'zetaphy-mainnet', contracts, dex, nft, nftCodeKeysProtected, aiItemsWithContracts: [...new Set(live)].sort((a, b) => a - b), skipped };
 }
 
 export function contractsStep() {

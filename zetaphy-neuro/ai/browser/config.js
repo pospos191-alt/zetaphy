@@ -1,4 +1,4 @@
-// Where the in-browser AI finds its model and its on-chain knowledge (testnet).
+// Where the in-browser AI finds its model and its on-chain knowledge (ZETAPHY mainnet, graph/sources.js ZETAPHY).
 //
 // modelRegistry: the ModelRegistry address on ZETAPHY. null until it is deployed
 // (zetaphy-network/scripts/model-registry.js deploy) and the release below is
@@ -21,8 +21,11 @@ export const BROWSER_AI = {
   mirrors: [{ label: 'this site', manifest: './models/neuro-ml-gbdt/1/manifest.json', chunk: './models/neuro-ml-gbdt/1/{hash}.bin' }],
   // Automatic peer discovery (ai/browser/discovery.js). signalBoard: the SignalBoard address on
   // ZETAPHY (zetaphy-network/scripts/signal-board.js deploy); null until deployed, and then the page
-  // offers only the manual codes. Posting uses a throwaway session key paid by the testnet faucet.
-  signalBoard: '0x515c7135D501B7980e84c9cFac74AD528698AF69',
+  // offers only the manual codes. Posting uses a throwaway session key paid by a faucet (ai/browser/boards.js).
+  // null on mainnet: the board it used (0x515c…AF69) and the faucet that paid its posts were the testnet's, shut
+  // down on 2026-11-14. Mainnet has a SignalBoard (0xdc59a495AAb49CEc33b1eFA29291Cc702eC25b62, launch state
+  // 3659.contracts.json), but its faucet pays real ZTPHY, so paying throwaway keys from it is the owner's decision.
+  signalBoard: null,
   // Public WebTorrent trackers as a second board: OFF (empty). Each is a third party that sees
   // every peer's IP address and topic, and the CSP (web/index.html + vercel.json connect-src)
   // would need its exact wss:// URL added first.

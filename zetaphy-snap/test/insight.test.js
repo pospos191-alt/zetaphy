@@ -35,7 +35,7 @@ const responseAnswer = (text, by, chainId = 56) => '0x' + word(160) + word(by) +
 const REPORT = '0x' + 'e7'.repeat(32);
 
 // ---- the stand-in ZETAPHY RPC ----
-const rpc = { answers: new Map(), requests: [], status: 200, chainId: '0x12e4e' };
+const rpc = { answers: new Map(), requests: [], status: 200, chainId: '0xe4b' }; // ZETAPHY mainnet (3659)
 /** Flags one key of `address` (with `code`) on chain `chainId`: what = address | code | fingerprint. */
 function flag(chainId, address, code, what, reason, enforced) {
   const q = threatQueries(chainId, address, code).find((x) => x.what === what);
@@ -264,7 +264,10 @@ describe('the vaccine in plain MetaMask: transaction insights', () => {
     rpc.chainId = '0x1';
     r = await inspect(snap, { to: TARGET });
     expect(r.text).toMatch(/couldn't check this transaction\nthat RPC is not ZETAPHY/);
-    rpc.chainId = '0x12e4e';
+    rpc.chainId = '0x12e4e'; // the retired testnet (77390): not ZETAPHY mainnet either
+    r = await inspect(snap, { to: TARGET });
+    expect(r.text).toMatch(/couldn't check this transaction\nthat RPC is not ZETAPHY/);
+    rpc.chainId = '0xe4b';
     const down = await installSnap(SNAP_ID);
     await useLocalRpc(down);
     mockChain(down, { fail: true });

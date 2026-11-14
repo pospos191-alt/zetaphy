@@ -3,9 +3,16 @@
 # ZETAPHY DEX (ZETAPHY Swap)
 
 An AMM token exchange (x·y = k formula) with liquidity pools for the **ZETAPHY** chain (Cosmos EVM,
-EVM chain id `77390`, chain id `zetaphy_77390-1`, native coin ZETAPHY, wallet ticker **ZTPHY**, 18 decimals)
+EVM chain id `3659` (`0xe4b`), chain id `zetaphy_3659-1`, native coin ZTPHY, denom `azetaphy`, 18 decimals)
 
-> ⚠️ **Testnet only. The coins have no value. The contracts have not passed a security audit (unaudited).** Read the "Risks" section before use.
+> ⚠️ **ZETAPHY mainnet: real ZTPHY. The contracts have not passed an independent security audit (unaudited).** Read the "Risks" section and the
+> [mainnet notice](../docs/ZETAPHY-MAINNET-NOTICE.md) before use, and use only amounts you can afford to lose.
+> The testnet (chain 77390) was shut down on 2026-11-14; its pools, test tokens and contracts are gone.
+
+On mainnet: factory `0x93463B001483970f8CAE63cd8B60D28F17a1C1AA`, router `0xa5221A7F25cf10d99446Fde3e95c15b1f696e783`, wrapped native = the ZTPHY precompile
+`0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`, all admin roles with the timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA`
+([contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json)). There are no pools yet. The DLMM contracts are deployed
+(factory `0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a`, router `0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B`) but the web page's DLMM tab is **not on mainnet yet** (it says so).
 
 - Contracts, build scripts, deploy CLI and test suite: this folder (`zetaphy-dex/`)
 - Web page: `web/`, published at **https://swap.sawasdeecoin.com/** (its own Vercel project on its own origin)
@@ -19,7 +26,7 @@ EVM chain id `77390`, chain id `zetaphy_77390-1`, native coin ZETAPHY, wallet ti
 | `contracts/ZetaphyPair.sol` | x·y = k pool + LP token (ZLP) |
 | `contracts/ZetaphyRouter.sol` | Functions users call: add/remove liquidity, swap (multi-hop), deadline, slippage, fee-on-transfer tokens, Neuro check |
 | `contracts/WZETAPHY.sol` | WETH-style wrapped native (used in tests and on other chains without the precompile) |
-| `contracts/TestToken.sol` | Test token (no value) for testnet |
+| `contracts/TestToken.sol` | Test token (no value) for devnets (it was used on the retired testnet; not on mainnet) |
 | `contracts/test/*.sol` | Contracts used only in tests (flash borrower, reentrancy token, mock runners, `RevertProbe` to check balances after a revert, gas-burning registry, `ForceSend`) |
 | `artifacts/*.json` | Compile output (committed so the CLI does not need a compiler). `npm run build -- --check` checks that it matches the source |
 | `cli.js` | Deploy and governance settings |
@@ -116,10 +123,11 @@ both inside the transaction and after it, and `deposit{value}` called by a contr
 
 ## Deploying the contracts
 
-Use testnet-only keys, stored in a file. **Never paste keys into chat or onto the command line.** The CLI only accepts `--key-file <file>`
+Keep the key in a file. **Never paste keys into chat or onto the command line.** The CLI only accepts `--key-file <file>`
 (or the `ZETAPHY_DEX_KEY_FILE` variable). The file is a hex private key or a keystore JSON (decrypted with `ZETAPHY_PASSPHRASE`).
 **The CLI refuses key files that group or others can read/write** (it tells you to `chmod 600 <file>`).
-`deploy` only works on ZETAPHY (EVM chain id 77390). If the RPC reports another chain id it refuses, unless you pass `--any-chain`.
+`deploy` only works on EVM chain id 77390 (the retired testnet: the CLI's check was not changed yet). If the RPC reports another chain id it refuses, unless you pass `--any-chain`.
+Mainnet does not need a deploy: its factory and router are deployed (see the top of this file) and governed by the timelock.
 
 ```bash
 cd zetaphy-dex
@@ -162,15 +170,16 @@ First-time setup (the owner does this once):
 5. Check: `curl -sI https://swap.sawasdeecoin.com/ | grep -i content-security-policy` must start with `default-src 'none'; script-src 'self'`
    and `curl -sI https://swd-amm.sawasdeecoin.com/zetaphy/` must return 308 to `https://swap.sawasdeecoin.com/`
 
-- Configuration: `web/deployments.json` (from `cli.js deploy --web`) and `web/tokenlist.json`
-  (Uniswap token list format: `{ chainId: 77390, address, name, symbol, decimals }`)
+- Configuration on mainnet: the factory, router and ThreatRegistry come from `web/lib/network.js` (synced from `zetaphy-hub/network.js`), and the RPC is the public mainnet RPC
+  `https://129-221-199-191.sslip.io`. `web/deployments.json` (from `cli.js deploy --web`) and `web/tokenlist.json`
+  (Uniswap token list format: `{ chainId, address, name, symbol, decimals }`) are the retired testnet's and are read only on its record in the browser tests
 - The RPC the web page uses must be https and allow CORS so browsers can call it (same as zetaphy-wallet uses). Users can change the RPC in "Settings",
   but if it is not the RPC from `deployments.json`, the web page shows a warning bar the whole time (with a button to go back to the default) and **does not pass that RPC to the wallet**
   (`wallet_addEthereumChain` always uses the RPC from `deployments.json`). If there is no RPC, the web page reads through the connected wallet when it is on ZETAPHY
 - A pool that has reserves but no LP holders yet (someone transferred tokens in and called `sync`): the web page treats it as a new pool and does not compute the other side's amount from the reserves.
   The user enters both sides, the page shows the warning "This pool has a token balance but nobody holds LP yet — you set the price", and sends **minimum = the amount entered**
   (so the router reverts if the ratio changes). On the contract side, the router also uses the entered amounts directly when `totalSupply == 0` (see "Design")
-- Before every `eth_sendTransaction`, the web page asks the wallet for `eth_chainId` again. If it is not 77390 it does not send, and it puts `chainId: 0x12e4e` in the transaction
+- Before every `eth_sendTransaction`, the web page asks the wallet for `eth_chainId` again. If it is not 3659 it does not send, and it puts `chainId: 0xe4b` in the transaction
 - Before buying and before adding liquidity, it queries Neuro again (no cache) when the user presses confirm
 - Security: `web/vercel.json` sets a strict CSP on every path (`default-src 'none'; script-src 'self'; style-src 'self'`,
   no inline, no scripts from elsewhere, `connect-src` only https and localhost, `frame-ancestors 'none'`)
@@ -190,7 +199,7 @@ because localStorage values can still be written by other means (browser extensi
   swap / add / remove liquidity (the confirmation is not stored)
 - A stored RPC must be in exactly the form the web page saves itself (https or localhost). If it is not the default, a warning bar shows the whole time and it is not passed to the wallet
 - The "Fee-on-transfer token" switch is not stored (it is off every time the page opens)
-- Self-imported tokens: only entries for chain 77390 that pass the checks are read back, no duplicates, at most 50 entries. They show the label
+- Self-imported tokens: only entries for chain 3659 that pass the checks are read back, no duplicates, at most 50 entries. They show the label
   **"Self-imported, not on the list"** in the token picker and in the list, show a warning with the contract address when selected, and Neuro is queried again on confirm
 - Wallet id, language and theme must match the defined formats
 
@@ -199,7 +208,7 @@ because localStorage values can still be written by other means (browser extensi
 
 ## Risks
 
-- **Not yet security audited.** Use on testnet only. The coins have no value. This is not investment advice
+- **Not yet security audited.** This is mainnet: real ZTPHY, and a swap cannot be undone. Use only amounts you can afford to lose. This is not investment advice
 - The first liquidity provider sets the initial price. Small pools move price sharply (price impact) and can be front-run / sandwiched: set a tight slippage.
   For a pool with very little LP but a price off the market (someone made a tiny first deposit at an odd price), the web page calculates using that pool's price. Always check the price before adding liquidity
 - The TWAP of a low-liquidity pool is easy to distort. Do not use it as a price oracle without extra safeguards
@@ -217,7 +226,8 @@ MIT (see `LICENSE`). Completely rewritten, with no code from Uniswap (GPL-3.0). 
 
 ## DLMM (liquidity split into price bins) — ⚠️ not yet security audited (UNAUDITED)
 
-> ⚠️ **This section is new, not yet audited, and for testnet only.** Test tokens have no value. This is not investment advice.
+> ⚠️ **This section is new and not yet audited.** On mainnet the DLMM contracts are deployed (factory `0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a`, router `0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B`), but no pair can be
+> created until the timelock sets the presets (governance proposal 1), and the web page's DLMM tab is not on mainnet yet. This is not investment advice.
 
 DLMM is a pool that splits liquidity into **price bins**. Each bin has a fixed price. Liquidity providers choose the price range where they place their tokens
 (concentrated liquidity). It is a port of our own DLMM design on Solana (`programs/swd_amm/src/dlmm.rs`
@@ -293,7 +303,7 @@ node dlmm-cli.js status --rpc <url>
 node dlmm-cli.js set-registry <ThreatRegistry|0x0> --rpc <url> --key-file <file>
 ```
 
-Key file rules are the same as `cli.js` (file only, chmod 600, no keys on the command line), and deploy only works on chain 77390 unless you pass `--any-chain`.
+Key file rules are the same as `cli.js` (file only, chmod 600, no keys on the command line), and deploy only works on chain 77390 (the retired testnet; not changed yet) unless you pass `--any-chain`.
 Default presets: bin step 1 / 10 / 25 / 100 bps, base fee equal to the bin step, max volatility fee +50 / +100 / +150 / +300 bps.
 
 The **DLMM** tab on the web page reads `contracts.dlmmFactory` / `contracts.dlmmRouter` from `web/deployments.json` (missing = shows that it is not deployed yet).
@@ -330,7 +340,7 @@ fee-on-transfer/rebase tokens, edge bins, bin-crossing limit, Neuro, and fuzzing
 (The devnet column uses the default `dlmm-cli.js` presets, which include the volatility fee; the in-memory column uses a preset with no volatility fee.)
 
 **Not done yet:** DLMM TWAP/oracle (do not use the active bin price as an oracle), automatic swap routing across multiple pools in the web page (the DLMM tab swaps within the selected pool; the router already supports multi-hop),
-and not yet deployed on testnet.
+and the DLMM tab on mainnet (the contracts are deployed; the tab shows "not on mainnet yet").
 
 **Risks (for users):** not yet audited; the first liquidity provider of a pool sets the initial price, so always check the active bin before depositing
 (set a tight `idSlippage`); liquidity in a narrow price range turns entirely into the other token when the price moves through it (impermanent loss

@@ -2,6 +2,8 @@
 
 # Federated learning for Neuro, and a model bound to chain height
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Workstream `fut-federated`. Two items:
 
 | # | item | status |

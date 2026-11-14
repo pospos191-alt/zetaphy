@@ -40,14 +40,22 @@ test('headers: frames only from this site; scripts only from this site; Neuro AP
   assert.deepEqual(v.rewrites, [{ source: '/api/:path*', destination: 'https://neuro-api.sawasdeecoin.com/api/:path*' }]);
 });
 
+/** validators.js's texts (a classic script): its `const T = {…};` table, evaluated on its own. */
+const guideText = () => {
+  const js = readFileSync(join(HERE, 'validators.js'), 'utf8');
+  const start = js.indexOf('const T = {'), end = js.indexOf('\n};\nconst LANGS', start);
+  return new Function(`${js.slice(start, end + 3)}\nreturn T;`)();
+};
+
 test('validator guide: shipped, no inline script or style (the hub CSP stays strict), no third-party requests', () => {
   const out = build();
-  for (const f of ['validators.html', 'validators.css', 'validators.js']) assert.ok(existsSync(join(out, f)), f);
+  for (const f of ['validators.html', 'validators.css', 'validators.js', 'validators-gate.js']) assert.ok(existsSync(join(out, f)), f);
   const html = readFileSync(join(HERE, 'validators.html'), 'utf8');
   assert.doesNotMatch(html, /<script>|<style|\sstyle="|\son[a-z]+="/i);
   assert.match(html, /<script src="validators.js"><\/script>/);
   assert.doesNotMatch(html + readFileSync(join(HERE, 'validators.css'), 'utf8'), /fonts\.googleapis|fonts\.gstatic/);
-  for (const k of ['getH', 'g1p', 'resH', 'r1', 'resWarn']) assert.match(readFileSync(join(HERE, 'validators.js'), 'utf8'), new RegExp(`"${k}"`));
+  const T = guideText();
+  for (const k of ['hRun', 'hKey', 'keyP', 'hFund', 'fundP', 'hStake', 'stakeP', 'n1', 'n2', 'keysWarn']) assert.ok(T.en[k], k);
 });
 
 test('the mining page ships with its worker; the validator guide downloads the current release', () => {
@@ -61,23 +69,48 @@ test('the mining page ships with its worker; the validator guide downloads the c
   assert.deepEqual([...new Set(tags)], [want]);
   assert.equal(withRelease('a/releases/download/zetaphyd-3008c6775923/x b/releases/download/zetaphyd-3008c6775923/y', 'zetaphyd-000000000000'),
     'a/releases/download/zetaphyd-000000000000/x b/releases/download/zetaphyd-000000000000/y');
-  // the guide's faucet form and the link to the mining page
-  assert.match(html, /id="vf-form"/);
-  assert.match(html, /href="\.\/\?tab=mine"/);
   // the worker is a same-origin module (script-src 'self'): no eval, no wasm
   for (const f of ['mine.js', 'mine-core.js', 'mine-worker.js']) assert.doesNotMatch(readFileSync(join(HERE, f), 'utf8'), /\beval\(|new Function|WebAssembly/, f);
 });
 
-test('validator guide: topics as tabs, each named and introduced in all 8 languages', () => {
+test('validator guide: joining mainnet as join-validator.sh does it (install.sh validator, key, stake N), no faucet, no testnet; tabs in all 8 languages', () => {
   const html = readFileSync(join(HERE, 'validators.html'), 'utf8');
+  const js = readFileSync(join(HERE, 'validators.js'), 'utf8');
+  const joinSh = readFileSync(join(HERE, '..', 'zetaphy-chain/join-validator.sh'), 'utf8');
   const tabs = [...html.matchAll(/role="tab" id="t-([a-z]+)" aria-controls="p-\1"/g)].map((m) => m[1]);
-  assert.deepEqual(tabs, ['start', 'check', 'get', 'fix', 'rewards', 'keys', 'advanced']);
+  assert.deepEqual(tabs, ['start', 'stake', 'check', 'fix', 'keys', 'advanced']);
   for (const t of tabs) assert.match(html, new RegExp(`role="tabpanel" id="p-${t}" aria-labelledby="t-${t}"`));
-  const line = readFileSync(join(HERE, 'validators.js'), 'utf8').split('\n')[2];
-  const X = JSON.parse(line.slice('const X = /*EXTRA*/'.length, -1));
-  for (const l of ['en', 'zh', 'es', 'ko', 'ja', 'ru', 'vi', 'th']) {
-    for (const t of tabs) assert.ok(X[l][`tab_${t}`] && X[l][`lede_${t}`], `${l}: ${t}`);
-    for (const k of ['vfGet', 'vfOk', 'vfDown', 'vfBad', 'vfMine']) assert.ok(X[l][k], `${l}: ${k}`);
+  // the commands are join-validator.sh's own
+  assert.match(js, /install\.sh \| sudo MONIKER=';/);
+  assert.match(js, /bash -s -- validator`/);
+  assert.match(joinSh, /install\.sh \| sudo bash -s -- validator/);
+  for (const c of ['sudo zetaphy-validator key', 'sudo zetaphy-validator address', 'sudo zetaphy-validator status', 'sudo zetaphy-validator stake 100', 'sudo zetaphy-validator unjail', 'sudo zetaphy-validator update', 'sudo zetaphy-validator backup', 'sudo zetaphy-validator secure']) {
+    assert.ok(html.includes(c), `${c} on the page`);
+    const word = c.split(' ')[2];
+    assert.match(joinSh, new RegExp(`sudo zetaphy-validator ${word}\\b`), `${word} is a join-validator.sh command`);
+  }
+  // the chain's facts: mainnet's, as join-validator.sh pins them
+  const sha = /MAINNET_GENESIS_SHA256="([0-9a-f]{64})"/.exec(joinSh)[1];
+  const peer = /MAINNET_PEER="\$\{MAINNET_PEER:-([^}]+)\}"/.exec(joinSh)[1];
+  assert.ok(html.includes(sha), 'the genesis sha256');
+  assert.ok(html.includes(peer), 'the sentry');
+  assert.ok(html.includes('zetaphy_3659-1') && html.includes('<dd>3659</dd>'));
+  // nothing of the testnet's old flow: no faucet form, no auto-stake, no testnet ids or hosts, no import-key
+  assert.doesNotMatch(html + js, /vf-form|become-validator|import-key|77390|rpc\.sawasdeecoin\.com|faucet gives|test ZETAPHY|BZTPHY/);
+  const T = guideText();
+  assert.deepEqual(Object.keys(T).sort(), ['en', 'es', 'ja', 'ko', 'ru', 'th', 'vi', 'zh']);
+  const keys = Object.keys(T.en);
+  const used = [...html.matchAll(/data-t="([A-Za-z0-9_]+)"/g)].map((m) => m[1]);
+  for (const k of used) assert.ok(keys.includes(k), `${k} has an English text`);
+  for (const [l, t] of Object.entries(T)) {
+    assert.deepEqual(Object.keys(t).sort(), [...keys].sort(), `${l}: every key`);
+    for (const k of keys) assert.ok(typeof t[k] === 'string' && t[k].trim(), `${l}.${k}`);
+    for (const k of ['tab_start', 'tab_stake', 'lede_stake', 'n1', 'n2', 'n4', 'fundP']) assert.notEqual(t[k], l === 'en' ? '' : T.en[k], `${l}.${k} is translated`);
+    // real ZTPHY, the single validator, the power cap, in every language
+    assert.match(t.fundP, /ZTPHY/, `${l}: fund with ZTPHY`);
+    assert.match(t.n2, /3333 bps/, `${l}: the power cap`);
+    assert.match(t.n2, /1\/3/, `${l}: 1/3`);
+    assert.match(t.lede, /zetaphy_3659-1/, `${l}: mainnet's chain id`);
   }
 });
 
@@ -131,6 +164,41 @@ test('mainnet config from zetaphy-launch/state/3659.contracts.json: its addresse
   assert.notEqual(hubConfig({}, files).contracts.neuroJobs, A('1'));
 });
 
+test('mainnet tabs from the launch file: offline, audit, quantum and immune open once all their contracts are in it; the NFT app only with nftCodeKeysProtected', () => {
+  const tabs = { zetaphyCheques: A('1'), offlineOrders: A('2'), offlineCash: A('3'), auditNetwork: A('4'), auditRunners: A('5'), auditJudges: A('6'), auditCertificate: A('7'), quantumRescue: A('8'), immuneRegistry: A('9') };
+  const nft = { factory: A('f'), marketplace: A('e') };
+  const m = hubConfig({}, { [MAINNET_LAUNCH_FILE]: launchFile(tabs, { nft }), [MAINNET_AIRDROP_FILE]: null }).mainnet;
+  for (const [k, a] of Object.entries(tabs)) assert.equal(m.contracts[k], a, k);
+  assert.deepEqual(m.features.sort(), ['audit', 'immune', 'offline', 'quantumWallet']);
+  assert.deepEqual(m.nft, nft);
+  assert.equal(m.nftCodeKeysProtected, false, 'no flag: the NFT app stays closed');
+  assert.equal(m.immuneNet.registry, A('9'));
+  assert.deepEqual(m.immuneNet.mirrors, []);
+  assert.equal(m.immuneNet.feedUrl, null, 'never the testnet\'s feed');
+  const net = withDeployed(NETWORKS.mainnet, m.contracts, m);
+  for (const f of ['offline', 'audit', 'quantumWallet', 'immune']) assert.equal(hasFeature(net, f), true, f);
+  assert.equal(hasFeature(net, 'nft'), false);
+  // one contract missing: that tab stays "not on mainnet yet"
+  const { offlineCash: _c, immuneRegistry: _i, ...fewer } = tabs;
+  const m2 = hubConfig({}, { [MAINNET_LAUNCH_FILE]: launchFile(fewer), [MAINNET_AIRDROP_FILE]: null }).mainnet;
+  assert.deepEqual(m2.features.sort(), ['audit', 'quantumWallet']);
+  assert.equal(m2.immuneNet, null);
+  // the flag the launch's contracts step writes once the collections' code keys are protected
+  const m3 = hubConfig({}, { [MAINNET_LAUNCH_FILE]: launchFile({}, { nft, nftCodeKeysProtected: true }), [MAINNET_AIRDROP_FILE]: null }).mainnet;
+  assert.equal(m3.nftCodeKeysProtected, true);
+  assert.ok(m3.features.includes('nft'));
+  assert.equal(hasFeature(withDeployed(NETWORKS.mainnet, m3.contracts, m3), 'nft'), true);
+  // the flag without the NFT contracts, or not exactly true: nothing
+  for (const extra of [{ nftCodeKeysProtected: true }, { nft, nftCodeKeysProtected: 'yes' }]) {
+    const x = hubConfig({}, { [MAINNET_LAUNCH_FILE]: launchFile({}, extra), [MAINNET_AIRDROP_FILE]: null }).mainnet;
+    assert.ok(!x.features.includes('nft'), JSON.stringify(extra));
+  }
+  // the repo's own file: the NFT code keys wait for the timelock batch
+  const real = hubConfig({}).mainnet;
+  assert.equal(real.nftCodeKeysProtected, false);
+  assert.ok(!real.features.includes('nft'));
+});
+
 test('the airdrop card: round 1 shows on mainnet once deployments/airdrop-3659.json names its distributor; the testnet keeps airdrop-77390.json', () => {
   const none = { [MAINNET_LAUNCH_FILE]: null, [MAINNET_AIRDROP_FILE]: null, 'zetaphy-network/deployments/airdrop-77390.json': null };
   const c0 = hubConfig({}, none);
@@ -154,7 +222,7 @@ test('the airdrop card: round 1 shows on mainnet once deployments/airdrop-3659.j
 
 test('the hub on mainnet reads hub-config.json `mainnet` (hub.js mainnetConfig), the Agents tab opens for the airdrop card alone', () => {
   const hub = readFileSync(join(HERE, 'hub.js'), 'utf8');
-  assert.match(hub, /HUB = mainnetConfig\(raw\); NET = withDeployed\(NET, HUB\.contracts\)/);
+  assert.match(hub, /HUB = mainnetConfig\(raw\); NET = withDeployed\(NET, HUB\.contracts, HUB\)/);
   assert.match(hub, /\{ id: 'agents', [^}]*feature: 'agents', also: \['airdrop'\] \}/);
   assert.match(readFileSync(join(HERE, 'agents.js'), 'utf8'), /if \(!hasFeature\(net, 'agents'\)\)[\s\S]{0,400}hasFeature\(net, 'airdrop'\)[\s\S]{0,200}airdropCard\(ctx\)/);
   const built = JSON.parse(readFileSync(join(build(), 'hub-config.json'), 'utf8'));

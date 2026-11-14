@@ -50,7 +50,7 @@ async function run(balanceWei) {
   return { page, browser, server, problems, walletLog, connect };
 }
 
-test('Swap: banner at 1,000 ZETAPHY, hardware help, Ledger (USB), idle forget after 30 min (phone width, strict CSP)', { timeout: 120_000 }, async () => {
+test('Swap: banner at 1,000 ZTPHY, hardware help, Ledger (USB), idle forget after 30 min (phone width, strict CSP)', { timeout: 120_000 }, async () => {
   const r = await run(1500n * 10n ** 18n);
   const { page } = r;
   try {
@@ -64,7 +64,7 @@ test('Swap: banner at 1,000 ZETAPHY, hardware help, Ledger (USB), idle forget af
     await r.connect();
     assert.match(await page.textContent('#wallet-dialog'), /Ledger \(USB\)/, 'the Ledger next to the browser wallets');
     await page.waitForSelector('#ws-host .ws-banner');
-    assert.match(await page.textContent('.ws-banner'), /1,500 ZETAPHY/);
+    assert.match(await page.textContent('.ws-banner'), /1,500 ZTPHY/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll with the banner');
     await page.click('.ws-banner [data-ws="banner-hide"]');
     assert.equal(await page.locator('.ws-banner').count(), 0);
@@ -95,7 +95,7 @@ test('Swap: banner at 1,000 ZETAPHY, hardware help, Ledger (USB), idle forget af
   }
 });
 
-test('Swap: no banner under 1,000 ZETAPHY', { timeout: 60_000 }, async () => {
+test('Swap: no banner under 1,000 ZTPHY', { timeout: 60_000 }, async () => {
   const r = await run(999n * 10n ** 18n);
   try {
     await r.connect();

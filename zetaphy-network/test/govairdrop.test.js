@@ -6,12 +6,14 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { toBech32 } from '../src/pqtx.js';
 
 const GOV = new URL('../../zetaphy-chain/gov.sh', import.meta.url).pathname;
-// valid bech32 characters only (no 1, b, i, o after the prefix)
-const addr = (n) => `zetaphy1${String(n).padStart(4, '0').replace(/[1bio]/g, 'q')}${'q'.repeat(34)}`;
+// real zetaphy1… addresses (gov.sh checks the bech32 checksum), from 20 bytes made of n
+const bytes = (n) => Uint8Array.from({ length: 20 }, (_, i) => (i < 16 ? 0x5a : (n >> (8 * (19 - i))) & 0xff));
+const addr = (n) => toBech32(bytes(n));
 const HEX = '0x' + 'ab'.repeat(20);
-const HEX_AS = addr(9999);
+const HEX_AS = toBech32(Uint8Array.from({ length: 20 }, () => 0xab));
 
 function chain({ balance = '1000000000000000000000000' /* 1,000,000 ZETAPHY */ } = {}) {
   const d = mkdtempSync(join(tmpdir(), 'zetaphy-airdrop-'));
@@ -87,4 +89,19 @@ test('refused: not enough in the fund, an amount over MAX_EACH, a bad amount', (
   const c = chain();
   assert.match(c.run(`${addr(2)},20000\n${addr(3)}\n`).out, /skip \(amount 20000\)/);
   assert.match(c.run(`${addr(2)}\n`, ['1.5']).out, /amount: whole ZETAPHY/);
+});
+
+test('a zetaphy1… address with a wrong checksum is skipped; the 0x conversion is checked against zetaphyd debug addr', () => {
+  const c = chain();
+  const good = addr(2);
+  const typo = good.slice(0, -1) + (good.endsWith('q') ? 'p' : 'q');
+  const r = c.run(`${good}\n${typo}\n`);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, new RegExp(`skip \\(not an address\\): ${typo}`));
+  assert.match(r.out, /1 addresses, 100 ZETAPHY in all/);
+  const other = '0x' + 'cd'.repeat(20); // the stand-in zetaphyd knows only HEX: a conversion it cannot confirm is refused
+  const x = c.run(`${other}\n`, [], { SEND: '1' });
+  assert.equal(x.code, 1);
+  assert.match(x.out, /refused: 0xcdcd.* zetaphyd debug addr says nothing: nothing sent/);
+  assert.deepEqual(c.txs(), []);
 });

@@ -20,13 +20,14 @@ genesis sha256 `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667
 บน Solana ซึ่งเป็นงานแยก ดู [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md))
 
 **สถานะ 2026-11-13:** mainnet ทำงานแล้ว (ตามการตัดสินใจของเจ้าของด้านบน) ด้วย validator 1 ตัว ด่าน 1 ยังไม่เริ่ม ด่าน 3 เริ่ม 2026-11-12
-และยังไม่ครบ ด่าน 4, 6 และ 7 เสร็จ ตามที่จดไว้ข้างล่าง ด่าน 8 ถึง 10 ยังเปิดอยู่ testnet (`zetaphy_77390-1`) ยังรันต่อเพื่อซ้อม upgrade
+และยังไม่ครบ ด่าน 4, 6 และ 7 เสร็จ ตามที่จดไว้ข้างล่าง ด่าน 8 ถึง 10 ยังเปิดอยู่ testnet (`zetaphy_77390-1`) ปิดถาวรแล้วเมื่อ 2026-11-14 (การตัดสินใจของเจ้าของ)
+การซ้อม upgrade จึงต้องใช้ devnet (CI รัน `test:devnet:upgrade`)
 
 | ด่าน | อะไร | สถานะ |
 |---|---|---|
 | 1 | audit อิสระจากภายนอก ตรวจ commit ที่จะ release แก้ทุก Critical/High และให้ผู้ตรวจยืนยัน | ❌ ยังไม่เริ่ม |
 | 2 | validator อิสระอย่างน้อย 4 ราย ไม่มีรายไหนเกิน 1/3 ของ power | ⚠️ การตัดสินใจของเจ้าของ: เปิดด้วย 1 validator; มีแผนเพิ่ม |
-| 3 | release ตัวนี้รันบน testnet อย่างน้อย 4 สัปดาห์โดยไม่มีปัญหา | ⏳ เริ่ม 2026-11-12 |
+| 3 | release ตัวนี้รันบน testnet อย่างน้อย 4 สัปดาห์โดยไม่มีปัญหา | ❌ ไม่ครบ: เริ่ม 2026-11-12 แล้ว testnet ปิดเมื่อ 2026-11-14 |
 | 4 | กุญแจใหม่ทั้งหมด ไม่มีกุญแจไหนอยู่บนเครื่องสาธารณะ | ✅ 2026-11-13 |
 | 5 | release สำหรับ mainnet: เซ็นแล้ว publish แล้ว ล็อก fingerprint | ⚠️ การตัดสินใจของเจ้าของ: ใช้ release ที่ยังไม่ audit (จดในด่าน 5) |
 | 6 | พิธีสร้าง genesis ร่วมกับ validator ทุกราย | ✅ 2026-11-13 |
@@ -62,13 +63,15 @@ genesis sha256 `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667
 - ไม่มี validator ไหนเกิน 1/3 ของ voting power ตอน genesis เพดาน power ของ chain guard (3333 bps) รักษาไว้เมื่อมีตั้งแต่ 4 รายขึ้นไป
 - แต่ละราย: กุญแจของตัวเอง (ควรใช้ remote signer เช่น Horcrux), sentry ของตัวเอง, ติดตั้งโหนดจาก release ที่เซ็นแล้วและตรวจด้วย
   `verify-release.sh`, และมีผู้ติดต่อเมื่อเกิดเหตุ
-- เริ่มหาบน testnet: ชวนผู้ดูแลเมื่อ RPC สาธารณะเปิดกลับมา และให้รัน validator บน testnet ก่อน
-  ([zetaphy-chain/README.md](../zetaphy-chain/README.md) และ `zetaphy-validator`)
+- การหา validator: testnet ไม่มีแล้ว (ปิดเมื่อ 2026-11-14) ผู้ดูแลจึงเข้าร่วม mainnet โดยตรงด้วย `install.sh validator`
+  ([ไฟล์ของ mainnet](../zetaphy-chain/mainnet/zetaphy_3659-1/README.th.md) และ `zetaphy-validator`)
 
 จดไว้ตรงนี้: validator แต่ละราย (ชื่อ, ช่องทางติดต่อ, operator address) `zetaphy-validator-0` (โครงการ ZETAPHY ดู SECURITY.md),
 `zetaphyvaloper1l9fxu7xn7yrug9rlsve9hs4mgtpn9zej9tqvx8`, node id `9d71e8582823a74d2cfbf51b1c6ef4af50e94e5c`
 
 ## ด่าน 3: รันบน testnet ให้นิ่ง
+
+testnet ปิดเมื่อ 2026-11-14 หลังเริ่มได้สองวัน ด่านนี้จึงยังไม่ครบตามที่เขียนไว้
 
 - release ที่จะรัน mainnet (หรือตัวที่รวมการแก้จาก audit) รันบน testnet **อย่างน้อย 4 สัปดาห์** โดย: ไม่มี consensus failure ไม่มี
   app hash ไม่ตรง ไม่มี start guard ปฏิเสธโดยไม่ได้ตั้งใจ validator ทุกรายผ่าน upgrade อย่างน้อย 1 ครั้ง และการโจมตีใน

@@ -7,7 +7,7 @@
 //     wallet/vendor/pqwallet.js) and a secret, shows the kit once, the connected account sends commit(hash).
 // Everything shown goes in with textContent; no inline styles (CSP style-src 'self'); scripts only from this site.
 import { withFallback } from './i18n.js';
-import { activeNetwork } from './network.js';
+import { activeNetwork, netText } from './network.js';
 import { QUANTUM } from './quantum-i18n.js';
 import { toBech32, toEvm, isEvmAddress } from './chainlib.js';
 import * as core from './quantum-core.js';
@@ -138,7 +138,7 @@ const page = {
 
     root.replaceChildren(
       el('p', { class: 'small', id: 'qs-intro', text: L.intro }),
-      el('p', { class: 'small dim', text: L.testnet }),
+      el('p', { class: 'small dim', id: 'qs-risk', text: (ctx.net ?? activeNetwork()).testnet ? L.testnet : netText(ctx.lang).risk }),
       qdayBox,
       el('div', { class: 'au-grid' },
         card('qs-ready', L.scoreTitle, L.scoreTip, ...scoreKids),

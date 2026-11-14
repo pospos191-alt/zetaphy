@@ -129,7 +129,7 @@ export async function immuneWarnings({ lang, url, to, net, fetchImpl = fetch, ms
   const L = A(lang);
   const work = (async () => {
     const feed = ADDR.test(net.registry ?? '') ? null : await loadImmuneFeed(net.feedUrl, fetchImpl);
-    const r = await immuneCheck({ send: rawSender(url, fetchImpl), registry: net.registry, feed, address: to });
+    const r = await immuneCheck({ send: rawSender(url, fetchImpl), registry: net.registry, feed, address: to, chainId: activeNetwork().chainId });
     return r.flagged ? [L.inWarn(L.inSev[r.severity] ?? String(r.severity), r.kind)] : [];
   })();
   return Promise.race([work.catch(() => []), new Promise((r) => setTimeout(() => r([]), ms))]);
@@ -377,7 +377,7 @@ const immune = {
     }
     const box = root.querySelector('#im-cov');
     const im = ctx.cfg.immune;
-    if (!ADDR.test(im?.sender ?? '') || !(im.mirrors ?? []).length) { box?.replaceChildren(ctx.el('p', { class: 'dim', text: L.imNotDeployed })); return; }
+    if (!ADDR.test(im?.sender ?? '') || !(im.mirrors ?? []).length) { box?.replaceChildren(ctx.el('p', { class: 'dim', 'data-immune-cov': 'none', text: (ctx.net ?? activeNetwork()).testnet ? L.imNotDeployed : L.imNotDeployedMain })); return; }
     try {
       const m = await measureCoverage({ immune: im, zSend: rawSender(ctx.ep().evm), chainSend: (x) => rawSender(x.rpc) });
       box?.replaceChildren(ctx.el('p', { class: 'dim', text: L.imFlagged(m.flagged) }),

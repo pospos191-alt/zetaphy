@@ -74,7 +74,7 @@ refused "chain id and EVM chain id disagree" "must agree" 's/^EVM_CHAIN_ID=.*/EV
 refused "allocations below the supply" "add up to 999,999,999" 's/^\(ALLOC_LIQUIDITY=[^ ]*\) 98999000/\1 98998999/'
 refused "allocations above the supply" "must be equal" 's/^TOTAL_SUPPLY=.*/TOTAL_SUPPLY=999000000/'
 refused "a placeholder address" "placeholder" 's/^\(ALLOC_REWARDS=\)[^ ]*/\10x1111111111111111111111111111111111111111/'
-refused "an address with a bad checksum" "not a zetaphy1" "s/^\(ALLOC_REWARDS=zetaphy1[a-z0-9]*\)[a-z0-9] /\1q /;s/^\(ALLOC_REWARDS=zetaphy1[a-z0-9]*\)qq /\1pp /"
+refused "an address with a bad checksum" "not a zetaphy1" "s/^\(ALLOC_REWARDS=zetaphy1[a-z0-9]*\)q /\1p /;t;s/^\(ALLOC_REWARDS=zetaphy1[a-z0-9]*\)[a-z0-9] /\1q /"
 refused "the same address twice" "one allocation per address" "s|^\(ALLOC_COMMUNITY=\)[^ ]*|\1$(addr rewards)|"
 refused "a faucet allocation" "no faucet" "s|^ALLOC_LIQUIDITY=\([^ ]*\) 98999000|ALLOC_LIQUIDITY=\1 98998000\nALLOC_FAUCET=$(addr other) 1000|"
 refused "no validator account" "ALLOC_VALIDATOR is required" 's/^ALLOC_VALIDATOR=.*//; s/^TOTAL_SUPPLY=.*/TOTAL_SUPPLY=999000000/'

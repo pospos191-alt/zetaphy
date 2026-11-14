@@ -2,6 +2,8 @@
 
 # Forecasts, data and detectors that train Neuro (testnet)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Five pieces that turn people's and models' judgement into labelled data and better detectors for Neuro.
 **Testnet only.** Every stake, bond and reward is testnet ZETAPHY, which has no value; the scripts refuse any
 chain but 77390. None of this is a way to make money, and the wording everywhere says "forecast", never "bet".

@@ -7,6 +7,9 @@
 //   EVM rounds for ZtphyMerkleDistributor (amounts in ZTPHY, decimals allowed; --pool defaults to 200,000,000):
 //   node airdrop/cli.js from-csv <file.csv> [--equal | --each Z | --weight score] [--cap Z] [--pool Z] [--min-score N]
 //        [--exclude list.txt] [--rpc <URL of the chain the list came from>] [--batch 100] > recipients.json
+//   Push airdrop on mainnet (owner decision 2026-11-14): the list for `gov.sh airdrop` (one 0x… per line):
+//   node airdrop/cli.js push-list <file.csv> --rpc <Ethereum RPC> [--max 100000] [--exclude list.txt] [--min-score N]
+//        [--out list.txt] [--batch 100]
 //   node airdrop/cli.js link-message <solanaOwner> <0xEVM> --chain-id N
 //   node airdrop/cli.js link-solana allocations.json links.json --chain-id N > linked.json
 //   node airdrop/cli.js links-from-issues issues.json [--chain-id 3659] [--deadline ISO] > links.json   (GitHub issue form)
@@ -15,14 +18,15 @@
 //   node airdrop/cli.js verify <dir> [--rpc URL --distributor 0x…]
 //   node airdrop/cli.js init-code <dir> --start <ISO date|unix s> --deadline <ISO|unix> --return-to 0x… [--guardian 0x…]
 //        prints the distributor's init code (for `zetaphy pq native deploy <init code>` or any wallet); deploys nothing
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseUnits, formatUnits, getAddress, Interface, ZeroAddress } from 'ethers';
 import { takeSnapshot } from './snapshot.js';
 import { allocate, POOL } from './allocate.js';
 import { buildTree } from './merkle.js';
-import { parseRecipients, dropContracts, assignAmounts, reasons } from './recipients.js';
+import { parseRecipients, dropContracts, assignAmounts, reasons, SYSTEM_ADDRESSES } from './recipients.js';
 import { linkMessage, linkSolana } from './link.js';
 import { issuesOf, linksFromIssues } from './issues.js';
 import { buildRound, writeRound, verifyRound } from './distributor.js';
@@ -77,6 +81,36 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     const why = reasons(dropped);
     log(`from-csv: ${r.count} recipients, ${z(r.total)} of ${z(r.pool)} (${mode}${opt.cap ? `, cap ${opt.cap} ZTPHY, ${r.capped} capped` : ''}); dropped ${dropped.length}: ${JSON.stringify(why)}${opt.rpc ? '' : ' (contracts NOT checked: pass --rpc)'}`);
     return { source: pos[0], mode, contractsChecked: Boolean(opt.rpc), ...r, droppedCount: dropped.length, droppedByReason: why, dropped };
+  }
+  if (cmd === 'push-list') {
+    // The address,score CSV of queries/active-evm-wallets.sql -> one EIP-55 0x… per line for gov.sh airdrop. Drops what
+    // from-csv drops (bad / bad checksum, duplicates, zero, precompiles and reserved below 0x…10000, burn and
+    // placeholders, --exclude) plus ZETAPHY's module accounts and preinstalls, then every contract on Ethereum
+    // (eth_getCode, required: a contract address there is no key here, so coins pushed to it would be lost).
+    if (!pos[0]) throw new Error('push-list <file.csv> --rpc <Ethereum RPC> [--max N] [--exclude list.txt] [--min-score N] [--out list.txt]');
+    if (!opt.rpc) throw new Error('push-list: --rpc <an Ethereum RPC URL> is required (the contract re-check): a contract on Ethereum has no key on ZETAPHY, so coins pushed to it are lost');
+    let max = null;
+    if (opt.max != null) { max = Number(opt.max); if (!Number.isSafeInteger(max) || max <= 0) throw new Error('--max: a whole number of addresses'); }
+    const exclude = opt.exclude ? readFileSync(opt.exclude, 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')) : [];
+    const parsed = parseRecipients(readFileSync(pos[0], 'utf8'), { exclude, minScore: BigInt(opt['min-score'] ?? 0) });
+    const dropped = [...parsed.dropped];
+    let rows = [];
+    for (const r of parsed.rows) {
+      if (SYSTEM_ADDRESSES.has(r.address.toLowerCase())) dropped.push({ line: r.line, value: r.address, reason: 'system-address' }); else rows.push(r);
+    }
+    // highest score first (the query's order; a stable sort keeps the file's order for equal scores)
+    if (rows.every((r) => r.score != null)) rows = rows.map((r, i) => [r, i]).sort((a, b) => (a[0].score === b[0].score ? a[1] - b[1] : a[0].score > b[0].score ? -1 : 1)).map(([r]) => r);
+    const c = await dropContracts(rows, { rpcUrl: opt.rpc, batch: Number(opt.batch ?? 100), fetchImpl });
+    rows = c.rows;
+    dropped.push(...c.dropped);
+    if (max != null && rows.length > max) { for (const r of rows.slice(max)) dropped.push({ line: r.line, value: r.address, reason: 'over-max' }); rows = rows.slice(0, max); }
+    const text = rows.map((r) => r.address).join('\n') + (rows.length ? '\n' : '');
+    const sha = createHash('sha256').update(text).digest('hex');
+    const why = reasons(dropped);
+    log(`push-list: ${rows.length} addresses (10 ZTPHY each = ${rows.length * 10} ZTPHY); dropped ${dropped.length}: ${JSON.stringify(why)}; contracts checked on ${new URL(opt.rpc).host}; sha256 of the list ${sha}`);
+    if (!opt.out) return text;
+    writeFileSync(opt.out, text);
+    return { out: opt.out, count: rows.length, sha256: sha, droppedCount: dropped.length, droppedByReason: why, dropped };
   }
   if (cmd === 'link-message') {
     return { message: linkMessage(pos[0], pos[1], opt['chain-id']) };
@@ -154,13 +188,13 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     log(`init-code: root ${s.root}, ${s.count} leaves, ${z(s.total)}, claims ${new Date(start * 1000).toISOString()} .. ${new Date(deadline * 1000).toISOString()}, returnTo ${returnTo}, guardian ${guardian === ZeroAddress ? 'none' : guardian}`);
     return { contract: 'ZtphyMerkleDistributor', args: { root: s.root, totalAllocated: s.total, leafCount: s.count, claimStart: start, claimDeadline: deadline, returnTo, guardian }, initCode };
   }
-  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 17).join('\n')), { usage: true });
+  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 20).join('\n')), { usage: true });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const out = await run(process.argv.slice(2));
-    process.stdout.write(JSON.stringify(out, null, 2) + '\n');
+    process.stdout.write(typeof out === 'string' ? out : JSON.stringify(out, null, 2) + '\n');
   } catch (e) {
     console.error(e.message);
     process.exitCode = e.usage ? 2 : 1;

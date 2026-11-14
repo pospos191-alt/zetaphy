@@ -185,9 +185,9 @@ test('home: chain id, height, supply with burns, staking, PQ coverage, latest bl
   await waitText(page, 'ของพลังโหวตมีกุญแจโหวต PQ');
   const t = await text(page);
   assert.match(t, new RegExp(CHAIN_ID));
-  assert.match(t, /1,000,000 ZETAPHY/);
-  assert.match(t, /เผาไปใน ~1 ชม\. ล่าสุด: 1\.2 ZETAPHY/);
-  assert.match(t, /100,000 ZETAPHY/); // bonded
+  assert.match(t, /1,000,000 ZTPHY/);
+  assert.match(t, /เผาไปใน ~1 ชม\. ล่าสุด: 1\.2 ZTPHY/);
+  assert.match(t, /100,000 ZTPHY/); // bonded
   assert.match(t, /10\.0% ของอุปทาน/);
   assert.match(t, /60\.0% ของพลังโหวตมีกุญแจโหวต PQ/);
   // this month's activity, from Neuro's daily counts
@@ -244,7 +244,7 @@ test('Cosmos tx: ZETAPHY messages decoded, ML-DSA-44 signer, memo sanitised; fai
   const t = await text(page);
   assert.match(t, /Success/);
   assert.match(t, /ML-DSA-44 \(post-quantum\) key/);
-  assert.match(t, /#0 MsgSend/); assert.match(t, /2\.5 ZETAPHY/);
+  assert.match(t, /#0 MsgSend/); assert.match(t, /2\.5 ZTPHY/);
   assert.match(t, /#1 MsgEVMCall/); assert.match(t, /as owner/); assert.match(t, /0xa9059cbb · 68 bytes/);
   assert.match(t, /#2 MsgQuantumLock/); assert.match(t, /controller/);
   assert.match(t, /gm from ZETAPHY/); // the bidi override in the memo is gone
@@ -271,7 +271,7 @@ test('EVM tx: from/to/value/gas/status and ERC-20 / ERC-721 / ERC-1155 transfers
   assert.match(t, new RegExp(chain.evmWallet.address));
   assert.match(t, /61,234 \/ 150,000/);
   assert.match(t, /1\.5 gwei/);
-  assert.match(t, /0\.000091851 ZETAPHY/); // 61234 × 1.5 gwei
+  assert.match(t, /0\.000091851 ZTPHY/); // 61234 × 1.5 gwei
   assert.match(t, /ERC-20/); assert.match(t, /ERC-721/); assert.match(t, /NFT #7/); assert.match(t, /#3 ×10/); assert.match(t, /mint/);
   // the deep view: summary, guessed decode of the input, ThreatRegistry flag on the callee, gas and the burned half
   await waitText(page, 'sent 1.5 SWD to');
@@ -281,7 +281,7 @@ test('EVM tx: from/to/value/gas/status and ERC-20 / ERC-721 / ERC-1155 transfers
   assert.match(d, /transfer\(address to, uint256 \w+\)/); assert.match(d, /Guessed/);
   assert.match(d, /Automated code analysis, not an accusation/);
   assert.match(d, /61,234 \/ 150,000 \(40\.82%\)/);
-  assert.match(d, /0\.0000459255 ZETAPHY/); // half of 61,234 × 1.5 gwei
+  assert.match(d, /0\.0000459255 ZTPHY/); // half of 61,234 × 1.5 gwei
   assert.match(d, /0\.5 gwei/); // the block's base fee
   assert.match(d, /Internal calls/);
   // the block's list links the EVM hash (keccak of the raw tx), not the CometBFT hash
@@ -295,14 +295,14 @@ test('EVM tx: from/to/value/gas/status and ERC-20 / ERC-721 / ERC-1155 transfers
 test('EVM tx deep view: swap summary, verified decode, call tree, who gained / who lost; custom error; no traces said plainly', async () => {
   const { page, ctx, problems, counts: mine } = await openPage({ lang: 'en' });
   await go(page, `#/tx/${chain.deep.swapHash}`);
-  await waitText(page, 'swapped 10 ZETAPHY for 1,234 SWD on ZetaphyRouter');
+  await waitText(page, 'swapped 10 ZTPHY for 1,234 SWD on ZetaphyRouter');
   await waitText(page, 'Internal ZETAPHY transfers');
   await waitText(page, '+1,234');
   const t = await text(page);
   assert.match(t, /swapExactETHForTokens\(uint256 amountOutMin, address\[\] path, address to, uint256 deadline\)/);
   assert.match(t, /Verified/);
   assert.match(t, /STATICCALL/); assert.match(t, /execution reverted/); // the reverted inner call
-  assert.match(t, /−10\.00018 ZETAPHY/); // the sender's ZETAPHY (value + fee), from the prestate diff
+  assert.match(t, /−10\.00018 ZTPHY/); // the sender's ZETAPHY (value + fee), from the prestate diff
   assert.match(t, /prestate trace/);
   assert.ok(await page.locator('.calltree .call').count() >= 6, 'one row per call');
   assert.ok(await page.locator('.calltree .call[data-depth="2"]').count() >= 2, 'nested calls');
@@ -409,10 +409,10 @@ test('address: 0x and zetaphy1 forms, balance, sequence, ML-DSA-44, tokens, rece
   await waitText(page, 'MsgSetPQEvidence');
   const t = await text(page);
   assert.match(t, new RegExp(ME_HEX)); assert.match(t, new RegExp(ME));
-  assert.match(t, /1,234\.5 ZETAPHY/);
+  assert.match(t, /1,234\.5 ZTPHY/);
   assert.match(t, /3 \(account number 5\)/);
   assert.match(t, /ML-DSA-44 account \(post-quantum\)/);
-  assert.match(t, /1,000 ZETAPHY · 1 validators/); // staked
+  assert.match(t, /1,000 ZTPHY · 1 validators/); // staked
   assert.match(t, /1\.5\b/); // ERC-20 balance
   assert.match(t, /ERC-721/);
   assert.match(t, /MsgSend/); // this address's history from the node's tx index (all heights)
@@ -795,8 +795,8 @@ test('fund flow: the graph renders from the mock node, says its scope, expands a
   assert.ok(before.includes(sender), 'the ERC-20 sender, one hop in');
   assert.ok(!before.includes(MAILBOX.toLowerCase()));
   // edges are labelled with amounts; the table fallback lists the same transfers
-  assert.match(await page.locator('svg.flow-svg').textContent(), /2\.5 ZETAPHY/);
-  assert.match(await page.locator('table.flow-table').innerText(), /2\.5 ZETAPHY/);
+  assert.match(await page.locator('svg.flow-svg').textContent(), /2\.5 ZTPHY/);
+  assert.match(await page.locator('table.flow-table').innerText(), /2\.5 ZTPHY/);
   // click the sender: its outflow to the Hyperlane Mailbox appears, labelled
   await page.click(`svg.flow-svg g.flow-node[data-address="${sender}"]`);
   await page.waitForSelector(`svg.flow-svg g.flow-node[data-address="${MAILBOX.toLowerCase()}"]`);
@@ -846,7 +846,7 @@ test('fund flow: "Follow" goes past 3 hops to where the money stops, Stop stops 
   await page.waitForFunction(() => /Followed to the end: 6 hop\(s\)/.test(document.querySelector('.flow-status')?.textContent ?? ''), null, { timeout: 30000 });
   for (let i = 1; i <= 6; i++) assert.equal(await page.locator(`svg.flow-svg g.flow-node[data-address="${F[i]}"]`).getAttribute('data-hop'), String(i), `hop ${i}`);
   assert.match(await page.locator('svg.flow-svg').textContent(), /6 hop\(s\) out/);
-  assert.match(await page.locator('svg.flow-svg').textContent(), /50 ZETAPHY/);
+  assert.match(await page.locator('svg.flow-svg').textContent(), /50 ZTPHY/);
   const t = await text(page);
   assert.match(t, /no further outflow in the data read/);
   // the cycle F2 -> F3 -> F4 -> F2: found, drawn, followed once
@@ -858,7 +858,7 @@ test('fund flow: "Follow" goes past 3 hops to where the money stops, Stop stops 
   await page.click('#flow-path-show');
   await waitText(page, '6 step(s)');
   assert.equal(await page.locator('.flow-path-list li').count(), 6);
-  assert.match(await page.locator('.flow-path-list li').first().innerText(), /100 ZETAPHY/);
+  assert.match(await page.locator('.flow-path-list li').first().innerText(), /100 ZTPHY/);
   assert.equal(await page.locator('svg.flow-svg g.flow-edge.flow-on-path').count(), 6);
   // a hop collapses into "+N more" (a node on the path stays drawn) and comes back
   await page.click('button.flow-layer-btn[data-layer="6"]');

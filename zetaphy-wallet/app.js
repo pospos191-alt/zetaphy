@@ -19,7 +19,7 @@ import {
   CHAIN_ID, CHAIN_NAME, EVM_CHAIN_ID_HEX, EVM_SYMBOL, DECIMALS, nodeEndpoints, evmChainParams, keplrChainInfo,
   discoverWallets, mayRunSnaps, openInAppLinks, NETWORK,
 } from './wallets.js';
-// The network (network.js): mainnet unless the visitor picked the testnet; a switch reloads the page.
+// The network (network.js): mainnet, the only network (the testnet was shut down on 2026-11-14).
 import { netKey, networkBadge, netText, watchNetwork, linkExplorer } from './network.js';
 import {
   seal, unseal, passwordStrength, MIN_PASSWORD_LENGTH, wrapSeed, unwrapSeed, isPasskeyBlob, newPrfSalt, toB64url, fromB64url,
@@ -3454,7 +3454,7 @@ function showRollback() {
 
 function downloadProofs() {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([exportProofs(book, { address: wallet?.addr.hex ?? null, rpc: $('rpc').value.trim() })], { type: 'application/json' }));
+  a.href = URL.createObjectURL(new Blob([exportProofs(book, { address: wallet?.addr.hex ?? null, rpc: $('rpc').value.trim(), chain: `${NETWORK.label} (${CHAIN_ID})` })], { type: 'application/json' }));
   a.download = `zetaphy-proofs-${book.latest?.height ?? 'none'}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);

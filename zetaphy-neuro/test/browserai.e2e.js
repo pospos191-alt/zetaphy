@@ -130,7 +130,7 @@ test('AI panel, provider "in this browser": verified model from this site, on-ch
   const outside = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy/.test(m.text())) errors.push(m.text()); });
-  const REG = '0xab5745b61f83975e68f6546be9f83651df12417f';
+  const REG = '0xaacfc7cf7148b7ae530c2ab891d4220e648a2139'; // mainnet ThreatRegistry (graph/sources.js ZETAPHY)
   const key = addressKey(56, addr);
   const w = (h) => String(h).replace(/^0x/, '').padStart(64, '0');
   const zetaLogs = [
@@ -145,8 +145,8 @@ test('AI panel, provider "in this browser": verified model from this site, on-ch
     if (req.method() === 'GET') { await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }); return; }
     const { id, method, params } = JSON.parse(req.postData());
     let result;
-    if (url.host === 'rpc.sawasdeecoin.com') {
-      result = method === 'eth_chainId' ? '0x12e4e' : method === 'eth_blockNumber' ? '0x100' : method === 'eth_getLogs' ? zetaLogs.filter((l) => params[0].address.toLowerCase() === REG) : null;
+    if (url.host === '129-221-199-191.sslip.io') {
+      result = method === 'eth_chainId' ? '0xe4b' : method === 'eth_blockNumber' ? '0x100' : method === 'eth_getLogs' ? zetaLogs.filter((l) => params[0].address.toLowerCase() === REG) : null;
     } else {
       try { result = method === 'eth_chainId' ? '0x38' : await chain.rpc.call(method, params); } catch (e) { await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jsonrpc: '2.0', id, error: { code: 3, message: e.message } }) }); return; }
     }
@@ -174,7 +174,7 @@ test('AI panel, provider "in this browser": verified model from this site, on-ch
   assert.match(out, /evidence: ML/);
   assert.match(out, /neuro-ml-gbdt@1/);
   assert.equal(await page.textContent('#title'), level, 'the rules\' result is unchanged');
-  assert.ok(outside.every((h) => h === 'rpc.sawasdeecoin.com' || !/anthropic|openai|11434/.test(h)), outside.join(','));
+  assert.ok(outside.every((h) => h === '129-221-199-191.sslip.io' || !/anthropic|openai|11434/.test(h)), outside.join(','));
   // Thai: same verified engine, cached now
   await page.selectOption('#lang', 'th');
   await page.click('#ai-run');

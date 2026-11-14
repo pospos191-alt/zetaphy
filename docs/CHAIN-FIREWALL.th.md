@@ -2,6 +2,8 @@
 
 # ไฟร์วอลล์ invariant ในโหนด (ชั้นเชน)
 
+> **testnet ปิดถาวรแล้วเมื่อ 2026-11-14** ตอนนี้ ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) เป็นเครือข่ายเดียว ที่หน้านี้เขียนว่า testnet หมายถึง testnet ที่ปิดแล้ว (หรือ devnet) ดู[ประกาศ mainnet](ZETAPHY-MAINNET-NOTICE.th.md)
+
 ใช้กับ testnet เท่านั้น ไม่มีส่วนใดถือหรือจ่ายเงินจริง และยังไม่ผ่านการตรวจสอบโดยบริษัทภายนอก
 
 [ไฟร์วอลล์ invariant](future/invariant-firewall.th.md) (SS1) ให้โปรโตคอลลงทะเบียนตัวตรวจ invariant

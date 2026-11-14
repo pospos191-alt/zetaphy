@@ -22,7 +22,7 @@ import { TOPIC, lc, topicAddr, toNum, hexBlock, dataWord, createBudget } from '.
 import { investigate } from './pipeline.js';
 import { planAlerts, issueFor, ALERT_LABEL } from './alerts.js';
 
-const ZETAPHY_CHAIN = { kind: 'evm', id: ZETAPHY.chainId, name: 'ZETAPHY (testnet)', rpcs: [ZETAPHY.rpc], dex: ZETAPHY.dex };
+const ZETAPHY_CHAIN = { kind: 'evm', id: ZETAPHY.chainId, name: 'ZETAPHY', rpcs: [ZETAPHY.rpc], dex: ZETAPHY.dex };
 const EXPLORER = 'https://explorer.sawasdeecoin.com/#/';
 
 /** New tokens from PairCreated logs of both factories: [{ token, pair, block, tx, factory }]. */

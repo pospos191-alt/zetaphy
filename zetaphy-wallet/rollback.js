@@ -139,8 +139,8 @@ export function bridgedBalanceSlot(holder, keccak256, slot = 3n) {
 }
 
 /** What the user downloads: the book (latest checkpoint with its proofs and certificate, the heads held, any alarm). */
-export function exportProofs(book, { address, rpc }) {
+export function exportProofs(book, { address, rpc, chain = 'ZETAPHY mainnet (zetaphy_3659-1)' }) {
   return JSON.stringify({ kind: 'zetaphy-wallet-proofs/v1', address, rpc, exportedAt: new Date().toISOString(),
-    note: 'ZETAPHY testnet. Proofs as the node served them: eth_getProof (ICS23 ops; zetaphy-network/src/forcedexit.js turns the token one into ZetaphyForcedExit.prove arguments) and the PQ finality certificate of the same block.',
+    note: `${chain}. Proofs as the node served them: eth_getProof (ICS23 ops; zetaphy-network/src/forcedexit.js turns the token one into ZetaphyForcedExit.prove arguments) and the PQ finality certificate of the same block.`,
     ...book }, null, 2);
 }

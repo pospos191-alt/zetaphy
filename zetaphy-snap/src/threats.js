@@ -24,7 +24,7 @@
 //      network: if MetaMask's current chain is not the transaction's, the code
 //      cannot be read and the insight says it could not check this chain.
 //   3. One JSON-RPC batch to the ZETAPHY RPC (endowment:network-access), read only:
-//      eth_chainId (must be ZETAPHY, 77390), then eth_call of the registry's warning
+//      eth_chainId (must be ZETAPHY mainnet, 3659), then eth_call of the registry's warning
 //      and enforcement views for each address: isAddressFlagged(chainId, address),
 //      isCodeFlagged(keccak256(code)) and isFlagged(fp1(code)), and their is*Enforced.
 //   4. Only if something is flagged, a second batch: evidenceOf(key) of each flag (its
@@ -46,7 +46,8 @@
 // Every insight says when such a custom source is in use.
 import { threatQueries, readThreat, proxyTargets, PROXY_DEPTH, threatKey, detailQueries, readEvidence, readResponse, selector } from '../../zetaphy-network/src/vaccine.js';
 
-export const ZETAPHY_EVM_CHAIN_ID = 77390n;
+// ZETAPHY mainnet (the testnet, 77390, was shut down on 2026-11-14)
+export const ZETAPHY_EVM_CHAIN_ID = 3659n;
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 const ZERO = '0x0000000000000000000000000000000000000000';
 const MAX_DESTINATIONS = 12; // named addresses, and what proxies forward to

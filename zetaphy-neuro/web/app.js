@@ -8,7 +8,7 @@ import { CHAINS, isChainAddress, explorerUrl, explorerTxUrl } from '../src/chain
 import { verdictOf } from '../src/verdict.js';
 import { loadChainStats, renderChainStats } from './chain.js';
 import { safety } from './wallet-safety.js';
-// The network (network.js, shared with the hub): mainnet unless the visitor picked the testnet. ZETAPHY in the chain
+// The network (network.js, shared with the hub): mainnet, the only one since 2026-11-14. ZETAPHY in the chain
 // list is that network's chain (src/chains.js zetaphyMainnet or zetaphy); the other one is not offered.
 import { activeNetwork, networkBadge, watchNetwork, linkExplorer } from './network.js';
 const NET = activeNetwork();

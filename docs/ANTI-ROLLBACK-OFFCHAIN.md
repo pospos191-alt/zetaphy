@@ -2,6 +2,8 @@
 
 # Anti-rollback and anti-takeover: the off-chain half
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 **Testnet only, not audited.** The chain-side guards (start guard, sign record, no crypto downgrade, voting-power cap,
 circuit breaker) are in [ANTI-ROLLBACK-CHAIN.md](ANTI-ROLLBACK-CHAIN.md). This page is everything around the chain:
 the binaries nodes install, the dependencies we build them from, what a finder earns, and what each user keeps.

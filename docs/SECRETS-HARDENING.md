@@ -1,5 +1,7 @@
 # Secrets hardening: keys only through GitHub Environments
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 [ภาษาไทย](SECRETS-HARDENING.th.md)
 
 Every GitHub Actions job that uses a private key or token now reads it from a **GitHub Environment**,

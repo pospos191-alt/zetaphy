@@ -1,5 +1,9 @@
 # Horcrux for a ZETAPHY validator (optional, testnet)
 
+> The testnet was shut down on 2026-11-14. This setup was written and tried for it; on mainnet the validator's key
+> setup is the one in [docs/ZETAPHY-MAINNET-PROCEDURE.md](../../docs/ZETAPHY-MAINNET-PROCEDURE.md). Do not use Horcrux on mainnet
+> until it has run end to end on a devnet (it has not yet, see below); the mainnet chain id is `zetaphy_3659-1`.
+
 [ภาษาไทย](README.th.md)
 
 [Horcrux](https://github.com/strangelove-ventures/horcrux) splits the validator's **ed25519 signing key**

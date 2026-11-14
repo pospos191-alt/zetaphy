@@ -1,7 +1,7 @@
 // Browser test (real Chromium, the real page and its CSP) for docs/future/browser-ai.md
 // items 2 and 7: two separate browser contexts find each other through the
 // SignalBoard contract on a ZETAPHY-like chain (test/helpers/signal-devnet.js,
-// reached as https://rpc.sawasdeecoin.com), each with its own throwaway session
+// reached as the mainnet RPC https://129-221-199-191.sslip.io, chain 3659), each with its own throwaway session
 // key paid by the faucet, open a real WebRTC data channel with nobody pasting a
 // code, and then:
 //   1. one browser loads only the layers it serves (verified chunks), the other
@@ -28,7 +28,7 @@ async function launch() {
 }
 
 before(async () => {
-  net = await createSignalDevnet();
+  net = await createSignalDevnet({ chainId: 3659 }); // the page's chain (ai/browser/config.js: graph/sources.js ZETAPHY, mainnet)
   chain = await createLocalChain();
   server = spawn(process.execPath, ['scripts/serve.js', String(PORT)], { stdio: 'pipe', env: { ...process.env, NEURO_PRIVATE_RULES: '' } });
   await new Promise((r) => server.stdout.once('data', r));
@@ -56,7 +56,7 @@ async function pageIn(ctx, { contracts = false } = {}) {
     const { id, method, params } = JSON.parse(req.postData());
     let result, error;
     try {
-      if (url.host === 'rpc.sawasdeecoin.com') result = await net.call(method, params);
+      if (url.host === '129-221-199-191.sslip.io') result = await net.call(method, params);
       else if (contracts) result = method === 'eth_chainId' ? '0x38' : await chain.rpc.call(method, params);
       else throw new Error('no network in this test');
     } catch (e) { error = { code: -32000, message: e.message }; }

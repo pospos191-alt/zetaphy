@@ -1,14 +1,14 @@
 // The Telegram bot's words (server/telegram.js), in the 8 languages of the ZETAPHY apps. {x} are filled in.
-// Facts only: test coins, no value, no promise; we never DM first and never ask for a seed phrase.
+// Facts only: mainnet (chain 3659, ZTPHY), no promise of an airdrop for the bot's list; we never DM first and never ask for a seed phrase.
 
 export const BOT_LANGS = ['en', 'th', 'zh', 'es', 'ko', 'ja', 'ru', 'vi'];
 
 export const BOT = {
   en: {
-    start: '👋 Welcome to ZETAPHY, a post-quantum EVM chain (testnet).\n\n🎁 Airdrop: send /claim and your wallet address (0x… from MetaMask, Trust or any EVM wallet, or zetaphy1… from Keplr). One wallet per Telegram account, {amount} test ZETAPHY each.\n🔍 /check 0x… — Neuro reads a token\'s contract before you buy.\n\n⚠️ Test coins have no value. We never message you first and never ask for your seed phrase.',
+    start: '👋 Welcome to ZETAPHY, a post-quantum EVM chain. Mainnet: chain ID 3659, coin ZTPHY. It runs on a single validator and its code has not passed an independent audit yet: use only amounts you can afford to lose.\n\n🎁 ZTPHY airdrop round 1 is for SWD holders on Solana: link your wallet at app.sawasdeecoin.com/airdrop-link.html before 2026-12-04 14:00 UTC.\n📋 /claim and your 0x… or zetaphy1… address puts a wallet on this bot\'s list (one per Telegram account). No airdrop has been announced for this list yet.\n🔍 /check 0x… — Neuro reads a token\'s contract before you buy.\n\n⚠️ The testnet (chain 77390) was shut down on 2026-11-14. We never message you first and never ask for your seed phrase or a payment.',
     open: 'Open ZETAPHY', about: 'What is ZETAPHY?', neuro: 'Check a token',
     claimHow: 'Send /claim and your address, for example:\n/claim 0x1234…abcd',
-    claimOk: '✅ Registered: {a}\nYou will get {amount} test ZETAPHY in the next airdrop round. To see them, add the ZETAPHY network (chain ID 77390) to your wallet: app.sawasdeecoin.com',
+    claimOk: '✅ Registered: {a}\nNo airdrop has been announced for this list yet, so nothing is promised. The testnet airdrop ended when the testnet was shut down on 2026-11-14. ZETAPHY mainnet is chain ID 3659 (ZTPHY): app.sawasdeecoin.com',
     badAddr: 'That is not a wallet address. Use 0x… (40 hex characters) or zetaphy1…',
     already: 'This Telegram account is already registered. One wallet per account.',
     taken: 'This wallet is already on the list.',
@@ -25,10 +25,10 @@ export const BOT = {
     early: '🎉 Plus {early} ZETAPHY Early (ZEARLY), the community token of early supporters. It has no value and is not ZETAPHY. In MetaMask: Import token {token}',
   },
   th: {
-    start: '👋 ยินดีต้อนรับสู่ ZETAPHY บล็อกเชน EVM ที่ทนคอมพิวเตอร์ควอนตัม (testnet)\n\n🎁 แอร์ดรอป: พิมพ์ /claim ตามด้วยที่อยู่กระเป๋า (0x… จาก MetaMask, Trust หรือกระเป๋า EVM ใดก็ได้ หรือ zetaphy1… จาก Keplr) หนึ่งบัญชี Telegram ต่อหนึ่งกระเป๋า คนละ {amount} ZETAPHY ทดสอบ\n🔍 /check 0x… ให้ Neuro อ่านสัญญาโทเค็นก่อนซื้อ\n\n⚠️ เหรียญทดสอบไม่มีมูลค่า เราไม่ทักแชทหาคุณก่อน และไม่ขอ 24 คำ (seed) ของคุณเด็ดขาด',
+    start: '👋 ยินดีต้อนรับสู่ ZETAPHY บล็อกเชน EVM ที่ทนคอมพิวเตอร์ควอนตัม mainnet: chain ID 3659 เหรียญ ZTPHY ตอนนี้รันบน validator ตัวเดียว และโค้ดยังไม่ผ่านการตรวจสอบจากภายนอกที่เป็นอิสระ ใช้เฉพาะจำนวนที่เสียได้\n\n🎁 แอร์ดรอป ZTPHY รอบ 1 สำหรับผู้ถือ SWD บน Solana: เชื่อมกระเป๋าที่ app.sawasdeecoin.com/airdrop-link.html ก่อน 2026-12-04 14:00 UTC\n📋 พิมพ์ /claim ตามด้วยที่อยู่ 0x… หรือ zetaphy1… เพื่อใส่กระเป๋าในรายชื่อของบอทนี้ (หนึ่งกระเป๋าต่อหนึ่งบัญชี Telegram) ยังไม่มีการประกาศแอร์ดรอปสำหรับรายชื่อนี้\n🔍 /check 0x… ให้ Neuro อ่านสัญญาโทเค็นก่อนซื้อ\n\n⚠️ testnet (chain 77390) ปิดถาวรแล้วเมื่อ 2026-11-14 เราไม่ทักแชทหาคุณก่อน และไม่ขอ 24 คำ (seed) หรือให้จ่ายเงินเด็ดขาด',
     open: 'เปิด ZETAPHY', about: 'ZETAPHY คืออะไร', neuro: 'เช็กโทเค็น',
     claimHow: 'พิมพ์ /claim ตามด้วยที่อยู่ เช่น\n/claim 0x1234…abcd',
-    claimOk: '✅ ลงทะเบียนแล้ว: {a}\nคุณจะได้ {amount} ZETAPHY ทดสอบในรอบแจกถัดไป เพิ่มเครือข่าย ZETAPHY (chain ID 77390) ในกระเป๋าเพื่อให้เห็นเหรียญ: app.sawasdeecoin.com',
+    claimOk: '✅ ลงทะเบียนแล้ว: {a}\nยังไม่มีการประกาศแอร์ดรอปสำหรับรายชื่อนี้ จึงยังไม่มีอะไรสัญญาไว้ แอร์ดรอปบน testnet จบไปพร้อมกับ testnet ที่ปิดถาวรเมื่อ 2026-11-14 ZETAPHY mainnet คือ chain ID 3659 (ZTPHY): app.sawasdeecoin.com',
     badAddr: 'นี่ไม่ใช่ที่อยู่กระเป๋า ใช้ 0x… (ตัวอักษร hex 40 ตัว) หรือ zetaphy1…',
     already: 'บัญชี Telegram นี้ลงทะเบียนแล้ว หนึ่งบัญชีต่อหนึ่งกระเป๋า',
     taken: 'กระเป๋านี้อยู่ในรายชื่อแล้ว',
@@ -45,10 +45,10 @@ export const BOT = {
     early: '🎉 พร้อม {early} ZETAPHY Early (ZEARLY) เหรียญชุมชนของผู้สนับสนุนรุ่นแรก ไม่มีมูลค่า และไม่ใช่ ZETAPHY ใน MetaMask กด Import token แล้วใส่ {token}',
   },
   zh: {
-    start: '👋 欢迎来到 ZETAPHY，一条抗量子的 EVM 链（测试网）。\n\n🎁 空投：发送 /claim 加上你的钱包地址（MetaMask、Trust 或任何 EVM 钱包的 0x…，或 Keplr 的 zetaphy1…）。每个 Telegram 账户一个钱包，每人 {amount} 个测试 ZETAPHY。\n🔍 /check 0x… — 买入前让 Neuro 读取代币合约。\n\n⚠️ 测试币没有价值。我们不会主动私信你，也绝不会索要你的助记词。',
+    start: '👋 欢迎来到 ZETAPHY，一条抗量子的 EVM 链。主网：链 ID 3659，币 ZTPHY。它目前只有一个验证者，代码尚未通过独立审计：请只投入你能承受损失的金额。\n\n🎁 ZTPHY 空投第 1 轮面向 Solana 上的 SWD 持有人：请在 2026-12-04 14:00 UTC 前到 app.sawasdeecoin.com/airdrop-link.html 关联钱包。\n📋 发送 /claim 加上你的 0x… 或 zetaphy1… 地址，可把钱包加入本机器人的名单（每个 Telegram 账户一个）。这份名单尚未宣布任何空投。\n🔍 /check 0x… — 买入前让 Neuro 读取代币合约。\n\n⚠️ 测试网（链 77390）已于 2026-11-14 关闭。我们不会主动私信你，也绝不会索要你的助记词或要求付款。',
     open: '打开 ZETAPHY', about: 'ZETAPHY 是什么？', neuro: '检查代币',
     claimHow: '发送 /claim 加上你的地址，例如：\n/claim 0x1234…abcd',
-    claimOk: '✅ 已登记：{a}\n你将在下一轮空投中获得 {amount} 个测试 ZETAPHY。请在钱包中添加 ZETAPHY 网络（链 ID 77390）才能看到：app.sawasdeecoin.com',
+    claimOk: '✅ 已登记：{a}\n这份名单尚未宣布任何空投，因此没有任何承诺。测试网空投已随测试网于 2026-11-14 关闭而结束。ZETAPHY 主网的链 ID 为 3659（ZTPHY）：app.sawasdeecoin.com',
     badAddr: '这不是钱包地址。请使用 0x…（40 个十六进制字符）或 zetaphy1…',
     already: '这个 Telegram 账户已经登记过了。每个账户一个钱包。',
     taken: '这个钱包已经在名单上了。',
@@ -65,10 +65,10 @@ export const BOT = {
     early: '🎉 另有 {early} 个 ZETAPHY Early（ZEARLY），早期支持者的社区代币。它没有价值，也不是 ZETAPHY。在 MetaMask 中导入代币：{token}',
   },
   es: {
-    start: '👋 Bienvenido a ZETAPHY, una cadena EVM poscuántica (testnet).\n\n🎁 Airdrop: envía /claim y la dirección de tu billetera (0x… de MetaMask, Trust o cualquier billetera EVM, o zetaphy1… de Keplr). Una billetera por cuenta de Telegram, {amount} ZETAPHY de prueba cada una.\n🔍 /check 0x… — Neuro lee el contrato de un token antes de comprar.\n\n⚠️ Las monedas de prueba no tienen valor. Nunca te escribimos primero y nunca pedimos tu frase semilla.',
+    start: '👋 Bienvenido a ZETAPHY, una cadena EVM poscuántica. Mainnet: chain ID 3659, moneda ZTPHY. Funciona con un solo validador y su código aún no ha pasado una auditoría independiente: usa solo cantidades que puedas permitirte perder.\n\n🎁 La ronda 1 del airdrop de ZTPHY es para quienes tienen SWD en Solana: vincula tu billetera en app.sawasdeecoin.com/airdrop-link.html antes del 2026-12-04 14:00 UTC.\n📋 /claim y tu dirección 0x… o zetaphy1… pone una billetera en la lista de este bot (una por cuenta de Telegram). Aún no se ha anunciado ningún airdrop para esta lista.\n🔍 /check 0x… — Neuro lee el contrato de un token antes de comprar.\n\n⚠️ La testnet (chain 77390) se cerró el 2026-11-14. Nunca te escribimos primero y nunca pedimos tu frase semilla ni un pago.',
     open: 'Abrir ZETAPHY', about: '¿Qué es ZETAPHY?', neuro: 'Revisar un token',
     claimHow: 'Envía /claim y tu dirección, por ejemplo:\n/claim 0x1234…abcd',
-    claimOk: '✅ Registrada: {a}\nRecibirás {amount} ZETAPHY de prueba en la próxima ronda. Para verlos, añade la red ZETAPHY (chain ID 77390) a tu billetera: app.sawasdeecoin.com',
+    claimOk: '✅ Registrada: {a}\nAún no se ha anunciado ningún airdrop para esta lista, así que no se promete nada. El airdrop de la testnet terminó cuando la testnet se cerró el 2026-11-14. La mainnet de ZETAPHY es la chain ID 3659 (ZTPHY): app.sawasdeecoin.com',
     badAddr: 'Eso no es una dirección de billetera. Usa 0x… (40 caracteres hex) o zetaphy1…',
     already: 'Esta cuenta de Telegram ya está registrada. Una billetera por cuenta.',
     taken: 'Esta billetera ya está en la lista.',
@@ -85,10 +85,10 @@ export const BOT = {
     early: '🎉 Además {early} ZETAPHY Early (ZEARLY), el token de la comunidad de los primeros seguidores. No tiene valor y no es ZETAPHY. En MetaMask: Importar token {token}',
   },
   ko: {
-    start: '👋 양자 내성 EVM 체인 ZETAPHY(테스트넷)에 오신 것을 환영합니다.\n\n🎁 에어드롭: /claim 과 지갑 주소를 보내세요 (MetaMask, Trust 등 EVM 지갑의 0x… 또는 Keplr의 zetaphy1…). Telegram 계정당 지갑 하나, 각 {amount} 테스트 ZETAPHY.\n🔍 /check 0x… — 구매 전에 Neuro가 토큰 컨트랙트를 읽어 줍니다.\n\n⚠️ 테스트 코인은 가치가 없습니다. 저희는 먼저 메시지를 보내지 않으며 시드 문구를 절대 요구하지 않습니다.',
+    start: '👋 양자 내성 EVM 체인 ZETAPHY에 오신 것을 환영합니다. 메인넷: 체인 ID 3659, 코인 ZTPHY. 현재 검증자 하나로 운영되며 코드는 아직 독립 감사를 통과하지 않았습니다: 잃어도 되는 금액만 사용하세요.\n\n🎁 ZTPHY 에어드롭 1회차는 Solana의 SWD 보유자 대상입니다: 2026-12-04 14:00 UTC 전에 app.sawasdeecoin.com/airdrop-link.html 에서 지갑을 연결하세요.\n📋 /claim 과 0x… 또는 zetaphy1… 주소를 보내면 이 봇의 목록에 지갑이 올라갑니다 (Telegram 계정당 하나). 이 목록에 대한 에어드롭은 아직 발표되지 않았습니다.\n🔍 /check 0x… — 구매 전에 Neuro가 토큰 컨트랙트를 읽어 줍니다.\n\n⚠️ 테스트넷(체인 77390)은 2026-11-14에 종료되었습니다. 저희는 먼저 메시지를 보내지 않으며 시드 문구나 결제를 절대 요구하지 않습니다.',
     open: 'ZETAPHY 열기', about: 'ZETAPHY란?', neuro: '토큰 확인',
     claimHow: '/claim 과 주소를 보내세요. 예:\n/claim 0x1234…abcd',
-    claimOk: '✅ 등록됨: {a}\n다음 에어드롭 회차에 테스트 ZETAPHY {amount}개를 받습니다. 보려면 지갑에 ZETAPHY 네트워크(체인 ID 77390)를 추가하세요: app.sawasdeecoin.com',
+    claimOk: '✅ 등록됨: {a}\n이 목록에 대한 에어드롭은 아직 발표되지 않았으므로 약속된 것은 없습니다. 테스트넷 에어드롭은 2026-11-14 테스트넷 종료와 함께 끝났습니다. ZETAPHY 메인넷은 체인 ID 3659 (ZTPHY)입니다: app.sawasdeecoin.com',
     badAddr: '지갑 주소가 아닙니다. 0x…(16진수 40자) 또는 zetaphy1…을 사용하세요.',
     already: '이 Telegram 계정은 이미 등록되었습니다. 계정당 지갑 하나입니다.',
     taken: '이 지갑은 이미 목록에 있습니다.',
@@ -105,10 +105,10 @@ export const BOT = {
     early: '🎉 추가로 ZETAPHY Early(ZEARLY) {early}개: 초기 지지자를 위한 커뮤니티 토큰입니다. 가치가 없으며 ZETAPHY가 아닙니다. MetaMask에서 토큰 가져오기: {token}',
   },
   ja: {
-    start: '👋 耐量子 EVM チェーン ZETAPHY（テストネット）へようこそ。\n\n🎁 エアドロップ：/claim とウォレットアドレスを送ってください（MetaMask・Trust など EVM ウォレットの 0x…、または Keplr の zetaphy1…）。Telegram アカウントごとに 1 ウォレット、各 {amount} テスト ZETAPHY。\n🔍 /check 0x… — 購入前に Neuro がトークンのコントラクトを読みます。\n\n⚠️ テストコインに価値はありません。こちらから先に連絡することはなく、シードフレーズを求めることも絶対にありません。',
+    start: '👋 耐量子 EVM チェーン ZETAPHY へようこそ。メインネット：チェーン ID 3659、コイン ZTPHY。現在はバリデーター 1 台で動いており、コードはまだ独立した監査を通っていません：失っても困らない額だけを使ってください。\n\n🎁 ZTPHY エアドロップ第 1 回は Solana の SWD 保有者向けです：2026-12-04 14:00 UTC までに app.sawasdeecoin.com/airdrop-link.html でウォレットをリンクしてください。\n📋 /claim と 0x… または zetaphy1… のアドレスを送ると、このボットのリストにウォレットが載ります（Telegram アカウントごとに 1 つ）。このリストへのエアドロップはまだ発表されていません。\n🔍 /check 0x… — 購入前に Neuro がトークンのコントラクトを読みます。\n\n⚠️ テストネット（チェーン 77390）は 2026-11-14 に終了しました。こちらから先に連絡することはなく、シードフレーズや支払いを求めることも絶対にありません。',
     open: 'ZETAPHY を開く', about: 'ZETAPHY とは', neuro: 'トークンを確認',
     claimHow: '/claim とアドレスを送ってください。例：\n/claim 0x1234…abcd',
-    claimOk: '✅ 登録しました：{a}\n次のエアドロップで {amount} テスト ZETAPHY を受け取れます。表示するにはウォレットに ZETAPHY ネットワーク（チェーン ID 77390）を追加してください：app.sawasdeecoin.com',
+    claimOk: '✅ 登録しました：{a}\nこのリストへのエアドロップはまだ発表されていないため、何も約束されていません。テストネットのエアドロップは 2026-11-14 のテストネット終了とともに終わりました。ZETAPHY メインネットはチェーン ID 3659（ZTPHY）です：app.sawasdeecoin.com',
     badAddr: 'ウォレットアドレスではありません。0x…（16 進 40 文字）または zetaphy1… を使ってください。',
     already: 'この Telegram アカウントは登録済みです。1 アカウントにつき 1 ウォレットです。',
     taken: 'このウォレットはすでにリストにあります。',
@@ -125,10 +125,10 @@ export const BOT = {
     early: '🎉 さらに ZETAPHY Early（ZEARLY）を {early}：初期サポーターのコミュニティトークンです。価値はなく、ZETAPHY ではありません。MetaMask でトークンをインポート：{token}',
   },
   ru: {
-    start: '👋 Добро пожаловать в ZETAPHY — постквантовую EVM-сеть (тестовая сеть).\n\n🎁 Аирдроп: отправьте /claim и адрес кошелька (0x… из MetaMask, Trust или любого EVM-кошелька, либо zetaphy1… из Keplr). Один кошелёк на аккаунт Telegram, по {amount} тестовых ZETAPHY.\n🔍 /check 0x… — Neuro читает контракт токена до покупки.\n\n⚠️ Тестовые монеты ничего не стоят. Мы никогда не пишем первыми и никогда не просим сид-фразу.',
+    start: '👋 Добро пожаловать в ZETAPHY — постквантовую EVM-сеть. Мейннет: chain ID 3659, монета ZTPHY. Сейчас в ней один валидатор, и её код ещё не прошёл независимый аудит: используйте только суммы, которые не жалко потерять.\n\n🎁 Раунд 1 аирдропа ZTPHY — для держателей SWD в Solana: привяжите кошелёк на app.sawasdeecoin.com/airdrop-link.html до 2026-12-04 14:00 UTC.\n📋 /claim и ваш адрес 0x… или zetaphy1… добавляет кошелёк в список этого бота (один на аккаунт Telegram). Аирдроп для этого списка пока не объявлен.\n🔍 /check 0x… — Neuro читает контракт токена до покупки.\n\n⚠️ Тестовая сеть (chain 77390) закрыта 2026-11-14. Мы никогда не пишем первыми и никогда не просим сид-фразу или оплату.',
     open: 'Открыть ZETAPHY', about: 'Что такое ZETAPHY?', neuro: 'Проверить токен',
     claimHow: 'Отправьте /claim и ваш адрес, например:\n/claim 0x1234…abcd',
-    claimOk: '✅ Зарегистрирован: {a}\nВы получите {amount} тестовых ZETAPHY в следующем раунде. Чтобы их увидеть, добавьте сеть ZETAPHY (chain ID 77390) в кошелёк: app.sawasdeecoin.com',
+    claimOk: '✅ Зарегистрирован: {a}\nАирдроп для этого списка пока не объявлен, поэтому ничего не обещано. Аирдроп тестовой сети закончился вместе с ней 2026-11-14. Мейннет ZETAPHY — chain ID 3659 (ZTPHY): app.sawasdeecoin.com',
     badAddr: 'Это не адрес кошелька. Используйте 0x… (40 hex-символов) или zetaphy1…',
     already: 'Этот аккаунт Telegram уже зарегистрирован. Один кошелёк на аккаунт.',
     taken: 'Этот кошелёк уже в списке.',
@@ -145,10 +145,10 @@ export const BOT = {
     early: '🎉 Плюс {early} ZETAPHY Early (ZEARLY) — токен сообщества первых участников. Он ничего не стоит и не является ZETAPHY. В MetaMask: «Импорт токена» {token}',
   },
   vi: {
-    start: '👋 Chào mừng đến với ZETAPHY, chuỗi EVM kháng lượng tử (testnet).\n\n🎁 Airdrop: gửi /claim và địa chỉ ví (0x… từ MetaMask, Trust hoặc ví EVM bất kỳ, hoặc zetaphy1… từ Keplr). Mỗi tài khoản Telegram một ví, mỗi ví {amount} ZETAPHY thử nghiệm.\n🔍 /check 0x… — Neuro đọc hợp đồng token trước khi bạn mua.\n\n⚠️ Coin thử nghiệm không có giá trị. Chúng tôi không bao giờ nhắn tin trước và không bao giờ hỏi cụm từ khôi phục của bạn.',
+    start: '👋 Chào mừng đến với ZETAPHY, chuỗi EVM kháng lượng tử. Mainnet: chain ID 3659, coin ZTPHY. Hiện chuỗi chạy trên một validator và mã chưa qua kiểm toán độc lập: chỉ dùng số tiền bạn có thể chấp nhận mất.\n\n🎁 Đợt 1 airdrop ZTPHY dành cho người nắm giữ SWD trên Solana: liên kết ví tại app.sawasdeecoin.com/airdrop-link.html trước 2026-12-04 14:00 UTC.\n📋 /claim và địa chỉ 0x… hoặc zetaphy1… sẽ đưa ví vào danh sách của bot này (mỗi tài khoản Telegram một ví). Chưa có airdrop nào được công bố cho danh sách này.\n🔍 /check 0x… — Neuro đọc hợp đồng token trước khi bạn mua.\n\n⚠️ Testnet (chain 77390) đã đóng vào 2026-11-14. Chúng tôi không bao giờ nhắn tin trước và không bao giờ hỏi cụm từ khôi phục hay yêu cầu thanh toán.',
     open: 'Mở ZETAPHY', about: 'ZETAPHY là gì?', neuro: 'Kiểm tra token',
     claimHow: 'Gửi /claim và địa chỉ của bạn, ví dụ:\n/claim 0x1234…abcd',
-    claimOk: '✅ Đã đăng ký: {a}\nBạn sẽ nhận {amount} ZETAPHY thử nghiệm ở đợt airdrop tới. Để thấy chúng, thêm mạng ZETAPHY (chain ID 77390) vào ví: app.sawasdeecoin.com',
+    claimOk: '✅ Đã đăng ký: {a}\nChưa có airdrop nào được công bố cho danh sách này nên chưa có gì được hứa. Airdrop testnet đã kết thúc khi testnet đóng vào 2026-11-14. Mainnet ZETAPHY là chain ID 3659 (ZTPHY): app.sawasdeecoin.com',
     badAddr: 'Đó không phải địa chỉ ví. Dùng 0x… (40 ký tự hex) hoặc zetaphy1…',
     already: 'Tài khoản Telegram này đã đăng ký. Mỗi tài khoản một ví.',
     taken: 'Ví này đã có trong danh sách.',
@@ -174,12 +174,12 @@ export const botLang = (code) => {
 
 /** Slash-command descriptions for the menu (setMyCommands), per language. */
 export const COMMANDS = {
-  en: [['start', 'What ZETAPHY is, links'], ['claim', 'Register a wallet for the testnet airdrop'], ['check', 'Neuro: check a token contract']],
-  th: [['start', 'ZETAPHY คืออะไร และลิงก์'], ['claim', 'ลงทะเบียนกระเป๋ารับแอร์ดรอป testnet'], ['check', 'Neuro: เช็กสัญญาโทเค็น']],
-  zh: [['start', 'ZETAPHY 简介和链接'], ['claim', '登记钱包领取测试网空投'], ['check', 'Neuro：检查代币合约']],
-  es: [['start', 'Qué es ZETAPHY, enlaces'], ['claim', 'Registrar una billetera para el airdrop'], ['check', 'Neuro: revisar un contrato']],
-  ko: [['start', 'ZETAPHY 소개와 링크'], ['claim', '테스트넷 에어드롭 지갑 등록'], ['check', 'Neuro: 토큰 컨트랙트 확인']],
-  ja: [['start', 'ZETAPHY の紹介とリンク'], ['claim', 'テストネットのエアドロップに登録'], ['check', 'Neuro：トークンを確認']],
-  ru: [['start', 'Что такое ZETAPHY, ссылки'], ['claim', 'Зарегистрировать кошелёк для аирдропа'], ['check', 'Neuro: проверить контракт токена']],
-  vi: [['start', 'ZETAPHY là gì, liên kết'], ['claim', 'Đăng ký ví nhận airdrop testnet'], ['check', 'Neuro: kiểm tra hợp đồng token']],
+  en: [['start', 'What ZETAPHY is, links'], ['claim', 'Put a wallet on the bot\'s airdrop list'], ['check', 'Neuro: check a token contract']],
+  th: [['start', 'ZETAPHY คืออะไร และลิงก์'], ['claim', 'ใส่กระเป๋าในรายชื่อแอร์ดรอปของบอท'], ['check', 'Neuro: เช็กสัญญาโทเค็น']],
+  zh: [['start', 'ZETAPHY 简介和链接'], ['claim', '把钱包加入机器人的空投名单'], ['check', 'Neuro：检查代币合约']],
+  es: [['start', 'Qué es ZETAPHY, enlaces'], ['claim', 'Poner una billetera en la lista del bot'], ['check', 'Neuro: revisar un contrato']],
+  ko: [['start', 'ZETAPHY 소개와 링크'], ['claim', '봇의 에어드롭 목록에 지갑 등록'], ['check', 'Neuro: 토큰 컨트랙트 확인']],
+  ja: [['start', 'ZETAPHY の紹介とリンク'], ['claim', 'ボットのエアドロップリストに登録'], ['check', 'Neuro：トークンを確認']],
+  ru: [['start', 'Что такое ZETAPHY, ссылки'], ['claim', 'Добавить кошелёк в список бота'], ['check', 'Neuro: проверить контракт токена']],
+  vi: [['start', 'ZETAPHY là gì, liên kết'], ['claim', 'Đưa ví vào danh sách airdrop của bot'], ['check', 'Neuro: kiểm tra hợp đồng token']],
 };

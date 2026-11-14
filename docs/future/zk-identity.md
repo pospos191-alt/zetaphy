@@ -1,5 +1,7 @@
 # Private identity on ZETAPHY: zero-knowledge proofs over the human labels (testnet)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 [ภาษาไทย](zk-identity.th.md)
 
 **Testnet / prototype only. Nothing with real money. The trusted setup is a single-party DEV setup. Groth16 on BN254

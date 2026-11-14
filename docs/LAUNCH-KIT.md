@@ -1,5 +1,9 @@
 # ZETAPHY launch kit
 
+> **Do not post this kit: it is the testnet's** (chain 77390, `rpc.sawasdeecoin.com`, test coins), and the testnet was shut down
+> for good on 2026-11-14. For mainnet use [ZETAPHY-MAINNET-ANNOUNCE.md](ZETAPHY-MAINNET-ANNOUNCE.md) and the short text in the
+> [mainnet notice](ZETAPHY-MAINNET-NOTICE.md). This file is kept as the record.
+
 Thai guide: [LAUNCH-KIT.th.md](LAUNCH-KIT.th.md). The posts below are ready to copy. The owner posts them; nothing here is posted automatically.
 
 **Facts every post may use (and nothing beyond them)**

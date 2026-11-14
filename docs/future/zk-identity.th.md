@@ -1,5 +1,7 @@
 # ตัวตนแบบส่วนตัวบน ZETAPHY: หลักฐาน zero-knowledge บนป้าย "คน" (testnet)
 
+> **testnet ปิดถาวรแล้วเมื่อ 2026-11-14** ตอนนี้ ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) เป็นเครือข่ายเดียว ที่หน้านี้เขียนว่า testnet หมายถึง testnet ที่ปิดแล้ว (หรือ devnet) ดู[ประกาศ mainnet](../ZETAPHY-MAINNET-NOTICE.th.md)
+
 [English](zk-identity.md)
 
 **ใช้บน testnet / เป็นต้นแบบเท่านั้น ไม่มีเงินจริง การตั้งค่าเริ่มต้น (trusted setup) เป็นแบบ DEV ที่ทำโดยฝ่ายเดียว

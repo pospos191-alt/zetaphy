@@ -15,11 +15,14 @@ import { main } from '../launch.js';
 import { loadChain, readPin, mainnetConfig, mainnetSteps, mainnetPlan, MAINNET_MIN_DELAY } from '../src/mainnet.js';
 import { MAINNET_EXCLUDED, ADDED_STEPS, identityChains } from '../src/mainnetall.js';
 import { AI_STEPS, AI_ITEMS, HUB_KEYS, hubContracts } from '../src/mainnetai.js';
+import { APP_STEPS, APP_HUB_KEYS, APP_EXCLUDED, auditReporterCalls } from '../src/mainnetapps.js';
 
 // every AI-map contract the mainnet deploys (no NeuroOracleSender without ai.mailbox; never HackInsurance)
 const AI_CONTRACTS = ['ModelRegistry', 'NeuroScore', 'ModelEpochs', 'SignalBoard', 'FederatedRounds', 'WebAuthnVerifier', 'CosignCommittee', 'ConstitutionChecker', 'AgentRegistry',
   'LabelRegistry', 'VouchRegistry', 'IntentExecutor', 'ForesightRegistry', 'RiskForecasts', 'DetectorPool', 'DataDAO', 'RedBlueArena', 'NeuroAttest', 'NeuroAnchor',
   'WorkerReputation', 'UsefulIssuance', 'UsefulWork', 'BugBounty'];
+// the hub's offline, audit, quantum and immune tabs' contracts (src/mainnetapps.js); ImmuneBroadcaster only with ai.mailbox
+const APP_CONTRACTS = ['ZetaphyCheques', 'ZetaphyOfflineOrders', 'ZetaphyOfflineCash', 'AuditNetwork', 'AuditRunners', 'AuditJudges', 'AuditCertificate', 'QuantumRescue', 'ImmuneRegistry'];
 import { readKeystore, readPassphrase, keystoreSigner, RemoteSigner, checkSigned, checkSignerUrl } from '../src/signer.js';
 import { GOV_MODULE } from '../src/steps.js';
 
@@ -162,7 +165,7 @@ test('mainnet.example.json: every key is known; its placeholders (addresses, the
 test('the mainnet steps: the gate-8 set, the handover, then the rest of the testnet\'s systems, a check last; no testnet-only contract', () => {
   const names = mainnetSteps().map((s) => s.name);
   assert.deepEqual(names, ['guardian', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty', 'wire', 'timelock', 'handover',
-    'identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', ...AI_STEPS, 'contracts', 'verify']);
+    'identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', ...AI_STEPS, ...APP_STEPS, 'contracts', 'verify']);
   // the testnet-only steps do not exist on mainnet: each is listed in the plan as skipped, with its reason
   for (const t of ['stable', 'configs', 'snap', 'skill']) {
     assert.ok(!names.includes(t), t);
@@ -175,8 +178,8 @@ test('the mainnet steps: the gate-8 set, the handover, then the rest of the test
   const all = mainnetSteps().flatMap((s) => s.plan(ctx, {}).deploys.map((d) => d.name));
   assert.deepEqual(all, ['SimpleMultisig', 'NeuroControl', 'NeuroJobs', 'ThreatRegistry', 'ThreatReports', 'BridgeGuard', 'BridgeAirlock', 'NeuroLane', 'WZETAPHY', 'ZetaphyFactory', 'ZetaphyRouter', 'ZetaphyBounty', 'ZetaphyTimelock',
     'NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle',
-    ...AI_CONTRACTS]);
-  for (const n of all) assert.doesNotMatch(n, /^Test|StableGateway|Faucet|HackInsurance/, n);
+    ...AI_CONTRACTS, ...APP_CONTRACTS]);
+  for (const n of all) assert.doesNotMatch(n, /^Test|StableGateway|Faucet|HackInsurance|ImmuneVaccines/, n);
   const bridge = mainnetSteps().find((s) => s.name === 'bridge').plan(ctx, {});
   assert.ok(bridge.calls.some((c) => /enabled = false\)  CLOSED/.test(c)));
 });
@@ -243,7 +246,7 @@ test('the plan of a resume after the gate-8 set: only the added steps, their con
     dex: done({ dex: { contracts: { factory: W(), router: W(), wnative: ctx.dexWnative } } }), bounty: done({ zetaphyBounty: W() }), wire: done(), timelock: done({ timelock: W() }), handover: done(), verify: done() } };
   const plan = await mainnetPlan(ctx, state, mainnetSteps());
   const text = plan.lines.join('\n');
-  assert.deepEqual(plan.todo, ['identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', ...AI_STEPS, 'contracts']);
+  assert.deepEqual(plan.todo, ['identity', 'vault', 'pq', 'compute', 'dlmm', 'nft', 'oracle', 'protect', 'proposal', ...AI_STEPS, ...APP_STEPS, 'contracts']);
   for (const c of ['NeuroIdentity', 'NeuroValidation', 'RewardVault', 'QuantumWalletFactory', 'ComputeMarket', 'ZetaphyDlmmFactory', 'ZetaphyDlmmRouter', 'NFTFactory', 'NFTMarketplace', 'TwapRecorder', 'ZetaphyPythRelay', 'ZetaphyOracle']) {
     assert.match(text, new RegExp(`deploy ${c}\\(`), c);
   }
@@ -254,7 +257,11 @@ test('the plan of a resume after the gate-8 set: only the added steps, their con
   assert.match(text, /- stable: skipped on mainnet \(test USDC\/USDT/);
   assert.match(text, /- snap: skipped on mainnet/);
   assert.match(text, /- bridge: skipped \(no "bridge" in the deploy config/);
-  assert.match(text, new RegExp(`total: ${12 + AI_CONTRACTS.length} contract\\(s\\)`));
+  assert.match(text, new RegExp(`total: ${12 + AI_CONTRACTS.length + APP_CONTRACTS.length} contract\\(s\\)`));
+  for (const c of APP_CONTRACTS) assert.match(text, new RegExp(`deploy ${c}\\(`), c);
+  assert.match(text, /deploy AuditNetwork\(governance=0x[0-9a-fA-F]{40}, treasury=0x[0-9a-fA-F]{40}, reputation=<WorkerReputation>, runners=<AuditRunners \(the deployer's nonce \+ 1\)>, judging=<AuditJudges \(nonce \+ 2\)>, certificate=<AuditCertificate \(nonce \+ 3\)>, p=\{minContest: 604800/);
+  assert.match(text, /- immuneVaccines: skipped on mainnet \(ImmuneVaccines says TESTNET ONLY/);
+  assert.match(text, /- immuneBroadcaster: skipped on mainnet \(no Hyperlane Mailbox/);
   assert.match(text, /- hackInsurance: skipped on mainnet \(HackInsurance is testnet only/);
   assert.match(text, /- neuroOracleSender: skipped on mainnet \(no Hyperlane Mailbox/);
   assert.match(text, /deploy FederatedRounds\(governance=0x[0-9a-fA-F]{40}, start=<the block 14400 after the deploy>/);
@@ -495,4 +502,78 @@ test('the deploy config section "ai": defaults, the deployer in no AI role, plac
 test('an AI step refuses to run before the handover', async () => {
   const ctx = { address: W(), evmChainId: 3659n, mainnet: mainnetConfig(goodConfig()), log: () => {} };
   for (const n of AI_STEPS) await assert.rejects(mainnetSteps().find((s) => s.name === n).run(ctx, { steps: {} }), /the handover has not run yet/, n);
+});
+
+// ---------- the hub's offline, audit, quantum and immune tabs' contracts (src/mainnetapps.js) ----------
+
+test('the hub tab contracts: the timelock in the constructor, no deployer anywhere, wired to NeuroJobs / ThreatRegistry / the DEX router', () => {
+  const me = W(), timelock = W(), jobs = W(), reg = W(), router = W(), rep = W(), fund = W();
+  const ctx = { address: me, symbol: 'ZTPHY', evmChainId: 3659n, mainnet: mainnetConfig(goodConfig({ communityFund: fund })) };
+  const o = { timelock, neuroJobs: jobs, threatRegistry: reg, workerReputation: rep, guardianMultisig: W(), dex: { contracts: { router } } };
+  const steps = Object.fromEntries(mainnetSteps().map((s) => [s.name, s]));
+  const names = mainnetSteps().map((s) => s.name);
+  for (const n of APP_STEPS) assert.ok(names.indexOf(n) > names.indexOf(AI_STEPS.at(-1)) && names.indexOf(n) < names.indexOf('contracts'), `${n}: after the AI steps, before contracts`);
+  const d = (n, c) => steps[n].plan(ctx, o).deploys.find((x) => x.name === c);
+  assert.deepEqual(steps.offline.plan(ctx, o).deploys.map((x) => x.name), ['ZetaphyCheques', 'ZetaphyOfflineOrders', 'ZetaphyOfflineCash']);
+  assert.deepEqual(d('offline', 'ZetaphyOfflineOrders').args, [router]);
+  assert.deepEqual(steps.auditnet.plan(ctx, o).deploys.map((x) => x.name), ['AuditNetwork', 'AuditRunners', 'AuditJudges', 'AuditCertificate']);
+  const an = d('auditnet', 'AuditNetwork').args;
+  assert.equal(an[0], timelock);
+  assert.equal(an[1], fund, 'the treasury is the community fund by default');
+  assert.equal(an[2], rep);
+  assert.equal(an[6].auditorBond, 10n ** 19n);
+  assert.deepEqual(d('auditnet', 'AuditRunners').args.slice(1), [jobs, rep, 1]);
+  assert.equal(d('auditnet', 'AuditJudges').args[2], timelock);
+  assert.equal(d('auditnet', 'AuditCertificate').args[3], timelock);
+  assert.deepEqual(d('qrescue', 'QuantumRescue').args, ['0x0000000000000000000000000000000000000901', timelock, 720n]);
+  assert.deepEqual(d('immune', 'ImmuneRegistry').args, [jobs, reg, 2, timelock]);
+  assert.equal(d('immune', 'ImmuneBroadcaster'), undefined, 'no Mailbox: no broadcaster');
+  const skipped = new Map(APP_STEPS.flatMap((n) => steps[n].plan(ctx, o).skipped));
+  assert.match(skipped.get('immuneBroadcaster'), /no Hyperlane Mailbox/);
+  assert.match(skipped.get('immuneVaccines'), /TESTNET ONLY/);
+  for (const [k] of APP_EXCLUDED) assert.ok(skipped.has(k), `${k} is listed as skipped`);
+  assert.match(steps.auditnet.plan(ctx, o).calls.join('\n'), /WorkerReputation\.setReporter\(AuditNetwork, true\)/);
+  // the deployer is in no constructor of these
+  const json = (v) => JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? String(x) : x));
+  for (const n of APP_STEPS) for (const x of steps[n].plan(ctx, o).deploys) assert.ok(!json(x.args).includes(me), `${x.name}: no deployer in its arguments`);
+  // a mailbox deploys the broadcaster too, governed by the timelock
+  const mb = W();
+  const withMb = { ...ctx, mainnet: mainnetConfig(goodConfig({ ai: { mailbox: mb } })) };
+  const b = steps.immune.plan(withMb, o).deploys.find((x) => x.name === 'ImmuneBroadcaster');
+  assert.deepEqual(b.args.slice(1), [mb, timelock]);
+  // the reporter calls only the timelock can make, for a later vote
+  const calls = auditReporterCalls({ workerReputation: rep, auditNetwork: W(), auditRunners: W() });
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((c) => c.to === rep && c.data.startsWith('0x')));
+  // the hub keys are in the contracts file's keys
+  for (const k of APP_HUB_KEYS) assert.ok(HUB_KEYS.includes(k), k);
+  const h = hubContracts(ctx, { ...o, ...Object.fromEntries(APP_HUB_KEYS.map((k) => [k, W()])) });
+  for (const k of APP_HUB_KEYS) assert.ok(h.contracts[k], `${k} in the contracts file`);
+  assert.match(h.skipped.immuneVaccines, /TESTNET ONLY/);
+  // the NFT flag the hub waits for: true only once the protect step read every collection code key protected
+  const nft = { factory: W(), marketplace: W(), collectionCodeKeys: { erc721: '0x' + '1'.repeat(64), erc1155: '0x' + '2'.repeat(64) } };
+  assert.equal(hubContracts(ctx, { ...o, nft }).nftCodeKeysProtected, false, 'no protect step yet');
+  assert.equal(hubContracts(ctx, { ...o, nft, protectedKeys: ['0x' + '1'.repeat(64)], unprotectedKeys: ['0x' + '2'.repeat(64)] }).nftCodeKeysProtected, false, 'one key still open');
+  assert.equal(hubContracts(ctx, { ...o, nft, protectedKeys: Object.values(nft.collectionCodeKeys), unprotectedKeys: [] }).nftCodeKeysProtected, true);
+  assert.equal(hubContracts(ctx, { ...o, protectedKeys: [], unprotectedKeys: [] }).nftCodeKeysProtected, false, 'no NFT factory');
+});
+
+test('the deploy config section "apps": defaults, bounds, the deployer refused as the audit treasury', () => {
+  const me = W();
+  const c = mainnetConfig(goodConfig(), { deployer: me });
+  assert.equal(c.apps.auditTreasury, c.communityFund);
+  assert.deepEqual([c.apps.auditRunnerMinAgreed, c.apps.rescueMaturity, c.apps.immuneMinAgreed], [1, 720, 2]);
+  const bad = (patch, re) => assert.throws(() => mainnetConfig({ ...goodConfig(), apps: patch }, { deployer: me }), re);
+  bad({ auditTreasury: me }, /apps.auditTreasury: the deployer/);
+  bad({ immuneMinAgreed: 1 }, /apps.immuneMinAgreed: a whole number from 2/);
+  bad({ auditTreasury: '0x1111111111111111111111111111111111111111' }, /placeholder/);
+  bad({ mint: true }, /unknown key "mint"/);
+});
+
+test('a hub tab step refuses to run before the handover, and offline without a DEX router', async () => {
+  const ctx = { address: W(), evmChainId: 3659n, mainnet: mainnetConfig(goodConfig()), log: () => {} };
+  for (const n of APP_STEPS) await assert.rejects(mainnetSteps().find((s) => s.name === n).run(ctx, { steps: {} }), /the handover has not run yet/, n);
+  const state = { steps: { timelock: { doneAt: 'x', out: { timelock: W() } }, handover: { doneAt: 'x' } } };
+  await assert.rejects(mainnetSteps().find((s) => s.name === 'offline').run(ctx, state), /no DEX router in the state/);
+  await assert.rejects(mainnetSteps().find((s) => s.name === 'immune').run(ctx, state), /no NeuroJobs \/ ThreatRegistry/);
 });

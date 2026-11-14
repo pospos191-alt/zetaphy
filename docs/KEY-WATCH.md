@@ -2,6 +2,8 @@
 
 # Key watch: notice a stolen key while there is still time to veto
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 Every admin action on ZETAPHY waits in a timelock (48 h), and every bridge release waits a delay a guardian can veto.
 That only protects us if someone **notices** in time. Key watch is a free, read-only watcher that turns the first sign of a
 stolen key into a GitHub issue, so GitHub emails and app-notifies the owner within about 15 minutes.
