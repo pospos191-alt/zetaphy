@@ -22,14 +22,15 @@ export default {
   polyfills: false,
   // A dependency of @metamask/snaps-sdk feature-checks for Buffer; nothing in the bundle uses it.
   stats: { buffer: false },
-  // The vaccine's build-time constants (src/threats.js), placeholders until the
-  // owner knows them: the ZETAPHY JSON-RPC (https) the transaction insight asks,
-  // the ThreatRegistry there (zero: none, so every insight says "couldn't check"),
-  // and the web wallet origin(s) allowed to override both (zetaphy_setThreatSource).
+  // The vaccine's build-time constants (src/threats.js): the ZETAPHY JSON-RPC (https) the
+  // transaction insight asks, the ThreatRegistry there (zero: none, so every insight says
+  // "couldn't check"), and the web wallet origin(s) allowed to override both
+  // (zetaphy_setThreatSource). ZETAPHY mainnet's public RPC and ThreatRegistry
+  // (zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json); the testnet was shut down on 2026-11-14.
   // Change them here, then npm run build and commit snap.manifest.json (shasum).
   environment: {
-    ZETAPHY_THREAT_RPC: 'https://rpc.sawasdeecoin.com',
-    ZETAPHY_THREAT_REGISTRY: '0xaB5745b61f83975E68F6546be9F83651df12417f',
+    ZETAPHY_THREAT_RPC: 'https://129-221-199-191.sslip.io',
+    ZETAPHY_THREAT_REGISTRY: '0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139',
     ZETAPHY_WALLET_ORIGINS: 'https://wallet.sawasdeecoin.com',
   },
   customizeWebpackConfig: (config) => ({ ...config, plugins: [...config.plugins, ownNoble] }),

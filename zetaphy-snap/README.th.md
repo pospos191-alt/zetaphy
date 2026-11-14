@@ -10,7 +10,9 @@ MetaMask เซ็นได้แค่ ECDSA snap นี้เพิ่ม **�
 - **วัคซีนใน MetaMask ธรรมดา** (transaction insight): ทุกธุรกรรม EVM บนทุกเชนที่ผู้ใช้กำลังจะยืนยันใน MetaMask
   snap ตรวจปลายทางกับ `ThreatRegistry` ของ ZETAPHY ให้ ไม่ต้องใช้เว็บกระเป๋าของ ZETAPHY (ดู [วัคซีน](#วัคซีน-ตรวจทุกธุรกรรมใน-metamask))
 
-> **ใช้กับ testnet เท่านั้น ไม่ใช่เงินจริง**
+> **ZETAPHY mainnet (`zetaphy_3659-1`, EVM chain 3659): ใช้ ZTPHY จริง** mainnet ยังรันบน validator ตัวเดียวและโค้ดยังไม่ผ่านการตรวจสอบจากภายนอกที่เป็นอิสระ
+> ใช้เฉพาะจำนวนที่เสียได้ ([ประกาศ mainnet](../docs/ZETAPHY-MAINNET-NOTICE.th.md))
+> testnet (`zetaphy_77390-1`) ปิดถาวรแล้วเมื่อ 2026-11-14
 > snap นี้ยังไม่ผ่านการ audit และยังไม่อยู่ใน allowlist ของ MetaMask (ดู [การเผยแพร่](#การเผยแพร่-ตามจริง))
 
 ## บัญชีมาจากไหน
@@ -69,7 +71,7 @@ const acct = await invoke('zetaphy_getAccount');
 
 ```js
 const signed = await invoke('zetaphy_signTx', {
-  chainId: 'zetaphy_77390-1',   // ต้องขึ้นต้น zetaphy- (เชนอื่นที่ไม่ใช่ testnet จะมีคำเตือนในหน้าต่าง)
+  chainId: 'zetaphy_3659-1',    // ต้องขึ้นต้น zetaphy- (เชนอื่นที่ไม่ใช่ mainnet จะมีคำเตือนในหน้าต่าง)
   accountNumber: '12', sequence: '4',          // จาก zetaphy_pqAccount
   gasLimit: '400000', gasPrice: '1200000000',  // ค่าธรรมเนียม = gasLimit × gasPrice (azetaphy)
   memo: '',                                    // ไม่บังคับ ไม่เกิน 256 ตัว ห้ามอักขระควบคุม
@@ -133,7 +135,7 @@ const signed = await invoke('zetaphy_signTx', {
 2. **บนเชนของธุรกรรม** (ผ่าน `ethereum.request` ของ snap เฉพาะเมื่อ MetaMask อยู่บนเชนนั้น ไม่สลับเครือข่าย): อ่านโค้ดของแต่ละปลายทาง แล้วตามไปที่โค้ดจริงหลัง proxy แบบ EIP-1167 (และรูปแบบ PUSH0), EIP-1967 implementation และ beacon สูงสุด 3 ชั้น
    - MetaMask อยู่คนละเชน: อ่านโค้ดไม่ได้ ยังถามธงของที่อยู่ ไม่พบธงก็ขึ้น "ตรวจเชนนี้ไม่ได้ / couldn't check this chain" (ไม่บอกว่าไม่ติดธง)
    - ใช้โค้ดชุดเดียวกับเว็บกระเป๋า: `zetaphy-network/src/vaccine.js` (`proxyTargets`, `threatQueries`)
-3. **ถาม ZETAPHY** ด้วย JSON-RPC batch เดียว: `eth_chainId` (ต้องเป็น 77390) แล้ว `eth_call` ไปที่ `ThreatRegistry` ของแต่ละปลายทาง ทั้งระดับเตือนและบังคับใช้
+3. **ถาม ZETAPHY** ด้วย JSON-RPC batch เดียว: `eth_chainId` (ต้องเป็น 3659 คือ ZETAPHY mainnet) แล้ว `eth_call` ไปที่ `ThreatRegistry` ของแต่ละปลายทาง ทั้งระดับเตือนและบังคับใช้
    - `isAddressFlagged` / `isAddressEnforced(chainId ของธุรกรรม, ที่อยู่)`
    - `isCodeFlagged` / `isCodeEnforced(keccak256(โค้ด))`
    - `isFlagged` / `isEnforced(fp1)`: ลายนิ้วมือ Neuro (`fp1`) คำนวณใน snap เอง (สำเนาสูตรของ `zetaphy-neuro/src/fingerprint.js` ใน `vaccine.js` ไม่ดึง bytecode reader ทั้งชุดเข้ามา การทดสอบเทียบกับของ Neuro ทุกไบต์)
@@ -172,9 +174,10 @@ const signed = await invoke('zetaphy_signTx', {
 
 ### แหล่งตรวจภัย (RPC และ ThreatRegistry)
 
-- ค่าตอน build อยู่ใน `snap.config.js` (`environment`) **ตอนนี้เป็นค่าตั้งต้นที่ยังใช้ไม่ได้**: RPC `https://rpc.zetaphy.invalid`, registry `0x000…0`
-  ทุกธุรกรรมจึงขึ้น "ตรวจไม่ได้: no ThreatRegistry configured" จนกว่าเจ้าของจะใส่ค่าจริงแล้ว build ใหม่ (shasum เปลี่ยน ต้อง commit manifest)
-- เว็บกระเป๋า ZETAPHY เปลี่ยนแหล่งได้ด้วย `zetaphy_setThreatSource` เฉพาะจาก origin ใน `ZETAPHY_WALLET_ORIGINS` (ค่าตั้งต้น `https://wallet.zetaphy.invalid` ใส่โดเมนจริงตอนรู้แล้ว)
+- ค่าตอน build อยู่ใน `snap.config.js` (`environment`): RPC สาธารณะของ ZETAPHY mainnet `https://129-221-199-191.sslip.io` และ ThreatRegistry `0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139`
+  ([contracts.json](../zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json)) ถ้าเปลี่ยนให้ build ใหม่ (shasum เปลี่ยน ต้อง commit manifest)
+  ถ้า registry เป็น `0x000…0` ทุกธุรกรรมจะขึ้น "ตรวจไม่ได้: no ThreatRegistry configured"
+- เว็บกระเป๋า ZETAPHY เปลี่ยนแหล่งได้ด้วย `zetaphy_setThreatSource` เฉพาะจาก origin ใน `ZETAPHY_WALLET_ORIGINS` (`https://wallet.sawasdeecoin.com`)
   และผู้ใช้ต้องกดยืนยันในหน้าต่างของ MetaMask ทุกครั้ง เว็บอื่นได้ error 4100
 
 ```js
@@ -259,7 +262,7 @@ npm run serve     # เสิร์ฟ snap ที่ http://localhost:8080 ส�
 5. **เผยแพร่**: `npm login` แล้ว `npm publish --access public` (`prepublishOnly` build และตรวจ manifest ให้อีกรอบ)
    - หลังเผยแพร่ ชื่อ+เวอร์ชันนั้นแก้ไม่ได้ จะแก้ต้องออกเวอร์ชันใหม่
 6. **ทดสอบใน Flask**: เปิดเว็บกระเป๋าใน MetaMask Flask กด "ใช้ MetaMask (ZETAPHY Snap)" (snap ID `npm:@zetaphy/snap`)
-   ลองโอน, stake, deploy บน testnet และตรวจข้อความในหน้าต่าง
+   ลองโอน, stake, deploy บน mainnet ด้วยจำนวนน้อย และตรวจข้อความในหน้าต่าง
 7. **ขอ allowlist** (ถ้าต้องการให้ใช้ MetaMask ปกติได้):
    - ใส่ค่าจริงของวัคซีนใน `snap.config.js` (RPC ของ ZETAPHY, ThreatRegistry, โดเมนเว็บกระเป๋า) แล้ว build ใหม่
    - ลบ log และสิทธิ์ที่ไม่ใช้ (ตอนนี้ไม่มี) และสแกนด้วย [Snapper](https://github.com/sayfer-io/Snapper)
