@@ -2,6 +2,9 @@
   "chainId": "zetaphy_3659-1",
   "chainName": "ZETAPHY",
   "chainSymbolImageUrl": "https://raw.githubusercontent.com/chainapsis/keplr-chain-registry/main/images/zetaphy_3659/chain.png",
+  "explorers": {
+    "txPage": "https://explorer.sawasdeecoin.com/?network=mainnet#/tx/{txHash}"
+  },
   "rpc": "https://129-221-199-191.sslip.io/rpc",
   "rest": "https://129-221-199-191.sslip.io/rest",
   "evm": {
