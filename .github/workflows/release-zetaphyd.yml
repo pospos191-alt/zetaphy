@@ -39,11 +39,11 @@ jobs:
     env:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.11'
           cache: false
@@ -68,7 +68,7 @@ jobs:
           "$RUNNER_TEMP/out/zetaphyd-linux-${{ matrix.arch }}" q wasm libwasmvm-version
           ldd "$RUNNER_TEMP/out/zetaphyd-linux-${{ matrix.arch }}" | grep libwasmvm
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: zetaphyd-linux-${{ matrix.arch }}
           path: ${{ runner.temp }}/out/zetaphyd-linux-${{ matrix.arch }}
@@ -88,12 +88,12 @@ jobs:
       id-token: write      # Sigstore keyless signing (Fulcio certificate for this workflow run)
       attestations: write  # stores the attestation on GitHub (gh attestation verify finds it there)
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0   # RELEASE.json counts the commits on main (the release's position, for anti-rollback)
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: out
           pattern: zetaphyd-linux-*
@@ -127,7 +127,7 @@ jobs:
       #   gh attestation verify zetaphyd-linux-amd64 --repo pospos191-alt/zetaphy \
       #     --signer-workflow pospos191-alt/zetaphy/.github/workflows/release-zetaphyd.yml --source-ref refs/heads/main
       - id: attest
-        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             out/zetaphyd-linux-*
@@ -141,7 +141,7 @@ jobs:
           cp "$BUNDLE" out/zetaphyd-provenance.sigstore.json
           ls -l out
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: signed-release
           path: |
@@ -160,11 +160,11 @@ jobs:
     permissions:
       contents: write      # creates / updates the release; no OIDC token here (signing is the sign job's)
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: signed-release
           path: out

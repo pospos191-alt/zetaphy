@@ -71,8 +71,8 @@ jobs:
       ZETAPHY_RPC: https://rpc.sawasdeecoin.com
       DEPLOYER: "0x6af57fC3633dD0F7907f7900dbd4A2822F43a245"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
