@@ -253,9 +253,10 @@
 //   zetaphy cosign frost-sign --key <frost key> --package pkg.json   round 2: re-runs Neuro, signs only the digest it computed
 //   zetaphy cosign frost-aggregate --group group.json --package pkg.json <shares…>   one 65-byte signature for executeCosignedFrost
 //
-// Settings: --rpc / ZETAPHY_RPC (ZETAPHY testnet JSON-RPC), --jobs / ZETAPHY_JOBS
-// (ZETAPHY_CHAIN_ID: Cosmos chain id `pq native` expects, default zetaphy_77390-1)
-// (NeuroJobs address). They are saved to ~/.zetaphy/config.json on first use.
+// Settings: --rpc / ZETAPHY_RPC (the ZETAPHY JSON-RPC: mainnet https://129-221-199-191.sslip.io, or a local
+// devnet), --jobs / ZETAPHY_JOBS (NeuroJobs address)
+// (ZETAPHY_CHAIN_ID: Cosmos chain id the `pq` commands expect, default zetaphy_77390-1, a local devnet's;
+// on mainnet set ZETAPHY_CHAIN_ID=zetaphy_3659-1). They are saved to ~/.zetaphy/config.json on first use.
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -894,7 +895,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, writ
     const provider = await connectRpc(s);
     // lock-ecdsa to a given controller needs no ML-DSA seed on this machine.
     const pq = sub === 'lock-ecdsa' && args.controller ? null : loadOrCreatePq();
-    // ZETAPHY_CHAIN_ID: the Cosmos chain id to expect (a local devnet is not zetaphy_77390-1).
+    // ZETAPHY_CHAIN_ID: the Cosmos chain id to expect (default zetaphy_77390-1, a local devnet's; mainnet: zetaphy_3659-1).
     const client = pqClient((method, params) => provider.send(method, params), process.env.ZETAPHY_CHAIN_ID ? { chainId: process.env.ZETAPHY_CHAIN_ID } : {});
     const me = pq ? pqAddress(pq.publicKeyBytes) : null;
     const signer = pq ? { publicKey: pq.publicKeyBytes, sign: pq.signBytes } : null;
