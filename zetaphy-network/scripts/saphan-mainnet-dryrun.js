@@ -255,10 +255,14 @@ async function run(work) {
     const need = M.units(pool.stableAmount, pool.decimals);
     if (fork && cfg.liquidity.pools.find((x) => x.stable === pool.stable)?.address) await deal(bp, pool.address, KEYS.safe.address, need);
     else await (await new Contract(pool.address, ['function mint(address,uint256)'], bs).mint(KEYS.safe.address, need)).wait();
+    log(`  the Safe stand-in holds ${formatUnits(await new Contract(pool.address, P.ERC20, bp).balanceOf(KEYS.safe.address), pool.decimals)} ${pool.stable} at ${pool.address}`);
   }
   const pb0 = await bp.getBlockNumber();
   for (const p of plans.pools) {
-    for (const t of p.txs) await (await safe.sendTransaction({ to: t.to, data: t.data })).wait();
+    for (const t of p.txs) {
+      try { await (await safe.sendTransaction({ to: t.to, data: t.data })).wait(); }
+      catch (e) { fail(`pool ZTPHY/${p.stable}: "${t.what}" reverted: ${e.shortMessage ?? e.message}${e.data ? ` data ${e.data}` : ''} (token0 ${p.token0}, token1 ${p.token1}, sqrtPriceX96 ${p.sqrtPriceX96})`); }
+    }
     const at = await new Contract(cfg.liquidity.uniswapV3.factory, P.FACTORY, bp).getPool(p.token0, p.token1, p.feeTier);
     const [sqrt] = await new Contract(at, P.POOL, bp).slot0();
     if (String(sqrt) !== p.sqrtPriceX96) fail(`${p.stable} pool price ${sqrt}, planned ${p.sqrtPriceX96}`);
