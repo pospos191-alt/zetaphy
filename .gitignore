@@ -37,3 +37,6 @@ zetaphy-*/audit/invariants/echidna/corpus-medusa/
 
 # scripts/verified-build.sh release output (published by .github/workflows/verifiable-build.yml)
 dist/program/
+
+# the explorer's daily holders snapshot is published from the holders-data branch, never committed here
+zetaphy-explorer/holders.json
