@@ -33,7 +33,8 @@ node cli.js near token.near        # contract/token on NEAR
 node cli.js starknet 0x...        # Cairo contract on Starknet
 node cli.js bitcoin DOG•GO•TO•THE•MOON  # Rune token on Bitcoin (or ID 840000:3)
 node cli.js osmosis osmo1...      # CosmWasm (Rust) contract or factory/osmo1.../name
-node cli.js zetaphy-wasm zetaphy1... --rest https://<ZETAPHY node>/rest   # CosmWasm contract on ZETAPHY (you specify the node)
+node cli.js zetaphyMainnet 0x...   # contract on ZETAPHY mainnet (chain 3659); `zetaphy` is the retired testnet's entry
+node cli.js zetaphy-wasm zetaphy1... --rest https://129-221-199-191.sslip.io/rest --chain-id zetaphy_3659-1   # CosmWasm contract on ZETAPHY mainnet (the default --chain-id is the retired testnet's)
 node cli.js arbitrum 0x... --json # full report
 npm run web                       # open the web page at http://localhost:8080/
 ```

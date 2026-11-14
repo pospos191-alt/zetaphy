@@ -4,7 +4,7 @@
 // {x} placeholders are filled in by the page; every text is set with textContent.
 
 const en = {
-  title: 'Help train Neuro, privately (federated learning · testnet)',
+  title: 'Help train Neuro, privately (federated learning)',
   intro: 'Optional and off by default. When on, this browser keeps the result of each EVM token you check and later asks how it turned out. Once per round it trains Neuro\'s small learned layer on your answers, here in this browser, and sends only a clipped and noised change of that layer.',
   optin: 'Take part (stores my checks in this browser only)',
   off: 'Off: nothing is stored and nothing is sent.',
@@ -75,7 +75,7 @@ const en = {
 };
 
 const zh = {
-  title: '以隐私方式帮助训练 Neuro(联邦学习 · 测试网)',
+  title: '以隐私方式帮助训练 Neuro(联邦学习)',
   intro: '可选,默认关闭。开启后,本浏览器会保存你检查的每个 EVM 代币的结果,之后询问你结果如何。每一轮,它会在本浏览器中用你的回答训练 Neuro 的小型学习层,只发送该层经过裁剪并加入噪声的变化。',
   optin: '参与(只把我的检查记录保存在本浏览器)',
   off: '已关闭:不保存任何内容,也不发送任何内容。',
@@ -146,7 +146,7 @@ const zh = {
 };
 
 const es = {
-  title: 'Ayuda a entrenar a Neuro, en privado (aprendizaje federado · testnet)',
+  title: 'Ayuda a entrenar a Neuro, en privado (aprendizaje federado)',
   intro: 'Opcional y desactivado por defecto. Al activarlo, este navegador guarda el resultado de cada token EVM que compruebes y más tarde te pregunta cómo terminó. En cada ronda entrena la pequeña capa aprendida de Neuro con tus respuestas, aquí en este navegador, y envía solo un cambio recortado y con ruido de esa capa.',
   optin: 'Participar (guarda mis comprobaciones solo en este navegador)',
   off: 'Desactivado: no se guarda ni se envía nada.',
@@ -217,7 +217,7 @@ const es = {
 };
 
 const ko = {
-  title: '개인정보를 지키며 Neuro 학습 돕기 (연합 학습 · 테스트넷)',
+  title: '개인정보를 지키며 Neuro 학습 돕기 (연합 학습)',
   intro: '선택 사항이며 기본값은 꺼짐입니다. 켜면 이 브라우저가 확인한 각 EVM 토큰의 결과를 보관하고 나중에 어떻게 되었는지 묻습니다. 라운드마다 이 브라우저 안에서 당신의 답으로 Neuro의 작은 학습 층을 훈련하고, 그 층의 잘리고 노이즈가 더해진 변화만 보냅니다.',
   optin: '참여 (확인 기록을 이 브라우저에만 저장)',
   off: '꺼짐: 아무것도 저장하거나 보내지 않습니다.',
@@ -288,7 +288,7 @@ const ko = {
 };
 
 const ja = {
-  title: 'プライバシーを守って Neuro の学習に協力(連合学習・テストネット)',
+  title: 'プライバシーを守って Neuro の学習に協力(連合学習)',
   intro: '任意で、初期設定はオフです。オンにすると、このブラウザはチェックした各 EVM トークンの結果を保存し、後でどうなったかを尋ねます。ラウンドごとに、このブラウザ内であなたの回答を使って Neuro の小さな学習層を訓練し、その層の変化をクリップしてノイズを加えたものだけを送ります。',
   optin: '参加する(チェック記録はこのブラウザだけに保存)',
   off: 'オフ:何も保存せず、何も送りません。',
@@ -359,7 +359,7 @@ const ja = {
 };
 
 const ru = {
-  title: 'Помогите обучать Neuro, сохраняя приватность (федеративное обучение · тестовая сеть)',
+  title: 'Помогите обучать Neuro, сохраняя приватность (федеративное обучение)',
   intro: 'Необязательно и по умолчанию выключено. Если включить, этот браузер сохраняет результат каждого проверенного EVM-токена и позже спрашивает, чем всё закончилось. Каждый раунд он обучает небольшой обучаемый слой Neuro на ваших ответах прямо в этом браузере и отправляет только обрезанное и зашумлённое изменение этого слоя.',
   optin: 'Участвовать (хранить мои проверки только в этом браузере)',
   off: 'Выключено: ничего не хранится и ничего не отправляется.',
@@ -430,7 +430,7 @@ const ru = {
 };
 
 const vi = {
-  title: 'Giúp huấn luyện Neuro một cách riêng tư (học liên kết · testnet)',
+  title: 'Giúp huấn luyện Neuro một cách riêng tư (học liên kết)',
   intro: 'Tùy chọn và mặc định tắt. Khi bật, trình duyệt này lưu kết quả của mỗi token EVM bạn kiểm tra và sau đó hỏi kết cục ra sao. Mỗi vòng, nó huấn luyện lớp học nhỏ của Neuro bằng câu trả lời của bạn ngay trong trình duyệt này, và chỉ gửi thay đổi của lớp đó đã được cắt và thêm nhiễu.',
   optin: 'Tham gia (chỉ lưu các lần kiểm tra của tôi trong trình duyệt này)',
   off: 'Tắt: không lưu và không gửi gì cả.',
@@ -501,7 +501,7 @@ const vi = {
 };
 
 const th = {
-  title: 'ช่วยสอน Neuro แบบรักษาความเป็นส่วนตัว (federated learning · เทสต์เน็ต)',
+  title: 'ช่วยสอน Neuro แบบรักษาความเป็นส่วนตัว (federated learning)',
   intro: 'ไม่บังคับ และปิดไว้เป็นค่าเริ่มต้น เมื่อเปิด เบราว์เซอร์นี้จะเก็บผลของโทเคน EVM แต่ละตัวที่คุณตรวจ แล้วถามภายหลังว่าผลออกมาเป็นอย่างไร ทุกรอบจะฝึกชั้นเรียนรู้เล็ก ๆ ของ Neuro ด้วยคำตอบของคุณในเบราว์เซอร์นี้เอง แล้วส่งเฉพาะการเปลี่ยนแปลงของชั้นนั้นที่ถูกตัดขนาดและเติมสัญญาณรบกวนแล้ว',
   optin: 'เข้าร่วม (เก็บรายการที่ฉันตรวจไว้ในเบราว์เซอร์นี้เท่านั้น)',
   off: 'ปิดอยู่: ไม่เก็บและไม่ส่งอะไรเลย',

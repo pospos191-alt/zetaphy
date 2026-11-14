@@ -33,7 +33,8 @@ node cli.js near token.near        # สัญญา/เหรียญบน NE
 node cli.js starknet 0x...        # สัญญา Cairo บน Starknet
 node cli.js bitcoin DOG•GO•TO•THE•MOON  # เหรียญ Rune บน Bitcoin (หรือรหัส 840000:3)
 node cli.js osmosis osmo1...      # สัญญา CosmWasm (Rust) หรือ factory/osmo1.../ชื่อ
-node cli.js zetaphy-wasm zetaphy1... --rest https://<โหนด ZETAPHY>/rest   # สัญญา CosmWasm บน ZETAPHY (ระบุโหนดเอง)
+node cli.js zetaphyMainnet 0x...   # สัญญาบน ZETAPHY mainnet (chain 3659) ส่วน `zetaphy` เป็นของ testnet ที่ปิดแล้ว
+node cli.js zetaphy-wasm zetaphy1... --rest https://129-221-199-191.sslip.io/rest --chain-id zetaphy_3659-1   # สัญญา CosmWasm บน ZETAPHY mainnet (--chain-id ค่าเริ่มต้นเป็นของ testnet ที่ปิดแล้ว)
 node cli.js arbitrum 0x... --json # รายงานเต็ม
 npm run web                       # เปิดหน้าเว็บที่ http://localhost:8080/
 ```
