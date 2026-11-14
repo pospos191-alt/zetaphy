@@ -99,20 +99,52 @@ export const isDelegatedEoa = (code) => /^0xef0100[0-9a-fA-F]{40}$/.test(code);
  * Drops contracts (eth_getCode != 0x, except EIP-7702 delegations) using JSON-RPC batches on the chain the list
  * came from. Read-only. A failed or missing answer stops the run (never guesses).
  */
-export async function dropContracts(rows, { rpcUrl, batch = 100, fetchImpl = globalThis.fetch, block = 'latest' }) {
+const RETRYABLE = /rate|limit|too many|capacity|busy|timeout|temporar|try again/i;
+
+/**
+ * Drops every address that has code on the public chain (a contract has no key on ZETAPHY). Public RPCs rate-limit a
+ * 100,000-address run, so a batch that gets HTTP 429/5xx, a non-JSON answer or a rate-limit error is retried with a
+ * growing wait (retries, default 8; waits from retryMs, default 2 s, doubling, at most 60 s); pauseMs waits between
+ * batches. rpcUrl may be a comma-separated list: batches rotate over them. Any other error stops the run.
+ */
+export async function dropContracts(rows, { rpcUrl, batch = 100, fetchImpl = globalThis.fetch, block = 'latest', retries = 8, retryMs = 2000, pauseMs = 0, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), onRetry } = {}) {
+  const urls = String(rpcUrl).split(',').map((u) => u.trim()).filter(Boolean);
+  if (!urls.length) throw new Error('dropContracts: no RPC URL');
   const keep = [];
   const dropped = [];
-  for (let i = 0; i < rows.length; i += batch) {
+  for (let i = 0, n = 0; i < rows.length; i += batch, n++) {
     const part = rows.slice(i, i + batch);
-    const res = await fetchImpl(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(part.map((r, j) => ({ jsonrpc: '2.0', id: j, method: 'eth_getCode', params: [r.address, block] }))) });
-    const body = await res.json();
-    const byId = new Map((Array.isArray(body) ? body : [body]).map((x) => [x.id, x]));
+    const payload = JSON.stringify(part.map((r, j) => ({ jsonrpc: '2.0', id: j, method: 'eth_getCode', params: [r.address, block] })));
+    let byId;
+    for (let attempt = 0; ; attempt++) {
+      const url = urls[(n + attempt) % urls.length];
+      let why = null;
+      try {
+        const res = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload });
+        if (res.status === 429 || res.status >= 500) why = `HTTP ${res.status}`;
+        else {
+          let body;
+          try { body = await res.json(); } catch { why = `HTTP ${res.status}, not JSON`; }
+          if (!why) {
+            const list = Array.isArray(body) ? body : [body];
+            const bad = list.find((x) => x?.error && RETRYABLE.test(String(x.error.message)));
+            if (bad) why = bad.error.message;
+            else byId = new Map(list.map((x) => [x.id, x]));
+          }
+        }
+      } catch (e) { why = e.message; }
+      if (!why) break;
+      if (attempt >= retries) throw new Error(`eth_getCode batch ${n + 1} (from ${part[0].address}): ${why} (gave up after ${retries} retries)`);
+      const wait = Math.min(retryMs * 2 ** attempt, 60_000);
+      onRetry?.({ batch: n + 1, attempt: attempt + 1, wait, why, url });
+      await sleep(wait);
+    }
     part.forEach((r, j) => {
       const a = byId.get(j);
       if (!a || a.error || typeof a.result !== 'string') throw new Error(`eth_getCode ${r.address}: ${a?.error?.message ?? 'no answer'}`);
       if (a.result === '0x' || isDelegatedEoa(a.result)) keep.push(r); else dropped.push({ line: r.line, value: r.address, reason: 'contract' });
     });
+    if (pauseMs && i + batch < rows.length) await sleep(pauseMs);
   }
   return { rows: keep, dropped };
 }
