@@ -85,7 +85,34 @@ test('eth_getCode filter: contracts dropped, EOAs and EIP-7702 delegated EOAs ke
   assert.equal(r.rows.length, 252);
   assert.ok(isDelegatedEoa(code[delegated.toLowerCase()]));
   const failing = async (_u, init) => ({ json: async () => JSON.parse(init.body).map((x) => ({ id: x.id, error: { message: 'rate limited' } })) });
-  await assert.rejects(dropContracts(rows.slice(0, 3), { rpcUrl: 'x', fetchImpl: failing }), /rate limited/);
+  const slept = [];
+  await assert.rejects(dropContracts(rows.slice(0, 3), { rpcUrl: 'https://x.example', fetchImpl: failing, retries: 3, sleep: async (ms) => { slept.push(ms); } }), /rate limited \(gave up after 3 retries\)/);
+  assert.deepEqual(slept, [2000, 4000, 8000], 'waits double');
+});
+
+test('eth_getCode contract filter: rate limits are waited out, RPCs rotate, other errors stop at once', async () => {
+  const rows = Array.from({ length: 5 }, addr).map((address, i) => ({ address, line: i + 2 }));
+  const calls = [];
+  let n = 0;
+  // the first call: a rate-limit error in the JSON; the second: HTTP 429; the third: not JSON; then answers
+  const flaky = async (url, init) => {
+    calls.push(new URL(url).host); n++;
+    const ids = JSON.parse(init.body).map((x) => x.id);
+    if (n === 1) return { status: 200, json: async () => ids.map((id) => ({ id, error: { message: 'Rate limit exceeded' } })) };
+    if (n === 2) return { status: 429, json: async () => ({}) };
+    if (n === 3) return { status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+    return { status: 200, json: async () => ids.map((id) => ({ id, result: '0x' })) };
+  };
+  const waits = [];
+  const r = await dropContracts(rows, { rpcUrl: 'https://a.example, https://b.example', batch: 5, fetchImpl: flaky, sleep: async () => {}, onRetry: (x) => waits.push([x.attempt, x.wait, x.why]) });
+  assert.equal(r.rows.length, 5);
+  assert.deepEqual(calls, ['a.example', 'b.example', 'a.example', 'b.example'], 'each retry goes to the next RPC');
+  assert.deepEqual(waits, [[1, 2000, 'Rate limit exceeded'], [2, 4000, 'HTTP 429'], [3, 8000, 'HTTP 200, not JSON']]);
+  // an error that is not a rate limit is not retried: the run stops and names the address
+  const broken = async (_u, init) => ({ status: 200, json: async () => JSON.parse(init.body).map((x) => ({ id: x.id, error: { message: 'invalid argument 0: hex string has length 39' } })) });
+  let tries = 0;
+  await assert.rejects(dropContracts(rows, { rpcUrl: 'https://a.example', fetchImpl: broken, sleep: async () => { tries++; } }), /eth_getCode 0x[0-9a-fA-F]{40}: invalid argument/);
+  assert.equal(tries, 0);
 });
 
 // ------------------------------------------------------------------ Solana links
