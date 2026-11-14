@@ -70,7 +70,7 @@ async function main() {
     const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : {};
     const runner = createGraphRunner({
       rpc, jobs: opt('jobs'), state, log: console.log,
-      zetaphyChain: { kind: 'evm', id: ZETAPHY.chainId, name: 'ZETAPHY (testnet)', rpcs: [opt('rpc', ZETAPHY.rpc)] },
+      zetaphyChain: { kind: 'evm', id: ZETAPHY.chainId, name: 'ZETAPHY', rpcs: [opt('rpc', ZETAPHY.rpc)] },
       sign: (payload) => neuromsg.signMessage(wallet, { chainId: ZETAPHY.chainId, registry: opt('registry'), fromAgent: opt('agent', '0'), sourceChain: 'zetaphy', kind: 'verdict', payload, ttl: 7 * 24 * 3600 }),
       post: await outboxPost(opt('outbox', 'neuro-outbox.ndjson')),
     });

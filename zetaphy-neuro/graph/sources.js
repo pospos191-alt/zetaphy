@@ -9,20 +9,24 @@
 //   - CosmWasm chains: the chain's REST (contract info, tx search)
 import { CHAINS } from '../src/chains.js';
 
-/** ZETAPHY testnet contracts the graph knows (zetaphy-dex/web/deployments.json). */
+/**
+ * ZETAPHY mainnet (zetaphy_3659-1, EVM chain 3659) and the contracts the graph knows, from
+ * zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json and zetaphy-launch/state/3659.contracts.json. The testnet
+ * (chain 77390, rpc.sawasdeecoin.com) was shut down on 2026-11-14.
+ */
 export const ZETAPHY = {
-  chainId: 77390,
-  rpc: 'https://rpc.sawasdeecoin.com',
-  rest: 'https://rpc.sawasdeecoin.com/rest',
+  chainId: 3659,
+  rpc: 'https://129-221-199-191.sslip.io',
+  rest: 'https://129-221-199-191.sslip.io/rest',
   bech32: 'zetaphy',
-  threatRegistry: '0xab5745b61f83975e68f6546be9f83651df12417f',
+  threatRegistry: '0xaacfc7cf7148b7ae530c2ab891d4220e648a2139',
   dex: {
-    name: 'ZETAPHY DEX', factory: '0x8a19ce6e8de30515f0434f8dc07a8dc9bae64134', router: '0x2d822d2d44424fbe6465faa776822ed464a6d2a8',
-    weth: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', native: 'ZETAPHY', amountIn: '10000000000000000',
+    name: 'ZETAPHY DEX', factory: '0x93463b001483970f8cae63cd8b60d28f17a1c1aa', router: '0xa5221a7f25cf10d99446fde3e95c15b1f696e783',
+    weth: '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', native: 'ZTPHY', amountIn: '10000000000000000',
   },
-  dlmmFactory: '0x69292d823d3e7ac66b7a84342ab3d46f968042ae',
-  // Pair tokens that are never "the new token" of a pool.
-  baseTokens: ['0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', '0x9d44ea6837938d4fef98367a7b5867cdca8de596', '0x13f46517a41b0d8fc5a75b6d9df534cc61e7157d'],
+  dlmmFactory: '0x65fe29eb6deabf1ae8929de7e0a793ab394c887a',
+  // Pair tokens that are never "the new token" of a pool (mainnet has no stablecoin yet: the native coin only).
+  baseTokens: ['0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'],
 };
 
 /**
@@ -40,6 +44,8 @@ export const GRAPH_SOURCES = {
   // trace_filter where offered); funding trails are often "unknown" there.
   bsc: { blockscout: null, logRange: 2_000, hubNonce: 5_000 },
   zetaphy: { blockscout: null, rest: [ZETAPHY.rest], bech32: ZETAPHY.bech32, dex: ZETAPHY.dex, logRange: 10_000, hubNonce: 2_000 },
+  // ZETAPHY mainnet (src/chains.js zetaphyMainnet): the key the web page uses since the testnet was shut down
+  zetaphyMainnet: { blockscout: null, rest: [ZETAPHY.rest], bech32: ZETAPHY.bech32, dex: ZETAPHY.dex, logRange: 10_000, hubNonce: 2_000 },
   sol: { hubSignatures: 1000 },
   osmosis: {},
   neutron: {},

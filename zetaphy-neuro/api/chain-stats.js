@@ -9,7 +9,8 @@ import { handleChainStats, cometClient } from '../server/chainstats.js';
 import { storeFromEnv } from '../server/store.js';
 
 const store = storeFromEnv(process.env);
-const url = process.env.NEURO_ZETAPHY_COMET || 'https://rpc.sawasdeecoin.com/rpc/';
+// ZETAPHY mainnet's public CometBFT RPC (the testnet, rpc.sawasdeecoin.com, was shut down on 2026-11-14)
+const url = process.env.NEURO_ZETAPHY_COMET || 'https://129-221-199-191.sslip.io/rpc/';
 const comet = /^https:\/\/[^\s]+$/.test(url) ? cometClient(url) : null;
 
 export default async function handler(req, res) {

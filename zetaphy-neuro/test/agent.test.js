@@ -184,7 +184,7 @@ test('scan: new pools -> investigations -> one issue; the next run opens nothing
   const t0 = '0x' + 'c1'.repeat(20);
   const t1 = '0x' + 'c2'.repeat(20);
   const pairLog = (a, b, pair) => ({ address: ZETAPHY.dex.factory, topics: [TOPIC.pairCreated, '0x' + addrWord(a), '0x' + addrWord(b)], data: '0x' + addrWord(pair) + word(1), blockNumber: '0x10', transactionHash: '0x' + '01'.repeat(32) });
-  const dlmmLog = { address: ZETAPHY.dlmmFactory, topics: [TOPIC.dlmmPairCreated, '0x' + addrWord(t1), '0x' + addrWord(ZETAPHY.baseTokens[1]), '0x' + word(25)], data: '0x' + addrWord('0x' + 'd1'.repeat(20)) + word(0) + word(1), blockNumber: '0x11', transactionHash: '0x' + '02'.repeat(32) };
+  const dlmmLog = { address: ZETAPHY.dlmmFactory, topics: [TOPIC.dlmmPairCreated, '0x' + addrWord(t1), '0x' + addrWord(ZETAPHY.baseTokens[0]), '0x' + word(25)], data: '0x' + addrWord('0x' + 'd1'.repeat(20)) + word(0) + word(1), blockNumber: '0x11', transactionHash: '0x' + '02'.repeat(32) };
   const rpc = {
     call: async (m, p) => {
       if (m === 'eth_blockNumber') return '0x2000';
@@ -210,9 +210,13 @@ test('scan: new pools -> investigations -> one issue; the next run opens nothing
   assert.ok(second.skipped.some((s) => s.reason === 'duplicate'));
 });
 
-test('scan: base tokens (wrapped native, test stables) are never "the new token"', () => {
-  const l = { address: ZETAPHY.dex.factory, topics: [TOPIC.pairCreated, '0x' + addrWord(ZETAPHY.baseTokens[0]), '0x' + addrWord(ZETAPHY.baseTokens[1])], data: '0x' + word(5) + word(1), blockNumber: '0x1', transactionHash: '0x' + '0'.repeat(64) };
-  assert.deepEqual(newTokensFromLogs([l]), []);
+test('scan: base tokens (the wrapped native on mainnet, any stables passed in) are never "the new token"', () => {
+  const STABLE = '0x' + '5a'.repeat(20);
+  const NEW = '0x' + '6b'.repeat(20);
+  const pair = (a, b) => ({ address: ZETAPHY.dex.factory, topics: [TOPIC.pairCreated, '0x' + addrWord(a), '0x' + addrWord(b)], data: '0x' + word(5) + word(1), blockNumber: '0x1', transactionHash: '0x' + '0'.repeat(64) });
+  assert.deepEqual(ZETAPHY.baseTokens, ['0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'], 'mainnet: the native coin (precompile) only');
+  assert.deepEqual(newTokensFromLogs([pair(ZETAPHY.baseTokens[0], STABLE)], { baseTokens: [ZETAPHY.baseTokens[0], STABLE] }), []);
+  assert.deepEqual(newTokensFromLogs([pair(ZETAPHY.baseTokens[0], NEW)]).map((p) => p.token), [NEW]);
 });
 
 // ------------------------------------------------------------ runner

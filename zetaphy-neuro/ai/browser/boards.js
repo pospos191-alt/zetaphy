@@ -126,7 +126,7 @@ export function chainBoard({ rpc, chainId, address, wallet = null, fetchImpl, lo
   async function ensureFunds(need) {
     const bal = B(await client.call('eth_getBalance', [wallet.address, 'latest']));
     if (bal >= need) return;
-    if (!faucet || asked) throw new Error('the session key has no testnet coins for a post (faucet not available)');
+    if (!faucet || asked) throw new Error('the session key has no coins for a post (faucet not available)');
     asked = true;
     await client.call('zetaphy_faucet', [wallet.address]);
     stats.faucet++;
