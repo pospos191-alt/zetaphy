@@ -6,7 +6,7 @@
 // pool, a fixed amount each, or pro-rata to a weight column, with a per-address cap. Integer math only.
 // Only addresses are read and written; any other column is ignored.
 
-import { getAddress, parseUnits } from 'ethers';
+import { getAddress, parseUnits, sha256, toUtf8Bytes, dataSlice } from 'ethers';
 import { allocate, POOL } from './allocate.js';
 
 export { POOL };
@@ -18,6 +18,17 @@ export const KNOWN_NON_USERS = new Set([
   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', // "native coin" placeholder of many apps
   '0xffffffffffffffffffffffffffffffffffffffff',
 ]);
+/**
+ * ZETAPHY system addresses that are never a recipient of a push (gov.sh airdrop): the app's module accounts
+ * (address = sha256(module name)[:20]; the bank refuses coins sent to them, which fails a whole MsgMultiSend) and the
+ * EVM preinstalls in its genesis (cosmos/evm v0.7.3 DefaultPreinstalls, contracts on ZETAPHY).
+ */
+export const MODULE_NAMES = ['fee_collector', 'distribution', 'mint', 'bonded_tokens_pool', 'not_bonded_tokens_pool', 'gov',
+  'transfer', 'evm', 'feemarket', 'erc20', 'precisebank', 'wasm', 'ratelimit'];
+export const PREINSTALLS = ['0x4e59b44847b379578588920cA78FbF26c0B4956C', '0xcA11bde05977b3631167028862bE2a173976CA11',
+  '0x000000000022D473030F116dDEE9F6B43aC78BA3', '0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7', '0x0000F90827F1C53a10cb7A02335B175320002935'];
+export const moduleAddress = (name) => getAddress(dataSlice(sha256(toUtf8Bytes(name)), 0, 20));
+export const SYSTEM_ADDRESSES = new Set([...MODULE_NAMES.map(moduleAddress), ...PREINSTALLS].map((a) => a.toLowerCase()));
 const RESERVED_BELOW = 0x10000n; // Ethereum precompiles 0x01-0x11 and ZETAPHY's (0x…0100, 0x…0800-0x…0900) live here
 
 /** Splits CSV text into rows of cells (quotes removed; no embedded commas are expected in these files). */

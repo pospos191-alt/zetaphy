@@ -1,7 +1,9 @@
--- Active Ethereum wallets for a retroactive, CLAIM-BASED ZTPHY airdrop (docs/AIRDROP.md, "Recipients from public chains").
+-- Active Ethereum wallets for a retroactive ZTPHY airdrop (docs/AIRDROP.md, "Recipients from public chains"). Claim-based
+-- by default; the owner decided on 2026-11-14 to push 10 ZTPHY to each instead (docs/AIRDROP.md section 7).
 -- Runs on Google BigQuery's public dataset bigquery-public-data.crypto_ethereum, in the owner's own Google Cloud project.
 -- Output: address,score (score = distinct active days in the window), the top 100,000; feed it to
---   node airdrop/cli.js from-csv active.csv --weight score --cap <ZTPHY> --rpc <Ethereum RPC>    (or --equal)
+--   node airdrop/cli.js push-list active.csv --rpc <Ethereum RPC> --max 100000 --out push.txt   (the push, gov.sh airdrop)
+--   node airdrop/cli.js from-csv active.csv --weight score --cap <ZTPHY> --rpc <Ethereum RPC>    (a claim round; or --equal)
 --
 -- Who is kept (an EOA that a person plausibly uses):
 --   * >= min_success_txs successful transactions sent (receipt_status = 1) in the window
