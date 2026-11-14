@@ -24,13 +24,14 @@ separate swd-amm program on Solana; see [MAINNET_RUNBOOK.md](MAINNET_RUNBOOK.md)
 
 **Status on 2026-11-13:** the mainnet runs (owner decision above) on 1 validator. Gate 1 not started; gate 3 started
 on 2026-11-12 and not complete; gates 4, 6 and 7 done, as recorded below; gates 8 to 10 open. The testnet
-(`zetaphy_77390-1`) keeps running for upgrade rehearsals.
+(`zetaphy_77390-1`) was shut down for good on 2026-11-14 (owner decision); upgrade rehearsals now need a devnet
+(CI runs `test:devnet:upgrade`).
 
 | Gate | What | Status |
 |---|---|---|
 | 1 | Independent external audit of the release commit; every Critical/High fixed and re-reviewed | ❌ not started |
 | 2 | At least 4 independent validators, none above 1/3 of the power | ⚠️ owner decision: 1 validator at launch; plan to add more |
-| 3 | The release has run on the testnet for at least 4 weeks without incident | ⏳ started 2026-11-12 |
+| 3 | The release has run on the testnet for at least 4 weeks without incident | ❌ not complete: started 2026-11-12, the testnet was shut down 2026-11-14 |
 | 4 | Fresh keys, none on a public host | ✅ 2026-11-13 |
 | 5 | Mainnet release: signed, published, fingerprint frozen | ⚠️ owner decision: unaudited release used (recorded in gate 5) |
 | 6 | Genesis ceremony with every validator | ✅ 2026-11-13 |
@@ -71,13 +72,15 @@ step 17 of [the procedure](ZETAPHY-MAINNET-PROCEDURE.md). The target stays:
   there are 4 or more.
 - Each validator: its own key (ideally a remote signer such as Horcrux), its own sentry, the node installed from the
   signed release with `verify-release.sh`, and a named contact for incidents.
-- Recruitment starts on the testnet: invite operators when the public RPC reopens, and have them run a testnet validator
-  first ([zetaphy-chain/README.md](../zetaphy-chain/README.md) and `zetaphy-validator`).
+- Recruitment: the testnet is gone (shut down 2026-11-14), so operators join mainnet directly with `install.sh validator`
+  ([mainnet files](../zetaphy-chain/mainnet/zetaphy_3659-1/README.md) and `zetaphy-validator`).
 
 Record here: the validators (name, contact, operator address) `zetaphy-validator-0` (ZETAPHY project, see SECURITY.md),
 `zetaphyvaloper1l9fxu7xn7yrug9rlsve9hs4mgtpn9zej9tqvx8`, node id `9d71e8582823a74d2cfbf51b1c6ef4af50e94e5c`.
 
 ## Gate 3: testnet soak
+
+The testnet was shut down on 2026-11-14, two days into the soak, so this gate is not complete as written.
 
 - The release that will run the mainnet (or the one the audit fixes go into) runs on the testnet for **at least 4
   weeks** with: no consensus failure, no app-hash mismatch, no start-guard refusal that was not intended, at least one

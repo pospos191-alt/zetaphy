@@ -1,5 +1,7 @@
 # ZTPHY airdrop: lists, the claim contract, the claim page
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 [ภาษาไทย](AIRDROP.th.md)
 
 > **Round 1 (SWD holders, mainnet chain 3659) is open:** link your Solana wallet before 2026-12-04 14:00 UTC.

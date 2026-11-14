@@ -1,5 +1,9 @@
 # ชุดประกาศ ZETAPHY (launch kit)
 
+> **อย่าโพสต์ชุดนี้: เป็นของ testnet** (chain 77390, `rpc.sawasdeecoin.com`, เหรียญทดลอง) และ testnet ปิดถาวรแล้ว
+> เมื่อ 2026-11-14 สำหรับ mainnet ให้ใช้ [ZETAPHY-MAINNET-ANNOUNCE.th.md](ZETAPHY-MAINNET-ANNOUNCE.th.md) และข้อความสั้นใน
+> [ประกาศ mainnet](ZETAPHY-MAINNET-NOTICE.th.md) ไฟล์นี้เก็บไว้เป็นบันทึก
+
 ข้อความพร้อมคัดลอกทุกช่องทางอยู่ใน [LAUNCH-KIT.md](LAUNCH-KIT.md) ส่วนข้อความภาษาไทยสำหรับกลุ่มคนไทยอยู่ในหัวข้อ 6 ของไฟล์นั้น
 เจ้าของโครงการเป็นคนโพสต์เอง ไม่มีอะไรถูกโพสต์อัตโนมัติ
 

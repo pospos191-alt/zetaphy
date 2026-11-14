@@ -2,6 +2,8 @@
 
 # ZETAPHY: security in the chain's core (security core)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 This document explains the 3 security rules that live in the chain itself (not only in wallets or contracts): what they change for users
 and validators, and what stops these rules from becoming a tool for censorship
 

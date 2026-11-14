@@ -2,6 +2,8 @@
 
 # On-chain ML scoring and a zkML prototype (testnet)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Two items of the "future" workstream, built on Neuro's learned risk model (`zetaphy-neuro/ml/`, gradient-boosted
 trees, 160 trees of depth <= 4 over 133 features, on-chain model `nml-b4c35477f7b1`):
 

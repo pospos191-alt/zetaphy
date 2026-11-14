@@ -2,6 +2,8 @@
 
 # What can be open, and what must be hidden (ZETAPHY)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 Principle: **the system must be secure even if attackers know everything about how it works** (Kerckhoffs's principle)
 The only things that can really be hidden are "keys" and "information that is valuable because nobody knows it yet". How the chain and contracts work must be open,
 because on-chain bytecode is readable anyway, every validator needs the program to run it, and auditors / the bug bounty need to read the code

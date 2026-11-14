@@ -2,6 +2,10 @@
 
 # วันเปิด ZETAPHY testnet: เช็กลิสต์ของเจ้าของ
 
+> **บันทึกวันเปิด testnet (ปิดถาวรแล้วเมื่อ 2026-11-14)** อย่าทำตามนี้สำหรับ mainnet ให้ใช้
+> [ZETAPHY-MAINNET-PROCEDURE.th.md](ZETAPHY-MAINNET-PROCEDURE.th.md) และ [ZETAPHY-MAINNET-RUNBOOK.th.md](ZETAPHY-MAINNET-RUNBOOK.th.md)
+> และอ่าน[ประกาศ mainnet](ZETAPHY-MAINNET-NOTICE.th.md)
+
 ไล่ทำจากบนลงล่าง จากศูนย์จนถึง testnet ที่ใช้งานได้จริง
 - **ทุกขั้นทำบนหน้าเว็บ** (Oracle, GitHub, Vercel, MetaMask, ผู้ให้บริการ DNS) ไม่ต้องรันอะไรบนคอมพิวเตอร์ของคุณ
 - **ฟรีทั้งหมด** (Oracle Always Free, GitHub Actions, Vercel Hobby, npm สาธารณะ, Reown ฟรี)

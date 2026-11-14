@@ -1,5 +1,7 @@
 # ZETAPHY chain — audit scope
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](ZETAPHY-MAINNET-NOTICE.md).
+
 What an auditor of the ZETAPHY chain needs to look at. The base is the
 published Cosmos EVM `v0.7.3` (commit `c3ae9067a7eadcdea55a5192226916deb44c71c4`,
 Cosmos SDK v0.54, ibc-go v11, CometBFT). ZETAPHY adds the patches embedded at

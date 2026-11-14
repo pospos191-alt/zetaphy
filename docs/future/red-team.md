@@ -2,6 +2,8 @@
 
 # Red team: break it before someone else does, and pay whoever does
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 **Testnet prototype.** Nothing here holds or pays real money. Every attack runs on a **local fork or an in-memory
 EVM**, never on a live chain, a mainnet, or anyone else's contract. The contracts have not been audited.
 

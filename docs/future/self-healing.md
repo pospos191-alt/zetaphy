@@ -1,5 +1,7 @@
 # Self-healing: contain an exploit in progress, narrowly and for a limited time
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 **Testnet prototype.** No real money. The contracts have not been audited.
 
 When Neuro sees an exploit in progress against a protocol, the chain should stop the damage within seconds. It

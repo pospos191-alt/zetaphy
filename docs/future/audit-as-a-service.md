@@ -2,6 +2,8 @@
 
 # Audit-as-a-Service: any chain orders an audit, the certificate is checked where the code runs
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Testnet only. Orders are paid in testnet ZETAPHY, which has no value. Nothing here has been audited by an
 outside firm, and a certificate is **not** a guarantee that code is safe.
 

@@ -1,5 +1,7 @@
 # Trustless bridge: ZETAPHY → Ethereum and Bitcoin (prototype)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 **Testnet prototype, not audited.** Test keys only. Builds on the STARK light client
 ([stark-light-client.md](stark-light-client.md)); read that first for what the STARK proves (Stage A) and what it does not.
 

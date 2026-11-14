@@ -2,6 +2,8 @@
 
 # Browser AI: registry, verified distribution, P2P, pipeline split, on-chain knowledge
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Status: **testnet prototype**. Everything below runs with no server of ours, no API key and no new dependency.
 Nothing here moves money. Each part says what is built, how to use it, its limits, and what is still missing.
 

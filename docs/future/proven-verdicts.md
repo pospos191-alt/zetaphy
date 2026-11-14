@@ -2,6 +2,8 @@
 
 # Proven verdicts: "AI that proves every answer" (testnet)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Every Neuro risk verdict that goes on-chain through `ProvenVerdicts` carries a **zero-knowledge proof** (Groth16) that
 the **pinned on-chain model** computed its score, and **the features the score is about can be re-derived by anyone
 from the token's code**. A runner cannot post a score the model did not give, cannot prove a score for invented

@@ -1,5 +1,7 @@
 # Deploying the AI map's contracts (one button)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 The hub's AI map (35 items) marks an item "Page ready, contract not deployed yet" until its contract is on the
 testnet. One workflow deploys all of them: **Actions › ai-deploy › Run workflow** (environment `testnet-deploy`,
 the owner approves; it needs the public RPC up).

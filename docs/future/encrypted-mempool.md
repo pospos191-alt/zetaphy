@@ -2,6 +2,8 @@
 
 # Post-quantum threshold-encrypted mempool (research prototype)
 
+> **Testnet shut down 2026-11-14.** ZETAPHY mainnet (`zetaphy_3659-1`, chain 3659) is the only network; where this page says testnet, it describes the retired testnet (or a devnet). See the [mainnet notice](../ZETAPHY-MAINNET-NOTICE.md).
+
 Testnet research only. Nothing here is in the chain yet: this is a JavaScript reference
 implementation, a deterministic simulation and an integration plan for `zetaphy-chain`.
 No consensus code was changed.
