@@ -1,0 +1,42 @@
+{
+  "chain_name": "zetaphy",
+  "registry_name": "zetaphy",
+  "api": [
+    {
+      "provider": "ZETAPHY",
+      "address": "https://129-221-199-191.sslip.io/rest"
+    }
+  ],
+  "rpc": [
+    {
+      "provider": "ZETAPHY",
+      "address": "https://129-221-199-191.sslip.io/rpc"
+    }
+  ],
+  "snapshot_provider": "",
+  "sdk_version": "0.54.3",
+  "coin_type": "60",
+  "min_tx_fee": "400000000000000",
+  "addr_prefix": "zetaphy",
+  "logo": "/logos/zetaphy.png",
+  "theme_color": "#0369A1",
+  "keplr_price_step": {
+    "low": 1000000000,
+    "average": 1000000000,
+    "high": 2000000000
+  },
+  "keplr_features": [
+    "eth-address-gen",
+    "eth-key-sign",
+    "eth-secp256k1-cosmos"
+  ],
+  "assets": [
+    {
+      "base": "azetaphy",
+      "symbol": "ZTPHY",
+      "exponent": "18",
+      "coingecko_id": "",
+      "logo": "/logos/zetaphy.png"
+    }
+  ]
+}
