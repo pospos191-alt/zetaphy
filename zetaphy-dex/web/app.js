@@ -408,7 +408,7 @@ async function renderSafetyBanner() {
   let amount = null;
   if (state.account && state.chainId === EVM_CHAIN_ID) amount = await balanceOf(NATIVE, state.account).catch(() => null);
   if (seq !== bannerSeq) return;
-  sf.balanceBanner({ host, amount, threshold: BIG_BALANCE, symbol: 'ZETAPHY', hardware: isHardware(), help: HELP });
+  sf.balanceBanner({ host, amount, threshold: BIG_BALANCE, symbol: NETWORK.symbol, hardware: isHardware(), help: HELP });
 }
 
 async function connectWallet(w, silent = false) {

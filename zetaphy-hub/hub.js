@@ -691,7 +691,10 @@ export function mainnetConfig(cfg, net = NET) {
   if (m && Number.isInteger(m.contracts?.timelockBlock) && contracts.timelock) contracts.timelockBlock = m.contracts.timelockBlock;
   const dex = m && isEvmAddress(m.dex?.factory) && isEvmAddress(m.dex?.router) ? addrs(m.dex) : { factory: c.factory, router: c.router };
   const list = m?.airdrop?.list;
-  return { contracts, dex, nft: m ? addrs(m.nft) : {}, tokens: [], saphan: [], saphanTokens: [], immune: null, immuneNet: null, qsafe: cfg?.qsafe && typeof cfg.qsafe === 'object' ? cfg.qsafe : null,
+  // the Immunity tab and the pre-sign check: mainnet's ImmuneRegistry (build.mjs mainnetHub), never the testnet's
+  const inet = m?.immuneNet && isEvmAddress(m.immuneNet.registry) && contracts.immuneRegistry && m.immuneNet.registry.toLowerCase() === contracts.immuneRegistry.toLowerCase()
+    ? { registry: m.immuneNet.registry, mirrors: [], feedUrl: null, chains: Number.isInteger(m.immuneNet.chains) ? m.immuneNet.chains : 0, simMedian: Number(m.immuneNet.simMedian) || null } : null;
+  return { contracts, dex, nft: m ? addrs(m.nft) : {}, nftCodeKeysProtected: m?.nftCodeKeysProtected === true, tokens: [], saphan: [], saphanTokens: [], immune: null, immuneNet: inet, qsafe: cfg?.qsafe && typeof cfg.qsafe === 'object' ? cfg.qsafe : null,
     ...(typeof list === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(list) ? { airdrop: { list } } : {}) };
 }
 async function start() {
@@ -707,7 +710,7 @@ async function start() {
     ...(typeof c.airdrop?.list === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(c.airdrop.list) ? { airdrop: { list: c.airdrop.list } } : {}) }; } catch { /* default */ }
   // hub-config.json's top level is the testnet's (build.mjs); on mainnet only its `mainnet` part (or network.js's
   // list), never a testnet address, and the features whose contracts are deployed there turn on (network.js withDeployed)
-  if (!NET.testnet) { HUB = mainnetConfig(raw); NET = withDeployed(NET, HUB.contracts); }
+  if (!NET.testnet) { HUB = mainnetConfig(raw); NET = withDeployed(NET, HUB.contracts, HUB); }
   syncApps();
   bindTips(document, $('tip'));
   document.addEventListener('click', (e) => {

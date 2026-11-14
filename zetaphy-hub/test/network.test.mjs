@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import {
   NETWORKS, DEFAULT_NETWORK, NETWORK_KEY, FEATURES, NATIVE_ERC20, readNetworkId, hasFeature, contractsOf, netKey, addChainParams,
   noticeUrl, NET_TEXT, FEATURE_NAME, netText, wrongChainText, networkBadge, notOnMainnetBox, isNetworkId, linkExplorer,
-  FEATURE_CONTRACTS, deployedFeatures, withDeployed, activeNetwork,
+  FEATURE_CONTRACTS, deployedFeatures, withDeployed, activeNetwork, nftReady,
 } from '../network.js';
 import * as NETWORK_EXPORTS from '../network.js';
 import { MAINNET, addChainParams as cardParams } from '../mainnet.js';
@@ -63,8 +63,8 @@ test('mainnet\'s contracts are the deployed ones (zetaphy-chain/mainnet/zetaphy_
   assert.deepEqual(contractsOf(NETWORKS.mainnet, { factory: '0x1' }).factory, c.factory, 'mainnet never takes the testnet\'s');
 });
 
-test('features: mainnet has the wallet, staking, governance, explorer, Neuro, the DEX and the sentry\'s faucet (and its browser mining); the rest is not on mainnet yet', () => {
-  const on = ['wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining'];
+test('features: mainnet has the wallet, staking, governance, explorer, Neuro, the DEX and the sentry\'s faucet (and its browser mining), joining as a validator; the rest is not on mainnet yet', () => {
+  const on = ['wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining', 'validators'];
   const off = ['nft', 'dlmm', 'bridge', 'usefulWork', 'testTokens', 'stableGateway', 'rewardVault', 'computeMarket', 'identity', 'quantumWallet', 'airdrop'];
   for (const f of on) assert.equal(hasFeature(NETWORKS.mainnet, f), true, f);
   for (const f of off) assert.equal(hasFeature(NETWORKS.mainnet, f), false, f);
@@ -210,5 +210,18 @@ test('withDeployed: a mainnet feature turns on once ALL its contracts are deploy
   assert.equal(withDeployed(NETWORKS.testnet, { airdropDistributor: A(1) }), NETWORKS.testnet);
   // every listed feature is a known one; pages that still sign for chain 77390 only are never switched on by a file
   for (const [f, keys] of Object.entries(FEATURE_CONTRACTS)) { assert.ok(FEATURES.includes(f), f); assert.ok(keys.length > 0, f); }
-  for (const f of ['offline', 'immune', 'forecasts', 'nft', 'bridge', 'validators']) assert.ok(!(f in FEATURE_CONTRACTS), `${f}: changes only with network.js`);
+  for (const f of ['forecasts', 'nft', 'bridge']) assert.ok(!(f in FEATURE_CONTRACTS), `${f}: changes only with network.js`);
+  // the offline and immune tabs sign / check for the page's own chain id: they turn on with their contracts
+  assert.deepEqual(FEATURE_CONTRACTS.offline, ['zetaphyCheques', 'offlineOrders', 'offlineCash']);
+  assert.deepEqual(FEATURE_CONTRACTS.immune, ['immuneRegistry']);
+  assert.deepEqual(deployedFeatures({ zetaphyCheques: A(1), offlineOrders: A(2) }), [], 'offline needs all three');
+  assert.deepEqual(deployedFeatures({ zetaphyCheques: A(1), offlineOrders: A(2), offlineCash: A(3), immuneRegistry: A(4) }).sort(), ['immune', 'offline']);
+  // the NFT app: its contracts AND the code-keys flag (nftReady)
+  const nft = { factory: A(5), marketplace: A(6) };
+  assert.equal(nftReady({ nft }), false);
+  assert.equal(nftReady({ nft, nftCodeKeysProtected: 'true' }), false);
+  assert.equal(nftReady({ nft: { factory: A(5) }, nftCodeKeysProtected: true }), false);
+  assert.equal(nftReady({ nft, nftCodeKeysProtected: true }), true);
+  assert.equal(hasFeature(withDeployed(m, {}, { nft }), 'nft'), false);
+  assert.equal(hasFeature(withDeployed(m, {}, { nft, nftCodeKeysProtected: true }), 'nft'), true);
 });

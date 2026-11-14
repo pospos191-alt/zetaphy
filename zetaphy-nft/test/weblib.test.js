@@ -285,7 +285,7 @@ test('every language has every text; Neuro wording stays neutral and carries the
   assert.equal(errorText('en', { message: 'execution reverted: registry down' }), 'registry down');
 });
 
-test('wallet: ensureChain re-reads the chain after switch/add; assertChain refuses anything but 77390', async () => {
+test('wallet: ensureChain re-reads the chain after switch/add; assertChain refuses anything but the page network chain (mainnet 3659; never the retired testnet 77390)', async () => {
   const { ensureChain, assertChain } = await import('../web/lib/wallet.js');
   const fake = (chains, { switchFails = false } = {}) => {
     const seen = [];
@@ -297,17 +297,17 @@ test('wallet: ensureChain re-reads the chain after switch/add; assertChain refus
       return null;
     } };
   };
-  await ensureChain(fake(['0x12e4e']), 'https://rpc');
-  const ok = fake(['0x1', '0x12e4e']);
+  await ensureChain(fake(['0xe4b']), 'https://rpc');
+  const ok = fake(['0x1', '0xe4b']);
   await ensureChain(ok, 'https://rpc');
   assert.deepEqual(ok.seen, ['eth_chainId', 'wallet_switchEthereumChain', 'eth_chainId']);
   // The wallet says "switched" but stays on chain 1: refused.
   await assert.rejects(ensureChain(fake(['0x1', '0x1']), 'https://rpc'), (e) => e.code === 'WRONG_CHAIN');
-  const added = fake(['0x38', '0x12e4e'], { switchFails: true });
+  const added = fake(['0x38', '0xe4b'], { switchFails: true });
   await ensureChain(added, 'https://rpc');
   assert.deepEqual(added.seen, ['eth_chainId', 'wallet_switchEthereumChain', 'wallet_addEthereumChain', 'eth_chainId']);
-  await assertChain(fake([77390]));
-  for (const bad of ['0x1', null, 'nonsense', {}, '0x12e4f']) await assert.rejects(assertChain(fake([bad])), (e) => e.code === 'WRONG_CHAIN', String(bad));
+  await assertChain(fake([3659]));
+  for (const bad of ['0x1', null, 'nonsense', {}, '0x12e4f', '0x12e4e', 77390]) await assert.rejects(assertChain(fake([bad])), (e) => e.code === 'WRONG_CHAIN', String(bad));
   const sel = new Interface(artifacts.NFTMarketplace.abi).getError('ProceedsTooLow').selector;
   assert.match(errorText('en', { data: sel + '0'.repeat(128) }), /receive less than shown/);
 });

@@ -194,7 +194,7 @@ test('immune: selectors, isFlagged call data and answer; registry first, the fee
 
 test('immune: the pre-sign warning in every language; nothing when clean or unreadable, never a long wait', async () => {
   const who = '0x' + 'ab'.repeat(20);
-  const feed = { stats: {}, items: [{ address: who, chainId: 77390, flagged: true, severity: 4, kind: 2, since: 1, expiresAt: 4_000_000_000 }] };
+  const feed = { stats: {}, items: [{ address: who, chainId: 3659, flagged: true, severity: 4, kind: 2, since: 1, expiresAt: 4_000_000_000 }] };
   const fetchImpl = async () => ({ ok: true, json: async () => feed });
   const net = { registry: null, feedUrl: 'https://feed.example/' };
   for (const l of LANG_CODES) {

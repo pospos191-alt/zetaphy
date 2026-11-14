@@ -13,6 +13,7 @@ import { CASH } from './offline-cash-i18n.js';
 import * as cash from './cash-core.js';
 import * as M from './mesh-frames.js';
 import * as off from './offline-core.js';
+import { activeNetwork } from './network.js';
 
 export const CW = (lang) => withFallback(CASH, lang);
 const STORE = 'zetaphy-offline-cash:v1';
@@ -167,7 +168,7 @@ export function cashCards(h) {
     }
     keyBox.replaceChildren(...kids);
   }
-  const pinIn = el('textarea', { id: 'off-cash-pin', class: 'mono off-text', rows: 2, spellcheck: 'false', placeholder: '{"chainId":"zetaphy_77390-1","validators":{…}}', 'aria-label': T.pinTitle });
+  const pinIn = el('textarea', { id: 'off-cash-pin', class: 'mono off-text', rows: 2, spellcheck: 'false', placeholder: `{"chainId":"${(ctx.net ?? activeNetwork()).cosmosChainId}","validators":{…}}`, 'aria-label': T.pinTitle });
   const pinOut = box();
   const pinBtn = el('button', { type: 'button', class: 'btn ghost sm', id: 'off-cash-pin-save', text: T.pinSave, onclick: () => {
     try {
@@ -185,7 +186,7 @@ export function cashCards(h) {
   async function checkNote(b) {
     const { c } = await libs();
     const s = load();
-    const r = cash.receiveCheck(c, b, { me: s.key?.keyHash ?? null, pin: s.pin, contract, now: nowSec() });
+    const r = cash.receiveCheck(c, b, { me: s.key?.keyHash ?? null, pin: s.pin, contract, now: nowSec(), evmChainId: (ctx.net ?? activeNetwork()).chainId });
     const kids = [el('p', { class: r.ok ? 'msg ok' : 'msg bad', id: 'off-cash-verdict', 'data-ok': r.ok ? '1' : '0',
       text: r.ok ? T.valid(fmt(r.value), r.seq) : T.invalid })];
     if (r.problems.length) kids.push(el('ul', { class: 'small off-problems' }, r.problems.map((p) => el('li', { class: 'bad', 'data-code': p, text: T.problem[p] ?? p }))));

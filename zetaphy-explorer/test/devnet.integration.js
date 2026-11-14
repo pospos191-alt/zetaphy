@@ -183,7 +183,7 @@ test('devnet: home, blocks with real ML-DSA-44 certificates verified in the brow
 test('devnet: EVM txs (ZETAPHY transfer, ERC-20 transfer) and the Cosmos MsgPQVoteKey tx', async () => {
   const { page, ctx, problems } = await openPage();
   await page.goto(`http://localhost:${PORT}/#/tx/${facts.payTx}`);
-  await waitText(page, '1.25 ZETAPHY');
+  await waitText(page, '1.25 ZTPHY');
   assert.match(await text(page), /Success/);
   await page.goto(`http://localhost:${PORT}/#/tx/${facts.tokenTx}`);
   await waitText(page, 'dTHB');
@@ -205,7 +205,7 @@ test('devnet: address in both forms, token page, ThreatRegistry flag, validators
   await waitText(page, 'dTHB');
   const t = await text(page);
   assert.match(t, new RegExp(RECIPIENT)); assert.match(t, new RegExp(bech));
-  assert.match(t, /1\.25 ZETAPHY/);
+  assert.match(t, /1\.25 ZTPHY/);
   await page.goto(`http://localhost:${PORT}/#/token/${facts.token}`);
   await waitText(page, 'ข้อมูลวิเคราะห์โค้ดอัตโนมัติ ไม่ใช่คำกล่าวหา');
   const tt = await text(page);

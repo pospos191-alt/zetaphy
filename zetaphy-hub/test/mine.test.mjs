@@ -160,3 +160,43 @@ test('Earn and Mine on mainnet: the faucet\'s own words (real ZTPHY for fees, a 
     assert.equal(mineText({ lang: l, net: NETWORKS.testnet }).what, MINE[l].what);
   }
 });
+
+test('Earn on mainnet: the validator, runner, stake and liquidity guides say what is true on mainnet, in all 8 languages (real ZTPHY, no faucet funding, no test tokens, no testnet)', async () => {
+  const { EARN_MAIN, EARN_MAIN_CMDS } = await import('../earn-main-i18n.js');
+  const { unbondingText } = await import('../pages.js');
+  assert.deepEqual(Object.keys(EARN_MAIN).sort(), [...LANG_CODES].sort());
+  const TESTNET_WORDS = /testnet|77390|rpc\.sawasdeecoin\.com|test ZETAPHY|test coins|tUSD|ZETAPHY ทดลอง|เหรียญทดลอง|เทสต์เน็ต|测试网|测试币|테스트넷|테스트 코인|テストネット|テスト用コイン|тестнет|тестовые монеты|coin thử nghiệm|monedas de prueba|become-validator|--become/i;
+  for (const l of LANG_CODES) {
+    const L = earnText({ lang: l, net: NETWORKS.mainnet });
+    for (const id of ['validator', 'runner', 'stake', 'lp']) {
+      const m = L.m.find((x) => x.id === id);
+      assert.deepEqual(m.cmds, EARN_MAIN_CMDS[id], `${l} ${id}: mainnet's commands`);
+      assert.equal(m.steps.length, EARN_MAIN_CMDS[id].length, `${l} ${id}: one text per command`);
+      const all = [m.title, m.need, m.needS, m.get, m.getS, m.time, m.level, ...m.steps.flat().filter(Boolean)].join('\n');
+      assert.doesNotMatch(all, TESTNET_WORDS, `${l} ${id}`);
+      assert.deepEqual(Object.keys(EARN_MAIN[l][id]).sort(), Object.keys(EARN_MAIN.en[id]).sort(), `${l} ${id}: every key`);
+      if (l !== 'en') assert.notEqual(EARN_MAIN[l][id].title, EARN_MAIN.en[id].title, `${l} ${id}: translated`);
+    }
+    const runner = L.m.find((x) => x.id === 'runner');
+    assert.match(runner.steps[0][1], /install\.sh \| sudo bash -s -- runner$/);
+    assert.match(runner.steps.map((s) => s[0]).join(' '), /BOND/, `${l}: the live bond`);
+    assert.match(runner.steps.map((s) => s[0]).join(' '), /JOBS/, `${l}: mainnet's NeuroJobs`);
+    assert.match(runner.need, /ZTPHY/, `${l}: real ZTPHY`);
+    const v = L.m.find((x) => x.id === 'validator');
+    assert.deepEqual(v.cmds.filter(Boolean).map((c) => c.split('\n')[0]), ['curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=my-node bash -s -- validator', 'sudo zetaphy-validator key', 'sudo zetaphy-validator address', 'sudo zetaphy-validator stake 100']);
+    assert.match(v.steps[4][0], /1\/3/, `${l}: the power cap`);
+    const s = L.m.find((x) => x.id === 'stake');
+    assert.match(s.steps[2][0], /UNBOND/, `${l}: the chain's unbonding time`);
+    assert.match(s.need, /ZTPHY/);
+    const lp = L.m.find((x) => x.id === 'lp');
+    assert.match(lp.steps[0][0], /FACTORY[\s\S]*ROUTER/, `${l}: the AMM DEX's addresses`);
+    assert.match(lp.steps[2][0], /DLMM[\s\S]*2026-11-17/, `${l}: DLMM after the timelock batch`);
+    // the faucet and browser mining keep their own mainnet words; the testnet's record keeps its own
+    const t = earnText({ lang: l, net: NETWORKS.testnet });
+    assert.equal(t.m.find((x) => x.id === 'runner').cmds[1], 'git clone https://github.com/pospos191-alt/zetaphy.git\ncd zetaphy/zetaphy-network\nnpm ci --omit=dev');
+  }
+  assert.equal(unbondingText('1814400s'), '21 d');
+  assert.equal(unbondingText('3600s'), '1 h');
+  assert.equal(unbondingText(null), null);
+  assert.equal(unbondingText('nope'), null);
+});

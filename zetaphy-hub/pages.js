@@ -4,6 +4,7 @@
 import { formatZeta, toEvm, toBech32, bech32Decode, parseUnits, formatUnits, encodeIbcTransfer, sentIbcTransfer, PRECOMPILES } from './chainlib.js';
 import { withFallback } from './i18n.js';
 import { EARN, EARN_METHODS, SAPHAN } from './pages-i18n.js';
+import { EARN_MAIN, EARN_MAIN_CMDS } from './earn-main-i18n.js';
 import mine, { mineAddress } from './mine.js';
 import agents from './agents.js';
 import aimap from './aimap.js';
@@ -37,12 +38,16 @@ export const earnText = (ctx) => {
   const L = withFallback(EARN, ctx.lang);
   const main = !(ctx.net ?? activeNetwork()).testnet;
   const F = faucetText(ctx.lang);
+  // the validator, runner, stake and liquidity guides: mainnet's own words and commands (earn-main-i18n.js)
+  const M = withFallback(EARN_MAIN, ctx.lang);
   const mm = main ? {
     faucet: { getS: F.faucetGetS, get: F.faucetGet, steps: [L.m.faucet.steps[0], L.m.faucet.steps[1], F.faucetLimit] },
     mine: { getS: F.mineGetS, get: F.mineGet, steps: [L.m.mine.steps[0], F.mineStep2, F.mineStep3] },
+    runner: M.runner, validator: M.validator, stake: M.stake, lp: M.lp,
   } : {};
+  const cmdsOf = (x) => (main && EARN_MAIN_CMDS[x.id]) || x.cmds;
   return { ...L, ...(main ? { noPow: F.earnNoPow, warn: F.earnWarn, fOk: F.sentAny } : {}),
-    m: EARN_METHODS.map((x) => ({ ...x, ...L.m[x.id], ...(mm[x.id] ?? {}), steps: (mm[x.id]?.steps ?? L.m[x.id].steps).map((t, i) => [t, x.cmds[i]]) })) };
+    m: EARN_METHODS.map((x) => ({ ...x, ...L.m[x.id], ...(mm[x.id] ?? {}), cmds: cmdsOf(x), steps: (mm[x.id]?.steps ?? L.m[x.id].steps).map((t, i) => [t, cmdsOf(x)[i]]) })) };
 };
 /** A line with the faucet's amounts and budget (or why it cannot pay now), filled from the node; kind 'grant' | 'pow'. */
 function faucetStateLine(ctx, id, kind) {
@@ -186,10 +191,14 @@ function faucetForm(ctx, L) {
 // come second. "Run a validator" shows the validator guide itself (validators.html, its own tabs and texts) in a
 // frame that grows to the guide's height (the guide posts it), so the page scrolls as one and there is one copy.
 export const EARN_TABS = ['faucet', 'mine', 'validator', 'stake', 'lp', 'runner'];
-let earnSel = 'faucet', bondText = 'BOND', runnerStats = null, guideHeard = false;
+let earnSel = 'faucet', bondText = 'BOND', unbondText = null, runnerStats = null, guideHeard = false;
+/** The chain's unbonding time ("1814400s") in days or hours, for the Stake guide. */
+export const unbondingText = (s) => { const n = Number(String(s ?? '').replace(/s$/, '')); if (!Number.isFinite(n) || n <= 0) return null; return n >= 86400 ? `${+(n / 86400).toFixed(1)} d` : `${+(n / 3600).toFixed(1)} h`; };
 function earnFill(ctx, s) {
   const host = new URL(ctx.ep().evm).host;
-  return s.replaceAll('https://RPC', ctx.ep().evm).replaceAll('JOBS', ctx.cfg.contracts?.neuroJobs ?? '0x…').replaceAll('HOST', host).replaceAll('BOND', bondText);
+  // UNBOND before BOND (it contains it)
+  return s.replaceAll('https://RPC', ctx.ep().evm).replaceAll('JOBS', ctx.cfg.contracts?.neuroJobs ?? '0x…').replaceAll('HOST', host)
+    .replaceAll('UNBOND', unbondText ?? '–').replaceAll('BOND', bondText).replaceAll('FACTORY', ctx.cfg.dex?.factory ?? '0x…').replaceAll('ROUTER', ctx.cfg.dex?.router ?? '0x…');
 }
 const steps = (ctx, m, cls = 'howto') => ctx.el('ol', { class: cls }, m.steps.map(([text, cmd]) => ctx.el('li', {},
   ctx.el('p', { text: earnFill(ctx, text) }), cmd ? code(ctx, earnFill(ctx, cmd)) : null)));
@@ -276,11 +285,18 @@ const earn = {
     earnDetail(ctx, root);
   },
   async refresh(root, ctx) {
+    // the chain's unbonding time, for the Stake guide (the node's staking params)
+    if (unbondText == null) {
+      try {
+        unbondText = unbondingText((await ctx.getJson(`${ctx.ep().rest}/cosmos/staking/v1beta1/params`))?.params?.unbonding_time);
+        if (unbondText && earnSel === 'stake') earnDetail(ctx, root);
+      } catch { /* the guide says "–" */ }
+    }
     const jobs = ctx.cfg.contracts?.neuroJobs;
     if (!jobs) return;
     try {
       const [b, w, p] = await Promise.all([SEL.workerBond, SEL.activeWorkers, SEL.rewardPool].map((s) => call(ctx, jobs, s)));
-      bondText = `${formatZeta(uintAt(b), 2)} ZETAPHY`;
+      bondText = `${formatZeta(uintAt(b), 2)} ${activeNetwork().symbol}`;
       runnerStats = [formatZeta(uintAt(b), 2), uintAt(w).toString(), formatZeta(uintAt(p), 2)];
       // only the runner tab shows these: other tabs keep what the user typed (the faucet form, the guide)
       if (earnSel === 'runner') earnDetail(ctx, root);
@@ -471,7 +487,7 @@ export const KNOWN_CHAINS = {
 let routes = [], assets = [];
 /** azetaphy, or an ibc/… voucher with its base denom: decimals from the base (u = 6, a = 18). */
 export function assetOf(denom, base) {
-  if (denom === 'azetaphy') return { denom, symbol: 'ZETAPHY', dec: 18 };
+  if (denom === 'azetaphy') return { denom, symbol: activeNetwork().symbol, dec: 18 };
   const b = String(base || denom);
   const dec = /^u[a-z]/.test(b) ? 6 : /^a[a-z]/.test(b) ? 18 : 0;
   const symbol = (dec ? b.slice(1) : b).split('/').pop().toUpperCase().slice(0, 12) || denom.slice(0, 12);

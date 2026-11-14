@@ -2,10 +2,12 @@
 // them in Node. Everything chain data passes through here before it is shown,
 // and is then put in the page with textContent only (never parsed as HTML).
 import { addressBytes, toBech32, toChecksumHex, fromBech32, bytesToHex } from '../vendor/zetaphy-lib.js';
+import { activeNetwork } from './network.js';
 
 export const DECIMALS = 18;
 export const DENOM = 'azetaphy';
-export const SYMBOL = 'ZETAPHY';
+/** The coin's symbol on the page's network (network.js: ZTPHY), for every amount shown. */
+export const SYMBOL = activeNetwork().symbol;
 export const PREFIX = 'zetaphy';
 export const VALOPER_PREFIX = 'zetaphyvaloper';
 export const DEAD_ADDRESS = '0x000000000000000000000000000000000000dEaD';
@@ -77,14 +79,19 @@ export function short(s, head = 10, tail = 6) {
   return t.length <= head + tail + 1 ? t : `${t.slice(0, head)}…${t.slice(-tail)}`;
 }
 
-/** Percent with one decimal ("66.7%"); part and total BigInt or numbers. */
+/**
+ * Percent with one decimal ("66.7%"); part and total BigInt or numbers. A share under 1% keeps two significant
+ * digits ("0.050%" for 500,000 of 1,000,000,000, never a rounded-up "0.1%").
+ */
 export function percent(part, total, digits = 1) {
   const p = BigInt(part); const t = BigInt(total);
   if (t === 0n) return '0%';
-  const scale = 10n ** BigInt(digits);
-  const x = (p * 100n * scale * 10n / t + 5n) / 10n; // rounded
-  const s = x.toString().padStart(digits + 1, '0');
-  return `${s.slice(0, -digits) || '0'}${digits ? '.' + s.slice(-digits) : ''}%`;
+  const at = (d) => (p * 100n * 10n ** BigInt(d) * 10n / t + 5n) / 10n; // rounded to d decimals
+  let d = digits;
+  if (p > 0n && p * 100n < t) while (d < 18 && at(d) < 10n) d++;
+  const x = at(d);
+  const s = x.toString().padStart(d + 1, '0');
+  return `${s.slice(0, -d) || '0'}${d ? '.' + s.slice(-d) : ''}%`;
 }
 
 /**

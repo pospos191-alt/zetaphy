@@ -200,11 +200,19 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     await page.goto(`${site.url}ceremony.html`);
     await page.waitForSelector('#net .zn-net-mainnet');
     assert.equal(await page.textContent('#eyebrow'), 'ZETAPHY · zetaphy_3659-1');
-    // the validator guide is about joining the testnet (its faucet and auto-stake): "not on mainnet yet" too
+    // the validator guide: joining mainnet (install.sh validator, then key and stake with your own ZTPHY), the badge above it
     await page.goto(`${site.url}validators.html`);
-    await page.waitForSelector('#net-gate .zn-gate');
-    assert.match(await page.textContent('#net-gate'), /Joining as a validator is not on ZETAPHY mainnet yet/);
-    assert.ok(await page.isHidden('#vf-form'), 'no faucet form');
+    await page.waitForSelector('#net-gate .zn-net-mainnet');
+    assert.equal(await page.locator('#net-gate .zn-gate').count(), 0, 'open on mainnet');
+    assert.ok(await page.isVisible('#cmd'));
+    assert.match(await page.textContent('#cmd'), /install\.sh \| sudo MONIKER=my-node bash -s -- validator$/);
+    const guide = await page.textContent('.wrap');
+    assert.match(guide, /zetaphy_3659-1/);
+    assert.doesNotMatch(guide, /77390|rpc\.sawasdeecoin\.com|test ZETAPHY|faucet gives/);
+    assert.equal(await page.locator('#vf-form').count(), 0, 'no faucet form');
+    await page.goto(`${site.url}validators.html#stake`);
+    assert.equal(await page.textContent('#stake-cmd'), 'sudo zetaphy-validator stake 100');
+    assert.match(await page.textContent('#n-real'), /real ZTPHY/);
     // the developers page: mainnet's endpoints, contracts and faucet command
     await page.goto(`${site.url}?tab=dev`);
     await page.waitForSelector('.panel[data-page="dev"]:not([hidden]) .tbl');

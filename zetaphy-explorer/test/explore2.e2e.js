@@ -129,7 +129,7 @@ test('validator page: uptime, missed-blocks strip, slashing record, self-bond, d
   assert.match(t, /Missed in the slashing window\s+5 \/ 100/);
   assert.match(t, /Must sign at least\s+50\.00%/);
   assert.match(t, new RegExp(chain.valconsOf(beta)));
-  await waitText(page, '1,000 ZETAPHY'); // self-bond
+  await waitText(page, '1,000 ZTPHY'); // self-bond
   await page.waitForFunction(() => /Delegators\s+7/.test(document.querySelector('main').innerText));
   t = await text(page);
   assert.match(t, /Delegators\s+7/);
@@ -172,12 +172,12 @@ test('governance: list, proposal with live tally, countdown, decoded messages, p
   assert.match(t, /If it ended now\s+would pass/);
   assert.match(t, /Quorum\s+33\.40%/);
   assert.match(t, /2 d 2 h \d+ min \d+ s left/);
-  assert.match(t, /10,000 ZETAPHY · minimum 10,000 ZETAPHY/);
+  assert.match(t, /10,000 ZTPHY · minimum 10,000 ZTPHY/);
   assert.match(t, /Fund the explorer work\./); assert.ok(!t.includes('‮'));
   assert.equal(await page.evaluate(() => window.__pwned), undefined);
   // the message, from the protobuf proposal (the explorer's decoder): a MsgSend to ME
   assert.ok(await page.locator(`main .msg a[href="#/address/${ME_HEX}"]`).count() >= 1);
-  assert.match(t, /5,000 ZETAPHY/);
+  assert.match(t, /5,000 ZTPHY/);
   // votes: 2, then the next page
   await waitText(page, '2 of 3 votes shown');
   assert.equal(await page.locator('main table').filter({ hasText: 'Voter' }).locator('tbody tr').count(), 2);
@@ -294,7 +294,7 @@ test('tools: decode + recover + dry run a signed tx, broadcast only after two co
   await waitText(page, 'would succeed');
   const t = await text(page);
   assert.equal(await page.locator('.tl-from').innerText(), w.address);
-  assert.match(t, /EIP-1559/); assert.match(t, /Chain id\s+77390/); assert.match(t, /1 ZETAPHY/);
+  assert.match(t, /EIP-1559/); assert.match(t, /Chain id\s+77390/); assert.match(t, /1 ZTPHY/);
   // broadcast: needs the box ticked, then two clicks
   assert.equal(await page.locator('#tl-send').isDisabled(), true);
   await page.check('#tl-ack');

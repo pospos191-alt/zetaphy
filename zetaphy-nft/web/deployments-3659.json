@@ -1,0 +1,11 @@
+{
+  "_comment": "ZETAPHY mainnet (chain 3659): the NFT contracts the launch deployed (zetaphy-launch/state/3659.contracts.json `nft`; test/mainnet.test.js checks they agree). The app opens only once nftCodeKeysProtected is true (the collections' code keys protected in the ThreatRegistry by the timelock batch): node scripts/mainnet-config.js copies it from the launch file.",
+  "network": "zetaphy-mainnet",
+  "chainId": 3659,
+  "rpc": "https://129-221-199-191.sslip.io",
+  "factory": "0xc0800dBEbFFC80120f5DC0E6f2a603C00F6AF391",
+  "marketplace": "0x0402d6E7af2912D002EfCa7543eb44A3EB3Bbc14",
+  "threatRegistry": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+  "governance": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+  "nftCodeKeysProtected": false
+}

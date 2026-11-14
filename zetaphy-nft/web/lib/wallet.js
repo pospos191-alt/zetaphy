@@ -4,16 +4,19 @@
 // EIP-6963; older injected objects (window.ethereum, Binance, Phantom) are
 // found too. ZETAPHY is offered with wallet_addEthereumChain (EIP-3085).
 
-// The NFT contracts are on the testnet only: the page runs on the testnet (on mainnet it shows "not on mainnet yet",
-// app.js startGated, and loads no wallet), so these are the testnet's values (lib/network.js NETWORKS.testnet).
-export const CHAIN_ID = 'zetaphy_77390-1';
-export const EVM_CHAIN_ID = 77390;
-export const EVM_CHAIN_ID_HEX = '0x12e4e';
-export const CHAIN_NAME = 'ZETAPHY Testnet';
+// The chain values are the page's network's (lib/network.js, shared with the hub): mainnet (chain 3659) for every
+// visitor; the retired testnet's record only in the browser tests that ask for it.
+import { activeNetwork } from './network.js';
+
+const NET = activeNetwork();
+export const CHAIN_ID = NET.cosmosChainId;
+export const EVM_CHAIN_ID = NET.chainId;
+export const EVM_CHAIN_ID_HEX = NET.chainIdHex;
+export const CHAIN_NAME = NET.chainName;
 export const DISPLAY_DENOM = 'ZETAPHY';
 // MetaMask refuses a nativeCurrency.symbol longer than 6 characters: the EVM ticker is ZTPHY.
-export const EVM_SYMBOL = 'ZTPHY';
-export const DECIMALS = 18;
+export const EVM_SYMBOL = NET.symbol;
+export const DECIMALS = NET.decimals;
 
 /** wallet_addEthereumChain's parameter (EIP-3085); rpcUrl must be https (or localhost). */
 export function evmChainParams(rpcUrl, explorerUrl) {
@@ -111,7 +114,7 @@ export async function walletChainId(provider) {
   } catch { return null; }
 }
 
-/** Throws unless the wallet is on ZETAPHY (77390) right now. */
+/** Throws unless the wallet is on ZETAPHY (the page network's chain id) right now. */
 export async function assertChain(provider) {
   const id = await walletChainId(provider);
   if (id !== EVM_CHAIN_ID) {
@@ -120,7 +123,7 @@ export async function assertChain(provider) {
 }
 
 /** Puts the wallet on ZETAPHY: switch, or add then switch (4902: unknown chain); then
- *  reads the chain id again and throws if the wallet still is not on 77390. */
+ *  reads the chain id again and throws if the wallet still is not on the page network's chain. */
 export async function ensureChain(provider, rpcUrl) {
   if (await walletChainId(provider) === EVM_CHAIN_ID) return;
   try {
