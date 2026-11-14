@@ -184,6 +184,8 @@ jobs:
           fi
           # a token route (on pull requests: token = test, a BZTPHY-like stand-in), on the same two chains
           if [ -n "$TOKEN" ]; then
+            # the ETH route above spends the deployer's fork balance (it locks and bridges ETH): top it up again, locally
+            curl -fsS -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"anvil_setBalance\",\"params\":[\"$DEV\",\"0x3635c9adc5dea00000\"]}" 127.0.0.1:8601 >/dev/null
             node scripts/saphan-dryrun.js --chain "$CHAIN" --token "$TOKEN" | tee "$W/token.log"
             grep -q '^TOKEN DRY RUN OK' "$W/token.log"
           fi
