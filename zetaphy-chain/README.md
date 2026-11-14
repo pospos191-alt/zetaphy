@@ -589,6 +589,10 @@ The upgrade runbook for `zetaphy-node-0` is in that document. Tests: `fork-tests
 
 ### Testnet airdrop (`gov.sh airdrop`)
 
+On mainnet, `gov.sh airdrop` runs only with `AIRDROP_MAINNET=1`: the owner's push airdrop of 2026-11-14 (10 ZTPHY to
+100,000 addresses, each batch confirmed in a block before it counts): [docs/AIRDROP.md](../docs/AIRDROP.md), section 7.
+The rest of this section is the testnet.
+
 Send test ZETAPHY to many wallets at once, from the `community` fund (the SWD holders' 200M stays untouched).
 Put one address per line in a file (`0x…` from MetaMask, Trust or any EVM wallet, or `zetaphy1…` from Keplr;
 `address,amount` gives one person a different amount; `#` starts a comment), then on the genesis node:
