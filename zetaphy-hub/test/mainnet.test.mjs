@@ -62,7 +62,7 @@ test('rpc null: "coming soon", the Add to MetaMask button is disabled and asks n
 test('rpc set: the button adds chain 0xe4b (ZETAPHY, ZTPHY, 18) with that RPC', async () => {
   const rpc = 'https://203-0-113-7.sslip.io';
   const m = { ...MAINNET, rpc };
-  const want = { chainId: '0xe4b', chainName: 'ZETAPHY', nativeCurrency: { name: 'ZETAPHY', symbol: 'ZTPHY', decimals: 18 }, rpcUrls: [rpc] };
+  const want = { chainId: '0xe4b', chainName: 'ZETAPHY', nativeCurrency: { name: 'ZETAPHY', symbol: 'ZTPHY', decimals: 18 }, rpcUrls: [rpc], iconUrls: ['https://app.sawasdeecoin.com/zetaphy-256.png'] };
   assert.deepEqual(addChainParams(m), want);
   assert.deepEqual(addChainParams({ ...m, explorer: 'https://x.example' }).blockExplorerUrls, ['https://x.example']);
   const calls = [];

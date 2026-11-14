@@ -194,6 +194,9 @@ export const contractsOf = (net, testnet = {}) => (net.contracts ? { ...net.cont
 /** A per-network localStorage key: the testnet keeps the key it always had, mainnet gets its own. */
 export const netKey = (net, base) => (net.testnet ? base : `${base}:${net.id}`);
 
+/** The coin's logo (256x256 PNG on the hub's origin): wallets that read EIP-3085 iconUrls show it for ZTPHY. */
+export const COIN_ICON = 'https://app.sawasdeecoin.com/zetaphy-256.png';
+
 /** wallet_addEthereumChain parameters (EIP-3085) for `net`, with `rpc` (default: the network's public RPC). */
 export function addChainParams(net, rpc = net.rpc) {
   if (!rpc) return null;
@@ -203,6 +206,7 @@ export function addChainParams(net, rpc = net.rpc) {
     nativeCurrency: { name: 'ZETAPHY', symbol: net.symbol, decimals: net.decimals },
     rpcUrls: [rpc],
     ...(net.explorer ? { blockExplorerUrls: [net.explorer] } : {}),
+    iconUrls: [COIN_ICON],
   };
 }
 

@@ -5,7 +5,7 @@
 // Published files: zetaphy-chain/mainnet/zetaphy_3659-1/ and docs/ZETAPHY-MAINNET-NOTICE.md (+ .th.md).
 import { withFallback } from './i18n.js';
 import { MAINNET_TEXT } from './mainnet-i18n.js';
-import { NETWORKS } from './network.js';
+import { NETWORKS, COIN_ICON } from './network.js';
 
 const M = NETWORKS.mainnet;
 export const MAINNET = Object.freeze({
@@ -32,6 +32,7 @@ export function addChainParams(m = MAINNET) {
     nativeCurrency: { name: m.name, symbol: m.symbol, decimals: m.decimals },
     rpcUrls: [m.rpc],
     ...(m.explorer ? { blockExplorerUrls: [m.explorer] } : {}),
+    iconUrls: [COIN_ICON],
   };
 }
 
