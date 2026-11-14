@@ -1,0 +1,35 @@
+{
+  "name": "ZETAPHY",
+  "chainId": 3659,
+  "shortName": "zetaphy",
+  "chain": "ZETAPHY",
+  "network": "mainnet",
+  "networkId": 3659,
+  "nativeCurrency": {
+    "name": "ZETAPHY",
+    "symbol": "ZTPHY",
+    "decimals": 18
+  },
+  "rpc": [
+    "https://129-221-199-191.sslip.io"
+  ],
+  "faucets": [
+    "https://app.sawasdeecoin.com/?tab=earn"
+  ],
+  "explorers": [
+    {
+      "name": "ZETAPHY Explorer",
+      "url": "https://explorer.sawasdeecoin.com/?network=mainnet",
+      "standard": "none"
+    }
+  ],
+  "infoURL": "https://app.sawasdeecoin.com",
+  "app_resource": {
+    "ic_chain_select": "https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/zetaphy-hub/zetaphy-256.png",
+    "ic_chain_unselect": "https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/zetaphy-hub/zetaphy-256.png",
+    "ic_chain_unselect_dark": "https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/zetaphy-hub/zetaphy-256.png",
+    "color_chain_bg": "0x0369A1",
+    "color_chain_text": "0xFFFFFF",
+    "ic_home_logo": "https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/zetaphy-hub/zetaphy-256.png"
+  }
+}
