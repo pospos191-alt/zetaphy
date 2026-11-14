@@ -26,6 +26,7 @@ export function withFallback(table, l) {
 export const TEXT = {
   th: {
     navGuide: "คู่มือ validator", tipGuide: "รัน validator ด้วยคำสั่งเดียว: เครื่อง cloud ฟรี คำสั่งติดตั้ง ดูสถานะ และวิธีเปิดเครื่องใหม่",
+    navGot: "ได้รับ ZTPHY ไหม?", tipGot: "ตรวจยอด ZTPHY ของที่อยู่ใดก็ได้ ไม่ต้องเชื่อมกระเป๋า ไม่มีอะไรต้องเคลม ไม่มีอะไรต้องจ่าย",
     navForecasts: "พยากรณ์ความเสี่ยง", tipForecasts: "พยากรณ์ความเสี่ยงของเหรียญ, Proof of Foresight, ตัวตรวจจับ, Data DAO และแดงปะทะน้ำเงิน (ยังไม่มีบน mainnet)",
     aboutLink: 'ZETAPHY คืออะไร', addNet: 'เพิ่มเครือข่าย', height: 'บล็อกล่าสุด', blockTime: 'เวลาต่อบล็อก', validators: 'Validator', bonded: 'ZETAPHY ที่ stake',
     startTitle: 'เริ่มใช้งาน', step1: 'เพิ่มเครือข่าย ZETAPHY ในกระเป๋า', step2: 'รับ ZETAPHY ทดลอง (ฟรี)', step3: 'ลองใช้งาน', faucetBtn: 'รับ',
@@ -79,6 +80,7 @@ export const TEXT = {
   },
   en: {
     navGuide: "Validator guide", tipGuide: "Run a validator with one command: free cloud machines, the install command, status and restart help",
+    navGot: "Did you get ZTPHY?", tipGot: "Check the ZTPHY balance of any address, no wallet needed. Nothing to claim, nothing to pay",
     navForecasts: "Risk forecasts", tipForecasts: "Token risk forecasts, Proof of Foresight, detectors, the Data DAO and red vs blue (not on mainnet yet)",
     aboutLink: 'What is ZETAPHY?', addNet: 'Add network', height: 'Latest block', blockTime: 'Block time', validators: 'Validators', bonded: 'ZETAPHY staked',
     startTitle: 'Get started', step1: 'Add ZETAPHY to your wallet', step2: 'Get test ZETAPHY (free)', step3: 'Try the apps', faucetBtn: 'Get',
@@ -132,6 +134,7 @@ export const TEXT = {
   },
   zh: {
     navGuide: "验证者指南", tipGuide: "一条命令运行验证者：免费云服务器、安装命令、状态查看与重启帮助",
+    navGot: "收到 ZTPHY 了吗？", tipGot: "查询任意地址的 ZTPHY 余额，无需钱包。无需领取，无需付费",
     navForecasts: "风险预测", tipForecasts: "代币风险预测、Proof of Foresight、检测器、Data DAO 与红蓝对抗（尚未上线主网）",
     aboutLink: 'ZETAPHY 是什么？', addNet: '添加网络', height: '最新区块', blockTime: '出块时间', validators: '验证者', bonded: '已质押 ZETAPHY',
     startTitle: '快速开始', step1: '将 ZETAPHY 添加到钱包', step2: '领取测试 ZETAPHY（免费）', step3: '试用应用', faucetBtn: '领取',
@@ -185,6 +188,7 @@ export const TEXT = {
   },
   es: {
     navGuide: "Guía de validadores", tipGuide: "Ejecuta un validador con un solo comando: máquinas gratis en la nube, el comando de instalación, estado y ayuda para reiniciar",
+    navGot: "¿Recibiste ZTPHY?", tipGot: "Consulta el saldo de ZTPHY de cualquier dirección, sin billetera. Nada que reclamar, nada que pagar",
     navForecasts: "Pronósticos de riesgo", tipForecasts: "Pronósticos de riesgo de tokens, Proof of Foresight, detectores, la Data DAO y rojo vs azul (aún no está en la mainnet)",
     aboutLink: '¿Qué es ZETAPHY?', addNet: 'Añadir red', height: 'Último bloque', blockTime: 'Tiempo de bloque', validators: 'Validadores', bonded: 'ZETAPHY en stake',
     startTitle: 'Primeros pasos', step1: 'Añade ZETAPHY a tu wallet', step2: 'Consigue ZETAPHY de prueba (gratis)', step3: 'Prueba las apps', faucetBtn: 'Obtener',
@@ -238,6 +242,7 @@ export const TEXT = {
   },
   ko: {
     navGuide: "검증인 가이드", tipGuide: "명령어 하나로 검증인 실행: 무료 클라우드 머신, 설치 명령어, 상태 확인과 재시작 도움말",
+    navGot: "ZTPHY 받으셨나요?", tipGot: "지갑 없이 아무 주소의 ZTPHY 잔액을 확인하세요. 청구할 것도, 낼 것도 없습니다",
     navForecasts: "위험 예측", tipForecasts: "토큰 위험 예측, Proof of Foresight, 탐지기, Data DAO, 레드 대 블루 (아직 메인넷에 없음)",
     aboutLink: 'ZETAPHY란?', addNet: '네트워크 추가', height: '최신 블록', blockTime: '블록 시간', validators: '검증인', bonded: '스테이킹된 ZETAPHY',
     startTitle: '시작하기', step1: '지갑에 ZETAPHY 추가', step2: '테스트 ZETAPHY 받기 (무료)', step3: '앱 사용해 보기', faucetBtn: '받기',
@@ -291,6 +296,7 @@ export const TEXT = {
   },
   ja: {
     navGuide: "バリデーターガイド", tipGuide: "コマンド 1 つでバリデーターを運用: 無料クラウドマシン、インストールコマンド、状態確認と再起動のヘルプ",
+    navGot: "ZTPHY は届きましたか？", tipGot: "ウォレット不要で、どのアドレスの ZTPHY 残高も確認できます。請求も支払いも不要です",
     navForecasts: "リスク予測", tipForecasts: "トークンのリスク予測、Proof of Foresight、検知器、Data DAO、レッド対ブルー（まだメインネットにありません）",
     aboutLink: 'ZETAPHY とは', addNet: 'ネットワーク追加', height: '最新ブロック', blockTime: 'ブロック時間', validators: 'バリデーター', bonded: 'ステーク中の ZETAPHY',
     startTitle: 'はじめに', step1: 'ウォレットに ZETAPHY を追加', step2: 'テスト用 ZETAPHY を受け取る（無料）', step3: 'アプリを試す', faucetBtn: '受け取る',
@@ -344,6 +350,7 @@ export const TEXT = {
   },
   ru: {
     navGuide: "Гайд валидатора", tipGuide: "Запустите валидатор одной командой: бесплатные облачные машины, команда установки, статус и помощь с перезапуском",
+    navGot: "Получили ZTPHY?", tipGot: "Баланс ZTPHY любого адреса, без кошелька. Ничего не нужно забирать и ничего не нужно платить",
     navForecasts: "Прогнозы рисков", tipForecasts: "Прогнозы рисков токенов, Proof of Foresight, детекторы, Data DAO и красные против синих (пока нет в мейннете)",
     aboutLink: 'Что такое ZETAPHY?', addNet: 'Добавить сеть', height: 'Последний блок', blockTime: 'Время блока', validators: 'Валидаторы', bonded: 'ZETAPHY в стейкинге',
     startTitle: 'С чего начать', step1: 'Добавьте ZETAPHY в кошелёк', step2: 'Получите тестовые ZETAPHY (бесплатно)', step3: 'Попробуйте приложения', faucetBtn: 'Получить',
@@ -397,6 +404,7 @@ export const TEXT = {
   },
   vi: {
     navGuide: "Hướng dẫn validator", tipGuide: "Chạy validator bằng một lệnh: máy cloud miễn phí, lệnh cài đặt, xem trạng thái và trợ giúp khởi động lại",
+    navGot: "Bạn đã nhận ZTPHY chưa?", tipGot: "Xem số dư ZTPHY của bất kỳ địa chỉ nào, không cần ví. Không có gì để nhận, không phải trả gì",
     navForecasts: "Dự báo rủi ro", tipForecasts: "Dự báo rủi ro token, Proof of Foresight, bộ phát hiện, Data DAO và đỏ đấu xanh (chưa có trên mainnet)",
     aboutLink: 'ZETAPHY là gì?', addNet: 'Thêm mạng', height: 'Khối mới nhất', blockTime: 'Thời gian khối', validators: 'Validator', bonded: 'ZETAPHY đã stake',
     startTitle: 'Bắt đầu', step1: 'Thêm ZETAPHY vào ví', step2: 'Nhận ZETAPHY thử nghiệm (miễn phí)', step3: 'Dùng thử các ứng dụng', faucetBtn: 'Nhận',

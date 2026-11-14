@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05070a">
+<title>Did you get ZTPHY? Check any address</title>
+<meta name="description" content="ZETAPHY is sending 10 ZTPHY to each of 100,000 active Ethereum addresses. Check any address on ZETAPHY mainnet, no wallet needed. Nothing to claim, nothing to pay. We never DM you and never ask for a seed phrase.">
+<link rel="canonical" href="https://app.sawasdeecoin.com/got-ztphy.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ZETAPHY">
+<meta property="og:title" content="Did you get ZTPHY? Check any address">
+<meta property="og:description" content="10 ZTPHY to each of 100,000 active Ethereum addresses, on ZETAPHY mainnet (chain 3659). Nothing to claim, nothing to pay. Anyone who asks for your seed phrase is a scammer.">
+<meta property="og:url" content="https://app.sawasdeecoin.com/got-ztphy.html">
+<meta property="og:image" content="https://app.sawasdeecoin.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="ZETAPHY">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Did you get ZTPHY? Check any address">
+<meta name="twitter:description" content="10 ZTPHY to each of 100,000 active Ethereum addresses, on ZETAPHY mainnet. Nothing to claim, nothing to pay.">
+<meta name="twitter:image" content="https://app.sawasdeecoin.com/og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="got-ztphy.css">
+<script type="module" src="got-ztphy.js"></script>
+<script src="count.js" defer></script>
+</head>
+<body>
+<main>
+  <select id="lang" aria-label="Language">
+    <option value="en">English</option><option value="zh">中文</option><option value="es">Español</option>
+    <option value="ko">한국어</option><option value="ja">日本語</option><option value="ru">Русский</option>
+    <option value="vi">Tiếng Việt</option><option value="th">ไทย</option>
+  </select>
+  <h1 data-t="title">Did you get ZTPHY?</h1>
+  <p class="lede" data-t="lede"></p>
+
+  <div class="safety" id="safety" role="note" aria-labelledby="safeTitle">
+    <h2 id="safeTitle" data-t="safeTitle"></h2>
+    <p data-t="safe1"></p>
+    <p data-t="safe2"></p>
+    <p data-t="safe3"></p>
+    <p class="scam" data-t="safe4"></p>
+  </div>
+
+  <section aria-labelledby="h-check">
+    <h2 id="h-check" data-t="checkTitle"></h2>
+    <label for="addr" data-t="addrLabel"></label>
+    <input id="addr" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="64">
+    <div class="row">
+      <button id="check" type="button" data-t="check"></button>
+      <button id="mine" type="button" class="ghost" data-t="useMine"></button>
+    </div>
+    <div id="result" role="status" aria-live="polite">
+      <p id="state" class="state"></p>
+      <div id="found" hidden>
+        <p id="balanceOf" class="label"></p>
+        <p id="balance" class="balance"></p>
+        <p id="same" class="note mono"></p>
+        <p id="list" class="state"></p>
+      </div>
+    </div>
+    <p id="listInfo" class="note" hidden></p>
+  </section>
+
+  <section aria-labelledby="h-add">
+    <h2 id="h-add" data-t="addTitle"></h2>
+    <p data-t="addBody"></p>
+    <div id="wallets" class="row"></div>
+    <div id="inapp" hidden>
+      <p class="note" data-t="openIn"></p>
+      <div id="inappLinks" class="row"></div>
+    </div>
+    <p id="addState" class="state" role="status" aria-live="polite"></p>
+    <p class="note" data-t="addNote"></p>
+  </section>
+
+  <section aria-labelledby="h-share">
+    <h2 id="h-share" data-t="shareTitle"></h2>
+    <button id="share" type="button" data-t="share"></button>
+    <p id="shareState" class="state" role="status" aria-live="polite"></p>
+    <textarea id="shareBox" rows="3" readonly hidden aria-labelledby="shareState"></textarea>
+  </section>
+
+  <div class="risk" role="note">
+    <p id="risk"></p>
+    <p><a id="notice" target="_blank" rel="noopener noreferrer"></a></p>
+  </div>
+  <p class="note" data-t="ignore"></p>
+  <p><a href="./" data-t="back"></a></p>
+</main>
+</body>
+</html>

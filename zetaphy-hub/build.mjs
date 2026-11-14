@@ -41,7 +41,8 @@ const SKIP = new Set(['node_modules', 'test', 'scripts', 'package.json', 'packag
   'robots.txt', 'sitemap.xml', `${INDEXNOW_KEY}.txt`]);
 const HUB_FILES = ['index.html', 'walletbar.js', 'wallet-safety.js', 'wallet-safety-i18n.js', 'wallet-safety.css', 'ledger.js', 'vendor/ledger-hid.js', 'validators.html', 'validators.css', 'validators.js', 'validators-gate.js', 'forecasts.html', 'forecasts.css', 'forecasts.js', 'forecasts-i18n.js', 'ceremony.html', 'ceremony.css', 'ceremony.js', 'ceremony-i18n.js', 'ceremony-core.js', 'vendor/snarkjs.min.js', 'zkverdict-core.js', 'zkverdict-vkey.json', 'vendor/zkverify.js', 'hub.css', 'hub.js', 'i18n.js', 'chainlib.js', 'pages.js', 'pages-i18n.js', 'earn-main-i18n.js', 'mine.js', 'mine-core.js', 'mine-worker.js',
   'work.js', 'work-i18n.js', 'work-core.js', 'work-worker.js', 'train-core.js', 'train-worker.js', 'fuzz-core.js', 'fuzz-hook.js', 'vendor/evm.js', 'bounties/vulnerable-vault.json', 'bounties/sample-scan.json', 'agents.js', 'agents-lib.js', 'agents-i18n.js', 'intent-core.js', 'assist.js', 'assist-i18n.js', 'govassist.js', 'presign.js', 'presign-probe.js', 'pqattest.js', 'embed.css', 'logo.svg', 'favicon.svg', 'og.png', 'about/about.css', 'flow.js', 'flow-i18n.js', 'aimap.js', 'aichain.js', 'aichain-i18n.js', 'offline.js', 'offline-core.js', 'offline-i18n.js', 'offline-cash.js', 'offline-cash-i18n.js', 'cash-core.js', 'mesh-frames.js', 'audit.js', 'audit-core.js', 'audit-i18n.js', 'audit.html', 'audits.html', 'aas.css', 'aas-core.js', 'aas-i18n.js', 'aas-page.js', 'aas-verify.js', 'aas-directory.js', 'quantum.js', 'quantum-core.js', 'quantum-i18n.js', 'airdrop.js', 'airdrop-i18n.js', 'airdrop-core.js', 'mainnet.js', 'mainnet-i18n.js', 'network.js', 'faucet-core.js', 'faucet-i18n.js', 'zkid.js', 'zkid-i18n.js', 'zkid-core.js', 'zkid-poseidon.js', 'zkid-worker.js', 'zkid/manifest.json', 'zkid/identity.wasm', 'zkid/identity.zkey', 'vendor/qrcode.js', 'zearly.svg', 'zearly-256.png', 'zetaphy-256.png', 'txguard.js', 'pqsnap.js', 'count.js', 'count.html', 'count-page.js', 'count.css',
-  'airdrop-link.html', 'airdrop-link.js', 'airdrop-link-core.js', 'airdrop-link-i18n.js', 'airdrop-link.css'];
+  'airdrop-link.html', 'airdrop-link.js', 'airdrop-link-core.js', 'airdrop-link-i18n.js', 'airdrop-link.css', 'rpc.js',
+  'got-ztphy.html', 'got-ztphy.js', 'got-ztphy-core.js', 'got-ztphy-i18n.js', 'got-ztphy.css'];
 
 /**
  * The Audit Directory's fallback copy of the public certificate registry (docs/future/audit-as-a-service.md): the
@@ -329,6 +330,9 @@ export function build() {
   }
   // a published airdrop list (docs/AIRDROP.md: summary.json, list.csv, shards/), when the owner put one here
   if (existsSync(join(HERE, 'airdrop', 'summary.json'))) cpSync(join(HERE, 'airdrop'), join(dir, 'airdrop'), { recursive: true });
+  // the push airdrop's recipient list (docs/AIRDROP.md section 7; tools/push-manifest.mjs: manifest.json, shards/,
+  // list.txt) for got-ztphy.html, once the owner published it here; without it the page shows balances only
+  if (existsSync(join(HERE, 'airdrop-push', 'manifest.json'))) cpSync(join(HERE, 'airdrop-push'), join(dir, 'airdrop-push'), { recursive: true });
   writeServiceWorker(dir);
   for (let i = 0; ; i++) {
     const old = `${OUT}.old-${process.pid}-${Date.now()}-${i}`;
@@ -345,7 +349,7 @@ export function build() {
 const SHELL_SKIP = new Set(['vendor/snarkjs.min.js', 'vendor/evm.js', 'vendor/ledger-hid.js', 'og.png', 'zearly-256.png', 'zetaphy-256.png']);
 const SHELL_EXTRA = ['wallet/vendor/pqwallet.js', 'hub-config.json'];
 export function shellFiles(dir) {
-  const own = HUB_FILES.filter((f) => /\.(js|css|svg)$/.test(f) && !SHELL_SKIP.has(f) && !/^(validators|forecasts|ceremony|aas[-.]|audits?\.html)/.test(f) && !/-worker\.js$/.test(f));
+  const own = HUB_FILES.filter((f) => /\.(js|css|svg)$/.test(f) && !SHELL_SKIP.has(f) && !/^(validators|forecasts|ceremony|got-ztphy|aas[-.]|audits?\.html)/.test(f) && !/-worker\.js$/.test(f));
   const out = new Set([...own, ...SHELL_EXTRA]);
   const queue = [...out].filter((f) => f.endsWith('.js'));
   while (queue.length) {

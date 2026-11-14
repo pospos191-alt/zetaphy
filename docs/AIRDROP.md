@@ -453,6 +453,20 @@ bash ~/gov.sh transfer <Community multisig zetaphy1…> <balance minus 0.01> --f
 zetaphyd keys delete airdrop --keyring-backend file --keyring-dir ~/.zetaphy-keys              # [เปลี่ยนไฟล์] once the balance is ~0
 ```
 
+**9. Publish the recipient list** for the "Did you get ZTPHY?" page (https://app.sawasdeecoin.com/got-ztphy.html,
+[OUTREACH.md](OUTREACH.md)). Until it is published the page shows balances only. On your own computer, in a clone of
+the repository, with the push list copied back from the validator (it holds only public addresses, no key):
+
+```bash
+cd zetaphy-hub && node tools/push-manifest.mjs ~/push.txt                                      # [เปลี่ยนไฟล์]
+#   push-manifest: 100000 addresses, 10 ZTPHY each, sha256 <S>   (the same S as push-list and sha256sum)
+git add airdrop-push && git commit -m "Publish the push airdrop list" && git push                # then merge: Pages redeploys
+```
+
+It writes `zetaphy-hub/airdrop-push/manifest.json` (chain, ZTPHY each, count, sha256), `shards/<2 hex>.json` (the
+page loads one small file per check) and `list.txt` (the list byte for byte, so anyone can check the sha256). Publish
+the list that was sent: the `push.txt` that `gov.sh` ran (or the paid ledger, if some addresses were never paid).
+
 Tests (no chain; a stand-in zetaphyd plays the chain): `zetaphy-network/test/govairdrop-mainnet.test.js` (batches,
 one tx in flight, failure in a block, a dropped tx, a stalled chain and the later inclusion, a lost hash, CheckTx
 refusals, gas cap, reserve, `MAX_EACH`, the CSV -> `push-list` -> `gov.sh` path), `test/airdrop-push.test.js`,

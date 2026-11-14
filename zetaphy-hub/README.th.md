@@ -108,6 +108,15 @@ QR วาดด้วย `vendor/qrcode.js` (MIT ตรึงไว้ใน `ve
 - **Google:** หา sitemap ผ่าน robots.txt เอง ถ้าอยากให้เร็วขึ้น เจ้าของ sawasdeecoin.com เพิ่ม property แบบ *Domain*
   ใน Google Search Console (ระเบียน DNS TXT เดียวครอบคลุมทุกเว็บ) แล้วส่ง `https://<เว็บ>/sitemap.xml` ของแต่ละเว็บ
 
+## "ได้รับ ZTPHY ไหม?" (`got-ztphy.html`)
+
+หน้าที่ประกาศ push airdrop ลิงก์มา ([docs/OUTREACH.th.md](../docs/OUTREACH.th.md)): ใส่ที่อยู่ 0x… หรือ zetaphy1… ใดก็ได้
+ไม่ต้องใช้กระเป๋า อ่านยอด ZTPHY จาก RPC สาธารณะ (`eth_getBalance`, `rpc.js` ตัวช่วยเดียวกับฮับ) แสดงกฎความปลอดภัยตัวใหญ่ 8 ภาษา
+ประโยคความเสี่ยงจากประกาศ mainnet ปุ่ม "เพิ่ม ZETAPHY ในกระเป๋า" (`network.js` `addChainParams`) และปุ่มแชร์ (Web Share API
+ถ้าไม่มีก็คัดลอก; ภาพตัวอย่างลิงก์ใช้ `og.png`) เมื่อเจ้าของเผยแพร่รายชื่อผู้รับแล้ว (`node tools/push-manifest.mjs push.txt`
+-> `airdrop-push/` ซึ่ง `build.mjs` ส่งขึ้นเว็บ) หน้าจะบอกด้วยว่าที่อยู่นั้นอยู่ในรายชื่อหรือไม่ ทดสอบ: `test/got-ztphy.test.mjs`,
+`test/got-ztphy.e2e.mjs`
+
 ## ตัวนับผู้เข้าชม (`count.js`, `count.html`)
 
 หน้าในฮับโหลด `count.js` ซึ่งเปิด Vercel Web Analytics (ไม่ใช้คุกกี้ Vercel ไม่เก็บ IP) เฉพาะบน `*.sawasdeecoin.com`

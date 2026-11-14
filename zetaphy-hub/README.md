@@ -119,6 +119,15 @@ browser is offline. Contracts and threat model: [docs/future/offline-trading.md]
   *Domain* property in Google Search Console (one DNS TXT record covers every site) and submits each
   `https://<site>/sitemap.xml`.
 
+## "Did you get ZTPHY?" (`got-ztphy.html`)
+
+The page the push airdrop's announcement links to ([docs/OUTREACH.md](../docs/OUTREACH.md)): any 0x… or zetaphy1…
+address, no wallet, its ZTPHY balance read from the public RPC (`eth_getBalance`, `rpc.js`, the hub's own helper),
+the safety rules in large text in 8 languages, the notice's risk sentence, "Add ZETAPHY to your wallet"
+(`network.js` `addChainParams`) and a share button (Web Share API, else the clipboard; `og.png` for link previews).
+Once the owner publishes the recipient list (`node tools/push-manifest.mjs push.txt` -> `airdrop-push/`, shipped by
+`build.mjs`), it also says whether the address is on the list. Tests: `test/got-ztphy.test.mjs`, `test/got-ztphy.e2e.mjs`.
+
 ## Visitor count (`count.js`, `count.html`)
 
 Hub pages load `count.js`, which turns on Vercel Web Analytics (no cookies; Vercel keeps no IP address) only on

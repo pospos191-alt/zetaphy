@@ -420,6 +420,20 @@ bash ~/gov.sh transfer <Community multisig zetaphy1…> <ยอดคงเห�
 zetaphyd keys delete airdrop --keyring-backend file --keyring-dir ~/.zetaphy-keys              # [เปลี่ยนไฟล์] เมื่อยอดเหลือราว 0
 ```
 
+**9. เผยแพร่รายชื่อผู้รับ** สำหรับหน้า "ได้รับ ZTPHY ไหม?" (https://app.sawasdeecoin.com/got-ztphy.html,
+[OUTREACH.th.md](OUTREACH.th.md)) ก่อนเผยแพร่ หน้านั้นแสดงแค่ยอดคงเหลือ ทำบนคอมพิวเตอร์ของคุณเอง ในสำเนาของ repository
+โดยคัดลอก push list กลับมาจากเครื่อง validator (มีแต่ที่อยู่สาธารณะ ไม่มีคีย์):
+
+```bash
+cd zetaphy-hub && node tools/push-manifest.mjs ~/push.txt                                      # [เปลี่ยนไฟล์]
+#   push-manifest: 100000 addresses, 10 ZTPHY each, sha256 <S>   (S ต้องตรงกับที่ push-list และ sha256sum แสดง)
+git add airdrop-push && git commit -m "Publish the push airdrop list" && git push                # แล้ว merge: Pages deploy ใหม่เอง
+```
+
+คำสั่งนี้เขียน `zetaphy-hub/airdrop-push/manifest.json` (เชน, ZTPHY ต่อที่อยู่, จำนวน, sha256), `shards/<2 hex>.json`
+(หน้าเว็บโหลดไฟล์เล็กไฟล์เดียวต่อการตรวจ) และ `list.txt` (รายชื่อตรงทุกไบต์ ใครก็ตรวจ sha256 ได้) ให้เผยแพร่รายชื่อที่ส่งจริง:
+`push.txt` ที่ `gov.sh` ใช้ (หรือ ledger ของที่อยู่ที่จ่ายแล้ว ถ้ามีบางที่อยู่ไม่ได้รับ)
+
 การทดสอบ (ไม่ใช้เชนจริง zetaphyd ตัวแทนเล่นเป็นเชน): `zetaphy-network/test/govairdrop-mainnet.test.js` (ชุด ธุรกรรมค้างทีละหนึ่ง
 ล้มในบล็อก ธุรกรรมหาย เชนหยุดแล้วเข้าบล็อกทีหลัง hash หาย CheckTx ปฏิเสธ เพดานแก๊ส เงินสำรอง `MAX_EACH` และเส้นทาง CSV ->
 `push-list` -> `gov.sh`), `test/airdrop-push.test.js`, `test/govairdrop.test.js` (testnet), `test/govmainnet.test.js` (`transfer`)
