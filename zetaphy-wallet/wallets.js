@@ -7,7 +7,7 @@
 // Every value comes from the RPC URL the user configured: the EVM JSON-RPC is that URL,
 // and the same https host serves CometBFT RPC at /rpc and Cosmos REST at /rest.
 // The testnet's values are in zetaphy-chain/wallets/*.template.json (the test checks they agree).
-// The chain is the page's network (network.js: mainnet unless the visitor picked the testnet), read once per page.
+// The chain is the page's network (network.js: mainnet, the only network since the testnet was shut down on 2026-11-14), read once per page.
 import { activeNetwork } from './network.js';
 
 export const NETWORK = activeNetwork();

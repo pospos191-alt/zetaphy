@@ -9,19 +9,20 @@
 <meta name="zetaphy-snap-id" content="npm:@zetaphy/snap">
 <!-- WalletConnect (Reown) projectId, 32 hex characters from cloud.reown.com. Empty: the WalletConnect option stays off. -->
 <meta name="zetaphy-walletconnect-project-id" content="">
-<!-- ThreatRegistry on ZETAPHY (the vaccine): the page refuses to sign calls/transfers to flagged code.
-     Empty: not checked, and the confirm box says so. -->
+<!-- ThreatRegistry (the vaccine): the page refuses to sign calls/transfers to flagged code. These two meta tags are
+     the retired testnet's values (zetaphy-launch writes them) and are read only on its record (browser tests); on
+     mainnet the page uses network.js (its ThreatRegistry and the public RPC https://129-221-199-191.sslip.io). -->
 <meta name="zetaphy-threat-registry" content="0xaB5745b61f83975E68F6546be9F83651df12417f">
 <!-- The ZETAPHY node's https JSON-RPC, the RPC box's default until the user saves another one.
-     Empty: no default (the user types it). zetaphy-launch/launch.js fills it. -->
+     Empty: no default (the user types it). zetaphy-launch/launch.js fills it (testnet record only, see above). -->
 <meta name="zetaphy-rpc" content="https://rpc.sawasdeecoin.com">
 <title>ZETAPHY PQ Wallet</title>
-<meta name="description" content="A wallet with post-quantum (ML-DSA) keys for the ZETAPHY testnet, also as a MetaMask Snap. Keys stay in your browser and it locks itself when idle.">
+<meta name="description" content="A wallet with post-quantum (ML-DSA) keys for ZETAPHY mainnet (chain 3659, ZTPHY), also as a MetaMask Snap. Keys stay in your browser and it locks itself when idle.">
 <link rel="canonical" href="https://wallet.sawasdeecoin.com/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ZETAPHY">
 <meta property="og:title" content="ZETAPHY PQ Wallet">
-<meta property="og:description" content="A wallet with post-quantum (ML-DSA) keys for the ZETAPHY testnet, also as a MetaMask Snap. Keys stay in your browser and it locks itself when idle.">
+<meta property="og:description" content="A wallet with post-quantum (ML-DSA) keys for ZETAPHY mainnet (chain 3659, ZTPHY), also as a MetaMask Snap. Keys stay in your browser and it locks itself when idle.">
 <meta property="og:url" content="https://wallet.sawasdeecoin.com/">
 <meta property="og:image" content="https://wallet.sawasdeecoin.com/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -35,7 +36,7 @@
     <div>
       <h1><img class="logo" src="./logo.svg" alt="" width="32" height="32"> ZETAPHY PQ Wallet</h1>
       <p class="sub" data-i18n="subtitle">Quantum-safe wallet (ML-DSA-44) · no ECDSA key</p>
-      <p class="sub site-links"><a href="https://explorer.sawasdeecoin.com/" target="_blank" rel="noopener noreferrer">ZETAPHY Explorer ↗</a></p>
+      <p class="sub site-links"><a href="https://explorer.sawasdeecoin.com/?network=mainnet" target="_blank" rel="noopener noreferrer">ZETAPHY Explorer ↗</a></p>
     </div>
     <select id="lang" class="lang" aria-label="Language / 语言 / Idioma / 언어 / 言語 / Язык / Ngôn ngữ / ภาษา">
       <option value="en" lang="en" selected>English</option>
@@ -49,13 +50,13 @@
     </select>
   </header>
 
-  <!-- the network badge and switch (network.js): mainnet by default, the testnet selectable -->
+  <!-- the network badge (network.js): mainnet is the only network (the testnet was shut down on 2026-11-14) -->
   <div id="net-badge" class="net-badge"></div>
 
   <section class="warn" id="warning">
-    <strong data-i18n="warnTitle">Testnet only</strong>
+    <strong data-i18n="warnTitle">Before you start</strong>
     <ul>
-      <li data-i18n="warnTestnet">ZETAPHY testnet is not real money. Do not put anything of value here.</li>
+      <li data-i18n="warnTestnet">This is ZETAPHY mainnet: real ZTPHY. A transfer cannot be undone.</li>
       <li data-i18n="warnSeed">The seed is the only key to this wallet. Lose it or forget the passphrase and the funds are gone for good. Nobody can recover them.</li>
       <li data-i18n="warnLocal">The seed stays in this browser only, encrypted with your passphrase, and is never sent anywhere.</li>
     </ul>
@@ -445,7 +446,7 @@
 
   <section class="card" id="wallets-card">
     <h2 data-i18n="walletsTitle">Use ZETAPHY in other wallets</h2>
-    <p class="hint" data-i18n="walletsIntro">Add the ZETAPHY Testnet network to the wallet you already use (MetaMask, Rabby, Trust, OKX, Coinbase, Keplr, Leap, …) with the buttons below, or type the values in yourself. Everything comes from the RPC URL above.</p>
+    <p class="hint" data-i18n="walletsIntro">Add the ZETAPHY network to the wallet you already use (MetaMask, Rabby, Trust, OKX, Coinbase, Keplr, Leap, …) with the buttons below, or type the values in yourself. Everything comes from the RPC URL above.</p>
     <p id="wallet-env" class="hint" hidden></p>
     <ul id="open-in-app" class="links" hidden></ul>
 
@@ -474,7 +475,7 @@
         <dt data-i18n="mChainId">Chain ID</dt><dd><code id="m-chain"></code></dd>
         <dt data-i18n="mSymbol">Currency symbol</dt><dd><code id="m-symbol"></code></dd>
         <dt data-i18n="mDecimals">Decimals</dt><dd><code id="m-decimals"></code></dd>
-        <dt data-i18n="mExplorer">Block explorer</dt><dd><code id="m-explorer">https://explorer.sawasdeecoin.com</code></dd>
+        <dt data-i18n="mExplorer">Block explorer</dt><dd><code id="m-explorer">—</code></dd>
       </dl>
       <p class="hint" id="m-symbol-note"></p>
     </details>
@@ -527,7 +528,7 @@
     <h3 data-i18n="helpHwTitle">EVM accounts: a hardware wallet</h3>
     <ol>
       <li data-i18n="helpHw1">Connect a Ledger or Trezor to MetaMask or Rabby.</li>
-      <li data-i18n="helpHw2">Add the ZETAPHY Testnet network to it.</li>
+      <li data-i18n="helpHw2">Add the ZETAPHY network to it.</li>
       <li data-i18n="helpHw3">Send the funds to the hardware account's 0x… address.</li>
     </ol>
     <p class="hint" data-i18n="helpMore">The README's security section has the details.</p>
