@@ -93,7 +93,7 @@ jobs:
       CONFIG: zetaphy-network/bridge-monitor.json
       LAUNCH_STATE: zetaphy-launch/state/77390.json
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -122,7 +122,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `deployed=${deployed}\nrpc=${rpc}\n`);
           JS
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.check.outputs.deployed == 'true'
         with:
           node-version: 20
@@ -195,7 +195,7 @@ jobs:
 
       - name: Keep the report (private repository only)
         if: steps.check.outputs.deployed == 'true' && steps.check.outputs.private == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bridge-monitor-report
           path: out/
@@ -258,7 +258,7 @@ jobs:
       # Last, and only when the run succeeded: alerts that were not delivered are raised again next run.
       - name: Keep the state for the next run (encrypted with the monitor secrets)
         if: steps.check.outputs.deployed == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bridge-monitor-state
           path: state/monitor-state.json
