@@ -84,6 +84,7 @@ authority, governance and staking parameters, and the chain guard, shield and co
 |---|---|
 | Public RPC (EVM JSON-RPC) | `https://129-221-199-191.sslip.io` |
 | CometBFT RPC / REST | `https://129-221-199-191.sslip.io/rpc` · `https://129-221-199-191.sslip.io/rest` |
+| CometBFT websocket | `wss://129-221-199-191.sslip.io/rpc/websocket` (`subscribe`; filtered by rpc-guard) |
 | Public peer (sentry) | `ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656` |
 
 A node installs the signed release and pins this genesis (step 11 of
@@ -92,4 +93,11 @@ A node installs the signed release and pins this genesis (step 11 of
 ```bash
 sudo GENESIS_FILE=$PWD/genesis.json GENESIS_SHA256=ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667 \
   GENESIS_EVM_CHAIN_ID=3659 ZETAPHYD_BIN=<verified zetaphyd> PEERS=ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656 bash setup-node.sh
+```
+
+A validator node, in one command (the same steps, with the genesis downloaded and checked against this sha256; no public
+RPC and no faucet on that machine; then `sudo zetaphy-validator key` and `stake <ZTPHY>`, procedure step 17):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=<name> bash -s -- validator
 ```

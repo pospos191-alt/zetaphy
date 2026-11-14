@@ -5,8 +5,9 @@
 #
 #   runner     a Neuro runner on ZETAPHY mainnet: takes Neuro jobs and earns ZTPHY (it waits for its bond)
 #   agents     the Hyperlane validator for ZETAPHY Saphan (EVM route); the relayer starts later
-#   validator  a ZETAPHY chain validator: joins the running chain, gets 10 ZETAPHY from the faucet,
-#              and stakes 9 by itself once synced (your name: … | sudo MONIKER=my-name bash -s -- validator)
+#   validator  a ZETAPHY mainnet validator node: the signed release and the published genesis (sha256 checked),
+#              synced from the public sentry; no public RPC, no faucet. Then: sudo zetaphy-validator key / stake N
+#              (your own ZTPHY; your name: … | sudo MONIKER=my-name bash -s -- validator)
 #   update     a ZETAPHY node set up before: the current release and settings (keys and chain data kept)
 #
 # Several at once: ... | sudo bash -s -- runner agents

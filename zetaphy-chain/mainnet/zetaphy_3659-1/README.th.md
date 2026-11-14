@@ -84,6 +84,7 @@ circuit-breaker, พารามิเตอร์ governance และ staking 
 |---|---|
 | RPC สาธารณะ (EVM JSON-RPC) | `https://129-221-199-191.sslip.io` |
 | CometBFT RPC / REST | `https://129-221-199-191.sslip.io/rpc` · `https://129-221-199-191.sslip.io/rest` |
+| CometBFT websocket | `wss://129-221-199-191.sslip.io/rpc/websocket` (`subscribe`; กรองโดย rpc-guard) |
 | peer สาธารณะ (sentry) | `ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656` |
 
 node ต้องติดตั้งจาก release ที่เซ็นแล้ว และล็อก genesis นี้ (ขั้น 11 ของ [ขั้นตอน](../../../docs/ZETAPHY-MAINNET-PROCEDURE.th.md)):
@@ -91,4 +92,11 @@ node ต้องติดตั้งจาก release ที่เซ็นแ
 ```bash
 sudo GENESIS_FILE=$PWD/genesis.json GENESIS_SHA256=ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667 \
   GENESIS_EVM_CHAIN_ID=3659 ZETAPHYD_BIN=<zetaphyd ที่ตรวจแล้ว> PEERS=ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656 bash setup-node.sh
+```
+
+โหนด validator ด้วยคำสั่งเดียว (ขั้นตอนเดียวกัน โดยดาวน์โหลด genesis และตรวจกับ sha256 นี้; เครื่องนั้นไม่มี RPC สาธารณะและไม่มี
+faucet; จากนั้น `sudo zetaphy-validator key` และ `stake <ZTPHY>` ขั้น 17 ของขั้นตอน):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=<ชื่อ> bash -s -- validator
 ```

@@ -1,8 +1,9 @@
 #!/bin/bash
-# Join the ZETAPHY testnet as a validator in one command, on any Linux machine with systemd and sudo
-# (x86_64 or arm64): any cloud, free or paid (Oracle, Google, AWS, Azure, Hetzner, DigitalOcean, Vultr, ...),
-# a home PC or mini PC, a Raspberry Pi 4/5 (64-bit OS), Windows through WSL 2, or a Mac through an Ubuntu VM.
-# Ubuntu, Debian, Fedora, RHEL/Rocky/Alma, Amazon Linux, openSUSE and Arch install what they need themselves.
+# Join ZETAPHY mainnet (zetaphy_3659-1, EVM chain id 3659) as a validator node in one command, on any Linux machine
+# with systemd and sudo (x86_64 or arm64): any cloud, free or paid (Oracle, Google, AWS, Azure, Hetzner, DigitalOcean,
+# Vultr, ...), a home PC or mini PC, a Raspberry Pi 4/5 (64-bit OS), Windows through WSL 2, or a Mac through an Ubuntu
+# VM. Ubuntu, Debian, Fedora, RHEL/Rocky/Alma, Amazon Linux, openSUSE and Arch install what they need themselves.
+# The testnet (zetaphy_77390-1) was shut down 2026-11-14: it is refused.
 #
 #   curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo bash -s -- validator
 #
@@ -11,28 +12,28 @@
 #  1. downloads setup-node.sh and the zetaphyd that GitHub Actions built and signed from it, and checks them with
 #     verify-release.sh (Sigstore signature of this repository's release workflow on main, SHA-256, no older
 #     release than the installed one) before anything of it runs as root; an unsigned or unverifiable release is
-#     refused (ALLOW_UNVERIFIED_INSTALL=1: a deliberate, logged exception; never for the upgrade timer)
-#  2. sets up a node of the running chain (JOIN=rpc.sawasdeecoin.com); its faucet sends this node 10 ZETAPHY
-#  3. a timer checks every 10 minutes: once the node has caught up and holds the coins, it stakes
-#     9 ZETAPHY and becomes a validator by itself; then the timer stops
+#     refused (mainnet: always; there is no unchecked build from source)
+#  2. downloads the published mainnet genesis (zetaphy-chain/mainnet/zetaphy_3659-1/genesis.json) and refuses it unless
+#     its sha256 is the published one pinned below
+#  3. sets up a node of that genesis only (setup-node.sh pinned-chain mode, kept in /etc/zetaphy/pinned-chain.env),
+#     dialing the public sentry; a validator node: no public RPC (PUBLIC_RPC), no plain-http RPC and no faucet, now
+#     or on any later run, and its EVM JSON-RPC answers this machine only
+#  4. no automatic staking and no faucet on mainnet: once synced, you make your own key, fund it and stake:
 #
+#   sudo zetaphy-validator key        the staking (operator) key, in a file keyring with your passphrase; its
+#                                     24 words are shown once, for paper (procedure step 5)
+#   sudo zetaphy-validator stake N    once in sync and funded: create-validator with N ZTPHY of your own, then the
+#                                     ML-DSA vote key (procedure steps 14 and 17); asks for the passphrase
 #   sudo zetaphy-validator status     height, sync, address, balance, validator state, and diagnostics with advice:
 #                                     peers, disk, missed blocks, jail risk (time to jail if the node stopped now)
-#   sudo zetaphy-validator address    the address (send ZETAPHY here to stake more later)
-#   sudo zetaphy-validator logs       setup and become-validator log lines
-#   sudo zetaphy-validator unjail     back to work after being jailed for downtime
+#   sudo zetaphy-validator address    the address (send ZTPHY here to stake)
+#   sudo zetaphy-validator logs       setup log lines
+#   sudo zetaphy-validator unjail     back to work after being jailed for downtime (asks for the passphrase)
 #   sudo zetaphy-validator backup     which files to copy somewhere safe (offline), and how
-#   sudo zetaphy-validator backup words   shows the 24 words once (for paper), then clears the screen
-#   sudo zetaphy-validator secure     after the backup: deletes the plaintext 24-word file, SSH with keys only
-#                                     and no root login, automatic security updates, fail2ban, key file
-#                                     permissions, a report of open ports. Asks before each change
-#                                     (--yes: no questions; the words are deleted only with --words-saved too;
-#                                     --only words,perms,ssh,updates,fail2ban,ports: just those steps)
-#   sudo zetaphy-validator import-key use your own 12/24-word recovery phrase (MetaMask, Trust, Keplr, ...)
-#                                     for the staking account instead of the one this node made; only
-#                                     before it has staked. ACCOUNT_INDEX=n picks the wallet's account n+1.
-#   sudo zetaphy-validator update     move this node to the current release (keys and chain data kept);
-#                                     also for the chain's first node:  curl -fsSL …/join-validator.sh | sudo bash -s -- update
+#   sudo zetaphy-validator secure     SSH with keys only and no root login, automatic security updates, fail2ban,
+#                                     key file permissions, a report of open ports. Asks before each change
+#                                     (--yes: no questions; --only words,perms,ssh,updates,fail2ban,ports: just those)
+#   sudo zetaphy-validator update     move this node to the current release (keys and chain data kept)
 #   sudo zetaphy-validator upgrade-watch   what the 1-minute timer runs: if the chain stopped at a voted upgrade
 #                                     this binary lacks ("UPGRADE <name> NEEDED at height: H"), move to the
 #                                     current release (as update) so the node applies it and goes on.
@@ -42,13 +43,24 @@
 #   sudo zetaphy-validator download   only download and verify the signed release into /usr/local/lib/zetaphy-validator
 #                                     (RELEASE_TAG=zetaphyd-<12 hex> pins one; VERIFIER=gh uses gh instead of cosign)
 #
-# Testnet only. Keys are made on this machine and never printed or sent anywhere.
+# Keys are made on this machine and never sent anywhere. (check, import-key and backup words are the shut-down
+# testnet's: its test keyring and faucet; they do nothing on a mainnet node.)
 set -euo pipefail
 
 REPO="pospos191-alt/zetaphy"
 REF="${REF:-main}"
-JOIN="${JOIN:-rpc.sawasdeecoin.com}"
-STAKE="${STAKE:-9}"                                   # ZETAPHY staked; the faucet gives 10, the rest pays fees
+# ZETAPHY mainnet, as published in zetaphy-chain/mainnet/zetaphy_3659-1/ (README.md, chain.json, genesis.sha256)
+MAINNET_CHAIN_ID="zetaphy_3659-1"
+MAINNET_EVM_CHAIN_ID=3659
+MAINNET_GENESIS_SHA256="ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667"
+MAINNET_GENESIS_PATH="zetaphy-chain/mainnet/zetaphy_3659-1/genesis.json"
+MAINNET_MIN_GAS="1000000000"                          # azetaphy per gas (1 gwei), the genesis minimum
+MAINNET_PEER="${MAINNET_PEER:-ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656}"   # the public sentry
+TESTNET_CHAIN_ID="zetaphy_77390-1"                    # shut down 2026-11-14
+CHAIN_ID="${CHAIN_ID:-$MAINNET_CHAIN_ID}"
+PINNED_FILE="${PINNED_FILE:-/etc/zetaphy/pinned-chain.env}"   # setup-node.sh's record of the pinned genesis
+JOIN="${JOIN:-}"                                      # the testnet's way in (its faucet node): refused at install
+STAKE="${STAKE:-9}"                                   # testnet timer only (check): ZETAPHY staked from the faucet's 10
 LIB="${LIB:-/usr/local/lib/zetaphy-validator}"        # setup-node.sh and the binary it was built from
 SELF_BIN="${SELF_BIN:-/usr/local/bin/zetaphy-validator}"
 RELEASE_TAG="${RELEASE_TAG:-}"                       # pin a release (zetaphyd-<12 hex>); empty: setup-node.sh's at $REF
@@ -99,8 +111,23 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 asn() { if [ "$(id -u)" = 0 ] && id "$NODE_USER" >/dev/null 2>&1; then su -s /bin/bash "$NODE_USER" -c "cd ~ 2>/dev/null || cd /tmp; $*"; else bash -c "$*"; fi; }
 K="--keyring-backend test --keyring-dir $KEYS_DIR"
 zq() { asn "$ZETAPHYD $* --home $NODE_HOME --node $NODE -o json"; }
-acc() { asn "$ZETAPHYD keys show validator -a $K --home $NODE_HOME"; }
-valoper() { asn "$ZETAPHYD keys show validator --bech val -a $K --home $NODE_HOME"; }
+VALKEYS_DIR="${VALKEYS_DIR:-/home/$NODE_USER/.zetaphy-keys}"   # mainnet: the operator's file keyring (passphrase)
+KF="--keyring-backend file --keyring-dir $VALKEYS_DIR"
+OPERATOR_FILE="$STATE/operator-address"                       # mainnet: the operator's address (public), for status
+# A node of ZETAPHY mainnet: setup-node.sh pinned it to the published genesis.
+mainnet_node() { grep -qx "GENESIS_SHA256=$MAINNET_GENESIS_SHA256" "$PINNED_FILE" 2>/dev/null; }
+# The staking account. Mainnet: the address `key` recorded (reading a file keyring would ask for its passphrase).
+acc() {
+  if mainnet_node; then
+    [ -s "$OPERATOR_FILE" ] || return 1
+    tr -cd 'a-z0-9' < "$OPERATOR_FILE"; echo; return 0
+  fi
+  asn "$ZETAPHYD keys show validator -a $K --home $NODE_HOME"
+}
+valoper() {
+  if mainnet_node; then asn "$ZETAPHYD debug addr $(hexaddr) --home $NODE_HOME" | awk '/Bech32 Val/ {print $3}'; return 0; fi
+  asn "$ZETAPHYD keys show validator --bech val -a $K --home $NODE_HOME"
+}
 hexaddr() { asn "$ZETAPHYD debug addr $(acc) --home $NODE_HOME" | awk '/Address hex/ {print $3}'; }
 balance() { zq q bank balance "$(acc)" $DENOM | jq -r '.balance.amount // "0"'; }
 # whole and 2-decimal ZETAPHY from azetaphy (no float rounding on 18-digit numbers)
@@ -207,6 +234,73 @@ check_moniker() {
 
 sha256() { sha256sum "$1" | cut -d' ' -f1; }
 get() { curl -fsSL --retry 3 "$1" -o "$2"; }
+
+# ---- mainnet ------------------------------------------------------------------------------------
+testnet_gone() {
+  die "the ZETAPHY testnet ($TESTNET_CHAIN_ID, EVM chain id 77390) was shut down 2026-11-14: there is nothing to join.
+  $1
+  This installs a validator node of ZETAPHY mainnet ($MAINNET_CHAIN_ID, EVM chain id $MAINNET_EVM_CHAIN_ID):
+  curl -fsSL $RAW_BASE/$REPO/main/install.sh | sudo bash -s -- validator"
+}
+
+# Only mainnet: no testnet chain id, no JOIN (the testnet's faucet node), no testnet node on this machine.
+refuse_testnet() {
+  local g="$NODE_HOME/config/genesis.json" c
+  case "$CHAIN_ID" in
+    "$MAINNET_CHAIN_ID") ;;
+    "$TESTNET_CHAIN_ID"|77390) testnet_gone "CHAIN_ID=$CHAIN_ID: refused, nothing was installed." ;;
+    *) die "CHAIN_ID=$CHAIN_ID: this installs ZETAPHY mainnet only ($MAINNET_CHAIN_ID); leave CHAIN_ID unset" ;;
+  esac
+  [ -z "$JOIN" ] || testnet_gone "JOIN=$JOIN (the testnet's way in): refused, nothing was installed."
+  if [ -f "$g" ]; then
+    c=$(jq -r '.chain_id // empty' "$g" 2>/dev/null || true)
+    if [ "$c" = "$TESTNET_CHAIN_ID" ]; then
+      testnet_gone "This machine has a testnet node ($NODE_HOME, chain $c): nothing was changed. To use this machine
+  for mainnet, stop it (sudo systemctl disable --now zetaphyd zetaphy-become-validator.timer), keep its keys if you
+  want them (sudo zetaphy-validator backup), move $NODE_HOME aside (sudo mv $NODE_HOME $NODE_HOME.testnet), and run this again."
+    fi
+  fi
+  return 0
+}
+
+# A validator node never serves the public: no PUBLIC_RPC, no PUBLIC_HTTP_RPC, no MAINNET_FAUCET (setup-node.sh refuses
+# them too, on this run and every later one, once VALIDATOR_NODE=1 is recorded in its pin).
+validator_only() {
+  local v
+  for v in PUBLIC_RPC PUBLIC_HTTP_RPC MAINNET_FAUCET; do
+    case "${!v:-0}" in
+      0|"") ;;
+      *) die "$v=${!v}: a validator never serves a public RPC or a faucet (the public RPC and the faucet run on the sentry); refused" ;;
+    esac
+  done
+}
+
+# The published mainnet genesis into $LIB/genesis.json, refused unless its sha256 is MAINNET_GENESIS_SHA256 and it is
+# the chain it says (chain id). Nothing else of the download is trusted.
+fetch_genesis() {
+  local in="$LIB/genesis.json.new" c
+  say "the mainnet genesis ($MAINNET_CHAIN_ID, sha256 ${MAINNET_GENESIS_SHA256:0:12}…)"
+  install -d -m 755 "$LIB"
+  rm -f "$in"
+  get "$RAW_BASE/$REPO/$REF/$MAINNET_GENESIS_PATH" "$in" || { rm -f "$in"; die "could not download $MAINNET_GENESIS_PATH from $REPO@$REF"; }
+  if [ "$(sha256 "$in")" != "$MAINNET_GENESIS_SHA256" ]; then
+    rm -f "$in"
+    die "the genesis at $REPO@$REF is not the published one (sha256 $MAINNET_GENESIS_SHA256): refused, nothing was installed"
+  fi
+  c=$(jq -r '.chain_id // empty' "$in" 2>/dev/null || true)
+  [ "$c" = "$MAINNET_CHAIN_ID" ] || { rm -f "$in"; die "the genesis is for chain '$c', not $MAINNET_CHAIN_ID: refused"; }
+  chmod 644 "$in"; mv -f "$in" "$LIB/genesis.json"
+  echo "genesis $MAINNET_CHAIN_ID: sha256 $MAINNET_GENESIS_SHA256 ok"
+}
+
+# setup-node.sh in pinned-chain mode for this genesis: the verified zetaphyd, the sentry as its peer, a validator node
+# (no public RPC, no faucet). $1..: the binenv from fetch_release.
+setup_mainnet_node() {
+  local menv=(); [ -n "${MONIKER:-}" ] && menv=(MONIKER="$MONIKER")
+  env -u JOIN -u PUBLIC_HOST GENESIS_FILE="$LIB/genesis.json" GENESIS_SHA256="$MAINNET_GENESIS_SHA256" \
+    GENESIS_EVM_CHAIN_ID="$MAINNET_EVM_CHAIN_ID" PEERS="$MAINNET_PEER" PUBLIC_RPC=0 PUBLIC_HTTP_RPC=0 MAINNET_FAUCET=0 \
+    VALIDATOR_NODE=1 "$@" "${menv[@]}" bash "$LIB/setup-node.sh"
+}
 
 # A deliberate exception to the signature check, logged where an operator looks later (journal + $STATE).
 unverified() {
@@ -368,70 +462,131 @@ detect_arch() { case "${ARCH:-$(uname -m)}" in x86_64|amd64) echo amd64 ;; aarch
 install_all() {
   [ "$(id -u)" = 0 ] || die "run with sudo"
   check_moniker
+  validator_only
+  refuse_testnet   # at once, before anything is installed
   [ -n "${DOWNLOAD_ONLY:-}" ] || platform
   packages
+  refuse_testnet   # again with jq installed: a testnet node already on this machine
   local arch; arch=$(detect_arch)
 
   binenv=()
   fetch_release "$arch"
+  fetch_genesis
   [ -n "${DOWNLOAD_ONLY:-}" ] && { echo "DOWNLOAD_ONLY: stopping before the node setup"; return 0; }
+  # a pinned chain runs only the verified release: never a build from source
+  [ ${#binenv[@]} -gt 0 ] || die "no prebuilt zetaphyd for this setup-node.sh: a mainnet node installs only a released binary; try again later"
 
-  if [ -f "$NODE_HOME/config/genesis.json" ]; then
-    say "a ZETAPHY node is already set up here: keeping it"
+  if [ -f "$NODE_HOME/config/genesis.json" ] && mainnet_node; then
+    say "a node of $MAINNET_CHAIN_ID is already set up here: keeping it (sudo zetaphy-validator update moves it to the current release)"
+  elif [ -f "$NODE_HOME/config/genesis.json" ] && [ "$(sha256 "$NODE_HOME/config/genesis.json")" != "$MAINNET_GENESIS_SHA256" ]; then
+    die "$NODE_HOME/config/genesis.json is not the mainnet genesis: another chain's node is here; nothing was changed.
+  Move $NODE_HOME aside (keep its keys if you need them), then run this again."
   else
-    say "node of the running chain via $JOIN (log: /var/log/zetaphy-setup.log)"
-    local menv=(); [ -n "${MONIKER:-}" ] && menv=(MONIKER="$MONIKER")
-    env JOIN="$JOIN" "${binenv[@]}" "${menv[@]}" bash "$LIB/setup-node.sh" > /dev/null \
-      || die "setup-node.sh failed: sudo tail -50 /var/log/zetaphy-setup.log"
+    say "node of ZETAPHY mainnet $MAINNET_CHAIN_ID, peer ${MAINNET_PEER%%@*} (the public sentry) (log: /var/log/zetaphy-setup.log)"
+    setup_mainnet_node "${binenv[@]}" > /dev/null || die "setup-node.sh failed: sudo tail -50 /var/log/zetaphy-setup.log"
     record_release "$arch"
   fi
+  mainnet_node || die "setup-node.sh did not pin this node to the mainnet genesis ($PINNED_FILE): sudo tail -50 /var/log/zetaphy-setup.log"
 
   open_p2p
   private_rpc
-  say "becomes a validator by itself once synced and funded"
   install_self || [ -x "$SELF_BIN" ] || die "zetaphy-validator could not be installed (see above)"
   install -d -m 700 "$STATE"
-  cat > /etc/systemd/system/zetaphy-become-validator.service <<EOF
-[Unit]
-Description=ZETAPHY: stake and become a validator once synced and funded
-After=zetaphyd.service
-
-[Service]
-Type=oneshot
-Environment=JOIN=$JOIN STAKE=$STAKE${MONIKER:+ MONIKER=$MONIKER}
-ExecStart=$SELF_BIN check
-EOF
-  cat > /etc/systemd/system/zetaphy-become-validator.timer <<EOF
-[Unit]
-Description=ZETAPHY: check every 10 minutes until this node is a validator
-
-[Timer]
-OnBootSec=5min
-OnUnitActiveSec=10min
-
-[Install]
-WantedBy=timers.target
-EOF
+  # the testnet's staking timer (test keyring, faucet): never on mainnet
+  $SYSTEMCTL disable --now zetaphy-become-validator.timer >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/zetaphy-become-validator.service /etc/systemd/system/zetaphy-become-validator.timer
   $SYSTEMCTL daemon-reload
-  $SYSTEMCTL enable --now zetaphy-become-validator.timer >/dev/null 2>&1
   install_upgrade_timer
-  rm -f "$STATE/done"
   say "done"
   cat <<EOF
-Validator account: $(acc)   ($(hexaddr))
-The node is syncing now. When it has caught up and holds $STAKE ZETAPHY or more (the faucet sent 10),
-it stakes $STAKE ZETAPHY and becomes a validator by itself; nothing else to do.
-  sudo zetaphy-validator status    progress
-  sudo zetaphy-validator backup    the files to keep safe, and how to copy them off this machine
-  sudo zetaphy-validator secure    AFTER the backup: deletes the plaintext 24-word file, SSH with keys only,
-                                   automatic security updates (asks before each change)
-Ports: in a cloud, open TCP 26656 (P2P) in its firewall; nothing else is needed (the RPC answers this machine only).
+ZETAPHY mainnet $MAINNET_CHAIN_ID node: syncing now from the public sentry (genesis sha256 ${MAINNET_GENESIS_SHA256:0:12}…).
+No public RPC and no faucet on this machine: the EVM JSON-RPC and the CometBFT RPC answer this machine only.
+To become a validator (your own ZTPHY; there is no faucet and no automatic staking on mainnet):
+  1. sudo zetaphy-validator key       your staking key, in a file keyring with a passphrase you choose;
+                                      write its 24 words on paper, offline
+  2. send that address your stake plus about 1 ZTPHY for fees, from your own wallet
+  3. sudo zetaphy-validator status    wait until it says "in sync"
+  4. sudo zetaphy-validator stake N   create-validator with N ZTPHY, then the ML-DSA vote key
+Also:
+  sudo zetaphy-validator backup    the files to keep safe (priv_validator_key.json, pq_vote_key.seed), and how
+  sudo zetaphy-validator secure    SSH with keys only, automatic security updates (asks before each change)
+Ports: in a cloud, open TCP 26656 (P2P) in its firewall; nothing else is needed.
 At home it works without opening any port; forwarding TCP 26656 on the router helps other nodes reach you.
 EOF
   if is_wsl; then echo "WSL: keep the PC awake and one Ubuntu window open, or the node stops."; fi
 }
 
-check() { # run by the timer: one step towards "validator", then the timer stops
+# ---- mainnet: the operator's own key and stake (no faucet, no automatic staking) -------------------------------
+# The staking key "validator" in a file keyring ($VALKEYS_DIR, passphrase), as procedure step 5. zetaphyd shows
+# its 24 words once, on this terminal; this script never reads, stores or sends them.
+mainnet_key() {
+  [ "$(id -u)" = 0 ] || [ -n "${MAINNET_TEST:-}" ] || die "run with sudo"
+  mainnet_node || die "key is for a mainnet node set up by install.sh validator"
+  local a
+  if [ -s "$OPERATOR_FILE" ]; then echo "staking account: $(acc)  ($(hexaddr)) (already made)"; return 0; fi
+  if ! [ -f "$VALKEYS_DIR/validator.info" ]; then
+    echo "A new staking key in a file keyring on this machine ($VALKEYS_DIR): choose a long passphrase."
+    echo "zetaphyd then shows its 24 words ONCE: write them on paper, keep them offline, never type them anywhere else."
+    asn "umask 077 && $ZETAPHYD keys add validator $KF --algo eth_secp256k1 --home $NODE_HOME" || die "no key was made"
+  fi
+  echo "the passphrase once more, to read the address:"
+  a=$(asn "$ZETAPHYD keys show validator -a $KF --home $NODE_HOME") || die "could not read the key"
+  [[ "$a" =~ ^zetaphy1[02-9ac-hj-np-z]{38}$ ]] || die "unexpected address '$a'"
+  install -d -m 700 "$STATE"; echo "$a" > "$OPERATOR_FILE"
+  echo "staking account: $a  ($(hexaddr))"
+  echo "send it your stake plus about 1 ZTPHY for fees; once 'sudo zetaphy-validator status' says in sync:"
+  echo "  sudo zetaphy-validator stake <whole ZTPHY>"
+}
+
+# create-validator with the node's consensus key and N ZTPHY from the staking key, then the ML-DSA-44 vote key
+# (procedure steps 14 and 17). zetaphyd asks for the keyring passphrase for each transaction.
+mainnet_stake() {
+  [ "$(id -u)" = 0 ] || [ -n "${MAINNET_TEST:-}" ] || die "run with sudo"
+  mainnet_node || die "stake is for a mainnet node set up by install.sh validator"
+  local amt="${1:-}" a v st bal need f gas="--chain-id $MAINNET_CHAIN_ID --gas-prices $MAINNET_MIN_GAS$DENOM -y -o json"
+  [[ "$amt" =~ ^[1-9][0-9]{0,11}$ ]] || die "usage: sudo zetaphy-validator stake <whole ZTPHY>, e.g. stake 1000"
+  a=$(acc) || die "no staking key yet: sudo zetaphy-validator key"
+  v=$(valoper)
+  if zq q staking validator "$v" >/dev/null 2>&1; then die "already a validator: $v (sudo zetaphy-validator status)"; fi
+  st=$(asn "$ZETAPHYD status --home $NODE_HOME --node $NODE" 2>/dev/null) || die "the node is not answering (journalctl -u zetaphyd -n 30)"
+  [ "$(echo "$st" | jq -r .sync_info.catching_up)" = false ] || die "still syncing (block $(echo "$st" | jq -r .sync_info.latest_block_height)): stake once in sync"
+  bal=$(balance); need="${amt}100000000000000000"   # the stake + 0.1 ZTPHY for fees
+  if [ "${#bal}" -lt "${#need}" ] || { [ "${#bal}" = "${#need}" ] && [[ "$bal" < "$need" ]]; }; then
+    die "$a holds $(zeta "$bal") ZTPHY; staking $amt needs $(zeta "$need"): send it ZTPHY from your own wallet"
+  fi
+  f=$(asn "mktemp")
+  jq -n --argjson pk "$(asn "$ZETAPHYD comet show-validator --home $NODE_HOME")" --arg a "${amt}000000000000000000$DENOM" \
+    --arg m "${MONIKER:-$(hostname -s)}" \
+    '{pubkey:$pk,amount:$a,moniker:$m,"commission-rate":"0.1","commission-max-rate":"0.2","commission-max-change-rate":"0.01","min-self-delegation":"1"}' \
+    | asn "cat > $f"
+  echo "create-validator: $amt ZTPHY from $a"
+  asn "$ZETAPHYD tx staking create-validator $f --from validator $KF --home $NODE_HOME --node $NODE --gas auto --gas-adjustment 1.5 $gas" \
+    | jq -c '{code, txhash, raw_log}' || die "create-validator was not sent"
+  asn "rm -f $f"
+  sleep "${STAKE_WAIT:-12}"
+  echo "the ML-DSA-44 vote key (signs this validator's votes next to ed25519):"
+  asn "$ZETAPHYD tx pq-vote-key --from validator $KF --home $NODE_HOME --node $NODE --gas 600000 $gas" | jq -c '{code, txhash, raw_log}' \
+    || echo "vote key not registered yet: run 'sudo zetaphy-validator stake $amt' again once the validator shows in status"
+  install -d -m 700 "$STATE"; touch "$STATE/done"
+  echo "back up $NODE_HOME/config/priv_validator_key.json and pq_vote_key.seed offline now (sudo zetaphy-validator backup)"
+}
+
+unjail() {
+  if mainnet_node; then
+    asn "$ZETAPHYD tx slashing unjail --from validator $KF --home $NODE_HOME --node $NODE --chain-id $MAINNET_CHAIN_ID --gas auto --gas-adjustment 1.5 --gas-prices $MAINNET_MIN_GAS$DENOM -y -o json" | jq -c '{code, txhash, raw_log}'
+  else
+    asn "$ZETAPHYD tx slashing unjail --from validator $K --home $NODE_HOME --node $NODE --chain-id $TESTNET_CHAIN_ID --gas auto --gas-adjustment 1.5 --gas-prices 1000000000$DENOM -y -o json" | jq -c '{code, txhash, raw_log}'
+  fi
+}
+
+check() { # run by the timer (the testnet's): one step towards "validator", then the timer stops
+  if mainnet_node || [ "$(jq -r '.chain_id // empty' "$NODE_HOME/config/genesis.json" 2>/dev/null || true)" = "$TESTNET_CHAIN_ID" ]; then
+    # mainnet: no faucet, no automatic staking (sudo zetaphy-validator key / stake); the testnet: shut down 2026-11-14
+    $SYSTEMCTL disable --now zetaphy-become-validator.timer >/dev/null 2>&1 || true
+    if mainnet_node; then echo "mainnet: no automatic staking or faucet; sudo zetaphy-validator key, then stake"
+    else echo "the testnet ($TESTNET_CHAIN_ID) was shut down 2026-11-14: timer stopped"; fi
+    return 0
+  fi
   [ -f "$STATE/done" ] && { $SYSTEMCTL disable --now zetaphy-become-validator.timer >/dev/null 2>&1 || true; echo "already a validator"; return 0; }
   local v st need bal
   v=$(valoper)
@@ -465,6 +620,8 @@ check() { # run by the timer: one step towards "validator", then the timer stops
 # so it is not in ps or a log). The node's key is kept as "validator-made-by-node", not deleted.
 import_key() {
   [ "$(id -u)" = 0 ] || [ -n "${IMPORT_TEST:-}" ] || die "run with sudo"
+  mainnet_node && die "import-key is the testnet's (test keyring). Mainnet: sudo zetaphy-validator key (a file keyring; to use your
+  own recovery phrase: sudo -u $NODE_USER $ZETAPHYD keys add validator --recover $KF --algo eth_secp256k1, then key)"
   if zq q staking validator "$(valoper)" >/dev/null 2>&1; then
     die "this node already staked with its current account: keep it (moving a validator to another account is not supported)"
   fi
@@ -494,11 +651,20 @@ status() {
   local st v vj=""
   st=$(asn "$ZETAPHYD status --home $NODE_HOME --node $NODE" 2>/dev/null) || { echo "node: not answering (journalctl -u zetaphyd -n 30)"; return 1; }
   echo "block:     $(echo "$st" | jq -r .sync_info.latest_block_height)  (catching up: $(echo "$st" | jq -r .sync_info.catching_up))"
+  if mainnet_node && ! [ -s "$OPERATOR_FILE" ]; then
+    echo "chain:     $MAINNET_CHAIN_ID (mainnet)"
+    echo "account:   none yet: sudo zetaphy-validator key, then fund it and stake (sudo zetaphy-validator stake N)"
+    diagnose "$st" "" || true
+    return 0
+  fi
+  local coin=ZETAPHY; mainnet_node && { coin=ZTPHY; echo "chain:     $MAINNET_CHAIN_ID (mainnet)"; }
   echo "account:   $(acc)  ($(hexaddr))"
-  echo "balance:   $(zeta "$(balance)") ZETAPHY"
+  echo "balance:   $(zeta "$(balance)") $coin"
   v=$(valoper)
   if vj=$(zq q staking validator "$v" 2>/dev/null); then
     echo "validator: $v  $(echo "$vj" | jq -r '.validator | "\(.status | sub("BOND_STATUS_"; "")), jailed: \(.jailed // false), stake: \(.tokens)"')"
+  elif mainnet_node; then
+    echo "validator: not yet (once in sync and funded: sudo zetaphy-validator stake N)"
   else
     echo "validator: not yet (the timer stakes $STAKE ZETAPHY once synced and funded)"
   fi
@@ -586,6 +752,9 @@ diagnose() {
 update_node() {
   [ "$(id -u)" = 0 ] || die "run with sudo"
   [ -f "$NODE_HOME/config/genesis.json" ] || die "no ZETAPHY node here: install first"
+  if [ "$(jq -r '.chain_id // empty' "$NODE_HOME/config/genesis.json" 2>/dev/null || true)" = "$TESTNET_CHAIN_ID" ]; then
+    testnet_gone "This machine's node ($NODE_HOME) is a testnet node: there is no release for it any more; nothing was changed."
+  fi
   packages
   local arch; arch=$(detect_arch)
   fetch_release "$arch"
@@ -595,9 +764,14 @@ update_node() {
   say "update (log: /var/log/zetaphy-setup.log)"
   env JOIN= "${binenv[@]}" ${host:+PUBLIC_HOST="$host"} bash "$LIB/setup-node.sh" > /dev/null \
     || die "setup-node.sh failed: sudo tail -50 /var/log/zetaphy-setup.log"
-  # a validator that joined keeps its RPC to itself
+  # a validator that joined keeps its RPC to itself; a pinned node with PUBLIC_RPC=1 in its pin (the public sentry)
+  # keeps its https RPC (setup-node.sh refuses PUBLIC_RPC=1 on a validator node)
   record_release "$arch"
-  [ -f "$NODE_HOME/config/seed-peer" ] && private_rpc
+  if [ -f "$PINNED_FILE" ]; then
+    grep -qx 'PUBLIC_RPC=1' "$PINNED_FILE" || private_rpc
+  elif [ -f "$NODE_HOME/config/seed-peer" ]; then
+    private_rpc
+  fi
   install_self || echo "note: $SELF_BIN kept as it was"
   install_upgrade_timer
   say "updated: $("$ZETAPHYD" version 2>/dev/null)"
@@ -675,9 +849,16 @@ backup() {
 Copy these somewhere safe and offline (USB stick / paper), never into a chat, e-mail or website:
   $NODE_HOME/config/priv_validator_key.json   the validator's signing key
   $NODE_HOME/config/pq_vote_key.seed          its ML-DSA vote key
-  $WORDS         the 24 words of the staking account
 EOF
-  [ -f "$WORDS" ] || echo "  (the words file is gone: secure deleted it after the backup, or import-key was used, which keeps no copy)"
+  if mainnet_node; then
+    cat <<EOF
+  $VALKEYS_DIR/                  the staking key's file keyring (encrypted with your passphrase)
+  and the 24 words zetaphyd showed for it (sudo zetaphy-validator key): on paper only, never in a file here
+EOF
+  else
+    echo "  $WORDS         the 24 words of the staking account"
+    [ -f "$WORDS" ] || echo "  (the words file is gone: secure deleted it after the backup, or import-key was used, which keeps no copy)"
+  fi
   cat <<EOF
 
 How to get them off this machine (nothing to install on your own computer):
@@ -788,13 +969,15 @@ secure_perms() {
   say "2. key files: folders 700, files 600, owner $NODE_USER"
   local p n=0 own=
   id "$NODE_USER" >/dev/null 2>&1 && own=1
-  for p in "$KEYS_DIR" "$NODE_HOME/config"; do
+  for p in "$KEYS_DIR" "$VALKEYS_DIR" "$NODE_HOME/config"; do
     [ -d "$p" ] || continue
     n=$((n + $(find "$p" -type d ! -perm 700 | wc -l)))
     find "$p" -type d -exec chmod 700 {} +
     [ -n "$own" ] && chown -R "$NODE_USER:" "$p"
   done
-  [ -d "$KEYS_DIR" ] && { n=$((n + $(find "$KEYS_DIR" -type f ! -perm 600 | wc -l))); find "$KEYS_DIR" -type f -exec chmod 600 {} +; }
+  for p in "$KEYS_DIR" "$VALKEYS_DIR"; do
+    [ -d "$p" ] && { n=$((n + $(find "$p" -type f ! -perm 600 | wc -l))); find "$p" -type f -exec chmod 600 {} +; }
+  done
   for p in "$NODE_HOME/config/priv_validator_key.json" "$NODE_HOME/config/node_key.json" "$NODE_HOME/config/pq_vote_key.seed" \
            "$NODE_HOME/config/pq_vote_key.seed.old" "$NODE_HOME/config/faucet.key" "$NODE_HOME/data/priv_validator_state.json"; do
     [ -f "$p" ] || continue
@@ -996,10 +1179,12 @@ case "${1:-install}" in
   download) fetch_release "$(detect_arch)" ;;
   self-install) install_self ;;
   status) status ;;
-  address) echo "$(acc)  $(hexaddr)" ;;
+  address) a=$(acc) || die "no staking key yet: sudo zetaphy-validator key"; echo "$a  $(hexaddr)" ;;
+  key) mainnet_key ;;
+  stake) mainnet_stake "${2:-}" ;;
   logs) journalctl -u zetaphy-become-validator -n "${2:-30}" --no-pager; tail -n 5 /var/log/zetaphy-setup.log 2>/dev/null || true ;;
-  unjail) asn "$ZETAPHYD tx slashing unjail --from validator $K --home $NODE_HOME --node $NODE --chain-id zetaphy_77390-1 --gas auto --gas-adjustment 1.5 --gas-prices 1000000000$DENOM -y -o json" | jq -c '{code, txhash, raw_log}' ;;
+  unjail) unjail ;;
   backup) if [ "${2:-}" = words ]; then backup_words; else backup; fi ;;
   secure) shift; secure "$@" ;;
-  *) sed -n '2,44p' "$0"; exit 1 ;;
+  *) sed -n '2,/^set -euo pipefail$/p' "$0" | sed '$d'; exit 1 ;;
 esac

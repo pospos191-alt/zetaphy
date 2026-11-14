@@ -123,22 +123,39 @@ When you open it to the public, move to a bigger machine (e.g. Contabo / OVH) us
 
 ## Join the chain: run a node or validator (so the chain is not on one machine only)
 
-**One command (recommended):** on any Linux machine with systemd (x86_64 or arm64), paste:
+**One command (recommended), ZETAPHY mainnet `zetaphy_3659-1`:** on any Linux machine with systemd (x86_64 or arm64), paste:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=your-name bash -s -- validator
 ```
-- Uses the prebuilt chain binary (SHA-256 checked), no build. Joins `rpc.sawasdeecoin.com` and asks its faucet for 10 ZETAPHY
-- A timer checks every 10 minutes: once synced and funded, it stakes 9 ZETAPHY and becomes a validator by itself, then stops checking
+- Installs the signed release (Sigstore signature and SHA-256 checked by `verify-release.sh`, no build; an unsigned
+  release is refused), downloads the published genesis
+  ([`mainnet/zetaphy_3659-1/genesis.json`](./mainnet/zetaphy_3659-1/)) and refuses it unless its sha256 is
+  `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`, then runs `setup-node.sh` in pinned-chain mode
+  (`/etc/zetaphy/pinned-chain.env`) with the public sentry `ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656`
+  as its peer. The node syncs from there.
+- A validator node never serves the public: no public RPC (`PUBLIC_RPC=1`, `PUBLIC_HTTP_RPC=1` and `MAINNET_FAUCET=1`
+  are refused, now and on every later run, also by `setup-node.sh` itself), no Caddy, and its EVM JSON-RPC and
+  CometBFT RPC answer the machine only. There is no faucet on a validator and no automatic staking on mainnet.
+- The testnet `zetaphy_77390-1` was shut down 2026-11-14: `CHAIN_ID=zetaphy_77390-1`, `JOIN=…` and a machine that still
+  has a testnet node are refused with that message (move the old `~/.zetaphy` aside first).
+- Becoming a validator, with your own ZTPHY:
+  1. `sudo zetaphy-validator key` makes the staking key in a file keyring (`~/.zetaphy-keys`, a passphrase you choose;
+     zetaphyd shows its 24 words once: write them on paper)
+  2. send that address your stake plus about 1 ZTPHY for fees, from your own wallet
+  3. `sudo zetaphy-validator status` until it says in sync
+  4. `sudo zetaphy-validator stake <ZTPHY>`: create-validator with the node's consensus key, then the ML-DSA-44 vote key
+     (procedure steps 14 and 17, [docs/ZETAPHY-MAINNET-PROCEDURE.md](../docs/ZETAPHY-MAINNET-PROCEDURE.md))
 - `sudo zetaphy-validator status` shows progress and diagnostics with advice (peers, disk, missed blocks, jail risk with a time estimate), `sudo zetaphy-validator backup` lists the files to keep offline,
-  `sudo zetaphy-validator unjail` brings it back after downtime
-- After the backup: `sudo zetaphy-validator secure` shreds the plaintext 24-word file (only once you confirm the
-  words are saved offline, and only if the staking key is in the keyring), turns SSH passwords and root login off
+  `sudo zetaphy-validator unjail` brings it back after downtime (it asks for the keyring passphrase)
+- `sudo zetaphy-validator secure` turns SSH passwords and root login off
   (only when a sudo account has an SSH key, or Google OS Login is on, so you cannot lock yourself out; checked with
   `sshd -t`, rolled back on error), turns on automatic security updates (unattended-upgrades / dnf-automatic, no
   automatic reboot) and fail2ban, sets key folders to 700 and key files to 600, and lists ports open to the outside.
-  It asks before each change (`--yes` for none; the words then also need `--words-saved`; `--only ssh,updates` runs
-  some steps). It never deletes `priv_validator_key.json`, `pq_vote_key.seed`, `node_key.json` or the keyring.
-- Open port 26656 (and 80, 443) in your cloud provider's firewall, or use the Oracle button (`deploy/oracle`) with `validator`, which opens them
+  It asks before each change (`--yes` for none; `--only ssh,updates` runs some steps). It never deletes
+  `priv_validator_key.json`, `pq_vote_key.seed`, `node_key.json` or a keyring.
+- `DOWNLOAD_ONLY=1` stops after the signed release and the genesis are downloaded and checked (CI runs it on Ubuntu,
+  Debian, Fedora, Rocky, Amazon Linux, openSUSE and Arch).
+- Open port 26656 in your cloud provider's firewall (nothing else: there is no public RPC on a validator)
 - Where it runs:
 
   | Machine | Notes |
@@ -151,23 +168,22 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
   Ubuntu, Debian, Fedora, RHEL/Rocky/Alma, Amazon Linux, openSUSE and Arch install what they need by themselves.
   Containers without systemd and musl systems (Alpine) are refused with what to use instead.
   `sudo zetaphy-validator preflight` checks a machine without installing anything.
-- Keys: the node makes three, on the machine itself, and never sends them anywhere:
+- Keys, made on the machine itself and never sent anywhere:
 
   | Key | What it does | Where |
   |---|---|---|
-  | Staking account (eth_secp256k1, 24 words, coin type 60) | holds and stakes ZETAPHY; earns BZTPHY | `~/.zetaphy-genesis-keys/MNEMONICS-KEEP-SECRET.txt` |
+  | Staking account (eth_secp256k1, 24 words, coin type 60) | holds and stakes ZTPHY | `~/.zetaphy-keys` (file keyring, your passphrase); the words on paper only |
   | Validator signing key (ed25519) | signs blocks | `~/.zetaphy/config/priv_validator_key.json` |
   | Vote key (ML-DSA-44, quantum-resistant) | signs votes alongside ed25519 | `~/.zetaphy/config/pq_vote_key.seed` |
 
   The staking account uses the same derivation as MetaMask (m/44'/60'/0'/0/0), so its words also open it in MetaMask,
-  Rabby, Trust, OKX or Keplr (to see BZTPHY and ZETAPHY). To stake from your own wallet's phrase instead, run
-  `sudo zetaphy-validator import-key` before the node has staked (`ACCOUNT_INDEX=1` for the wallet's second account).
-  Use a new phrase: it is stored on the server, and this is a testnet. The two node keys are always made by the node;
-  to move a validator to a new machine, copy both files, and stop the old machine first (two machines with the same
-  key is double signing).
+  Rabby, Trust, OKX or Keplr. To stake from your own wallet's phrase instead, recover it into the same keyring before
+  `key`: `sudo -u zetaphy zetaphyd keys add validator --recover --keyring-backend file --keyring-dir ~zetaphy/.zetaphy-keys
+  --algo eth_secp256k1`. The two node keys are always made by the node; to move a validator to a new machine, copy
+  both files, and stop the old machine first (two machines with the same key is double signing).
 - Validators earn BZTPHY reward points, converted to real ZETAPHY at mainnet: [`rewards/README.md`](./rewards/README.md)
 
-The manual way, step by step:
+The manual way, step by step, is the testnet's (`JOIN`; the testnet was shut down 2026-11-14 and these steps are kept for the record). Mainnet by hand: steps 11 and 17 of [docs/ZETAPHY-MAINNET-PROCEDURE.md](../docs/ZETAPHY-MAINNET-PROCEDURE.md) and [mainnet/zetaphy_3659-1/README.md](./mainnet/zetaphy_3659-1/README.md).
 
 Anyone can join with the same kind of free machine (Oracle / Google), without any files from this repo.
 The first machine publishes what is needed at `https://<name>.sslip.io/zetaphy/` (genesis, peer address, setup script).
@@ -267,6 +283,8 @@ and gets the certificate; `keplr.json` and `evm-chain.json` use the new name. Ru
 keys and genesis.
 
 WebSocket: `wss://<name>/ws` (EVM JSON-RPC, e.g. `eth_subscribe` for new blocks and logs), forwarded by Caddy to 8546 on the machine.
+CometBFT websocket: `wss://<name>/rpc/websocket` (`subscribe` to new blocks and txs: Keplr's chain-registry check, explorers),
+through rpc-guard's websocket filter (below), then CometBFT's `/websocket`.
 A node set up before this version gets it by running the same setup command again.
 
 ### Post-quantum https (`TLS_PQ`)
@@ -301,7 +319,13 @@ Validator ↔ sentry links can also be put in WireGuard with a post-quantum pre-
 - Caddy sends both RPCs through `zetaphyd rpc-guard` (service `zetaphy-rpc-guard`):
   - EVM JSON-RPC: only `eth_*`, `net_*`, `web3_*` and `zetaphy_*` (no `txpool_`, `debug_`, `admin_`, `personal_`)
   - CometBFT RPC (`/rpc`): only the read methods wallets and the explorer use, plus `broadcast_tx_sync/async`;
-    no websocket, `dump_consensus_state`, `net_info`, `unconfirmed_txs`, `genesis`
+    no `dump_consensus_state`, `net_info`, `unconfirmed_txs`, `genesis`
+  - CometBFT websocket (`/rpc/websocket`, a listener of its own, 127.0.0.1:26668): every frame from the caller is decoded
+    as CometBFT decodes it and must be one call of the same methods or `subscribe`, `unsubscribe`, `unsubscribe_all`;
+    anything else (another method, a batch, a binary frame) closes the connection before it reaches the node. At most
+    4 connections at once from one IP and 20 in all, frames of at most 64 KB, every frame counted in the per-minute
+    limit, and a connection with no frame either way for 2 minutes is closed. Under it, the node's `config.toml`
+    keeps `max_subscription_clients = 20` and `max_subscriptions_per_client = 5` (setup-node.sh writes both).
   - at most 300 requests a minute from one IP on each side, 64 at a time in all, batches of at most 20, bodies of at most 1 MB
   - `zetaphy_sendCosmosTx` only forwards transactions that are already signed (like `eth_sendRawTransaction`); it holds no keys
 - `sudo zetaphy-validator secure` (above) locks a node down after the backup. The low-egress guard closes 8545 to the

@@ -197,8 +197,9 @@ sudo bash ~/rel/verify-release.sh --dir ~/rel --arch amd64 --setup ~/rel/setup-n
 ควรเห็น `5/8 genesis of zetaphy_3659-1 (pinned, sha256 <sha>)` และ `ZETAPHY node of zetaphy_3659-1 is starting`,
 `Public RPC: none on this machine (PUBLIC_RPC=0)` โหนดรอจนถึง `GENESIS_TIME` ค่าที่ pin เก็บใน
 `/etc/zetaphy/pinned-chain.env`: การรันครั้งต่อไป (`sudo zetaphy-validator update`, timer อัปเกรด) อยู่กับ genesis นี้และปฏิเสธ
-genesis อื่น หยุด ถ้าสคริปต์บอก `refused:` อย่าใช้ `zetaphy-validator install`, `check`, `unjail` หรือ
-`setup-node.sh --become-validator` บน mainnet: เป็นของ testnet (test keyring, chain id ของ testnet)
+genesis อื่น หยุด ถ้าสคริปต์บอก `refused:` อย่าใช้ `zetaphy-validator check`, `import-key` หรือ
+`setup-node.sh --become-validator` บน mainnet: เป็นของ testnet (test keyring, chain id ของ testnet; บนโหนด mainnet
+คำสั่งเหล่านี้ปฏิเสธหรือไม่ทำอะไร) `zetaphy-validator unjail` ใช้ chain id นี้และ file keyring `~/.zetaphy-keys`
 
 ## 12. Sentry และ RPC สาธารณะ บน M-SENTRY [เปลี่ยนการตั้งค่า]
 
@@ -541,7 +542,17 @@ bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <p
 
 ## 17. เพิ่ม validator [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
-ผู้ดูแลรายใหม่: ทำขั้น 3 และ 11 บนเครื่องของตัวเองด้วย `genesis.json` และ sha256 ที่เผยแพร่, `PEERS=` sentry, รอ sync แล้วใช้คีย์
+ผู้ดูแลรายใหม่ ด้วยคำสั่งเดียว (Linux ใดก็ได้ที่มี systemd; release ที่เซ็นแล้ว, genesis ที่เผยแพร่ตรวจกับ sha256, sentry เป็น peer,
+ไม่มี RPC สาธารณะและไม่มี faucet บนเครื่องนั้นตลอดไป; chain id ของ testnet ถูกปฏิเสธ):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=<ชื่อ> bash -s -- validator
+sudo zetaphy-validator key          # คีย์ stake ใน ~/.zetaphy-keys (file keyring มีรหัสผ่าน; จด 24 คำลงกระดาษ)
+#   โอน stake + ราว 1 ZTPHY จากกระเป๋าของผู้ดูแลเอง รอจน sudo zetaphy-validator status ขึ้นว่า in sync
+sudo zetaphy-validator stake <ZTPHY>  # create-validator แล้วกุญแจโหวต (ขั้น 14)
+```
+
+หรือทำด้วยมือ: ทำขั้น 3 และ 11 บนเครื่องของตัวเองด้วย `genesis.json` และ sha256 ที่เผยแพร่, `PEERS=` sentry, รอ sync แล้วใช้คีย์
 file keyring และเงินของตัวเอง: `zetaphyd tx staking create-validator <validator.json> --from <คีย์> --keyring-backend file …`
 และขั้น 14 ตั้งแต่ 4 validator ขึ้นไป power cap ของ chain guard (3333 bps) ปฏิเสธการ delegate ที่เกิน 1/3 โครงการจึงย้าย stake
 ออกจาก validator ของตัวเอง อัปเดตด่าน 2 ใน runbook เมื่อมี validator เข้าร่วม
