@@ -131,3 +131,21 @@ jobs:
             echo "$out" | grep -qi "already exists" || exit 1
           fi
           "$W" pages deploy "$RUNNER_TEMP/site" --project-name "$PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=true
+
+  indexnow:
+    name: tell search engines (IndexNow)
+    needs: deploy
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      # Bing, Yandex, Seznam and Naver recrawl every page after a deploy (public key file on each site; no secret).
+      # Google does not use IndexNow: it reads sitemap.xml (robots.txt) and Search Console (zetaphy-hub/README.md).
+      - name: IndexNow ping
+        run: node zetaphy-hub/seo.mjs --indexnow || echo "::warning::IndexNow ping failed (search engines will still recrawl on their own)"
