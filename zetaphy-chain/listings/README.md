@@ -4,9 +4,9 @@
 
 - `chainlist/eip155-3659.json` → ethereum-lists/chains `_data/chains/` (chainlist.org)
 - `chainlist/icons/zetaphy.json` → ethereum-lists/chains `_data/icons/zetaphy.json`: the coin logo (`zetaphy-hub/zetaphy-256.png`, 256x256,
-  26,592 bytes) at `ipfs://QmUvJMJD1a8sVnpDq6D93T6ZGVZAXWJ3rmAAWZmD2ULkET` (CIDv0 of that exact file, as `ipfs add` makes it). The file must
-  be pinned on IPFS before the PR, or chainlist.org shows no logo: upload `zetaphy-256.png` to a free pinning service (for example
-  Pinata's free plan) and check that the CID it reports is the same, then that `https://ipfs.io/ipfs/<CID>` shows the logo.
+  26,592 bytes) at `ipfs://bafkreiazxgczetev7j2mxdv4i5htnbhyx4fhtmngspqao4mit22o667giq` (CIDv1, raw leaf, of that exact file; the same file is
+  `QmUvJMJD1a8sVnpDq6D93T6ZGVZAXWJ3rmAAWZmD2ULkET` as CIDv0). Pinned on Pinata (free plan) by the owner on 2026-11-14; check
+  `https://ipfs.io/ipfs/bafkreiazxgczetev7j2mxdv4i5htnbhyx4fhtmngspqao4mit22o667giq` shows the logo before the ethereum-lists PR.
 - Wallets that read EIP-3085 `iconUrls` (the apps' "Add network" button sends `https://app.sawasdeecoin.com/zetaphy-256.png`) show the
   logo when the network is added. MetaMask ignores `iconUrls` and shows a letter for networks it does not list itself.
 - `keplr/zetaphy_3659.json` → chainapsis/keplr-chain-registry `cosmos/`; `keplr/images/zetaphy_3659/*.png` → its `images/zetaphy_3659/`
