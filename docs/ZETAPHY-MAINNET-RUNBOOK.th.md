@@ -144,3 +144,6 @@ deploy ด้วย deployer ของด่าน 4 แล้วส่งสิ
   `zetaphyd-493f142343d6`) ที่อยู่ `0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160` ให้ 1 ZTPHY ต่อที่อยู่ต่อวัน, 5 ZTPHY ต่อ proof
   ของการขุดในเบราว์เซอร์ และจ่ายไม่เกิน 200 ZTPHY ต่อวัน เติมกองทุน 30,000 ZTPHY จากผู้ดูแล validator (มติของเจ้าของ: อีก
   20,000 ที่เกินมาเก็บไว้ใน faucet)
+- Full node สำรอง (2026-11-14): `zetaphy-gcp-backup` บน Google Cloud Free Tier (e2-micro, us-central1, 30 GB) ซึ่งเป็นเครื่อง
+  testnet เดิม ใช้ release ที่เซ็นแล้ว `zetaphyd-493f142343d6` และ genesis ที่ล็อกไว้ ต่อกับ sentry อย่างเดียว ไม่เปิด RPC
+  สาธารณะ และอยู่ในโหมดประหยัดการส่งข้อมูล (หยุดก่อนถึง 800 MB ต่อเดือน) มีสำเนาเชนครบไว้กู้คืน ไม่ใช่ validator

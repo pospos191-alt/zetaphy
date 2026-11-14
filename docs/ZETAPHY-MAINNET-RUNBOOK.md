@@ -157,3 +157,7 @@ DEX; Neuro; `ZetaphyBounty` (funded). Verify each contract's source (Sourcify) a
   `zetaphyd-493f142343d6`). Address `0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160`; 1 ZTPHY per address per day, 5 ZTPHY
   per browser-mining proof, at most 200 ZTPHY a day. Funded with 30,000 ZTPHY from the validator operator (owner
   decision: the extra 20,000 stays in the faucet).
+- Backup full node (2026-11-14): `zetaphy-gcp-backup` on Google Cloud free tier (e2-micro, us-central1, 30 GB), the
+  former testnet machine. Signed release `zetaphyd-493f142343d6`, pinned genesis, peers only with the sentry, no public
+  RPC, low-egress mode (stops before 800 MB a month). It holds a full copy of the chain for recovery; it is not a
+  validator.
