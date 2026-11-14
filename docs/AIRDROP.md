@@ -357,8 +357,7 @@ scp ~/push.txt <your SSH user>@129.221.162.14:/tmp/push.txt                     
 `push-list` drops bad addresses and bad checksums, duplicates, the zero address, precompiles and reserved addresses,
 burn and placeholder addresses, ZETAPHY's module accounts and preinstalls, `--exclude <file>`, and then every
 **contract on Ethereum** (`eth_getCode`, required: a contract address there has no key here, so coins pushed to it are
-lost; an EIP-7702-delegated EOA stays). It keeps the highest scores first and at most `--max`. If the RPC refuses (rate
-limit), run it again with `--batch 20` or another Ethereum RPC.
+lost; an EIP-7702-delegated EOA stays). It keeps the highest scores first and at most `--max`. Public RPCs rate-limit 1,000 requests of 100 addresses: `push-list` waits and retries a refused batch by itself (up to 8 times, waits doubling from 2 s), and `--rpc` takes a comma-separated list it rotates over. If it still gives up, run it again with `--batch 20 --pause 500` and two RPCs, for example `--rpc https://ethereum-rpc.publicnode.com,https://eth.drpc.org`.
 
 **2. Onto the validator, and gov.sh** (SSH to 129.221.162.14):
 

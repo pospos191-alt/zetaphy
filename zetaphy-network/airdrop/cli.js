@@ -8,7 +8,7 @@
 //   node airdrop/cli.js from-csv <file.csv> [--equal | --each Z | --weight score] [--cap Z] [--pool Z] [--min-score N]
 //        [--exclude list.txt] [--rpc <URL of the chain the list came from>] [--batch 100] > recipients.json
 //   Push airdrop on mainnet (owner decision 2026-11-14): the list for `gov.sh airdrop` (one 0x… per line):
-//   node airdrop/cli.js push-list <file.csv> --rpc <Ethereum RPC> [--max 100000] [--exclude list.txt] [--min-score N]
+//   node airdrop/cli.js push-list <file.csv> --rpc <Ethereum RPC[,another]> [--batch 100] [--pause ms] [--max 100000] [--exclude list.txt] [--min-score N]
 //        [--out list.txt] [--batch 100]
 //   node airdrop/cli.js link-message <solanaOwner> <0xEVM> --chain-id N
 //   node airdrop/cli.js link-solana allocations.json links.json --chain-id N > linked.json
@@ -73,7 +73,7 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     let rows = parsed.rows;
     const dropped = [...parsed.dropped];
     if (opt.rpc) {
-      const c = await dropContracts(rows, { rpcUrl: opt.rpc, batch: Number(opt.batch ?? 100), fetchImpl });
+      const c = await dropContracts(rows, { rpcUrl: opt.rpc, batch: Number(opt.batch ?? 100), pauseMs: Number(opt.pause ?? 0), fetchImpl, onRetry: ({ batch, attempt, wait, why, url }) => log(`  eth_getCode batch ${batch}: ${why} on ${new URL(url).host}; retry ${attempt} in ${wait / 1000} s`) });
       rows = c.rows;
       dropped.push(...c.dropped);
     }
@@ -100,14 +100,14 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     }
     // highest score first (the query's order; a stable sort keeps the file's order for equal scores)
     if (rows.every((r) => r.score != null)) rows = rows.map((r, i) => [r, i]).sort((a, b) => (a[0].score === b[0].score ? a[1] - b[1] : a[0].score > b[0].score ? -1 : 1)).map(([r]) => r);
-    const c = await dropContracts(rows, { rpcUrl: opt.rpc, batch: Number(opt.batch ?? 100), fetchImpl });
+    const c = await dropContracts(rows, { rpcUrl: opt.rpc, batch: Number(opt.batch ?? 100), pauseMs: Number(opt.pause ?? 0), fetchImpl, onRetry: ({ batch, attempt, wait, why, url }) => log(`  eth_getCode batch ${batch}: ${why} on ${new URL(url).host}; retry ${attempt} in ${wait / 1000} s`) });
     rows = c.rows;
     dropped.push(...c.dropped);
     if (max != null && rows.length > max) { for (const r of rows.slice(max)) dropped.push({ line: r.line, value: r.address, reason: 'over-max' }); rows = rows.slice(0, max); }
     const text = rows.map((r) => r.address).join('\n') + (rows.length ? '\n' : '');
     const sha = createHash('sha256').update(text).digest('hex');
     const why = reasons(dropped);
-    log(`push-list: ${rows.length} addresses (10 ZTPHY each = ${rows.length * 10} ZTPHY); dropped ${dropped.length}: ${JSON.stringify(why)}; contracts checked on ${new URL(opt.rpc).host}; sha256 of the list ${sha}`);
+    log(`push-list: ${rows.length} addresses (10 ZTPHY each = ${rows.length * 10} ZTPHY); dropped ${dropped.length}: ${JSON.stringify(why)}; contracts checked on ${String(opt.rpc).split(",").map((u) => new URL(u.trim()).host).join(", ")}; sha256 of the list ${sha}`);
     if (!opt.out) return text;
     writeFileSync(opt.out, text);
     return { out: opt.out, count: rows.length, sha256: sha, droppedCount: dropped.length, droppedByReason: why, dropped };
