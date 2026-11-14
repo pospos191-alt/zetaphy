@@ -8,7 +8,7 @@ export const MAINNET_TEXT = {
     risk: 'ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not yet completed an independent external audit. Use it only with amounts you can afford to lose.',
     add: 'Add to MetaMask', addSoon: 'Available once the public RPC is published.', added: 'Added to your wallet.', noWallet: 'No MetaMask (or other EVM wallet) in this browser.',
     notice: 'Mainnet notice', files: 'Genesis files',
-    apps: 'This site uses mainnet by default; the network switch at the top picks the testnet (chain 77390). What is not on mainnet yet (NFT, DLMM, Saphan, the faucet, mining…) says "testnet only for now".',
+    apps: 'This site uses mainnet by default; the network switch at the top picks the testnet (chain 77390). What is not on mainnet yet (NFT, DLMM, Saphan, AI agents, the audit network…) says "testnet only for now".',
   },
   th: {
     title: 'ZETAPHY mainnet (เครือข่ายหลัก)',
@@ -17,7 +17,7 @@ export const MAINNET_TEXT = {
     risk: 'ขณะนี้ ZETAPHY mainnet ทำงานบน validator เพียงตัวเดียวที่โครงการ ZETAPHY ดูแลเอง และโค้ดยังไม่ผ่านการตรวจสอบ (audit) จากภายนอกที่เป็นอิสระ โปรดใช้เฉพาะจำนวนที่ยอมเสียได้',
     add: 'เพิ่มใน MetaMask', addSoon: 'ใช้ได้เมื่อเปิด RPC สาธารณะแล้ว', added: 'เพิ่มในกระเป๋าแล้ว', noWallet: 'ไม่พบ MetaMask (หรือกระเป๋า EVM) ในเบราว์เซอร์นี้',
     notice: 'ประกาศ mainnet', files: 'ไฟล์ genesis',
-    apps: 'เว็บนี้ใช้ mainnet เป็นค่าเริ่มต้น สลับไป testnet (chain 77390) ได้จากปุ่มเลือกเครือข่ายด้านบน ส่วนที่ยังไม่มีบน mainnet (NFT, DLMM, Saphan, faucet, การขุด…) จะขึ้นว่า "ตอนนี้ใช้ได้เฉพาะบน testnet"',
+    apps: 'เว็บนี้ใช้ mainnet เป็นค่าเริ่มต้น สลับไป testnet (chain 77390) ได้จากปุ่มเลือกเครือข่ายด้านบน ส่วนที่ยังไม่มีบน mainnet (NFT, DLMM, Saphan, AI agent, เครือข่ายตรวจสอบโค้ด…) จะขึ้นว่า "ตอนนี้ใช้ได้เฉพาะบน testnet"',
   },
   zh: {
     title: 'ZETAPHY 主网',
@@ -26,7 +26,7 @@ export const MAINNET_TEXT = {
     risk: 'ZETAPHY 主网目前仅由 ZETAPHY 项目运营的一个验证者运行，其代码尚未完成独立的外部审计。请只投入您能承受损失的金额。',
     add: '添加到 MetaMask', addSoon: '公共 RPC 发布后即可使用。', added: '已添加到钱包。', noWallet: '此浏览器中没有 MetaMask（或其他 EVM 钱包）。',
     notice: '主网公告', files: '创世文件',
-    apps: '本站默认使用主网；顶部的网络切换可选择测试网（chain 77390）。尚未上线主网的功能（NFT、DLMM、Saphan、水龙头、挖矿…）会显示“目前仅限测试网”。',
+    apps: '本站默认使用主网；顶部的网络切换可选择测试网（chain 77390）。尚未上线主网的功能（NFT、DLMM、Saphan、AI 代理、审计网络…）会显示“目前仅限测试网”。',
   },
   es: {
     title: 'Mainnet de ZETAPHY',
@@ -35,7 +35,7 @@ export const MAINNET_TEXT = {
     risk: 'La mainnet de ZETAPHY funciona actualmente con un solo validador operado por el proyecto ZETAPHY, y su código aún no ha completado una auditoría externa independiente. Úsala solo con cantidades que puedas permitirte perder.',
     add: 'Añadir a MetaMask', addSoon: 'Disponible cuando se publique la RPC pública.', added: 'Añadida a tu billetera.', noWallet: 'No hay MetaMask (ni otra billetera EVM) en este navegador.',
     notice: 'Aviso de la mainnet', files: 'Archivos del génesis',
-    apps: 'Este sitio usa la mainnet por defecto; el selector de red de arriba elige la testnet (cadena 77390). Lo que aún no está en la mainnet (NFT, DLMM, Saphan, el faucet, la minería…) indica "por ahora solo en la testnet".',
+    apps: 'Este sitio usa la mainnet por defecto; el selector de red de arriba elige la testnet (cadena 77390). Lo que aún no está en la mainnet (NFT, DLMM, Saphan, los agentes de IA, la red de auditoría…) indica "por ahora solo en la testnet".',
   },
   ko: {
     title: 'ZETAPHY 메인넷',
@@ -44,7 +44,7 @@ export const MAINNET_TEXT = {
     risk: 'ZETAPHY 메인넷은 현재 ZETAPHY 프로젝트가 운영하는 단일 검증인으로 운영되며, 코드는 아직 독립적인 외부 감사를 마치지 않았습니다. 잃어도 괜찮은 금액으로만 사용하세요.',
     add: 'MetaMask에 추가', addSoon: '공개 RPC가 게시되면 사용할 수 있습니다.', added: '지갑에 추가했습니다.', noWallet: '이 브라우저에 MetaMask(또는 다른 EVM 지갑)가 없습니다.',
     notice: '메인넷 공지', files: '제네시스 파일',
-    apps: '이 사이트는 기본으로 메인넷을 씁니다. 위쪽 네트워크 전환에서 테스트넷(체인 77390)을 고를 수 있습니다. 아직 메인넷에 없는 기능(NFT, DLMM, Saphan, 파우셋, 채굴…)은 "지금은 테스트넷 전용"으로 표시됩니다.',
+    apps: '이 사이트는 기본으로 메인넷을 씁니다. 위쪽 네트워크 전환에서 테스트넷(체인 77390)을 고를 수 있습니다. 아직 메인넷에 없는 기능(NFT, DLMM, Saphan, AI 에이전트, 감사 네트워크…)은 "지금은 테스트넷 전용"으로 표시됩니다.',
   },
   ja: {
     title: 'ZETAPHY メインネット',
@@ -53,7 +53,7 @@ export const MAINNET_TEXT = {
     risk: 'ZETAPHY メインネットは現在、ZETAPHY プロジェクトが運用する 1 つのバリデーターだけで動いており、コードは独立した外部監査をまだ完了していません。失っても構わない金額だけで使ってください。',
     add: 'MetaMask に追加', addSoon: '公開 RPC の公開後に使えます。', added: 'ウォレットに追加しました。', noWallet: 'このブラウザーに MetaMask（または他の EVM ウォレット）がありません。',
     notice: 'メインネットのお知らせ', files: 'ジェネシスファイル',
-    apps: 'このサイトは既定でメインネットを使います。上のネットワーク切り替えでテストネット（チェーン 77390）を選べます。まだメインネットにない機能（NFT、DLMM、Saphan、フォーセット、マイニング…）には「現在はテストネットのみ」と表示されます。',
+    apps: 'このサイトは既定でメインネットを使います。上のネットワーク切り替えでテストネット（チェーン 77390）を選べます。まだメインネットにない機能（NFT、DLMM、Saphan、AI エージェント、監査ネットワーク…）には「現在はテストネットのみ」と表示されます。',
   },
   ru: {
     title: 'Мейннет ZETAPHY',
@@ -62,7 +62,7 @@ export const MAINNET_TEXT = {
     risk: 'Сейчас мейннет ZETAPHY работает на одном валидаторе, которым управляет проект ZETAPHY, и его код ещё не прошёл независимый внешний аудит. Используйте его только с суммами, потерю которых можете себе позволить.',
     add: 'Добавить в MetaMask', addSoon: 'Станет доступно после публикации публичного RPC.', added: 'Добавлено в кошелёк.', noWallet: 'В этом браузере нет MetaMask (или другого EVM-кошелька).',
     notice: 'Уведомление о мейннете', files: 'Файлы генезиса',
-    apps: 'Этот сайт по умолчанию использует мейннет; переключатель сети вверху выбирает тестнет (сеть 77390). То, чего ещё нет в мейннете (NFT, DLMM, Saphan, кран, майнинг…), помечено «пока только в тестнете».',
+    apps: 'Этот сайт по умолчанию использует мейннет; переключатель сети вверху выбирает тестнет (сеть 77390). То, чего ещё нет в мейннете (NFT, DLMM, Saphan, ИИ-агенты, сеть аудита…), помечено «пока только в тестнете».',
   },
   vi: {
     title: 'Mainnet ZETAPHY',
@@ -71,6 +71,6 @@ export const MAINNET_TEXT = {
     risk: 'Mainnet ZETAPHY hiện chạy trên một validator duy nhất do dự án ZETAPHY vận hành, và mã nguồn chưa hoàn tất kiểm toán độc lập từ bên ngoài. Chỉ dùng với số tiền bạn có thể chấp nhận mất.',
     add: 'Thêm vào MetaMask', addSoon: 'Có thể dùng khi RPC công khai được công bố.', added: 'Đã thêm vào ví.', noWallet: 'Trình duyệt này không có MetaMask (hoặc ví EVM khác).',
     notice: 'Thông báo mainnet', files: 'Tệp genesis',
-    apps: 'Trang này mặc định dùng mainnet; nút chuyển mạng ở trên cùng cho phép chọn testnet (chuỗi 77390). Những gì chưa có trên mainnet (NFT, DLMM, Saphan, faucet, đào…) sẽ ghi "hiện chỉ có trên testnet".',
+    apps: 'Trang này mặc định dùng mainnet; nút chuyển mạng ở trên cùng cho phép chọn testnet (chuỗi 77390). Những gì chưa có trên mainnet (NFT, DLMM, Saphan, tác tử AI, mạng kiểm toán…) sẽ ghi "hiện chỉ có trên testnet".',
   },
 };

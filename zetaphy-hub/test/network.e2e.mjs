@@ -1,6 +1,7 @@
 // Browser test: the hub on mainnet (network.js; the default) and the switch to the testnet, on a built dist/.
 // Mainnet: its own node, badge and risk line, chain 3659 everywhere, staking and votes signed for chain 0xe4b only,
-// "testnet only for now" (never a testnet contract, never a faucet) for what is not deployed on mainnet.
+// the public sentry's faucet with the node's own amounts and budget (and plain words once today's budget is used up),
+// "testnet only for now" (never a testnet contract) for what is not deployed on mainnet.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join, dirname } from 'node:path';
@@ -22,10 +23,19 @@ test('the hub on mainnet: badge, chain 3659, testnet-only tabs gated, votes for 
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const asked = []; // every outside origin the page reached
+    // mainnet's faucet as the sentry reports it (setup-node.sh MAINNET_FAUCET=1: 1 / 5 / 200 ZTPHY)
+    const E = (n) => `0x${(BigInt(n) * 10n ** 18n).toString(16)}`;
+    let mainFaucet = { enabled: true, bits: 8, chainId: 3659, reward: E(5), faucetReward: E(1), dayBudget: E(200), remainingBudget: E(194), remainingToday: 38, perDay: 200, maxAgeBlocks: 100 };
+    let faucetGrants = 0; // zetaphy_faucet calls on mainnet
     await page.route('**/*', async (route) => {
       const u = new URL(route.request().url());
       if (u.origin === new URL(site.url).origin) return route.continue();
       asked.push(u.host);
+      const body = route.request().postData() ?? '';
+      if (u.origin === MAINNET && /"zetaphy_faucetPowInfo"/.test(body)) {
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ jsonrpc: '2.0', id: JSON.parse(body).id, result: mainFaucet }) });
+      }
+      if (u.origin === MAINNET && /"zetaphy_faucet"/.test(body)) faucetGrants++;
       // the mock node answers on both networks' origins (mocknode.mjs), so the test can see which one the page uses
       let a = u.origin === MAINNET || u.origin === 'https://rpc.sawasdeecoin.com' ? answer(u.href.replace(u.origin, 'https://rpc.sawasdeecoin.com'), route.request().postData()) : null;
       // the mainnet node says it is chain 3659
@@ -59,18 +69,56 @@ test('the hub on mainnet: badge, chain 3659, testnet-only tabs gated, votes for 
     assert.equal(await page.inputValue('#net-switch select'), 'mainnet');
     assert.match(await page.textContent('#endpoints'), /3659 · zetaphy_3659-1.*129-221-199-191\.sslip\.io/s);
     assert.doesNotMatch(await page.textContent('#endpoints'), /77390|sawasdeecoin/);
-    // no faucet on mainnet: "testnet only for now" with the switch, and nothing to submit
-    assert.ok(await page.isHidden('#faucet-form'));
-    assert.match(await page.textContent('#faucet-gate'), /Testnet only for now.*The faucet is not on ZETAPHY mainnet yet/s);
+    // the mainnet faucet (the public sentry's): the form, the node's own amounts and today's budget, a grant
+    assert.ok(await page.isVisible('#faucet-form'));
+    assert.ok(await page.isHidden('#faucet-gate'));
+    await page.waitForSelector('#faucet-state:not([hidden])');
+    assert.equal(await page.textContent('#faucet-state'), 'Faucet now: 1 ZTPHY per address a day; 5 ZTPHY per browser-mining proof. 194 of 200 ZTPHY left today (UTC).');
+    assert.equal(await page.textContent('[data-i18n="step2"]'), 'Get ZTPHY for fees (free)');
+    await page.fill('#faucet-addr', '0x6af57fC3633dD0F7907f7900dbd4A2822F43a245');
+    await page.click('#faucet-form button');
+    await page.waitForFunction(() => document.getElementById('faucet-msg').classList.contains('ok'));
+    assert.match(await page.textContent('#faucet-msg'), /^ZTPHY sent/);
+    assert.equal(faucetGrants, 1);
     // testnet-only tabs: marked, and opened they show the box, never their page or app
     assert.equal(await page.textContent('.tab[data-tab="nft"] .new'), 'testnet');
-    for (const [tab, words] of [['nft', /NFT marketplace/], ['mine', /Browser mining and useful-work payouts/], ['saphan', /ZETAPHY Saphan/], ['earn', /The faucet/]]) {
+    for (const tab of ['earn', 'mine']) assert.equal(await page.locator(`.tab[data-tab="${tab}"][data-gated]`).count(), 0, `${tab}: open on mainnet`);
+    for (const [tab, words] of [['nft', /NFT marketplace/], ['saphan', /ZETAPHY Saphan/], ['agents', /AI agents is not on ZETAPHY mainnet yet/]]) {
       await page.click(`.tab[data-tab="${tab}"]`);
       await page.waitForSelector('#panel-gate:not([hidden])');
       assert.match(await page.textContent('#panel-gate'), words, tab);
       assert.equal(await page.locator(`.panel[data-page="${tab}"]`).count(), 0, `${tab}: its page is not drawn`);
     }
     assert.equal(await page.locator('#frames iframe[src^="nft/"]').count(), 0, 'the NFT app is not loaded');
+    // Earn and Mine on mainnet: the faucet's own words, its amounts from the node
+    await page.click('.tab[data-tab="earn"]');
+    await page.waitForSelector('.panel[data-page="earn"]:not([hidden]) #ef-form');
+    assert.ok(await page.isHidden('#panel-gate'));
+    await page.waitForSelector('#ef-state:not([hidden])');
+    assert.match(await page.textContent('#ef-state'), /1 ZTPHY per address a day.*194 of 200 ZTPHY left today/);
+    assert.match(await page.textContent('.panel[data-page="earn"]'), /a little ZTPHY for fees/);
+    assert.doesNotMatch(await page.textContent('.panel[data-page="earn"]'), /10 test ZETAPHY/);
+    await page.click('.tab[data-tab="mine"]');
+    await page.waitForSelector('#mn-faucet:not([hidden])');
+    assert.match(await page.textContent('#mn-faucet'), /5 ZTPHY per browser-mining proof.*194 of 200 ZTPHY left today/);
+    assert.equal(await page.textContent('#mn-reward'), '5 ZTPHY');
+    assert.match(await page.textContent('.panel[data-page="mine"]'), /real mainnet ZTPHY/);
+    // today's budget used up: said plainly, nothing asked of the faucet, no mining started
+    mainFaucet = { ...mainFaucet, remainingBudget: '0x0', remainingToday: 0 };
+    await page.fill('#mn-addr', '0x6af57fC3633dD0F7907f7900dbd4A2822F43f00d');
+    await page.click('#mn-start');
+    await page.waitForFunction(() => /budget is used up/.test(document.getElementById('mn-msg').textContent));
+    assert.equal(await page.getAttribute('#mn-status', 'data-s'), 'error');
+    await page.click('.tab[data-tab="home"]');
+    await page.click('#faucet-form button');
+    await page.waitForFunction(() => /budget is used up/.test(document.getElementById('faucet-msg').textContent));
+    assert.equal(await page.textContent('#faucet-state'), "Today's faucet budget is used up. Try again tomorrow (UTC).");
+    assert.equal(faucetGrants, 1, 'no grant asked once the budget is used up');
+    // the faucet off on the sentry: said plainly too
+    mainFaucet = { ...mainFaucet, enabled: false, remainingBudget: E(200) };
+    await page.click('#faucet-form button');
+    await page.waitForFunction(() => /faucet is off/.test(document.getElementById('faucet-msg').textContent));
+    assert.equal(faucetGrants, 1);
 
     // stake & vote: native modules over REST, signed by the wallet for chain 0xe4b only
     await page.click('.tab[data-tab="stake"]');
@@ -112,17 +160,32 @@ test('the hub on mainnet: badge, chain 3659, testnet-only tabs gated, votes for 
     await page.waitForSelector('#net-gate .zn-gate');
     assert.match(await page.textContent('#net-gate'), /ZETAPHY mainnet.*Testnet only for now.*Risk forecasts is not on ZETAPHY mainnet yet/s);
     assert.ok(await page.isHidden('#ftabs'));
+    // the certificate check and the Audit Directory: the audit network has no mainnet contracts yet
+    asked.length = 0;
+    for (const f of ['audit.html', 'audits.html']) {
+      await page.goto(`${site.url}${f}`);
+      await page.waitForSelector('#net .zn-gate');
+      assert.match(await page.textContent('#net'), /ZETAPHY mainnet.*Testnet only for now.*The audit network is not on ZETAPHY mainnet yet/s, f);
+      assert.ok(await page.isHidden(f === 'audit.html' ? '#form' : '.filters'), `${f}: nothing to look up`);
+      assert.ok(await page.isHidden('[data-t="testnet"]'), `${f}: no testnet note under the mainnet badge`);
+    }
+    assert.ok(!asked.some((h) => TESTNET_HOSTS.includes(h)), `the audit pages asked nothing of the testnet: ${[...new Set(asked)]}`);
+    // the zkML ceremony touches no chain: its header and badge name the page's network
+    await page.goto(`${site.url}ceremony.html`);
+    await page.waitForSelector('#net .zn-net-mainnet');
+    assert.equal(await page.textContent('#eyebrow'), 'ZETAPHY · zetaphy_3659-1');
     // the validator guide is about joining the testnet (its faucet and auto-stake): gated too
     await page.goto(`${site.url}validators.html`);
     await page.waitForSelector('#net-gate .zn-gate');
     assert.match(await page.textContent('#net-gate'), /Joining as a validator is not on ZETAPHY mainnet yet/);
     assert.ok(await page.isHidden('#vf-form'), 'no faucet form');
-    // the developers page: mainnet's endpoints and contracts, no faucet command
+    // the developers page: mainnet's endpoints, contracts and faucet command
     await page.goto(`${site.url}?tab=dev`);
     await page.waitForSelector('.panel[data-page="dev"]:not([hidden]) .tbl');
     const dev = await page.textContent('.panel[data-page="dev"]');
     assert.match(dev, /129-221-199-191\.sslip\.io/);
-    assert.doesNotMatch(dev, /zetaphy_faucet|rpc\.sawasdeecoin\.com/);
+    assert.match(dev, /zetaphy_faucet/, 'the mainnet faucet\'s command');
+    assert.doesNotMatch(dev, /rpc\.sawasdeecoin\.com/);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

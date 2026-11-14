@@ -74,6 +74,8 @@ dl.facts dd { margin: 0; font-family: var(--mono); word-break: break-all; }
 .snip { display: grid; gap: 6px; }
 .snip pre { margin: 0; background: var(--code-bg); color: var(--code-fg); border-radius: 8px; padding: 10px; font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; }
 .snip .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.net { margin: 0 0 14px; }
+.net:empty { display: none; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; }
 .filters input { flex: 1 1 240px; font-family: var(--body); }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font: 600 12px var(--mono); border: 1px solid currentColor; }

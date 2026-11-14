@@ -4,7 +4,7 @@ Every ZETAPHY app on one page and one screen, at **https://app.sawasdeecoin.com*
 
 | Tab | What it is |
 | --- | --- |
-| Overview | Live chain numbers (block, block time, validators, staked), the latest blocks, one-click "add network" (MetaMask / Keplr), the testnet faucet and the endpoints |
+| Overview | Live chain numbers (block, block time, validators, staked), the latest blocks, one-click "add network" (MetaMask / Keplr), the faucet (on mainnet: the public sentry's, with its amounts and today's budget) and the endpoints |
 | Wallet | The post-quantum wallet (`zetaphy-wallet`) |
 | Swap | The AMM + DLMM DEX (`zetaphy-dex/web`) |
 | Stake & vote | **New.** Validators, your stake and rewards, proposals. Stake / unstake / claim / vote are sent from MetaMask to the chain's precompiles (staking `0x…0800`, distribution `0x…0801`, gov `0x…0805`) |
@@ -22,6 +22,29 @@ Every ZETAPHY app on one page and one screen, at **https://app.sawasdeecoin.com*
 | Governance | **New.** Open proposals and the ZetaphyTimelock queue in plain words: parameter changes compared with the current ones, EVM calls simulated with `eth_call` (as the gov module / the timelock), risky changes flagged (`govassist.js`; docs/future/crosschain-assist.md) |
 | Immunity | **New.** Coverage of Neuro's flags on other chains (NeuroOracle mirrors), the Neuro-checked certificate lookup, and a quantum-safe (ML-DSA-44) attestation verifier that runs in the browser (`assist.js`, `pqattest.js`) |
 | (signing summary) | Before every transaction the summary also simulates it on the latest block (balance changes through a state-override probe, `presign.js`) and, if a model is set up in Neuro, can ask your own AI to explain it |
+
+## Networks: mainnet by default, the testnet one switch away
+
+Every app (the hub, wallet, swap, NFT, explorer, Neuro, and the hub's own pages: the certificate check `audit.html`, the
+Audit Directory `audits.html`, the zkML ceremony `ceremony.html`, risk forecasts, the validator guide) opens on **ZETAPHY
+mainnet** (chain 3659, `zetaphy_3659-1`, public RPC `https://129-221-199-191.sslip.io`, CometBFT `/rpc` and REST `/rest`
+on the same host). The network switch next to the badge picks the **testnet** (chain 77390); the choice is remembered in
+this browser (`localStorage` `zetaphy:network`) and a `?network=testnet|mainnet` link sets it too. One file defines both
+networks: `network.js` (`npm run sync:shared` copies it to the other apps; `test/safety.test.mjs` checks the copies).
+
+- On mainnet the badge carries the mainnet notice's risk sentence. A feature whose contracts are not on mainnet yet shows
+  **"Testnet only for now"** with a one-click switch, and its contracts are never called there.
+- Mainnet addresses: `build.mjs` writes them to `dist/hub-config.json` `mainnet`, from the mainnet launch's
+  `zetaphy-launch/state/3659.contracts.json` when it exists (written by `launch.js --network mainnet --resume`), else from
+  `network.js`'s built-in list (checked against `zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json`). Nothing of the
+  testnet's goes in there. A gated feature whose contracts all appear in that file (`network.js` `FEATURE_CONTRACTS`) turns
+  on by itself at the next build: no code change after a deploy.
+- Airdrop: the claim card (Agents tab) reads `zetaphy-network/deployments/airdrop-77390.json` on the testnet and
+  `zetaphy-network/deployments/airdrop-3659.json` on mainnet (`{ "chainId": 3659, "contracts": { "airdropDistributor": "0x…" }, "list": "…" }`);
+  once that file exists the card shows on mainnet too.
+- Faucet: mainnet's public sentry runs a faucet (`zetaphy_faucet`, `zetaphy_faucetPow`). The Overview, Earn and Mine pages read
+  `zetaphy_faucetPowInfo` and show its own amounts and today's budget (never fixed numbers), and say plainly when it is off or
+  today's budget is used up (`faucet-core.js`, words in `faucet-i18n.js`).
 
 ## How it works
 

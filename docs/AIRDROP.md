@@ -207,6 +207,8 @@ so the hub card is filled in (`build.mjs` reads it).
 with the same `init-code`. The airdrop pool (20% of supply, 200,000,000 ZTPHY) is a genesis multisig: fund the
 distributor by a multisig bank send of exactly `summary.total` (a governance proposal if the pool is a module
 account). Announce the contract address, root and `listSha256` on every official channel before `claimStart`.
+Record it in `zetaphy-network/deployments/airdrop-3659.json` (`{ "chainId": 3659, "contracts": { "airdropDistributor": "0x…" }, "list": "…" }`):
+the hub's next build shows the claim card on mainnet (`build.mjs` puts it in `hub-config.json` `mainnet`; the testnet keeps its own file).
 
 **Claiming**: people open the hub, Agents tab, "Claim airdrop", check their address and press Claim. The card reads
 `summary.json` and one shard, checks the proof in the browser against the root **on chain** (a list that does not

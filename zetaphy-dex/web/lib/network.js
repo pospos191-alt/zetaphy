@@ -19,7 +19,8 @@ const TESTNET_RPC = 'https://rpc.sawasdeecoin.com';
 export const NATIVE_ERC20 = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 // What exists on each network. A feature that is false shows "testnet only for now" with a switch;
-// its contracts are never called on that network.
+// its contracts are never called on that network. On mainnet a feature of FEATURE_CONTRACTS also turns on by itself
+// once the hub's build finds all its contracts deployed there (withDeployed; zetaphy-hub/build.mjs `mainnet`).
 const ALL_FEATURES = ['wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'nft', 'dlmm', 'bridge', 'faucet', 'mining',
   'usefulWork', 'testTokens', 'stableGateway', 'rewardVault', 'computeMarket', 'identity', 'quantumWallet', 'airdrop', 'agents',
   'offline', 'audit', 'aiMap', 'immune', 'forecasts', 'federated', 'validators'];
@@ -65,7 +66,9 @@ export const NETWORKS = Object.freeze({
       timelock: '0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA',
       guardian: '0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519', // guardian multisig (2 of 3)
     },
-    features: only('wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex'),
+    // faucet / mining: the public sentry's faucet (zetaphy_faucet, zetaphy_faucetPow; its amounts and daily budget
+    // come from zetaphy_faucetPowInfo, and the pages say so when it is off or today's budget is used up)
+    features: only('wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining'),
   }),
   testnet: freeze({
     id: 'testnet',
@@ -147,6 +150,41 @@ export function watchNetwork(win = globalThis) {
 
 /** Does `feature` exist on `net`? (Unknown features: no.) */
 export const hasFeature = (net, feature) => net?.features?.[feature] === true;
+
+/**
+ * The contracts (hub-config.json `contracts` keys) a feature needs: on a network where the feature is off, it turns on
+ * once ALL of them are deployed there (the hub reads them from its build, hub-config.json `mainnet`). Features not
+ * listed here (the NFT app, DLMM, the bridge, joining as a validator, test tokens, and the pages that still sign for the
+ * testnet's chain id only: offline trading, the immune network, risk forecasts) change only with this file.
+ */
+export const FEATURE_CONTRACTS = Object.freeze({
+  airdrop: ['airdropDistributor'],
+  audit: ['auditNetwork', 'auditCertificate'],
+  identity: ['neuroIdentity'],
+  rewardVault: ['rewardVault'],
+  computeMarket: ['computeMarket'],
+  stableGateway: ['stableGateway'],
+  usefulWork: ['usefulWork', 'bugBounty', 'workerReputation'],
+  agents: ['intentExecutor', 'labelRegistry', 'agentRegistry'],
+  aiMap: ['modelRegistry'],
+  federated: ['federatedRounds'],
+  quantumWallet: ['quantumRescue'],
+});
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+/** Which features `contracts` (hub-config.json `contracts` of this network) has every contract for. */
+export const deployedFeatures = (contracts) => Object.keys(FEATURE_CONTRACTS)
+  .filter((f) => FEATURE_CONTRACTS[f].every((k) => ADDRESS.test(String(contracts?.[k] ?? ''))));
+
+/**
+ * `net` with the features whose contracts the build found on it (deployedFeatures) turned on: what the owner deploys
+ * later shows up without a code change. Never turns a feature off; the testnet (everything on) is returned as is.
+ */
+export function withDeployed(net, contracts) {
+  const add = deployedFeatures(contracts).filter((f) => !hasFeature(net, f));
+  if (!add.length) return net;
+  return Object.freeze({ ...net, features: Object.freeze({ ...net.features, ...Object.fromEntries(add.map((f) => [f, true])) }) });
+}
 
 /** `net`'s contract addresses: mainnet's own list; on the testnet, the app's deployment files (`testnet`). */
 export const contractsOf = (net, testnet = {}) => (net.contracts ? { ...net.contracts } : { ...(testnet ?? {}) });

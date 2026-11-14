@@ -84,3 +84,15 @@ test('core: the browser and the CLI compute the same links (fixed vectors)', asy
   assert.deepEqual(await checkChain(JSON.parse(readFileSync(join(HERE, 'test', 'fixtures', 'ceremony', 'transcript.json'), 'utf8'))), []);
   assert.deepEqual(await checkChain(JSON.parse(readFileSync(join(HERE, '..', 'zetaphy-neuro', 'ml', 'onchain', 'zk', 'ceremony', 'transcript.json'), 'utf8'))), []);
 });
+
+test('the network: the page follows network.js (badge and switch, the chain id in the header), no fixed testnet label', () => {
+  const html = readFileSync(join(HERE, 'ceremony.html'), 'utf8');
+  const js = readFileSync(join(HERE, 'ceremony.js'), 'utf8');
+  assert.doesNotMatch(html, /77390|testnet/i, 'nothing fixed to the testnet in the page');
+  assert.match(html, /<div id="net" class="net"><\/div>/);
+  assert.match(js, /import \{ activeNetwork, networkBadge, watchNetwork \} from '\.\/network\.js';/);
+  assert.match(js, /\$\('eyebrow'\)\.textContent = `ZETAPHY · \$\{net\.cosmosChainId\}/);
+  assert.match(js, /watchNetwork\(window\)/);
+  // still no network connection: network.js fetches nothing
+  assert.doesNotMatch(readFileSync(join(HERE, 'network.js'), 'utf8'), /fetch\(|XMLHttpRequest|WebSocket|sendBeacon/);
+});

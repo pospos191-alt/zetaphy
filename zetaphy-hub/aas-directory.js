@@ -2,20 +2,27 @@
 // (audit-registry.json, built by .github/workflows/audit-registry.yml from ZETAPHY's own events, no server). The
 // registry is untrusted input (aas-core cleanRegistry checks every field) and only an index: its states are as of
 // its build; each row links to audit.html, which re-reads ZETAPHY and the target chain live.
+// The network (network.js): the registry is built from the testnet audit network's events. On mainnet the page shows
+// "testnet only for now" until the audit network has contracts there, and then lists only a registry made for that
+// network's certificate contract (never the testnet's under the mainnet badge).
 import * as aas from './aas-core.js';
-import { T, page, el, when, setupLang, fmt, short } from './aas-page.js';
+import { T, page, el, when, setupLang, fmt, short, loadConfig, showNetwork, followNetwork } from './aas-page.js';
 
 let REG = null;
 const STATES = ['valid', 'expired', 'revoked'];
 const status = (text, cls = '') => { const s = document.getElementById('status'); s.textContent = text; s.className = `status ${cls}`; };
 
-/** The first registry that loads and parses (the published branch, then the hub's own copy). */
-export async function loadRegistry(urls = aas.REGISTRY_URLS, fetchImpl = globalThis.fetch) {
+/**
+ * The first registry that loads and parses (the published branch, then the hub's own copy). With `certificate`
+ * (mainnet), only a registry of that certificate contract counts.
+ */
+export async function loadRegistry(urls = aas.REGISTRY_URLS, fetchImpl = globalThis.fetch, { certificate = null } = {}) {
   for (const u of urls) {
     try {
       const r = await fetchImpl(u, { cache: 'no-store', credentials: 'omit' });
       if (!r.ok) continue;
       const reg = aas.cleanRegistry(await r.json());
+      if (certificate && reg.certificate !== String(certificate).toLowerCase()) continue;
       if (reg.generatedAt || reg.entries.length) return reg;
     } catch { /* next */ }
   }
@@ -63,11 +70,15 @@ function render() {
 }
 
 async function main() {
+  const cfg = await loadConfig();
+  followNetwork();
   filters();
-  setupLang(() => { filters(); render(); });
+  setupLang(() => { filters(); render(); showNetwork(cfg); });
+  showNetwork(cfg);
+  if (cfg.gated) return; // "testnet only for now": no registry under the mainnet badge
   for (const id of ['q', 'f-chain', 'f-state']) document.getElementById(id).addEventListener('input', render);
   status('…');
-  REG = await loadRegistry();
+  REG = cfg.net.testnet ? await loadRegistry() : cfg.certificate ? await loadRegistry(aas.REGISTRY_URLS, globalThis.fetch, { certificate: cfg.certificate }) : null;
   status('');
   render();
 }

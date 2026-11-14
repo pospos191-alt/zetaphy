@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import {
   NETWORKS, DEFAULT_NETWORK, NETWORK_KEY, FEATURES, NATIVE_ERC20, readNetworkId, hasFeature, contractsOf, netKey, addChainParams,
   noticeUrl, NET_TEXT, FEATURE_NAME, netText, wrongChainText, networkBadge, testnetOnlyBox, networkSelect, isNetworkId, linkExplorer,
+  FEATURE_CONTRACTS, deployedFeatures, withDeployed,
 } from '../network.js';
 import { MAINNET, addChainParams as cardParams } from '../mainnet.js';
 import { MAINNET_TEXT } from '../mainnet-i18n.js';
@@ -58,9 +59,9 @@ test('mainnet\'s contracts are the deployed ones (zetaphy-chain/mainnet/zetaphy_
   assert.deepEqual(contractsOf(NETWORKS.mainnet, { factory: '0x1' }).factory, c.factory, 'mainnet never takes the testnet\'s');
 });
 
-test('features: mainnet has the wallet, staking, governance, explorer, Neuro and the DEX; the rest is testnet only for now', () => {
-  const on = ['wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex'];
-  const off = ['nft', 'dlmm', 'bridge', 'faucet', 'mining', 'usefulWork', 'testTokens', 'stableGateway', 'rewardVault', 'computeMarket', 'identity', 'quantumWallet', 'airdrop'];
+test('features: mainnet has the wallet, staking, governance, explorer, Neuro, the DEX and the sentry\'s faucet (and its browser mining); the rest is testnet only for now', () => {
+  const on = ['wallet', 'staking', 'governance', 'explorer', 'neuro', 'dex', 'faucet', 'mining'];
+  const off = ['nft', 'dlmm', 'bridge', 'usefulWork', 'testTokens', 'stableGateway', 'rewardVault', 'computeMarket', 'identity', 'quantumWallet', 'airdrop'];
   for (const f of on) assert.equal(hasFeature(NETWORKS.mainnet, f), true, f);
   for (const f of off) assert.equal(hasFeature(NETWORKS.mainnet, f), false, f);
   for (const f of FEATURES) assert.equal(hasFeature(NETWORKS.testnet, f), true, f);
@@ -160,4 +161,25 @@ test('the switch and the "testnet only" box call back with the chosen network', 
   all(box, (n) => n.tag === 'button')[0].on.click();
   assert.deepEqual(picked, ['testnet', 'testnet']);
   assert.match(testnetOnlyBox(doc, { lang: 'th', feature: 'faucet' }).textContent, /ตอนนี้ใช้ได้เฉพาะบน testnet.*Faucet แจกเหรียญทดลอง ยังไม่มีบน ZETAPHY mainnet/s);
+});
+
+test('withDeployed: a mainnet feature turns on once ALL its contracts are deployed there, never off, never on the testnet', () => {
+  const A = (n) => `0x${String(n).padStart(40, '0')}`;
+  const m = NETWORKS.mainnet;
+  assert.equal(withDeployed(m, {}), m, 'nothing deployed: the same object');
+  assert.equal(withDeployed(m, null), m);
+  assert.deepEqual(deployedFeatures({ airdropDistributor: A(1), auditNetwork: A(2) }), ['airdrop'], 'the audit network needs both contracts');
+  assert.deepEqual(deployedFeatures({ airdropDistributor: 'nope', neuroIdentity: A(3) }), ['identity'], 'malformed addresses do not count');
+  const d = withDeployed(m, { airdropDistributor: A(1), auditNetwork: A(2), auditCertificate: A(3) });
+  assert.equal(hasFeature(d, 'airdrop'), true);
+  assert.equal(hasFeature(d, 'audit'), true);
+  assert.equal(hasFeature(d, 'agents'), false);
+  for (const f of ['wallet', 'dex', 'faucet', 'mining']) assert.equal(hasFeature(d, f), true, `${f} stays on`);
+  assert.equal(hasFeature(m, 'airdrop'), false, 'network.js itself is not changed');
+  assert.ok(Object.isFrozen(d) && Object.isFrozen(d.features));
+  assert.equal(d.chainId, 3659);
+  assert.equal(withDeployed(NETWORKS.testnet, { airdropDistributor: A(1) }), NETWORKS.testnet);
+  // every listed feature is a known one; pages that still sign for chain 77390 only are never switched on by a file
+  for (const [f, keys] of Object.entries(FEATURE_CONTRACTS)) { assert.ok(FEATURES.includes(f), f); assert.ok(keys.length > 0, f); }
+  for (const f of ['offline', 'immune', 'forecasts', 'nft', 'bridge', 'validators']) assert.ok(!(f in FEATURE_CONTRACTS), `${f}: changes only with network.js`);
 });

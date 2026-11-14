@@ -15,6 +15,8 @@ import { withFallback } from './i18n.js';
 import { MINE } from './pages-i18n.js';
 import { powPrefix, powOk, nonceHex, expectedTries } from './mine-core.js';
 import { WORK } from './work-i18n.js';
+import { activeNetwork } from './network.js';
+import { faucetInfo, faucetLine, faucetState, faucetText } from './faucet-core.js';
 
 const B32 = /^zetaphy1[02-9ac-hj-np-z]{38}$/;
 /** The address as the node binds the proof to it (0x…), or null. */
@@ -135,7 +137,7 @@ const mine = {
     stopRun();
     workMod?.stopWork();
     modeRoot = { root, ctx };
-    const L = withFallback(MINE, ctx.lang);
+    const L = mineText(ctx);
     const el = ctx.el;
     if (!threads) threads = Math.min(2, maxThreads());
     threads = Math.min(threads, maxThreads());
@@ -176,6 +178,7 @@ const mine = {
             row(L.chance, L.tipChance, dd('mn-chance', '0%')),
             row(L.elapsed, null, dd('mn-elapsed', '0:00')),
             row(L.anchors, L.tipAnchors, dd('mn-anchors', '0')))),
+          el('p', { class: 'small dim faucet-state', id: 'mn-faucet', hidden: true }),
           el('button', { type: 'button', class: 'btn mn-go', id: 'mn-start', text: L.start, onclick: () => go(ctx, root, L) }),
           el('p', { class: 'msg', id: 'mn-msg', role: 'status', 'aria-live': 'polite' }),
           el('p', { class: 'msg', id: 'mn-tx' })),
@@ -237,10 +240,36 @@ function togglePause(L) {
   run.tickNow?.();
 }
 
+/**
+ * The page's words in ctx.lang. On mainnet (network.js) the faucet pays real ZTPHY within a daily budget: its own
+ * title, explanation and messages (faucet-i18n.js); the amounts are the node's, filled in once it answers (info()).
+ */
+export function mineText(ctx) {
+  const L = withFallback(MINE, ctx.lang);
+  if ((ctx.net ?? activeNetwork()).testnet) return L;
+  const F = faucetText(ctx.lang);
+  return { ...L, title: F.mineTitle, what: F.mineWhat, notMining: F.mineNotMining, done: F.sentAny, hasCoins: F.hasCoins.replace('{amount}', '…'), mainnet: true, F };
+}
+
 async function info(ctx, L) {
   const i = await ctx.evmCall('zetaphy_faucetPowInfo', []);
   if (!i || !Number.isInteger(i.bits) || i.bits < 1 || i.bits > 64) throw new Error(L.noInfo);
-  rewardText = `${ctx.formatZeta(BigInt(i.reward ?? 0), 0)} ${UNIT}`;
+  // shown with up to 4 decimals: mainnet's limits are decimal ZTPHY (e.g. 0.5)
+  rewardText = `${ctx.formatZeta(BigInt(i.reward ?? 0), 4)} ${UNIT}`;
+  const fi = faucetInfo(i);
+  if (L.mainnet && fi?.pow != null) {
+    const amount = ctx.formatZeta(fi.pow, 4);
+    L.done = L.F.sent.replace('{amount}', amount);
+    L.hasCoins = L.F.hasCoins.replace('{amount}', amount);
+  }
+  const line = $('mn-faucet');
+  if (line) {
+    const { state, text } = faucetLine(fi, ctx.lang, (w) => ctx.formatZeta(w, 4), 'pow');
+    line.hidden = !text || (state === 'on' && !L.mainnet && fi?.budget == null); // the testnet: only when it cannot pay
+    line.textContent = text;
+    line.className = `small faucet-state${state === 'on' ? ' dim' : ' warnline'}`;
+    line.dataset.state = state;
+  }
   if ($('mn-bits')) {
     $('mn-bits').textContent = `${i.bits} ${L.bits} · ≈ ${fmtCount(expectedTries(i.bits))} ${L.triesWord}`;
     $('mn-reward').textContent = rewardText;
@@ -281,8 +310,10 @@ async function start(ctx, root, L) {
   for (;;) {
     try {
       i = await info(ctx, L);
-      if (!i.enabled) throw new Error(L.off);
-      if (i.remainingToday < 1) throw new Error(L.noneLeft);
+      // off, or today's grants / budget used up (faucet-core.js faucetState): mining on cannot help
+      const st = faucetState(faucetInfo(i), 'pow');
+      if (st === 'off') throw new Error(L.off);
+      if (st === 'spent') throw new Error(i.remainingBudget != null ? faucetText(ctx.lang).spent : L.noneLeft);
       balance = BigInt(await ctx.evmCall('eth_getBalance', [addr, 'latest']) ?? 0);
       base = await latestBlock(ctx);
       break;

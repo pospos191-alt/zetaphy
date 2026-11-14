@@ -348,6 +348,17 @@ export function neuroCall(action, value) {
   return { fn, args, data: new Interface(CONTROL.abi).encodeFunctionData(fn, args) };
 }
 const EVM_CHAIN_ID = 77390n;
+/** ZETAPHY mainnet (zetaphy_3659-1). The CLI's commands are testnet tools unless they say otherwise (identity, msg). */
+const MAINNET_EVM_CHAIN_ID = 3659n;
+/** The refusal for an RPC on another chain: plain words for mainnet, where these testnet tools must not act. */
+export function wrongChainMessage(id, allowed = [EVM_CHAIN_ID]) {
+  const names = allowed.map((c) => (c === MAINNET_EVM_CHAIN_ID ? `ZETAPHY mainnet (${c})` : c === EVM_CHAIN_ID ? `ZETAPHY testnet (${c})` : String(c)));
+  if (BigInt(id) === MAINNET_EVM_CHAIN_ID) {
+    return `that RPC is ZETAPHY mainnet (chain ${id}): this command works on ${names.join(' or ')} only, so it refuses to act on mainnet. `
+      + 'Point --rpc (or ZETAPHY_RPC) at the testnet, e.g. https://rpc.sawasdeecoin.com';
+  }
+  return `that RPC is chain ${id}, not ${names.join(' or ')}`;
+}
 
 function parse(argv) {
   const pos = [], opt = {};
@@ -373,18 +384,23 @@ function settings(opt, env) {
   return s;
 }
 
-async function connectRpc(s) {
+/**
+ * The RPC's provider. `chains`: the chain ids the command may act on (default the testnet only; identity and msg take
+ * mainnet too). The network is fixed to the RPC's chain id once checked, so every tx this key signs carries that
+ * chain id whatever the RPC says later; an RPC that answers another chain id is refused before anything is signed.
+ */
+async function connectRpc(s, { chains = [EVM_CHAIN_ID] } = {}) {
   if (!s.rpc) throw new Error('set the ZETAPHY testnet RPC: --rpc http://<node>:8545 (or ZETAPHY_RPC)');
-  // The network is fixed to 77390, so every tx this key signs carries chain id 77390 whatever the RPC says later;
-  // an RPC that answers another chain id is refused before anything is signed.
-  const provider = new JsonRpcProvider(s.rpc, EVM_CHAIN_ID, { staticNetwork: true, polling: true, pollingInterval: 1000 });
-  const id = BigInt(await provider.send('eth_chainId', []));
-  if (id !== EVM_CHAIN_ID) { provider.destroy(); throw new Error(`that RPC is chain ${id}, not ZETAPHY testnet (${EVM_CHAIN_ID})`); }
-  return provider;
+  const probe = new JsonRpcProvider(s.rpc, EVM_CHAIN_ID, { staticNetwork: true, polling: true, pollingInterval: 1000 });
+  const id = BigInt(await probe.send('eth_chainId', []));
+  if (!chains.includes(id)) { probe.destroy(); throw new Error(wrongChainMessage(id, chains)); }
+  if (id === EVM_CHAIN_ID) return probe;
+  probe.destroy();
+  return new JsonRpcProvider(s.rpc, id, { staticNetwork: true, polling: true, pollingInterval: 1000 });
 }
 
-async function connect(s, { needJobs = true } = {}) {
-  const provider = await connectRpc(s);
+async function connect(s, { needJobs = true, chains } = {}) {
+  const provider = await connectRpc(s, chains ? { chains } : {});
   const { wallet, created, file } = loadOrCreateKey();
   const signer = new NonceManager(wallet.connect(provider));
   const me = await wallet.getAddress();

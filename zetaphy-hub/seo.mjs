@@ -159,7 +159,7 @@ ${aboutAlternates().map(([l, p]) => `<link rel="alternate" hreflang="${l}" href=
 <p class="cta"><a class="btn" href="../">${esc(c.open)}</a> <a class="btn alt" href="${ORIGIN.neuro}/web/">${esc(c.check)}</a></p>
 ${sections}
 </main>
-<footer><p>${esc(c.testnet)}</p></footer>
+<footer><p>${esc(c.notice)}</p></footer>
 </body>
 </html>
 `;

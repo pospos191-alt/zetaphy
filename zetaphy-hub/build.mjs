@@ -12,6 +12,7 @@ import { ALL as IMMUNE_CHAINS } from '../zetaphy-network/src/immune/chains.js';
 import { simulate as immuneSimulate } from '../zetaphy-network/src/immune/propagate.js';
 import { cleanRegistry } from './aas-core.js';
 import { summary as qsafeSummary } from '../zetaphy-network/src/qsafe/inventory.js';
+import { NETWORKS, deployedFeatures } from './network.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -39,7 +40,7 @@ const SKIP_IN = { wallet: new Set(['src']),
 const SKIP = new Set(['node_modules', 'test', 'scripts', 'package.json', 'package-lock.json', 'vercel.json', 'README.md', 'README.th.md', '.gitignore', 'data',
   'robots.txt', 'sitemap.xml', `${INDEXNOW_KEY}.txt`]);
 const HUB_FILES = ['index.html', 'walletbar.js', 'wallet-safety.js', 'wallet-safety-i18n.js', 'wallet-safety.css', 'ledger.js', 'vendor/ledger-hid.js', 'validators.html', 'validators.css', 'validators.js', 'validators-gate.js', 'forecasts.html', 'forecasts.css', 'forecasts.js', 'forecasts-i18n.js', 'ceremony.html', 'ceremony.css', 'ceremony.js', 'ceremony-i18n.js', 'ceremony-core.js', 'vendor/snarkjs.min.js', 'zkverdict-core.js', 'zkverdict-vkey.json', 'vendor/zkverify.js', 'hub.css', 'hub.js', 'i18n.js', 'chainlib.js', 'pages.js', 'pages-i18n.js', 'mine.js', 'mine-core.js', 'mine-worker.js',
-  'work.js', 'work-i18n.js', 'work-core.js', 'work-worker.js', 'train-core.js', 'train-worker.js', 'fuzz-core.js', 'fuzz-hook.js', 'vendor/evm.js', 'bounties/vulnerable-vault.json', 'bounties/sample-scan.json', 'agents.js', 'agents-lib.js', 'agents-i18n.js', 'intent-core.js', 'assist.js', 'assist-i18n.js', 'govassist.js', 'presign.js', 'presign-probe.js', 'pqattest.js', 'embed.css', 'logo.svg', 'favicon.svg', 'og.png', 'about/about.css', 'flow.js', 'flow-i18n.js', 'aimap.js', 'aichain.js', 'aichain-i18n.js', 'offline.js', 'offline-core.js', 'offline-i18n.js', 'offline-cash.js', 'offline-cash-i18n.js', 'cash-core.js', 'mesh-frames.js', 'audit.js', 'audit-core.js', 'audit-i18n.js', 'audit.html', 'audits.html', 'aas.css', 'aas-core.js', 'aas-i18n.js', 'aas-page.js', 'aas-verify.js', 'aas-directory.js', 'quantum.js', 'quantum-core.js', 'quantum-i18n.js', 'airdrop.js', 'airdrop-i18n.js', 'airdrop-core.js', 'mainnet.js', 'mainnet-i18n.js', 'network.js', 'zkid.js', 'zkid-i18n.js', 'zkid-core.js', 'zkid-poseidon.js', 'zkid-worker.js', 'zkid/manifest.json', 'zkid/identity.wasm', 'zkid/identity.zkey', 'vendor/qrcode.js', 'zearly.svg', 'zearly-256.png', 'zetaphy-256.png', 'txguard.js', 'pqsnap.js', 'count.js', 'count.html', 'count-page.js', 'count.css',
+  'work.js', 'work-i18n.js', 'work-core.js', 'work-worker.js', 'train-core.js', 'train-worker.js', 'fuzz-core.js', 'fuzz-hook.js', 'vendor/evm.js', 'bounties/vulnerable-vault.json', 'bounties/sample-scan.json', 'agents.js', 'agents-lib.js', 'agents-i18n.js', 'intent-core.js', 'assist.js', 'assist-i18n.js', 'govassist.js', 'presign.js', 'presign-probe.js', 'pqattest.js', 'embed.css', 'logo.svg', 'favicon.svg', 'og.png', 'about/about.css', 'flow.js', 'flow-i18n.js', 'aimap.js', 'aichain.js', 'aichain-i18n.js', 'offline.js', 'offline-core.js', 'offline-i18n.js', 'offline-cash.js', 'offline-cash-i18n.js', 'cash-core.js', 'mesh-frames.js', 'audit.js', 'audit-core.js', 'audit-i18n.js', 'audit.html', 'audits.html', 'aas.css', 'aas-core.js', 'aas-i18n.js', 'aas-page.js', 'aas-verify.js', 'aas-directory.js', 'quantum.js', 'quantum-core.js', 'quantum-i18n.js', 'airdrop.js', 'airdrop-i18n.js', 'airdrop-core.js', 'mainnet.js', 'mainnet-i18n.js', 'network.js', 'faucet-core.js', 'faucet-i18n.js', 'zkid.js', 'zkid-i18n.js', 'zkid-core.js', 'zkid-poseidon.js', 'zkid-worker.js', 'zkid/manifest.json', 'zkid/identity.wasm', 'zkid/identity.zkey', 'vendor/qrcode.js', 'zearly.svg', 'zearly-256.png', 'zetaphy-256.png', 'txguard.js', 'pqsnap.js', 'count.js', 'count.html', 'count-page.js', 'count.css',
   'airdrop-link.html', 'airdrop-link.js', 'airdrop-link-core.js', 'airdrop-link-i18n.js', 'airdrop-link.css'];
 
 /**
@@ -83,13 +84,7 @@ export function hubConfig(cfg, files = null) {
   if (fl?.chainId === 77390 && fl.rounds) out.federatedRounds ??= fl.rounds;
   const oracle = read('zetaphy-chain/hyperlane/neuro-oracle.json');
   if (oracle?.sender) out.neuroOracleSender ??= oracle.sender;
-  const isAddr = (a) => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a);
-  const contracts = Object.fromEntries(['neuroJobs', 'neuroControl', 'threatRegistry', 'threatReports', 'rewardVault', 'stableGateway', 'computeMarket', 'oracle', 'neuroIdentity',
-    'usefulWork', 'bugBounty', 'workerReputation', 'usefulIssuance', 'riskForecasts', 'foresight', 'detectorPool', 'dataDao', 'arena', 'intentExecutor', 'labelRegistry', 'vouchRegistry', 'agentRegistry', 'agentPolicyWallet',
-    'timelock', 'neuroAttest', 'neuroAnchor', 'neuroOracleSender', 'hackInsurance',
-    'modelRegistry', 'neuroScore', 'provenVerdicts', 'modelEpochs', 'signalBoard', 'webauthn', 'cosignCommittee', 'federatedRounds', 'zetaphyCheques', 'offlineOrders', 'offlineCash', 'auditNetwork', 'auditRunners', 'auditJudges', 'auditCertificate', 'circuitBreaker', 'quantumRescue', 'pqSettlement', 'pqMultisigIsm',
-    'immuneRegistry', 'immuneBroadcaster', 'zetaphyOutbox', 'zkIdentityRegistry', 'privatePoll', 'airdropDistributor']
-    .filter((k) => isAddr(out[k])).map((k) => [k, out[k]]));
+  const contracts = Object.fromEntries(HUB_CONTRACT_KEYS.filter((k) => isAddr(out[k])).map((k) => [k, out[k]]));
   if (Number.isInteger(out.timelockBlock) && contracts.timelock) contracts.timelockBlock = out.timelockBlock;
   const dex = read('zetaphy-dex/web/deployments.json')?.contracts ?? {};
   const nft = read('zetaphy-nft/web/deployments.json') ?? {};
@@ -104,7 +99,60 @@ export function hubConfig(cfg, files = null) {
     immune: immuneMirrors(read),
     immuneNet: immuneNetwork(read),
     qsafe: qsafeHub(),
-    ...(typeof drop?.list === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(drop.list) ? { airdrop: { list: drop.list } } : {}),
+    ...(listUrl(drop?.list) ? { airdrop: { list: drop.list } } : {}),
+    mainnet: mainnetHub(read),
+  };
+}
+
+const isAddr = (a) => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a);
+/** An airdrop list's base URL as a deployment record may give it: relative to the site, or https. */
+const listUrl = (u) => typeof u === 'string' && /^(\.\/|https:\/\/)[^\s"'<>]*$/.test(u);
+/** The keys of hub-config.json `contracts` (the same on both networks; zetaphy-launch/src/mainnetai.js HUB_KEYS is a subset). */
+export const HUB_CONTRACT_KEYS = ['neuroJobs', 'neuroControl', 'threatRegistry', 'threatReports', 'rewardVault', 'stableGateway', 'computeMarket', 'oracle', 'neuroIdentity',
+  'usefulWork', 'bugBounty', 'workerReputation', 'usefulIssuance', 'riskForecasts', 'foresight', 'detectorPool', 'dataDao', 'arena', 'intentExecutor', 'labelRegistry', 'vouchRegistry', 'agentRegistry', 'agentPolicyWallet',
+  'timelock', 'neuroAttest', 'neuroAnchor', 'neuroOracleSender', 'hackInsurance',
+  'modelRegistry', 'neuroScore', 'provenVerdicts', 'modelEpochs', 'signalBoard', 'webauthn', 'cosignCommittee', 'federatedRounds', 'zetaphyCheques', 'offlineOrders', 'offlineCash', 'auditNetwork', 'auditRunners', 'auditJudges', 'auditCertificate', 'circuitBreaker', 'quantumRescue', 'pqSettlement', 'pqMultisigIsm',
+  'immuneRegistry', 'immuneBroadcaster', 'zetaphyOutbox', 'zkIdentityRegistry', 'privatePoll', 'airdropDistributor'];
+
+/** What the mainnet launch writes (zetaphy-launch/src/mainnetai.js contractsStep): hub-config.json-shaped addresses. */
+export const MAINNET_LAUNCH_FILE = 'zetaphy-launch/state/3659.contracts.json';
+/** A ZtphyMerkleDistributor round on mainnet (docs/AIRDROP.md): { chainId: 3659, contracts: { airdropDistributor }, list }. */
+export const MAINNET_AIRDROP_FILE = 'zetaphy-network/deployments/airdrop-3659.json';
+
+/**
+ * hub-config.json `mainnet`: the addresses the pages use on mainnet (public data only), and the features they turn
+ * on (network.js withDeployed). From the mainnet launch's contracts file when it exists (chain 3659), else
+ * network.js's built-in list (test/network.test.mjs checks it against zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json);
+ * a key the launch file lacks keeps network.js's address. Nothing of the testnet's ever goes in here.
+ * network.js's `bugBounty` is the ZetaphyBounty program: the hub calls it `zetaphyBounty` (its `bugBounty` is useful
+ * work's BugBounty, as on the testnet and in the launch file).
+ */
+export function mainnetHub(read) {
+  const net = NETWORKS.mainnet;
+  const nc = net.contracts;
+  const launch = read(MAINNET_LAUNCH_FILE);
+  const fromLaunch = launch?.chainId === net.chainId && launch.contracts && typeof launch.contracts === 'object';
+  const lc = fromLaunch ? launch.contracts : {};
+  const contracts = { neuroJobs: nc.neuroJobs, neuroControl: nc.neuroControl, threatRegistry: nc.threatRegistry, threatReports: nc.threatReports, timelock: nc.timelock };
+  for (const k of HUB_CONTRACT_KEYS) if (isAddr(lc[k])) contracts[k] = lc[k];
+  contracts.zetaphyBounty = isAddr(lc.zetaphyBounty) ? lc.zetaphyBounty : nc.bugBounty;
+  contracts.guardianMultisig = isAddr(lc.guardianMultisig) ? lc.guardianMultisig : nc.guardian;
+  if (Number.isInteger(lc.timelockBlock) && lc.timelockBlock > 0) contracts.timelockBlock = lc.timelockBlock;
+  const drop = read(MAINNET_AIRDROP_FILE);
+  const dropOk = drop?.chainId === net.chainId && isAddr(drop.contracts?.airdropDistributor);
+  if (dropOk) contracts.airdropDistributor = drop.contracts.airdropDistributor;
+  const pick = (o, keys) => Object.fromEntries(keys.filter((k) => isAddr(o?.[k])).map((k) => [k, o[k]]));
+  const ld = pick(fromLaunch ? launch.dex : null, ['factory', 'router', 'dlmmFactory', 'dlmmRouter']);
+  const dex = isAddr(ld.factory) && isAddr(ld.router) ? ld : { factory: nc.factory, router: nc.router };
+  const nft = pick(fromLaunch ? launch.nft : null, ['factory', 'marketplace']);
+  return {
+    chainId: net.chainId,
+    source: fromLaunch ? MAINNET_LAUNCH_FILE : 'network.js',
+    contracts,
+    dex,
+    nft: isAddr(nft.factory) && isAddr(nft.marketplace) ? nft : {},
+    features: deployedFeatures(contracts),
+    ...(dropOk && listUrl(drop.list) ? { airdrop: { list: drop.list } } : {}),
   };
 }
 

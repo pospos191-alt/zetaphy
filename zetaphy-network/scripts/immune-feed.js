@@ -23,6 +23,9 @@ async function main() {
   let items = []; let status = 'not-deployed';
   if (isAddr(cfg.registry)) {
     const rpc = createRpc({ urls: [opt('--rpc', ZETAPHY.rpc[0])], rps: ZETAPHY.rps });
+    // the immune network is on the testnet only for now: never read (and label as 77390) another chain's registry
+    const id = Number(BigInt(await rpc.send('eth_chainId', [])));
+    if (id !== ZETAPHY.id) throw new Error(`that RPC is chain ${id}${id === 3659 ? ' (ZETAPHY mainnet)' : ''}: the immune network runs on the ZETAPHY testnet (${ZETAPHY.id}) only for now`);
     items = await readRegistry(rpc.send, cfg.registry);
     status = 'live';
   }

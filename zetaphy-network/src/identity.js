@@ -32,8 +32,21 @@ export const NEURO_CHAINS = {
   ton: { caip2: 'tvm:-239', rule: RULE.TON },
 };
 
-/** The chain id of ZETAPHY's EVM, which remote-claim signatures name (EIP-712 domain). */
+/** The testnet's EVM chain id (NEURO_CHAINS.zetaphy above). On another ZETAPHY network use neuroChainsFor(its chain id). */
 export const ZETAPHY_EVM_CHAIN_ID = 77390n;
+/** The EVM chain ids of the ZETAPHY networks: mainnet (zetaphy_3659-1) and the testnet (zetaphy_77390-1). */
+export const ZETAPHY_EVM_CHAIN_IDS = Object.freeze({ mainnet: 3659n, testnet: 77390n });
+
+/**
+ * The chain list with ZETAPHY under `evmChainId`, the chain the registry is deployed on (taken from the connected RPC,
+ * never assumed): mainnet 3659 -> eip155:3659. NeuroIdentity stores the list at deploy time and checks that its own
+ * entry is eip155:<block.chainid>; zetaphy-launch/src/mainnetall.js identityChains does the same for the launch.
+ */
+export function neuroChainsFor(evmChainId) {
+  const id = BigInt(evmChainId);
+  if (id <= 0n) throw new Error(`not an EVM chain id: ${evmChainId}`);
+  return { ...NEURO_CHAINS, zetaphy: { ...NEURO_CHAINS.zetaphy, caip2: `eip155:${id}` } };
+}
 
 /** Constructor arguments for NeuroIdentity's chain list. */
 export function chainArgs(chains = NEURO_CHAINS) {

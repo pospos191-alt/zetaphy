@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, check, APPS, releaseTag, withRelease } from '../build.mjs';
+import { build, check, APPS, releaseTag, withRelease, hubConfig, MAINNET_LAUNCH_FILE, MAINNET_AIRDROP_FILE } from '../build.mjs';
+import { NETWORKS, withDeployed, hasFeature } from '../network.js';
 import { createHash } from 'node:crypto';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -78,4 +79,85 @@ test('validator guide: topics as tabs, each named and introduced in all 8 langua
     for (const t of tabs) assert.ok(X[l][`tab_${t}`] && X[l][`lede_${t}`], `${l}: ${t}`);
     for (const k of ['vfGet', 'vfOk', 'vfDown', 'vfBad', 'vfMine']) assert.ok(X[l][k], `${l}: ${k}`);
   }
+});
+
+// ------------------------------------------------------------------ hub-config.json `mainnet`
+const A = (n) => `0x${n.repeat(40).slice(0, 40)}`;
+const launchFile = (contracts, extra = {}) => ({ chainId: 3659, network: 'zetaphy-mainnet', contracts, dex: {}, nft: {}, aiItemsWithContracts: [], skipped: {}, ...extra });
+
+test('mainnet config without the launch file: network.js\'s built-in addresses (contracts.json), nothing of the testnet\'s, only mainnet\'s own features', () => {
+  const m = hubConfig({}, { [MAINNET_LAUNCH_FILE]: null, [MAINNET_AIRDROP_FILE]: null }).mainnet;
+  const nc = NETWORKS.mainnet.contracts;
+  const d = JSON.parse(readFileSync(join(HERE, '..', 'zetaphy-chain/mainnet/zetaphy_3659-1/contracts.json'), 'utf8'));
+  assert.equal(m.chainId, 3659);
+  assert.equal(m.source, 'network.js');
+  assert.deepEqual(m.contracts, { neuroJobs: d.contracts.NeuroJobs, neuroControl: d.contracts.NeuroControl, threatRegistry: d.contracts.ThreatRegistry, threatReports: d.contracts.ThreatReports,
+    timelock: d.timelock.address, zetaphyBounty: d.contracts.ZetaphyBounty, guardianMultisig: d.guardianMultisig.address });
+  assert.equal(m.contracts.bugBounty, undefined, 'ZetaphyBounty is not useful work\'s BugBounty');
+  assert.deepEqual(m.dex, { factory: nc.factory, router: nc.router });
+  assert.deepEqual([m.nft, m.features, m.airdrop], [{}, [], undefined]);
+  // the repo's real build input: whichever source exists today, never a testnet address
+  const real = hubConfig({}).mainnet;
+  assert.ok(['network.js', MAINNET_LAUNCH_FILE].includes(real.source));
+  const testnet = new Set(Object.values(hubConfig({}).contracts).filter((a) => typeof a === 'string').map((a) => a.toLowerCase()));
+  for (const [k, a] of Object.entries(real.contracts)) if (typeof a === 'string') assert.ok(!testnet.has(a.toLowerCase()), `${k}: not a testnet address`);
+});
+
+test('mainnet config from zetaphy-launch/state/3659.contracts.json: its addresses win, network.js fills the gaps, deployed features turn on by themselves', () => {
+  const files = {
+    [MAINNET_LAUNCH_FILE]: launchFile({ neuroJobs: A('1'), timelock: A('2'), timelockBlock: 3114, rewardVault: A('3'), neuroIdentity: A('4'), modelRegistry: A('5'),
+      usefulWork: A('6'), bugBounty: A('7'), workerReputation: A('8'), zetaphyBounty: A('9'), guardianMultisig: A('a'), hackInsurance: 'not an address', junk: A('b') },
+    { dex: { factory: A('c'), router: A('d'), dlmmFactory: A('e'), dlmmRouter: 'x' }, nft: { factory: A('f'), marketplace: A('0') } }),
+    [MAINNET_AIRDROP_FILE]: null,
+  };
+  const m = hubConfig({}, files).mainnet;
+  assert.equal(m.source, MAINNET_LAUNCH_FILE);
+  assert.equal(m.contracts.neuroJobs, A('1'), 'the launch file wins');
+  assert.equal(m.contracts.neuroControl, NETWORKS.mainnet.contracts.neuroControl, 'a key it lacks keeps network.js\'s');
+  assert.equal(m.contracts.timelockBlock, 3114);
+  assert.deepEqual([m.contracts.bugBounty, m.contracts.zetaphyBounty, m.contracts.guardianMultisig], [A('7'), A('9'), A('a')]);
+  assert.equal(m.contracts.hackInsurance, undefined);
+  assert.equal(m.contracts.junk, undefined, 'only hub-config keys');
+  assert.deepEqual(m.dex, { factory: A('c'), router: A('d'), dlmmFactory: A('e') });
+  assert.deepEqual(m.nft, { factory: A('f'), marketplace: A('0') });
+  assert.deepEqual(m.features.sort(), ['aiMap', 'identity', 'rewardVault', 'usefulWork']);
+  const net = withDeployed(NETWORKS.mainnet, m.contracts);
+  for (const f of ['identity', 'rewardVault', 'aiMap', 'usefulWork']) assert.equal(hasFeature(net, f), true, f);
+  assert.equal(hasFeature(net, 'audit'), false);
+  // another chain's file (the testnet's launch, a typo) is ignored
+  const other = hubConfig({}, { ...files, [MAINNET_LAUNCH_FILE]: launchFile({ neuroJobs: A('1') }, { chainId: 77390 }) }).mainnet;
+  assert.deepEqual([other.source, other.contracts.neuroJobs], ['network.js', NETWORKS.mainnet.contracts.neuroJobs]);
+  // the testnet's top level is untouched by the mainnet file
+  assert.notEqual(hubConfig({}, files).contracts.neuroJobs, A('1'));
+});
+
+test('the airdrop card: round 1 shows on mainnet once deployments/airdrop-3659.json names its distributor; the testnet keeps airdrop-77390.json', () => {
+  const none = { [MAINNET_LAUNCH_FILE]: null, [MAINNET_AIRDROP_FILE]: null, 'zetaphy-network/deployments/airdrop-77390.json': null };
+  const c0 = hubConfig({}, none);
+  assert.equal(c0.mainnet.contracts.airdropDistributor, undefined);
+  assert.ok(!c0.mainnet.features.includes('airdrop'));
+  const c1 = hubConfig({}, { ...none, [MAINNET_AIRDROP_FILE]: { chainId: 3659, contracts: { airdropDistributor: A('d') }, list: 'https://example.org/round1/' } });
+  assert.equal(c1.mainnet.contracts.airdropDistributor, A('d'));
+  assert.deepEqual(c1.mainnet.airdrop, { list: 'https://example.org/round1/' });
+  assert.ok(c1.mainnet.features.includes('airdrop'));
+  assert.equal(hasFeature(withDeployed(NETWORKS.mainnet, c1.mainnet.contracts), 'airdrop'), true);
+  assert.equal(c1.contracts.airdropDistributor, undefined, 'the mainnet round never reaches the testnet\'s config');
+  assert.equal(c1.airdrop, undefined);
+  // wrong chain, a bad address or a bad list URL
+  assert.equal(hubConfig({}, { ...none, [MAINNET_AIRDROP_FILE]: { chainId: 77390, contracts: { airdropDistributor: A('d') } } }).mainnet.contracts.airdropDistributor, undefined);
+  assert.equal(hubConfig({}, { ...none, [MAINNET_AIRDROP_FILE]: { chainId: 3659, contracts: { airdropDistributor: '0x12' } } }).mainnet.contracts.airdropDistributor, undefined);
+  assert.equal(hubConfig({}, { ...none, [MAINNET_AIRDROP_FILE]: { chainId: 3659, contracts: { airdropDistributor: A('d') }, list: 'javascript:alert(1)' } }).mainnet.airdrop, undefined);
+  // the testnet's round: its own file, the top level only
+  const t = hubConfig({}, { ...none, 'zetaphy-network/deployments/airdrop-77390.json': { chainId: 77390, contracts: { airdropDistributor: A('e') }, list: './airdrop/' } });
+  assert.deepEqual([t.contracts.airdropDistributor, t.airdrop?.list, t.mainnet.contracts.airdropDistributor], [A('e'), './airdrop/', undefined]);
+});
+
+test('the hub on mainnet reads hub-config.json `mainnet` (hub.js mainnetConfig), the Agents tab opens for the airdrop card alone', () => {
+  const hub = readFileSync(join(HERE, 'hub.js'), 'utf8');
+  assert.match(hub, /HUB = mainnetConfig\(raw\); NET = withDeployed\(NET, HUB\.contracts\)/);
+  assert.match(hub, /\{ id: 'agents', [^}]*feature: 'agents', also: \['airdrop'\] \}/);
+  assert.match(readFileSync(join(HERE, 'agents.js'), 'utf8'), /if \(!hasFeature\(net, 'agents'\)\)[\s\S]{0,400}hasFeature\(net, 'airdrop'\)[\s\S]{0,200}airdropCard\(ctx\)/);
+  const built = JSON.parse(readFileSync(join(build(), 'hub-config.json'), 'utf8'));
+  assert.equal(built.mainnet.chainId, 3659);
+  assert.ok(Array.isArray(built.mainnet.features));
 });

@@ -161,3 +161,42 @@ test('pages: shipped, strict-CSP friendly (no inline script/style), 8-language m
   assert.match(read('audit.js'), /href: 'audits\.html'/, 'the Audit tab links the directory');
   assert.ok(existsSync(new URL('../../.github/actions/zetaphy-audit/action.yml', import.meta.url)));
 });
+
+test('the network (network.js): mainnet by default, "testnet only for now" until the audit network has mainnet contracts, never a testnet address on mainnet', async () => {
+  const { loadConfig } = await import('../aas-page.js');
+  const { NETWORKS } = await import('../network.js');
+  const A = (c) => `0x${c.repeat(40)}`;
+  const cfg = { node: 'https://rpc.sawasdeecoin.com', contracts: { auditCertificate: A('c'), auditNetwork: A('d') }, immune: { mirrors: [{ chainId: 84532, oracle: A('e') }] },
+    mainnet: { chainId: 3659, contracts: { neuroJobs: A('1') }, dex: {}, nft: {}, features: [] } };
+  const fetchOf = (j) => async (u) => { assert.equal(u, './hub-config.json'); return { json: async () => j }; };
+  // mainnet, nothing of the audit network there: gated, no node of the testnet, no address
+  const m = await loadConfig({ fetchImpl: fetchOf(cfg), net: NETWORKS.mainnet });
+  assert.deepEqual([m.gated, m.node, m.certificate, m.network, m.mirrors, m.net.chainId], [true, NETWORKS.mainnet.rpc, null, null, [], 3659]);
+  // mainnet once both audit contracts are in hub-config.json `mainnet` (from the launch file): open, mainnet's own
+  const m2 = await loadConfig({ fetchImpl: fetchOf({ ...cfg, mainnet: { ...cfg.mainnet, contracts: { auditCertificate: A('a'), auditNetwork: A('b') } } }), net: NETWORKS.mainnet });
+  assert.deepEqual([m2.gated, m2.certificate, m2.network, m2.node], [false, A('a'), A('b'), NETWORKS.mainnet.rpc]);
+  // a `mainnet` part for another chain id is ignored
+  assert.equal((await loadConfig({ fetchImpl: fetchOf({ ...cfg, mainnet: { chainId: 1, contracts: { auditCertificate: A('a'), auditNetwork: A('b') } } }), net: NETWORKS.mainnet })).gated, true);
+  // the testnet: the top level, as before
+  const t = await loadConfig({ fetchImpl: fetchOf(cfg), net: NETWORKS.testnet });
+  assert.deepEqual([t.gated, t.node, t.certificate, t.network, t.mirrors.length], [false, 'https://rpc.sawasdeecoin.com', A('c'), A('d'), 1]);
+  // no hub-config.json at all: mainnet gated, the testnet says "not deployed" (no certificate)
+  const none = async () => { throw new Error('offline'); };
+  assert.equal((await loadConfig({ fetchImpl: none, net: NETWORKS.mainnet })).gated, true);
+  assert.deepEqual(Object.values(await loadConfig({ fetchImpl: none, net: NETWORKS.testnet })).slice(2, 4), [null, null]);
+  // ZETAPHY mainnet is a chain contracts can be certified on, and both ZETAPHY networks check the live code themselves
+  const zm = aas.chainOf('zetaphy-mainnet');
+  assert.deepEqual([zm.chainId, zm.testnet, zm.rpcs, aas.chainOf('eip155:3659')?.key, aas.chainOf('zetaphy').chainId], [3659, false, [NETWORKS.mainnet.rpc], 'zetaphy-mainnet', 77390]);
+  assert.deepEqual(aas.ZETAPHY_CHAIN_IDS, [77390, 3659]);
+  // the pages: a network slot, the parts hidden while gated, the lookup on the page's own chain id
+  for (const f of ['audit.html', 'audits.html']) {
+    assert.match(read(f), /<div id="net" class="net"><\/div>/, f);
+    assert.ok((read(f).match(/data-needs-net/g) ?? []).length >= 2, f);
+    assert.doesNotMatch(read(f), /Testnet only\.">/, `${f}: the description is not testnet-only`);
+  }
+  const v = read('aas-verify.js');
+  assert.match(v, /rpcClient\(\[CFG\.node\], \{ chainId: CFG\.net\.chainId \}\)/);
+  assert.match(v, /if \(CFG\.gated\) return;/);
+  assert.doesNotMatch(v, /ZETAPHY_CHAIN_ID\b/, 'no fixed chain id in the page');
+  assert.match(read('aas-directory.js'), /if \(cfg\.gated\) return;/);
+});
