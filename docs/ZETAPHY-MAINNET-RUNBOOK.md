@@ -153,3 +153,7 @@ DEX; Neuro; `ZetaphyBounty` (funded). Verify each contract's source (Sourcify) a
   chain-registry and chainlist entries (only after gates 1–7); explorer.
 - The pages drop the testnet banner only after gates 1–8.
 - Legal review of the launch in the countries targeted (see `docs/LEGAL.md`).
+- Faucet (owner decision 2026-11-13, procedure step 12.1): on the public sentry only, since 2026-11-14 (release
+  `zetaphyd-493f142343d6`). Address `0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160`; 1 ZTPHY per address per day, 5 ZTPHY
+  per browser-mining proof, at most 200 ZTPHY a day. Funded with 30,000 ZTPHY from the validator operator (owner
+  decision: the extra 20,000 stays in the faucet).
