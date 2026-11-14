@@ -260,8 +260,17 @@ async function run(work) {
   const pb0 = await bp.getBlockNumber();
   for (const p of plans.pools) {
     for (const t of p.txs) {
-      try { await (await safe.sendTransaction({ to: t.to, data: t.data })).wait(); }
-      catch (e) { fail(`pool ZTPHY/${p.stable}: "${t.what}" reverted: ${e.shortMessage ?? e.message}${e.data ? ` data ${e.data}` : ''} (token0 ${p.token0}, token1 ${p.token1}, sqrtPriceX96 ${p.sqrtPriceX96})`); }
+      const tx = { from: KEYS.safe.address, to: t.to, data: t.data };
+      // a gas margin: an estimate taken one block early can come out a little short for Uniswap's mint on a fork
+      let gasLimit;
+      try { gasLimit = ((await bp.estimateGas(tx)) * 15n) / 10n; }
+      catch (e) { fail(`pool ZTPHY/${p.stable}: "${t.what}" would revert: ${e.shortMessage ?? e.message}${e.data ? ` data ${e.data}` : ''} (token0 ${p.token0}, token1 ${p.token1}, sqrtPriceX96 ${p.sqrtPriceX96})`); }
+      try { await (await safe.sendTransaction({ to: t.to, data: t.data, gasLimit })).wait(); }
+      catch (e) {
+        let why = '';
+        try { await bp.call(tx); } catch (c) { why = ` (replayed: ${c.shortMessage ?? c.message}${c.data ? ` data ${c.data}` : ''})`; }
+        fail(`pool ZTPHY/${p.stable}: "${t.what}" reverted with gas limit ${gasLimit}: ${e.shortMessage ?? e.message}${why} (token0 ${p.token0}, token1 ${p.token1}, sqrtPriceX96 ${p.sqrtPriceX96})`);
+      }
     }
     const at = await new Contract(cfg.liquidity.uniswapV3.factory, P.FACTORY, bp).getPool(p.token0, p.token1, p.feeTier);
     const [sqrt] = await new Contract(at, P.POOL, bp).slot0();
