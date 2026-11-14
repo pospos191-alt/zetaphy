@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -326,4 +327,130 @@ test('secure perms, updates, fail2ban and ports', () => {
   assert.match(r.out, /tcp 0\.0\.0\.0:9090 \(zetaphyd\)/);
   assert.doesNotMatch(r.out, /:26657|:26656 \(|\[::\]:22 /);
   assert.match(b.run(['--only', 'perms']).out, /done \(0 changed\)/);
+});
+
+// ---- mainnet (zetaphy_3659-1): the one-command validator install joins the published genesis only ----
+const GENESIS = new URL('../../zetaphy-chain/mainnet/zetaphy_3659-1/genesis.json', import.meta.url).pathname;
+const GENESIS_SHA = 'ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667';
+const SENTRY = 'ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656';
+
+// Runs functions of join-validator.sh: everything before its command dispatch (definitions only), then `call`.
+function jv(call, { env = {}, files = {} } = {}) {
+  const d = mkdtempSync(join(tmpdir(), 'zjvm-'));
+  for (const x of ['bin', 'node/config', 'lib', 'net', 'state']) mkdirSync(join(d, x), { recursive: true });
+  for (const [f, body] of Object.entries(files)) { mkdirSync(join(d, f, '..'), { recursive: true }); writeFileSync(join(d, f), body); }
+  const exe = (name, body) => { writeFileSync(join(d, 'bin', name), `#!/bin/bash\n${body}\n`); chmodSync(join(d, 'bin', name), 0o755); };
+  // curl -o <file> <url>: serves $d/net/<host>/<path>, else fails like an HTTP 404
+  exe('curl', `out=""; url=""; while [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; http*) url="$1"; shift;; *) shift;; esac; done
+echo "$url" >> ${d}/curl.log
+p="${d}/net/\${url#https://}"; [ -f "$p" ] || exit 22; if [ -n "$out" ]; then cp "$p" "$out"; else cat "$p"; fi`);
+  exe('systemctl', `echo "$*" >> ${d}/systemctl.log`);
+  exe('zetaphyd', `case "$1 $2" in
+  "status --home"*) echo '{"sync_info":{"latest_block_height":"7","catching_up":false}}' ;;
+  "debug addr") case "$3" in 0x*) echo "Bech32 Acc zetaphy1op"; echo "Bech32 Val zetaphyvaloper1op" ;; *) echo "Address hex: 0x00000000000000000000000000000000000000CD" ;; esac ;;
+  "q staking") echo "not found" >&2; exit 1 ;;
+  "q bank") echo '{"balance":{"denom":"azetaphy","amount":"0"}}' ;;
+  *) echo "$*" >> ${d}/zetaphyd.log ;;
+esac`);
+  const src = readFileSync(JOIN_SH, 'utf8');
+  const lib = src.slice(0, src.indexOf('case "${1:-install}" in'));
+  const r = spawnSync('bash', ['-c', `${lib}\n${call}`], { encoding: 'utf8', env: { ...process.env,
+    PATH: `${join(d, 'bin')}:${process.env.PATH}`, NODE_HOME: join(d, 'node'), LIB: join(d, 'lib'), STATE: join(d, 'state'),
+    KEYS_DIR: join(d, 'keys'), ZETAPHYD: join(d, 'bin', 'zetaphyd'), SYSTEMCTL: join(d, 'bin', 'systemctl'),
+    PINNED_FILE: join(d, 'pinned-chain.env'), NODE_USER: 'no-such-user-zetaphy-test', JOIN: '', CHAIN_ID: '', REF: 'main',
+    RAW_BASE: 'https://raw.githubusercontent.com', MAINNET_PEER: '', PUBLIC_RPC: '', PUBLIC_HTTP_RPC: '', MAINNET_FAUCET: '', ...env } });
+  const read = (f) => (existsSync(join(d, f)) ? readFileSync(join(d, f), 'utf8') : '');
+  return { code: r.status, out: (r.stdout || '') + (r.stderr || ''), read, dir: d };
+}
+
+test('mainnet by default; the testnet (shut down 2026-11-14) is refused with a clear message', () => {
+  assert.equal(jv('refuse_testnet && echo "chain $CHAIN_ID"').out.trim(), 'chain zetaphy_3659-1');
+  for (const env of [{ CHAIN_ID: 'zetaphy_77390-1' }, { CHAIN_ID: '77390' }, { JOIN: 'rpc.sawasdeecoin.com' }]) {
+    const r = jv('refuse_testnet; echo went-on', { env });
+    assert.equal(r.code, 1, JSON.stringify(env));
+    assert.match(r.out, /testnet \(zetaphy_77390-1, EVM chain id 77390\) was shut down 2026-11-14/);
+    assert.match(r.out, /refused, nothing was installed/);
+    assert.doesNotMatch(r.out, /went-on/);
+  }
+  const old = jv('refuse_testnet; echo went-on', { files: { 'node/config/genesis.json': '{"chain_id":"zetaphy_77390-1"}' } });
+  assert.equal(old.code, 1);
+  assert.match(old.out, /shut down 2026-11-14[^]*testnet node/);
+  const other = jv('refuse_testnet', { env: { CHAIN_ID: 'zetaphy_1-1' } });
+  assert.equal(other.code, 1);
+  assert.match(other.out, /mainnet only \(zetaphy_3659-1\)/);
+  // an update of a testnet node is refused too, before anything is downloaded
+  const upd = jv('id() { echo 0; }; update_node', { files: { 'node/config/genesis.json': '{"chain_id":"zetaphy_77390-1"}' } });
+  assert.equal(upd.code, 1);
+  assert.match(upd.out, /shut down 2026-11-14/);
+  assert.equal(upd.read('curl.log'), '');
+});
+
+test('a validator never gets a public RPC or the faucet: PUBLIC_RPC, PUBLIC_HTTP_RPC, MAINNET_FAUCET refused', () => {
+  assert.equal(jv('validator_only && echo ok').out.trim(), 'ok');
+  assert.equal(jv('validator_only && echo ok', { env: { PUBLIC_RPC: '0', MAINNET_FAUCET: '0', PUBLIC_HTTP_RPC: '0' } }).out.trim(), 'ok');
+  for (const v of ['PUBLIC_RPC', 'PUBLIC_HTTP_RPC', 'MAINNET_FAUCET']) {
+    const r = jv('validator_only; echo went-on', { env: { [v]: '1' } });
+    assert.equal(r.code, 1, v);
+    assert.match(r.out, new RegExp(`${v}=1: a validator never serves a public RPC or a faucet`));
+  }
+});
+
+test('the published genesis is downloaded and kept only with its published sha256 and chain id', () => {
+  const at = 'net/raw.githubusercontent.com/pospos191-alt/zetaphy/main/zetaphy-chain/mainnet/zetaphy_3659-1/genesis.json';
+  const good = jv('fetch_genesis', { files: { [at]: readFileSync(GENESIS) } });
+  assert.equal(good.code, 0, good.out);
+  assert.match(good.out, new RegExp(`genesis zetaphy_3659-1: sha256 ${GENESIS_SHA} ok`));
+  assert.equal(createHash('sha256').update(readFileSync(join(good.dir, 'lib', 'genesis.json'))).digest('hex'), GENESIS_SHA);
+  const tampered = readFileSync(GENESIS, 'utf8').replace('"zetaphy_3659-1"', '"zetaphy_3659-2"');
+  for (const files of [{ [at]: tampered }, {}]) {
+    const bad = jv('fetch_genesis', { files });
+    assert.equal(bad.code, 1, bad.out);
+    assert.match(bad.out, /not the published one|could not download/);
+    assert.equal(bad.read('lib/genesis.json'), '', 'nothing kept');
+    assert.equal(bad.read('lib/genesis.json.new'), '');
+  }
+});
+
+test('setup-node.sh runs in pinned-chain mode: the genesis pin, the sentry as peer, no public RPC, no faucet', () => {
+  const r = jv('setup_mainnet_node ZETAPHYD_BIN=/lib/zetaphyd-linux-amd64', {
+    env: { JOIN: 'rpc.example', PUBLIC_HOST: 'rpc.example', MONIKER: 'my-node' },
+    files: { 'lib/setup-node.sh': 'env | sort > "$(dirname "$0")/setup.env"\n' },
+  });
+  assert.equal(r.code, 0, r.out);
+  const e = r.read('lib/setup.env');
+  for (const kv of [`GENESIS_SHA256=${GENESIS_SHA}`, 'GENESIS_EVM_CHAIN_ID=3659', `PEERS=${SENTRY}`, 'PUBLIC_RPC=0', 'PUBLIC_HTTP_RPC=0',
+    'MAINNET_FAUCET=0', 'VALIDATOR_NODE=1', 'ZETAPHYD_BIN=/lib/zetaphyd-linux-amd64', 'MONIKER=my-node']) {
+    assert.ok(e.split('\n').includes(kv), kv);
+  }
+  assert.match(e, /^GENESIS_FILE=.*\/lib\/genesis\.json$/m);
+  assert.doesNotMatch(e, /^JOIN=|^PUBLIC_HOST=/m);
+});
+
+test('on a mainnet node: the testnet timer stops and never asks a faucet; status asks for a key first', () => {
+  const pin = { 'pinned-chain.env': `GENESIS_SHA256=${GENESIS_SHA}\nGENESIS_EVM_CHAIN_ID=3659\nPUBLIC_RPC=0\nMAINNET_FAUCET=0\nVALIDATOR_NODE=1\n` };
+  const c = jv('check', { env: { JOIN: 'join.example' }, files: pin });
+  assert.equal(c.code, 0, c.out);
+  assert.match(c.out, /mainnet: no automatic staking or faucet/);
+  assert.match(c.read('systemctl.log'), /disable --now zetaphy-become-validator\.timer/);
+  assert.equal(c.read('curl.log'), '');
+  const s = jv('status', { files: pin });
+  assert.equal(s.code, 0, s.out);
+  assert.match(s.out, /chain: +zetaphy_3659-1 \(mainnet\)/);
+  assert.match(s.out, /account: +none yet: sudo zetaphy-validator key/);
+  // with the operator's address recorded: its balance, in ZTPHY, and how to stake
+  const k = jv('status', { files: { ...pin, 'state/operator-address': 'zetaphy1op\n' } });
+  assert.match(k.out, /account: +zetaphy1op +\(0x0+CD\)/);
+  assert.match(k.out, /balance: +0\.00 ZTPHY/);
+  assert.match(k.out, /validator: not yet \(once in sync and funded: sudo zetaphy-validator stake N\)/);
+  // stake refuses without funds, and import-key (the testnet's test keyring) is refused
+  const st = jv('MAINNET_TEST=1 mainnet_stake 1000', { files: { ...pin, 'state/operator-address': 'zetaphy1op\n' } });
+  assert.equal(st.code, 1);
+  assert.match(st.out, /holds 0\.00 ZTPHY; staking 1000 needs 1000\.10/);
+  assert.equal(st.read('zetaphyd.log'), '', 'no transaction');
+  assert.match(jv('MAINNET_TEST=1 mainnet_stake abc', { files: pin }).out, /usage: sudo zetaphy-validator stake/);
+  assert.match(jv('IMPORT_TEST=1 import_key', { files: pin }).out, /import-key is the testnet's/);
+  // the old testnet timer on a testnet node stops too (the faucet it asked is gone)
+  const t = jv('check', { env: { JOIN: 'join.example' }, files: { 'node/config/genesis.json': '{"chain_id":"zetaphy_77390-1"}' } });
+  assert.match(t.out, /shut down 2026-11-14: timer stopped/);
+  assert.equal(t.read('curl.log'), '');
 });

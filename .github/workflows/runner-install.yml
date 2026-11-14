@@ -4,10 +4,11 @@
 # read only: the runner key is made, the service starts and waits for its bond (nothing is funded,
 # signed or sent), the helper commands work, and uninstall leaves the key. A handful of small read
 # calls (chain id, code, balance, bond), well inside the public RPC's egress budget.
-# Also install.sh validator up to the node setup (DOWNLOAD_ONLY, GitHub releases only, no chain RPC): the signed release for this
-# setup-node.sh is found and verified (Sigstore signature with the pinned cosign, SHA-256, setup-node.sh);
-# a tampered binary is refused. It never joins the
-# live chain from here (syncing would spend the main node's small monthly traffic allowance).
+# Also install.sh validator (a mainnet validator node) up to the node setup (DOWNLOAD_ONLY, GitHub only, no chain RPC):
+# the signed release for this setup-node.sh is found and verified (Sigstore signature with the pinned cosign, SHA-256,
+# setup-node.sh), a tampered binary is refused, and the published mainnet genesis is downloaded and checked against its
+# published sha256; the testnet chain id is refused. It never joins the live chain from here (syncing would spend the
+# sentry's traffic allowance).
 # The same download step on other Linux systems (Debian, Fedora, Rocky, Amazon Linux, openSUSE, Arch)
 # installs what it needs with that system's package manager.
 # Cost: free (GitHub-hosted runner, public repository).
@@ -22,6 +23,7 @@ on:
       - 'zetaphy-network/cli.js'
       - 'zetaphy-chain/join-validator.sh'
       - 'zetaphy-chain/verify-release.sh'
+      - 'zetaphy-chain/mainnet/zetaphy_3659-1/genesis.json'
       - '.github/workflows/runner-install.yml'
   workflow_dispatch:
 
@@ -104,6 +106,28 @@ jobs:
           grep -q 'SHA-256 ok' /tmp/v.log
           grep -q "release $RELEASE_TAG" /tmp/v.log
           (cd /usr/local/lib/zetaphy-validator && sha256sum -c --ignore-missing SHA256SUMS)
+          # the published mainnet genesis, checked against the sha256 published with it
+          want=$(cut -d' ' -f1 zetaphy-chain/mainnet/zetaphy_3659-1/genesis.sha256)
+          [ "$want" = ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667 ]
+          grep -q "genesis zetaphy_3659-1: sha256 $want ok" /tmp/v.log
+          echo "$want  /usr/local/lib/zetaphy-validator/genesis.json" | sha256sum -c -
+          grep -q 'DOWNLOAD_ONLY: stopping before the node setup' /tmp/v.log
+      - name: The testnet (shut down 2026-11-14) and a public RPC on a validator are refused, before anything is installed
+        run: |
+          for e in CHAIN_ID=zetaphy_77390-1 JOIN=rpc.sawasdeecoin.com; do
+            if cat install.sh | sudo REF="$REF" "$e" DOWNLOAD_ONLY=1 bash -s -- validator > /tmp/t.log 2>&1; then
+              cat /tmp/t.log; echo "::error::$e was not refused"; exit 1
+            fi
+            cat /tmp/t.log
+            grep -q 'was shut down 2026-11-14' /tmp/t.log
+            grep -q 'refused, nothing was installed' /tmp/t.log
+          done
+          for e in PUBLIC_RPC=1 MAINNET_FAUCET=1; do
+            if cat install.sh | sudo REF="$REF" "$e" DOWNLOAD_ONLY=1 bash -s -- validator > /tmp/t.log 2>&1; then
+              cat /tmp/t.log; echo "::error::$e was not refused on a validator"; exit 1
+            fi
+            grep -q "${e}: a validator never serves a public RPC or a faucet" /tmp/t.log
+          done
       - name: A binary that does not match its signed release is refused
         run: |
           d=/usr/local/lib/zetaphy-validator
@@ -160,5 +184,7 @@ jobs:
             command -v curl >/dev/null || { command -v apt-get >/dev/null && apt-get update -qq && apt-get install -y -qq curl >/dev/null; }
             bash /repo/install.sh validator | tee /tmp/v.log
             grep -q "SHA-256 ok" /tmp/v.log
+            grep -q "genesis zetaphy_3659-1: sha256 ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667 ok" /tmp/v.log
+            echo "ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667  /usr/local/lib/zetaphy-validator/genesis.json" | sha256sum -c -
             for c in jq python3 flock; do command -v $c >/dev/null || { echo "::error::$c was not installed"; exit 1; }; done'
 

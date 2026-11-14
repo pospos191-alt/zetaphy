@@ -123,23 +123,39 @@ Google Cloud ให้เครื่อง **e2-micro** ฟรีถาวร�
 
 ## เข้าร่วมเชน: เป็น node หรือ validator (ให้เชนไม่อยู่ที่เครื่องเดียว)
 
-**คำสั่งเดียว (แนะนำ):** บนเครื่อง Ubuntu 24.04 ใดก็ได้ (Oracle ฟรี, Google ฟรี, VPS) วางคำสั่งนี้:
+**คำสั่งเดียว (แนะนำ) ZETAPHY mainnet `zetaphy_3659-1`:** บนเครื่อง Linux ใดก็ได้ที่มี systemd (x86_64 หรือ arm64) วางคำสั่งนี้:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=ชื่อของคุณ bash -s -- validator
 ```
-- ใช้ไฟล์เชนสำเร็จรูป (ตรวจ SHA-256) ไม่ต้อง build เอง ต่อเข้ากับ `rpc.sawasdeecoin.com` และขอ 10 ZETAPHY จาก faucet ให้เอง
-- ตัวจับเวลาเช็กทุก 10 นาที: ซิงก์ครบและมีเหรียญแล้ว จะ stake 9 ZETAPHY เป็น validator เอง แล้วหยุดเช็ก
+- ติดตั้ง release ที่เซ็นแล้ว (ตรวจลายเซ็น Sigstore และ SHA-256 ด้วย `verify-release.sh` ไม่ต้อง build; release ที่ไม่ได้เซ็น
+  ถูกปฏิเสธ) ดาวน์โหลด genesis ที่เผยแพร่ ([`mainnet/zetaphy_3659-1/genesis.json`](./mainnet/zetaphy_3659-1/)) และปฏิเสธ
+  ถ้า sha256 ไม่ใช่ `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667` แล้วรัน `setup-node.sh` แบบ pinned-chain
+  (`/etc/zetaphy/pinned-chain.env`) โดยต่อ sentry สาธารณะ `ebaab2a38813814916e165d4ad2c3517c6c483d8@129.221.199.191:26656`
+  เป็น peer โหนดซิงก์จากที่นั่น
+- โหนด validator ไม่ให้บริการสาธารณะ: ไม่มี RPC สาธารณะ (`PUBLIC_RPC=1`, `PUBLIC_HTTP_RPC=1` และ `MAINNET_FAUCET=1` ถูกปฏิเสธ
+  ทั้งตอนนี้และทุกครั้งที่รันต่อไป `setup-node.sh` เองก็ปฏิเสธ) ไม่มี Caddy และ EVM JSON-RPC กับ CometBFT RPC ตอบเฉพาะเครื่องตัวเอง
+  ไม่มี faucet บน validator และไม่มีการ stake อัตโนมัติบน mainnet
+- testnet `zetaphy_77390-1` ปิดไปแล้วเมื่อ 2026-11-14: `CHAIN_ID=zetaphy_77390-1`, `JOIN=…` และเครื่องที่ยังมีโหนด testnet อยู่
+  ถูกปฏิเสธพร้อมข้อความนี้ (ย้าย `~/.zetaphy` เก่าออกไปก่อน)
+- การเป็น validator ด้วย ZTPHY ของคุณเอง:
+  1. `sudo zetaphy-validator key` สร้างกุญแจ stake ใน file keyring (`~/.zetaphy-keys` ใช้รหัสผ่านที่คุณตั้ง; zetaphyd แสดง 24 คำ
+     ครั้งเดียว: จดลงกระดาษ)
+  2. โอน stake ที่ต้องการบวกค่าธรรมเนียมราว 1 ZTPHY จากกระเป๋าของคุณเองไปที่อยู่นั้น
+  3. `sudo zetaphy-validator status` รอจนขึ้นว่า in sync
+  4. `sudo zetaphy-validator stake <ZTPHY>`: create-validator ด้วยกุญแจ consensus ของโหนด แล้วลงทะเบียนกุญแจโหวต ML-DSA-44
+     (ขั้น 14 และ 17 ของ [docs/ZETAPHY-MAINNET-PROCEDURE.th.md](../docs/ZETAPHY-MAINNET-PROCEDURE.th.md))
 - `sudo zetaphy-validator status` ดูความคืบหน้าและการวินิจฉัยพร้อมคำแนะนำ (peers, ดิสก์, บล็อกที่พลาด, ความเสี่ยงถูก jail พร้อมเวลาโดยประมาณ), `sudo zetaphy-validator backup` ไฟล์ที่ต้องเก็บไว้ออฟไลน์,
-  `sudo zetaphy-validator unjail` กลับมาทำงานหลังถูกพักเพราะเครื่องดับ
-- หลังสำรองกุญแจแล้ว: `sudo zetaphy-validator secure` ทำลายไฟล์ 24 คำที่เก็บเป็นข้อความธรรมดา (เฉพาะเมื่อคุณยืนยันว่า
-  จดเก็บออฟไลน์แล้ว และกุญแจบัญชี stake อยู่ใน keyring), ปิดการเข้า SSH ด้วยรหัสผ่านและการเข้าเป็น root (เฉพาะเมื่อมีบัญชีที่ใช้ sudo
+  `sudo zetaphy-validator unjail` กลับมาทำงานหลังถูกพักเพราะเครื่องดับ (ถามรหัสผ่าน keyring)
+- `sudo zetaphy-validator secure` ปิดการเข้า SSH ด้วยรหัสผ่านและการเข้าเป็น root (เฉพาะเมื่อมีบัญชีที่ใช้ sudo
   ได้และมี SSH key หรือเปิด Google OS Login อยู่ จึงไม่ล็อกตัวเองออก; ตรวจด้วย `sshd -t` และถอยกลับถ้าผิดพลาด), เปิดอัปเดตความปลอดภัย
   อัตโนมัติ (unattended-upgrades / dnf-automatic ไม่รีบูตเอง) และ fail2ban, ตั้งโฟลเดอร์กุญแจเป็น 700 ไฟล์กุญแจเป็น 600
-  และแสดงพอร์ตที่เปิดสู่ภายนอก ถามก่อนทุกขั้น (`--yes` ไม่ถาม แต่การลบ 24 คำต้องมี `--words-saved` ด้วย; `--only ssh,updates`
-  ทำเฉพาะบางขั้น) ไม่ลบ `priv_validator_key.json`, `pq_vote_key.seed`, `node_key.json` หรือ keyring เด็ดขาด
-- เปิดพอร์ต 26656 (และ 80, 443) ใน firewall ของผู้ให้บริการคลาวด์ หรือใช้ปุ่ม Oracle (`deploy/oracle`) เลือก `validator` ซึ่งเปิดให้เอง
+  และแสดงพอร์ตที่เปิดสู่ภายนอก ถามก่อนทุกขั้น (`--yes` ไม่ถาม; `--only ssh,updates` ทำเฉพาะบางขั้น)
+  ไม่ลบ `priv_validator_key.json`, `pq_vote_key.seed`, `node_key.json` หรือ keyring เด็ดขาด
+- `DOWNLOAD_ONLY=1` หยุดหลังดาวน์โหลดและตรวจ release ที่เซ็นแล้วกับ genesis (CI รันบน Ubuntu, Debian, Fedora, Rocky,
+  Amazon Linux, openSUSE และ Arch)
+- เปิดพอร์ต 26656 ใน firewall ของผู้ให้บริการคลาวด์ (ไม่ต้องเปิดอย่างอื่น: validator ไม่มี RPC สาธารณะ)
 
-วิธีเดิมแบบทำเองทีละขั้น:
+วิธีเดิมแบบทำเองทีละขั้นด้านล่างเป็นของ testnet (`JOIN`; testnet ปิดไปแล้วเมื่อ 2026-11-14 เก็บไว้เป็นบันทึก) ติดตั้ง mainnet ด้วยมือ: ขั้น 11 และ 17 ของ [docs/ZETAPHY-MAINNET-PROCEDURE.th.md](../docs/ZETAPHY-MAINNET-PROCEDURE.th.md) และ [mainnet/zetaphy_3659-1/README.th.md](./mainnet/zetaphy_3659-1/README.th.md)
 
 ใครก็เข้าร่วมได้ด้วยเครื่องฟรีแบบเดียวกัน (Oracle / Google) โดยไม่ต้องมีไฟล์จาก repo นี้
 เครื่องแรกเผยแพร่สิ่งที่ต้องใช้ไว้ที่ `https://<ชื่อ>.sslip.io/zetaphy/` (genesis, ที่อยู่ peer, สคริปต์ติดตั้ง)
@@ -235,6 +251,8 @@ sudo tail -f /var/log/zetaphy-setup.log     # Ctrl+C เลิกดู กา�
 
 
 WebSocket: `wss://<ชื่อ>/ws` (EVM JSON-RPC เช่น `eth_subscribe` รับบล็อกใหม่และ log) Caddy ส่งต่อไปที่พอร์ต 8546 บนเครื่อง
+CometBFT websocket: `wss://<ชื่อ>/rpc/websocket` (`subscribe` บล็อกและธุรกรรมใหม่: การตรวจของ chain-registry ของ Keplr, explorer)
+ผ่านตัวกรอง websocket ของ rpc-guard (ด้านล่าง) แล้วต่อไปที่ `/websocket` ของ CometBFT
 โหนดที่ติดตั้งก่อนเวอร์ชันนี้ ได้ WebSocket เมื่อรันคำสั่งติดตั้งเดิมอีกครั้ง
 
 ### https แบบทนควอนตัม (`TLS_PQ`)
@@ -264,7 +282,12 @@ Caddy ของ Ubuntu 24.04 (2.6) ไม่มี ML-KEM สคริปต์�
 - เปิดสาธารณะแค่ 26656 (P2P) และ 80/443 (Caddy, https) ส่วน 8545, 26657, 1317, 9090 ฟังเฉพาะในเครื่อง (`PUBLIC_HTTP_RPC=1` เปิด 8545 แบบธรรมดาด้วย)
 - Caddy ส่ง RPC ทั้งสองผ่าน `zetaphyd rpc-guard` (service `zetaphy-rpc-guard`):
   - EVM JSON-RPC: เฉพาะ `eth_*`, `net_*`, `web3_*`, `zetaphy_*` (ไม่มี `txpool_`, `debug_`, `admin_`, `personal_`)
-  - CometBFT RPC (`/rpc`): เฉพาะคำสั่งอ่านที่กระเป๋าและ explorer ใช้ กับ `broadcast_tx_sync/async`; ไม่มี websocket, `dump_consensus_state`, `net_info`, `unconfirmed_txs`, `genesis`
+  - CometBFT RPC (`/rpc`): เฉพาะคำสั่งอ่านที่กระเป๋าและ explorer ใช้ กับ `broadcast_tx_sync/async`; ไม่มี `dump_consensus_state`, `net_info`, `unconfirmed_txs`, `genesis`
+  - CometBFT websocket (`/rpc/websocket` มีตัวรับของตัวเองที่ 127.0.0.1:26668): ทุก frame จากผู้เรียกถูกถอดแบบเดียวกับที่
+    CometBFT ถอด และต้องเป็นคำสั่งเดียวในรายการเดียวกันหรือ `subscribe`, `unsubscribe`, `unsubscribe_all` อย่างอื่น (คำสั่งอื่น,
+    batch, frame แบบ binary) ปิดการเชื่อมต่อก่อนถึงโหนด พร้อมกันไม่เกิน 4 การเชื่อมต่อต่อ IP และ 20 รวม frame ไม่เกิน 64 KB
+    ทุก frame นับในเพดานต่อนาที และการเชื่อมต่อที่ไม่มี frame ทั้งสองทางนาน 2 นาทีถูกปิด ใต้ลงไป `config.toml` ของโหนดตั้ง
+    `max_subscription_clients = 20` และ `max_subscriptions_per_client = 5` (setup-node.sh เขียนให้ทั้งคู่)
   - ไม่เกิน 300 คำขอต่อนาทีต่อ IP ในแต่ละฝั่ง, พร้อมกันรวม 64, batch ไม่เกิน 20, ขนาดไม่เกิน 1 MB
   ส่วน 26657 / 1317 / 9090 ฟังเฉพาะในเครื่อง
   - `zetaphy_sendCosmosTx` แค่ส่งต่อธุรกรรมที่เซ็นมาแล้ว (เหมือน `eth_sendRawTransaction`) ไม่ถือกุญแจใด ๆ

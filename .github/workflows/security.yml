@@ -625,6 +625,8 @@ jobs:
           go test -run '^$' -fuzz FuzzEVMCallUnmarshal -fuzztime 20s .
           # rpc-guard: no body gets a method past it that CometBFT would run
           go test -run '^$' -fuzz FuzzRPCGuardComet -fuzztime 20s .
+          # rpc-guard's CometBFT websocket: no frame gets a method past it that CometBFT's websocket would run
+          go test -run '^$' -fuzz FuzzRPCGuardWSFrame -fuzztime 20s .
 
       # Static security checks on the code ZETAPHY added. G115 (int
       # conversions) is excluded only for the upstream rate-limit module,
@@ -800,6 +802,11 @@ jobs:
       # public RPC / any validator signer, accepted on the public sentry (fresh key mode 600, limits 1/5/200, kept).
       - name: setup-node.sh mainnet faucet only on the public sentry (MAINNET_FAUCET)
         run: bash zetaphy-chain/test-mainnet-faucet.sh
+
+      # install.sh validator (join-validator.sh) sets VALIDATOR_NODE=1: no public RPC, plain-http RPC or faucet on that
+      # machine on any later run; PUBLIC_RPC=1 refused on any validator signer; the public sentry still accepted.
+      - name: setup-node.sh validator node never public (VALIDATOR_NODE)
+        run: bash zetaphy-chain/test-validator-node.sh
 
       - name: Build zetaphyd (this setup-node.sh) and the one from before zetaphy-guard
         run: |

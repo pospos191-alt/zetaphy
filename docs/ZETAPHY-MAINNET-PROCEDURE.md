@@ -205,8 +205,9 @@ sudo bash ~/rel/verify-release.sh --dir ~/rel --arch amd64 --setup ~/rel/setup-n
 Expect `5/8 genesis of zetaphy_3659-1 (pinned, sha256 <sha>)` and `ZETAPHY node of zetaphy_3659-1 is starting`,
 `Public RPC: none on this machine (PUBLIC_RPC=0)`. The node waits for `GENESIS_TIME`. The pin is kept in
 `/etc/zetaphy/pinned-chain.env`: later runs (`sudo zetaphy-validator update`, the upgrade timer) stay on this genesis
-and refuse another. Stop if the script says `refused:`. Do not use `zetaphy-validator install`, `check`, `unjail` or
-`setup-node.sh --become-validator` on the mainnet: they are the testnet's (test keyring, testnet chain id).
+and refuse another. Stop if the script says `refused:`. Do not use `zetaphy-validator check`, `import-key` or
+`setup-node.sh --become-validator` on the mainnet: they are the testnet's (test keyring, testnet chain id; on a mainnet
+node they refuse or do nothing). `zetaphy-validator unjail` uses this chain id and the file keyring `~/.zetaphy-keys`.
 
 ## 12. Sentry and public RPC, on M-SENTRY [เปลี่ยนการตั้งค่า]
 
@@ -569,7 +570,17 @@ soon as it is deployed, so a step that stops half way resumes with the same cont
 
 ## 17. Adding validators [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
-A new operator: steps 3 and 11 on their own machine with the published `genesis.json` and sha256, `PEERS=` the
+A new operator, in one command (any Linux with systemd; the signed release, the published genesis checked against its
+sha256, the sentry as peer, no public RPC and no faucet on that machine, ever; the testnet chain id is refused):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.sh | sudo MONIKER=<name> bash -s -- validator
+sudo zetaphy-validator key          # the staking key in ~/.zetaphy-keys (file keyring, a passphrase; 24 words on paper)
+#   send it the stake + ~1 ZTPHY from the operator's own wallet; wait for "in sync" in: sudo zetaphy-validator status
+sudo zetaphy-validator stake <ZTPHY>  # create-validator, then the vote key (step 14)
+```
+
+By hand instead: steps 3 and 11 on their own machine with the published `genesis.json` and sha256, `PEERS=` the
 sentry, waits for sync, then with their own file-keyring key and funds:
 `zetaphyd tx staking create-validator <validator.json> --from <key> --keyring-backend file …`, and step 14. From 4
 validators on, the chain guard's power cap (3333 bps) refuses delegations above 1/3; the project then moves stake
