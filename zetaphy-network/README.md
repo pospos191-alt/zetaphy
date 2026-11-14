@@ -76,7 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
 - After install: `sudo zetaphy-runner status` · `address` · `withdraw` · `logs` · `update` · `stop` · `start` · `uninstall`
 - Safe to run again (updates the code, keeps the key) · `uninstall` keeps the key
 - No machine: the "Deploy to Oracle Cloud" button in `deploy/oracle/README.md` creates a free one and installs everything
-- Runners earn BZTPHY reward points, converted to real ZETAPHY at mainnet: `zetaphy-chain/rewards/README.md`
+- On mainnet, runners earn ZTPHY from NeuroJobs. The testnet's BZTPHY reward points: `zetaphy-chain/rewards/README.md` (the testnet was shut down on 2026-11-14)
 
 ### Manual install (step by step)
 

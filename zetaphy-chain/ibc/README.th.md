@@ -2,6 +2,10 @@
 
 # ZETAPHY Saphan: USDC จริงจาก Noble เข้าเชน ZETAPHY ผ่าน IBC (testnet ก่อน)
 
+> **บันทึกของ testnet** ZETAPHY testnet ที่คู่มือนี้ใช้ (`zetaphy_77390-1`) ปิดถาวรแล้วเมื่อ 2026-11-14 คู่มือเก็บไว้
+> เป็นบันทึกว่าเส้นทางนี้เคยทำงานอย่างไร ยังไม่มี channel IBC ของ ZETAPHY mainnet (`zetaphy_3659-1`) เผยแพร่ใน
+> repository นี้ เส้นทางนี้จึงยังไม่มีบน mainnet
+
 **ZETAPHY Saphan** (สะพาน) คือระบบข้ามเชนของ ZETAPHY เส้นทางแรกคือ Noble ผ่าน IBC
 ผู้ใช้ส่งเหรียญได้จากแท็บ **Saphan** ที่ app.sawasdeecoin.com:
 - **ส่งออก:** จาก MetaMask ผ่าน precompile ICS-20 (`0x…0802`) ไม่ต้องใช้ Keplr

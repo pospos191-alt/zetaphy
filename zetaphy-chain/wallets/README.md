@@ -4,7 +4,13 @@
 
 How to add ZETAPHY Testnet to commonly used wallets, the wallet config files, and the listing steps (chainlist, Keplr, chain-registry)
 
-> testnet only; test coins with no value
+> **Mainnet values (the only network now):** network name `ZETAPHY`, EVM chain ID `3659` (`0xe4b`), Cosmos chain-id
+> `zetaphy_3659-1`, symbol `ZTPHY`, 18 decimals, denom `azetaphy`, RPC `https://129-221-199-191.sslip.io` (CometBFT `/rpc`,
+> REST `/rest`), explorer https://explorer.sawasdeecoin.com/?network=mainnet. The listing files for mainnet are in
+> [`../listings/`](../listings/README.md); the hub and the web wallet add the network with one button.
+>
+> **The rest of this page is the testnet's** (`ZETAPHY Testnet`, 77390), shut down for good on 2026-11-14: its templates
+> and listing steps are kept as the record. Do not add chain 77390 to a wallet or submit its files.
 
 ## Network values
 

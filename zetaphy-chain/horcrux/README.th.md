@@ -1,5 +1,9 @@
 # Horcrux สำหรับ validator ของ ZETAPHY (ทางเลือก, testnet)
 
+> testnet ปิดถาวรแล้วเมื่อ 2026-11-14 การตั้งค่านี้เขียนและลองกับ testnet บน mainnet การตั้งกุญแจของ validator
+> ใช้ตาม [docs/ZETAPHY-MAINNET-PROCEDURE.th.md](../../docs/ZETAPHY-MAINNET-PROCEDURE.th.md) อย่าใช้ Horcrux บน mainnet
+> จนกว่าจะรันครบทุกขั้นบน devnet แล้ว (ยังไม่ได้ทำ ดูด้านล่าง) chain id ของ mainnet คือ `zetaphy_3659-1`
+
 [English](README.md)
 
 [Horcrux](https://github.com/strangelove-ventures/horcrux) แบ่ง **กุญแจเซ็น ed25519** ของ validator

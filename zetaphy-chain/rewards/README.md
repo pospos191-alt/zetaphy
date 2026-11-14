@@ -1,4 +1,9 @@
-# BZTPHY: testnet reward points, converted to real ZETAPHY at mainnet
+# BZTPHY: testnet reward points
+
+> **The testnet was shut down on 2026-11-14:** BZTPHY points are no longer earned. The mainnet genesis (`zetaphy_3659-1`) did
+> not place converted points at the holders' addresses (its allocations: [mainnet/zetaphy_3659-1](../mainnet/zetaphy_3659-1/README.md));
+> any conversion would come from the rewards multisig and be announced in this repository. On mainnet, runners earn ZTPHY
+> from NeuroJobs directly. The rest of this page is the testnet program's record.
 
 People who help run the ZETAPHY testnet (validators and Neuro runners) earn **BZTPHY** points every day, automatically.
 When mainnet launches, all points are converted to **real ZETAPHY**, placed in the mainnet genesis at the same addresses.

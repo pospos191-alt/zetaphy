@@ -1,11 +1,15 @@
 **English** | [ภาษาไทย](README.th.md)
 
-# ZETAPHY Chain — Stage 0: test chain (testnet)
+# ZETAPHY Chain — Stage 0: test chain (testnet, shut down 2026-11-14)
 
 > **Mainnet:** `zetaphy_3659-1` (EVM 3659, ZTPHY), genesis 2026-11-13 14:00 UTC, genesis sha256
 > `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`. Files and checks:
 > [mainnet/zetaphy_3659-1/](mainnet/zetaphy_3659-1/README.md). Read the
-> [notice](../docs/ZETAPHY-MAINNET-NOTICE.md) first. This page describes the testnet.
+> [notice](../docs/ZETAPHY-MAINNET-NOTICE.md) first. Public RPC `https://129-221-199-191.sslip.io`, explorer
+> https://explorer.sawasdeecoin.com/?network=mainnet. A validator: `install.sh validator` (below).
+>
+> **This page describes the testnet** (`zetaphy_77390-1`, EVM 77390, `rpc.sawasdeecoin.com`), **shut down for good on
+> 2026-11-14**: its RPC, faucet and coins are gone. Its steps are kept as the record of how it ran; do not send anything to chain 77390.
 
 A test chain with a single validator, running entirely on **Oracle Cloud**. Everything is done through the Oracle web console.
 You do not need to run anything on your own computer.
@@ -181,7 +185,7 @@ curl -fsSL https://raw.githubusercontent.com/pospos191-alt/zetaphy/main/install.
   `key`: `sudo -u zetaphy zetaphyd keys add validator --recover --keyring-backend file --keyring-dir ~zetaphy/.zetaphy-keys
   --algo eth_secp256k1`. The two node keys are always made by the node; to move a validator to a new machine, copy
   both files, and stop the old machine first (two machines with the same key is double signing).
-- Validators earn BZTPHY reward points, converted to real ZETAPHY at mainnet: [`rewards/README.md`](./rewards/README.md)
+- On the testnet, validators earned BZTPHY reward points (the testnet was shut down on 2026-11-14; what that means for the points: [`rewards/README.md`](./rewards/README.md))
 
 The manual way, step by step, is the testnet's (`JOIN`; the testnet was shut down 2026-11-14 and these steps are kept for the record). Mainnet by hand: steps 11 and 17 of [docs/ZETAPHY-MAINNET-PROCEDURE.md](../docs/ZETAPHY-MAINNET-PROCEDURE.md) and [mainnet/zetaphy_3659-1/README.md](./mainnet/zetaphy_3659-1/README.md).
 
@@ -210,7 +214,11 @@ The first machine publishes what is needed at `https://<name>.sslip.io/zetaphy/`
    ```
    Gate 3 target: ≥ 20 independent validators, and no one holds more than 33%
 
-**Faucet (testnet):** `zetaphy_faucet` (https only) gives 10 ZETAPHY per address once per day, at most 3 times per day
+**Mainnet faucet:** only on mainnet's public sentry: `zetaphy_faucet` gives 1 ZTPHY to an address once a day and `zetaphy_faucetPow`
+(the hub's Mine page) 5 ZTPHY per accepted proof, at most 200 ZTPHY a UTC day together (owner decision; step 12.1 of
+[docs/ZETAPHY-MAINNET-PROCEDURE.md](../docs/ZETAPHY-MAINNET-PROCEDURE.md)). The testnet faucets below are gone with the testnet.
+
+**Faucet (testnet, shut down):** `zetaphy_faucet` (https only) gives 10 ZETAPHY per address once per day, at most 3 times per day
 from one internet address (an IPv6 /64 counts as one) and at most 200 times per day in total, and does not give to addresses
 that already have funds. It uses only a separate key that holds 1,000,000 test ZETAPHY (from the liquidity part).
 ```bash
@@ -218,7 +226,7 @@ curl -s https://<name>.sslip.io -H 'content-type: application/json' \
   --data '{"jsonrpc":"2.0","id":1,"method":"zetaphy_faucet","params":["0x<your address>"]}'
 ```
 
-**Proof-of-work faucet (testnet):** `zetaphy_faucetPow(address, height, nonce)` gives the same 10 ZETAPHY for a few minutes
+**Proof-of-work faucet (testnet, shut down):** `zetaphy_faucetPow(address, height, nonce)` gives the same 10 ZETAPHY for a few minutes
 of browser work instead of trusting the caller's IP: `sha256(chainId as 8 bytes || hash of block height || address (20 bytes) || nonce (8 bytes))`
 must start with 30 zero bits (`zetaphy_faucetPowInfo` tells the difficulty, the reward, today's grants left), at a block among
 the last 100. A proof binds its address and is used once; the per-address day, the 200-a-day total and "no funds yet" are
