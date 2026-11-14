@@ -540,6 +540,60 @@ bash zetaphy-chain/gov.sh invariant-firewall <InvariantFirewall 0x…> --from <p
 - `verify` / `--check` ล้มเหลวด้วยถ้า governance ของสัญญา AI ตัวใดไม่ใช่ timelock หรือ deployer เป็น guardian, feeder, poster, reporter,
   resolver หรือสมาชิก committee หรือการเชื่อมต่อไม่ตรง และแสดงว่า FederatedRounds, UsefulWork, BugBounty ยังปิดอยู่หรือไม่
 
+### 16.11 สัญญาของแท็บออฟไลน์ ตรวจสอบโค้ด ควอนตัม และภูมิคุ้มกันใน hub [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+`--resume` รอบเดียวกัน (16.9) จะ deploy สัญญาที่แท็บ Offline, Audit, Quantum และ Immunity ของ hub เรียกใช้ ต่อจากขั้น AI และก่อนขั้น
+`contracts` ตามวิธีเดียวกับเครื่องมือของ testnet (`zetaphy-network/src/offlinedeploy.js`, `auditnetops.js` / `zetaphy deploy-audit`,
+`frontierdeploy.js`) โค้ด: `zetaphy-launch/src/mainnetapps.js` ทุกสัญญาถูกบันทึกลงไฟล์ state ทันทีที่ deploy เสร็จ ขั้นที่หยุดกลางทางจึง
+รันต่อด้วยสัญญาเดิม ไม่มีสัญญาไหนต้องให้ deployer ตั้งค่าก่อน: สิทธิ์ governance ทุกอันเป็น timelock ตั้งแต่ constructor ที่เหลือไม่มีเจ้าของเลย
+ไม่มีสัญญาไหนมี guardian หรือปุ่มหยุด (บน testnet ก็ไม่ได้เริ่มแบบหยุดไว้)
+
+| ขั้น | สัญญา (constructor) | สิทธิ์ |
+|---|---|---|
+| `offline` | ZetaphyCheques(), ZetaphyOfflineOrders(router ของ DEX), ZetaphyOfflineCash() | ไม่มีเจ้าของ ไม่มีค่าธรรมเนียม ไม่มีการตั้งค่า |
+| `auditnet` | AuditNetwork(timelock, treasury, WorkerReputation, AuditRunners, AuditJudges, AuditCertificate, params), AuditRunners(AuditNetwork, NeuroJobs, WorkerReputation, 1), AuditJudges(AuditNetwork, WorkerReputation, timelock, params), AuditCertificate(AuditNetwork, AuditRunners, AuditJudges, timelock, levels) | AuditNetwork, AuditJudges, AuditCertificate: timelock; AuditRunners: ไม่มี |
+| `qrescue` | QuantumRescue(0x…0901 precompile ความปลอดภัยของเชน, timelock, 720 บล็อก) | timelock |
+| `immune` | ImmuneRegistry(NeuroJobs, ThreatRegistry, 2, timelock) (ImmuneBroadcaster(ImmuneRegistry, `ai.mailbox`, timelock) เมื่อมี Mailbox) | timelock |
+
+- สัญญาแรกของเครือข่ายตรวจสอบโค้ดรับที่อยู่ของอีกสามสัญญาที่คำนวณจาก nonce ถัดไปของ deployer (เหมือน `zetaphy deploy-audit`): ขั้นนี้บันทึก
+  nonce นั้นก่อนส่งธุรกรรมแรก และการรันต่อจะ deploy ทั้งสี่ให้ครบที่ที่อยู่เดิม (ปฏิเสธถ้ามีธุรกรรมอื่นใช้ nonce เหล่านั้นไปหลัง AuditNetwork
+  ลงเชนแล้ว) ค่าพารามิเตอร์เป็นของ testnet (`NETWORK_PARAMS`, `JUDGE_PARAMS`, `LEVELS`: bond ผู้ตรวจ 10 ZTPHY, bond กรรมการ 100 ZTPHY,
+  pool ขั้นต่ำ 10 ZTPHY) treasury (เงินที่ถูกริบหลังออกใบรับรอง bond อุทธรณ์ที่แพ้) คือ community fund AuditNetwork และ AuditRunners
+  จะรายงานไปที่ WorkerReputation ได้ก็ต่อเมื่อมีการโหวตเรียก `WorkerReputation.setReporter(AuditNetwork / AuditRunners, true)`: ขั้นนี้พิมพ์
+  ทั้งสองคำสั่ง (to, data) และเก็บไว้ใน state (`auditReporterCalls`) ก่อนหน้านั้นการรายงานจะถูกข้าม (try/catch) ส่วนอื่นทำงานปกติ
+- **ไม่มีการ mint** ทุกสัญญาที่ถือเหรียญของผู้ใช้มีทางถอนคืนของตัวเอง: ผู้จ่ายของช่องเช็คถอนส่วนที่เหลือหลังปิดช่อง ผู้ออกเงินสดออฟไลน์เรียกคืน
+  ธนบัตรที่หมดอายุและ bond ผู้ขอตรวจเรียกคืน pool ที่ไม่ได้ใช้ เงินที่ฝากไว้ใน QuantumRescue บัญชีเจ้าของเรียกคืนได้เอง
+- **ข้ามบน mainnet** (พิมพ์ในแผน และเขียนลง `skipped` ของ `3659.contracts.json`): ImmuneVaccines (ซอร์สของมันเขียนว่า TESTNET ONLY และหนึ่งใน
+  สามการยืนยันคือ HackInsurance ซึ่งไม่มีบน mainnet); ImmuneBroadcaster ตราบที่เชนนี้ยังไม่มี Hyperlane Mailbox (`ai.mailbox`); ImmuneMirror
+  (อยู่บนเชนอื่น); PQSettlement (แท็บ Quantum ไม่ได้เรียก); CircuitBreaker (ระบบซ่อมตัวเอง ไม่ใช่แท็บ Immunity)
+- ส่วน `apps` ใน deploy config (ไม่บังคับ, `mainnet.example.json`): `auditTreasury` (ค่าเริ่มต้น `communityFund`; ห้ามเป็น deployer),
+  `auditRunnerMinAgreed` (1), `rescueMaturity` (720 บล็อก), `immuneMinAgreed` (2 ขึ้นไป) ไม่ต้องเพิ่มอะไรใน `~/mainnet-deploy.json`:
+  ค่าเริ่มต้นเป็นของ testnet
+- `verify` / `--check` จะล้มด้วยถ้าสัญญาเหล่านี้ไม่มีโค้ด governance ไม่ใช่ timelock (เป็น deployer หรือ EOA ใด) treasury ของเครือข่ายตรวจสอบ
+  เป็น deployer หรือการเชื่อมต่อไม่ตรง (สี่สัญญาของเครือข่ายตรวจสอบ NeuroJobs, ThreatRegistry, router ของ DEX, precompile ความปลอดภัย)
+  และพิมพ์หนึ่งบรรทัดสรุป
+- `contracts` เขียน key ของ hub ลง `3659.contracts.json`: `zetaphyCheques`, `offlineOrders`, `offlineCash`, `auditNetwork`, `auditRunners`,
+  `auditJudges`, `auditCertificate`, `quantumRescue`, `immuneRegistry` (และ `immuneBroadcaster`) เมื่อเผยแพร่ไฟล์นี้แล้ว build ของ hub จะเปิด
+  แต่ละแท็บเองเมื่อสัญญาของแท็บนั้นครบ (`zetaphy-hub/network.js` `FEATURE_CONTRACTS`: offline = สามสัญญาออฟไลน์, audit = `auditNetwork` +
+  `auditCertificate`, quantumWallet = `quantumRescue`, immune = `immuneRegistry`) ก่อนหน้านั้นแท็บจะแสดง "ยังไม่มีบน mainnet" แท็บเหล่านี้
+  เซ็นและตรวจสำหรับ chain 3659 เท่านั้น
+
+**แอป NFT (`nftCodeKeysProtected`)** NFTFactory และ NFTMarketplace deploy แล้ว (16.9) แต่ code key ร่วมของคอลเลกชัน NFT จะถูกป้องกันใน
+ThreatRegistry ก็ต่อเมื่อชุดคำสั่ง timelock ของขั้น `proposal` ทำงาน (หลังรอ 48 ชม. ประมาณ 2026-11-17) ก่อนหน้านั้น hub จะให้แท็บ NFT แสดง
+"ยังไม่มีบน mainnet" ไม่ว่าไฟล์จะมีที่อยู่อะไร: แท็บจะเปิดเมื่อ `3659.contracts.json` มี `"nftCodeKeysProtected": true` เท่านั้น
+(`zetaphy-hub/network.js` `nftReady`) เจ้าของเปลี่ยนค่านี้หลังชุดคำสั่งทำงานแล้ว:
+
+```bash
+# เมื่อมีคนส่ง executeBatch ของชุดคำสั่ง (<state>.timelock-batch.json) หลังครบ 48 ชม. แล้ว
+node zetaphy-launch/launch.js --network mainnet --chain chain.json --deploy-config ~/mainnet-deploy.json \
+  --keystore ~/deployer.json --passphrase-stdin --rpc <rpc> --confirm-chain 3659 --resume --only protect,contracts
+#   protect อ่าน code key ทั้งสองบนเชน ("2 shared code key(s) protected"); contracts เขียน nftCodeKeysProtected: true
+cp zetaphy-launch/state/3659.contracts.json <repo>/zetaphy-launch/state/3659.contracts.json   # เผยแพร่ (PR)
+```
+
+`contracts` เขียน `true` ก็ต่อเมื่อขั้น `protect` พบว่า code key ของคอลเลกชันทุกตัวถูกป้องกันบนเชนแล้วเท่านั้น การแก้ไฟล์เองก่อนหน้านั้นจะเปิดแอป NFT
+ที่โค้ดของคอลเลกชันยังไม่ถูกป้องกัน ตัวแอป NFT (`zetaphy-nft/web`) ใช้งานบน chain 3659 กับที่อยู่เหล่านี้ได้อยู่แล้ว (config ของมันเอง)
+
 ## 17. เพิ่ม validator [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
 ผู้ดูแลรายใหม่ ด้วยคำสั่งเดียว (Linux ใดก็ได้ที่มี systemd; release ที่เซ็นแล้ว, genesis ที่เผยแพร่ตรวจกับ sha256, sentry เป็น peer,

@@ -568,6 +568,68 @@ soon as it is deployed, so a step that stops half way resumes with the same cont
   feeder, poster, reporter, resolver or committee member, or the wiring differs; it prints whether FederatedRounds,
   UsefulWork and BugBounty are still closed.
 
+### 16.11 The hub's offline, audit, quantum and immune tabs [อ่าน] [เปลี่ยนไฟล์] [เปลี่ยนเชน]
+
+The same `--resume` (16.9) then deploys the contracts the hub's Offline, Audit, Quantum and Immunity tabs call, after
+the AI steps and before `contracts`, as the testnet tooling deploys them (`zetaphy-network/src/offlinedeploy.js`,
+`auditnetops.js` / `zetaphy deploy-audit`, `frontierdeploy.js`). Code: `zetaphy-launch/src/mainnetapps.js`. Each
+contract is written to the state as soon as it is deployed, so a step that stops half way resumes with the same
+contracts. None of these contracts needs a set-up call by the deployer: every governance role is the timelock in the
+constructor, and the others have no owner at all. None has a guardian or a pause (none starts paused on the testnet).
+
+| step | contracts (constructor) | roles |
+|---|---|---|
+| `offline` | ZetaphyCheques(), ZetaphyOfflineOrders(the DEX router), ZetaphyOfflineCash() | no owner, no fee, no setting |
+| `auditnet` | AuditNetwork(timelock, treasury, WorkerReputation, AuditRunners, AuditJudges, AuditCertificate, params), AuditRunners(AuditNetwork, NeuroJobs, WorkerReputation, 1), AuditJudges(AuditNetwork, WorkerReputation, timelock, params), AuditCertificate(AuditNetwork, AuditRunners, AuditJudges, timelock, levels) | AuditNetwork, AuditJudges, AuditCertificate: the timelock; AuditRunners: none |
+| `qrescue` | QuantumRescue(0x…0901 the security precompile, timelock, 720 blocks) | the timelock |
+| `immune` | ImmuneRegistry(NeuroJobs, ThreatRegistry, 2, timelock) (ImmuneBroadcaster(ImmuneRegistry, `ai.mailbox`, timelock) with a Mailbox) | the timelock |
+
+- The audit network's first contract takes the other three's addresses, computed from the deployer's next nonces (as
+  `zetaphy deploy-audit`): the step saves that nonce before its first transaction, and a resume finishes the four at
+  those addresses (it refuses if another transaction took one of those nonces after AuditNetwork landed). Its
+  parameters are the testnet's (`NETWORK_PARAMS`, `JUDGE_PARAMS`, `LEVELS`: auditor bond 10 ZTPHY, judge bond
+  100 ZTPHY, minimum pool 10 ZTPHY). The treasury (post-certificate slashes, lost appeal bonds) is the community fund.
+  AuditNetwork and AuditRunners report to WorkerReputation only once a vote calls
+  `WorkerReputation.setReporter(AuditNetwork / AuditRunners, true)`; the step prints both calls (to, data) and keeps
+  them in the state (`auditReporterCalls`). Until then their reports are skipped (try/catch), nothing else changes.
+- **Nothing mints.** Every contract that holds users' coins has its own way back: a cheque channel's payer withdraws the
+  remainder after the close; an offline-cash issuer reclaims expired notes and its bond; an audit sponsor reclaims an
+  unused pool; an escrow in QuantumRescue is claimed by its own account.
+- **Skipped on mainnet** (printed in the plan, written to `3659.contracts.json` `skipped`): ImmuneVaccines (its source
+  says TESTNET ONLY, and one of its three confirmations is HackInsurance, which is not on mainnet); ImmuneBroadcaster
+  while this chain has no Hyperlane Mailbox (`ai.mailbox`); ImmuneMirror (it lives on the other chains); PQSettlement
+  (the Quantum tab does not call it); CircuitBreaker (self-healing, not the Immunity tab).
+- The deploy config's optional `apps` section (`mainnet.example.json`): `auditTreasury` (default: `communityFund`; never
+  the deployer), `auditRunnerMinAgreed` (1), `rescueMaturity` (720 blocks), `immuneMinAgreed` (2 or more). Nothing has
+  to be added to `~/mainnet-deploy.json`: the defaults are the testnet's.
+- `verify` / `--check` also fail if any of these contracts has no code, its governance is not the timelock (the
+  deployer or any EOA), the audit treasury is the deployer, or the wiring differs (the audit network's four contracts,
+  NeuroJobs, the ThreatRegistry, the DEX router, the security precompile). It prints one line for them.
+- `contracts` writes their hub keys to `3659.contracts.json`: `zetaphyCheques`, `offlineOrders`, `offlineCash`,
+  `auditNetwork`, `auditRunners`, `auditJudges`, `auditCertificate`, `quantumRescue`, `immuneRegistry` (and
+  `immuneBroadcaster`). Once that file is published, the hub's build turns each tab on by itself when all its contracts
+  are there (`zetaphy-hub/network.js` `FEATURE_CONTRACTS`: offline = the three offline contracts, audit =
+  `auditNetwork` + `auditCertificate`, quantumWallet = `quantumRescue`, immune = `immuneRegistry`); until then the tab
+  says "not on mainnet yet". The tabs sign and check for chain 3659 only.
+
+**The NFT app (`nftCodeKeysProtected`).** NFTFactory and NFTMarketplace are deployed (16.9), but the NFT collections'
+shared code keys are protected in the ThreatRegistry only by the timelock batch of the `proposal` step (it executes
+after its 48 h, about 2026-11-17). Until then the hub keeps its NFT tab "not on mainnet yet", whatever addresses the
+file has: it opens only when `3659.contracts.json` has `"nftCodeKeysProtected": true` (`zetaphy-hub/network.js`
+`nftReady`). The owner flips it after the batch has run:
+
+```bash
+# once anyone has sent the batch's executeBatch (<state>.timelock-batch.json) after the 48 h
+node zetaphy-launch/launch.js --network mainnet --chain chain.json --deploy-config ~/mainnet-deploy.json \
+  --keystore ~/deployer.json --passphrase-stdin --rpc <rpc> --confirm-chain 3659 --resume --only protect,contracts
+#   protect reads both code keys on-chain ("2 shared code key(s) protected"); contracts writes nftCodeKeysProtected: true
+cp zetaphy-launch/state/3659.contracts.json <repo>/zetaphy-launch/state/3659.contracts.json   # publish it (a PR)
+```
+
+`contracts` writes `true` only when the `protect` step found every collection code key protected on-chain; by hand,
+setting it in the published file before then would open an NFT app whose collections' code is not protected yet.
+The NFT web app itself (`zetaphy-nft/web`) works on chain 3659 with these addresses either way (its own config).
+
 ## 17. Adding validators [เปลี่ยนการตั้งค่า] [เปลี่ยนเชน]
 
 A new operator, in one command (any Linux with systemd; the signed release, the published genesis checked against its

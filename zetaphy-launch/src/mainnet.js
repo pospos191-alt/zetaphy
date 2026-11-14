@@ -12,7 +12,8 @@
 //     seeded pools); ZetaphyBounty (funded); then the ZetaphyTimelock and the handover. After the handover, the
 //     rest of the testnet's real systems (src/mainnetall.js: NeuroIdentity + NeuroValidation, RewardVault,
 //     QuantumWalletFactory, ComputeMarket, the DLMM, the NFT factory + marketplace, the oracle), each handing its
-//     roles straight to that timelock. No faucet, no test stablecoins, no StableGateway, no fixed test price, no
+//     roles straight to that timelock; then the AI map's contracts (src/mainnetai.js) and the hub's offline, audit,
+//     quantum and immune tabs' contracts (src/mainnetapps.js). No faucet, no test stablecoins, no StableGateway, no fixed test price, no
 //     test tokens or seeded pools, no web-app config writes, no snap build (MAINNET_EXCLUDED, printed in the plan).
 //     Neuro comes before the bridge and the DEX because both read it (NeuroLane runs on NeuroJobs; the bridge and the
 //     DEX router check the ThreatRegistry). The timelock is deployed just before the handover so its bootstrap
@@ -32,6 +33,7 @@ import { outputs, assertNoSecrets } from './runner.js';
 import { later, isLater, real, ref, resolveArgs, dep, deployOne } from './plan.js';
 import { addedPlans, addedSteps, verifyAdded, MAINNET_EXCLUDED } from './mainnetall.js';
 import { aiConfig, aiRoleHolders, aiPlans, aiSteps, verifyAi, contractsStep } from './mainnetai.js';
+import { appsConfig, appsRoleHolders, appPlans, appSteps, verifyApps } from './mainnetapps.js';
 import { launchSteps, art, NET, haveCode, signer, wait, same, bridgeOpen, BRIDGE_GATES, adminRoles, guardianRoles, ROOT, GOV_MODULE, EVM_CHAIN_ID as TESTNET_EVM_CHAIN_ID } from './steps.js';
 
 export const MAINNET_MIN_DELAY = 48 * 3600;
@@ -128,7 +130,7 @@ function only(o, keys, what) { if (o == null || typeof o !== 'object' || Array.i
 export function mainnetConfig(raw, { deployer } = {}) {
   assertNoSecrets(raw, 'deploy config');
   const c = only(raw, ['governance', 'timelockProposers', 'timelockExecutor', 'timelockDelay', 'guardian', 'guardianOwners', 'guardianThreshold', 'communityFund', 'neuro', 'threats', 'reports', 'bridge', 'dex', 'bounty',
-    'identity', 'vault', 'compute', 'dlmm', 'nft', 'oracle', 'proposalDeposit', 'ai'], '');
+    'identity', 'vault', 'compute', 'dlmm', 'nft', 'oracle', 'proposalDeposit', 'ai', 'apps'], '');
   if (c.governance == null) throw new Error('deploy config governance: "gov" (the chain\'s gov module) or 0x<multisig>: the timelock\'s proposer');
   const out = {};
   out.governance = addr(c.governance, 'governance', { gov: true });
@@ -204,11 +206,13 @@ export function mainnetConfig(raw, { deployer } = {}) {
   out.proposalDeposit = coin(c.proposalDeposit ?? '10000', 'proposalDeposit');
   // the AI map's contracts (src/mainnetai.js)
   out.ai = aiConfig(c.ai, { only, addr, addrs, int, coin });
+  // the hub's offline, audit, quantum and immune tabs' contracts (src/mainnetapps.js)
+  out.apps = appsConfig(c.apps, { only, addr, int }, { communityFund: out.communityFund });
   out.proposalDepositWei = parseEther(out.proposalDeposit).toString();
   if (deployer) {
     const roles = [['governance', [out.governance]], ['timelockProposers', out.extraProposers], ['guardian', [out.guardian].filter(Boolean)], ['guardianOwners', out.guardianOwners],
       ['communityFund', [out.communityFund]], ['bridge.markers', out.bridge?.markers ?? []], ['dex.feeTo', [out.dex.feeTo].filter(Boolean)], ['bounty.committee', out.bounty?.committee ?? []],
-      ['vault.validators', [out.vault.validators].filter(Boolean)], ['dlmm.feeTo', [out.dlmm.feeTo].filter(Boolean)], ['nft.feeRecipient', [out.nft.feeRecipient]], ['oracle.relayers', out.oracle.relayers], ...aiRoleHolders(out.ai)];
+      ['vault.validators', [out.vault.validators].filter(Boolean)], ['dlmm.feeTo', [out.dlmm.feeTo].filter(Boolean)], ['nft.feeRecipient', [out.nft.feeRecipient]], ['oracle.relayers', out.oracle.relayers], ...aiRoleHolders(out.ai), ...(c.apps?.auditTreasury != null ? appsRoleHolders(out.apps) : [])];
     for (const [k, list] of roles) if (list.some((a) => same(a, deployer))) throw new Error(`deploy config ${k}: the deployer ${deployer} is used once and retired; it may hold no role`);
   }
   return out;
@@ -295,6 +299,7 @@ function mainnetPlans() {
     verify: () => ({ deploys: [], calls: ['(checks) every role on every contract of this run: the timelock, the guardian multisig, the gov module or nobody; never an EOA or the deployer'] }),
     ...addedPlans(),
     ...aiPlans(),
+    ...appPlans(),
     contracts: contractsStep().plan,
   };
 }
@@ -445,6 +450,8 @@ export function mainnetSteps() {
     ...addedSteps(),
     // the AI map's contracts (src/mainnetai.js), then the addresses the web apps read
     ...aiSteps(),
+    // the hub's offline, audit, quantum and immune tabs' contracts (src/mainnetapps.js)
+    ...appSteps(),
     contractsStep(),
     withPlan({
       name: 'verify',
@@ -516,6 +523,7 @@ export async function verifyMainnet(ctx, state) {
   }
   await verifyAdded(ctx, o, problems, lines);
   await verifyAi(ctx, o, problems, lines);
+  await verifyApps(ctx, o, problems, lines);
   if (problems.length) throw new Error(`the mainnet check failed:\n  - ${problems.join('\n  - ')}`);
   for (const l of lines) ctx.log(`  ${l}`);
   ctx.log(`  checked on-chain: no EOA and not the deployer ${me} holds a role on any contract of this run; the bridge is closed`);
