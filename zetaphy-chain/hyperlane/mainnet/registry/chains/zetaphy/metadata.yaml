@@ -1,0 +1,21 @@
+# ZETAPHY MAINNET for Hyperlane (registry format: @hyperlane-xyz/cli 45.0.1 examples/chain-config.yaml).
+# Used with `-r zetaphy-chain/hyperlane/mainnet/registry` (docs/SAPHAN-MAINNET.md). The testnet's entry
+# (chain 77390) stays in ../../../registry; the two are never passed to the CLI together.
+name: zetaphy
+displayName: ZETAPHY
+chainId: 3659
+domainId: 3659
+protocol: ethereum
+isTestnet: false
+rpcUrls:
+  - http: https://129-221-199-191.sslip.io
+    pagination:
+      maxBlockRange: 500   # the node's eth_getLogs block-range-cap
+nativeToken:
+  name: ZETAPHY
+  symbol: ZTPHY
+  decimals: 18
+blocks:
+  confirmations: 1
+  reorgPeriod: 1           # CometBFT: final at once
+  estimateBlockTime: 5

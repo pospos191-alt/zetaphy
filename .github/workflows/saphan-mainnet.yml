@@ -1,0 +1,170 @@
+# ZETAPHY Saphan MAINNET (ZTPHY ZETAPHY 3659 <-> Base 8453): checks only, on LOCAL chains. Nothing is ever sent to ZETAPHY
+# mainnet or Base mainnet from here, and no secret or environment is used: the owner runs the real deploy from his own
+# machine (docs/SAPHAN-MAINNET.md). Cost: free (GitHub-hosted runner, public repository).
+#   unit     the config, the plans, the pools, the costs, the contracts with the mainnet caps (test/saphanmainnet.test.js)
+#   dry-run  an anvil fork of Base mainnet (its real Mailbox, merkle tree hook, ISM factory, USDC, Uniswap v3) and a fresh
+#            local ZETAPHY (3659) with Hyperlane core from the pinned CLI and the core config the tool writes; then the
+#            whole route (scripts/saphan-mainnet-dryrun.js): hand-over, deploy (closed), verify, opening through both
+#            timelocks, 2,000,000 ZTPHY to Base, the two pools, caps, burn -> release after the delay, pause, forged
+#            messages; then setup-agents-mainnet.sh on the same chains (validator announces and signs, relayer starts,
+#            no key in the logs). Gas on the local chains comes from anvil_setBalance, never a faucet.
+
+name: saphan-mainnet
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/saphan-mainnet.yml'
+      - 'zetaphy-chain/hyperlane/mainnet/**'
+      - 'zetaphy-network/src/saphanmainnet.js'
+      - 'zetaphy-network/src/saphanpool.js'
+      - 'zetaphy-network/src/saphan.js'
+      - 'zetaphy-network/scripts/saphan-mainnet*.js'
+      - 'zetaphy-network/scripts/saphan-pool.js'
+      - 'zetaphy-network/scripts/saphan.js'
+      - 'zetaphy-network/contracts/SaphanTokens.sol'
+      - 'zetaphy-network/contracts/SimpleMultisig.sol'
+      - 'zetaphy-network/contracts/ZetaphyTimelock.sol'
+      - 'zetaphy-network/test/saphanmainnet.test.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: saphan-mainnet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Saphan mainnet unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: zetaphy-network
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: node --test test/saphanmainnet.test.js test/saphantokens.test.js test/saphanconfig.test.js
+      - name: The owner's offline plans print (no network, no key)
+        run: |
+          node scripts/saphan-mainnet.js plan | tee /tmp/plan.txt
+          grep -q 'NOT audited' /tmp/plan.txt && grep -q 'OWNER INPUTS STILL MISSING' /tmp/plan.txt
+          node scripts/saphan-pool.js plan | tee /tmp/pool.txt
+          grep -q 'a buy of \$10' /tmp/pool.txt
+          bash -n ../zetaphy-chain/hyperlane/mainnet/setup-agents-mainnet.sh
+
+  dry-run:
+    name: Saphan mainnet dry run (fork of Base + local ZETAPHY)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+        working-directory: zetaphy-network
+    env:
+      HYP_CLI: "@hyperlane-xyz/cli@45.0.1"
+      # anvil's well-known dev key #0 (public, local chains only)
+      DEV_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      ZETAPHY_RPC: http://127.0.0.1:8612
+      BASE_RPC: http://127.0.0.1:8611
+      W: /tmp/smw
+      DIR: zetaphy-chain/hyperlane/mainnet
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Install anvil (pinned)
+        uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1
+        with:
+          version: v1.2.3
+
+      - name: Local chains (a fork of Base mainnet a few blocks behind the head; a fresh ZETAPHY 3659)
+        run: |
+          set -o pipefail
+          rpc() { curl -fsS --max-time 30 -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$2\",\"params\":[]}" "$1" | jq -r .result; }
+          for u in $(jq -r '.base.rpc[]' ../$DIR/saphan-mainnet.json); do H=$(rpc "$u" eth_blockNumber) && [ -n "$H" ] && [ "$H" != null ] && { FORK=$u; break; }; done
+          [ -n "${FORK:-}" ] || { echo "::error::no Base RPC answered"; exit 1; }
+          anvil --fork-url "$FORK" --fork-block-number $(( H - 12 )) --retries 10 --fork-retry-backoff 2000 --host 0.0.0.0 --port 8611 --silent &
+          anvil --chain-id 3659 --host 0.0.0.0 --port 8612 --silent &
+          for p in 8611 8612; do for _ in $(seq 1 60); do curl -fs -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' 127.0.0.1:$p >/dev/null && break; sleep 2; done; done
+          [ "$(rpc http://127.0.0.1:8611 eth_chainId)" = 0x2105 ] && [ "$(rpc http://127.0.0.1:8612 eth_chainId)" = 0xe4b ]
+          npm i -g --no-audit --no-fund "$HYP_CLI"
+
+      - name: Stand-ins, the dry config and the core config (local ZETAPHY)
+        run: node scripts/saphan-mainnet-dryrun.js prepare --work "$W"
+
+      - name: Hyperlane core on the local ZETAPHY (the pinned CLI, the config the tool wrote)
+        env:
+          GH_AUTH_TOKEN: ${{ github.token }}   # the CLI reads Base's metadata from the GitHub registry
+        run: |
+          cd "$W" && HYP_KEY="$DEV_KEY" hyperlane core deploy --chain zetaphy --config core-config.yaml \
+            -r https://github.com/hyperlane-xyz/hyperlane-registry -r "$W/reg" --yes > core.log 2>&1 || { tail -40 core.log; exit 1; }
+          printf 'interchainGasPaymaster: "0x0000000000000000000000000000000000000000"\n' >> reg/chains/zetaphy/addresses.yaml
+
+      - name: The whole route on the local chains
+        run: |
+          set -o pipefail
+          node scripts/saphan-mainnet-dryrun.js run --work "$W" | tee "$W/dry.log"
+          grep -q '^MAINNET DRY RUN OK' "$W/dry.log"
+
+      - name: The owner's tool reads the dry deploy (status, pause, open, relayer, agent config)
+        env:
+          SAPHAN_MAINNET: /tmp/smw/saphan-mainnet.json
+          SAPHAN_MAINNET_STATE: /tmp/smw/state.json
+          ZETAPHY_CORE: /tmp/smw/reg/chains/zetaphy/addresses.yaml
+        run: |
+          node scripts/saphan-mainnet.js status | jq .
+          node scripts/saphan-mainnet.js pause | jq -e '.zetaphy.pause.propose | startswith("0x")'
+          node scripts/saphan-mainnet.js relayer-env | sed 's#^#  #' | tee "$W/relayer.env"
+          sed -i 's/^  //' "$W/relayer.env"
+          # the containers reach the runner's chains through the docker bridge
+          node scripts/saphan-mainnet.js agent-config --out "$W/agent-config.json" --rpc-zetaphy http://172.17.0.1:8612 --rpc-base http://172.17.0.1:8611 | jq .
+
+      - name: Agents (setup-agents-mainnet.sh) on the local chains
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          sudo bash "$DIR/setup-agents-mainnet.sh" install | tee "$W/install.log"
+          sudo test "$(sudo stat -c %a /etc/hyperlane-mainnet/validator-zetaphy.key)" = 600
+          sudo bash "$DIR/setup-agents-mainnet.sh" install > /dev/null   # re-run keeps the keys
+          sudo AGENT_CONFIG="$W/agent-config.json" bash "$DIR/setup-agents-mainnet.sh" config
+          for a in $(grep -Eo '0x[0-9a-fA-F]{40}' "$W/install.log" | sort -u); do
+            for p in 8611 8612; do curl -fsS -H 'content-type: application/json' --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"anvil_setBalance\",\"params\":[\"$a\",\"0xde0b6b3a7640000\"]}" 127.0.0.1:$p >/dev/null; done
+          done
+          sudo bash "$DIR/setup-agents-mainnet.sh" start-validators
+          for _ in $(seq 1 60); do s=$(sudo bash "$DIR/setup-agents-mainnet.sh" status); grep -q 'announced zetaphy  yes' <<<"$s" && break; sleep 5; done
+          echo "$s"; grep -q 'announced zetaphy  yes' <<<"$s"
+          for _ in $(seq 1 60); do sudo sh -c 'ls /var/lib/hyperlane-mainnet/checkpoints/zetaphy | grep -q _with_id.json' && break; sleep 5; done
+          sudo ls /var/lib/hyperlane-mainnet/checkpoints/zetaphy | grep _with_id.json
+          if sudo bash "$DIR/setup-agents-mainnet.sh" start-relayer; then echo "::error::the relayer started without RELAYER_ENV"; exit 1; fi
+          sudo RELAYER_ENV="$W/relayer.env" bash "$DIR/setup-agents-mainnet.sh" start-relayer
+          sleep 45
+          systemctl is-active hyperlane-mainnet-relayer
+          curl -fsS 127.0.0.1:9101/metrics | grep -c '^hyperlane_'
+
+      - name: No key in the logs
+        run: |
+          sudo journalctl --no-pager > "$W/journal.txt"
+          for k in validator-zetaphy relayer; do
+            key=$(sudo cat /etc/hyperlane-mainnet/$k.key); key=${key#0x}
+            if grep -qi "$key" "$W/journal.txt" "$W/install.log" "$W/dry.log"; then echo "::error::the $k key is in a log"; exit 1; fi
+          done
+          echo "no key found in the logs"
+
+      - name: Logs on failure
+        if: failure()
+        run: |
+          tail -40 "$W/core.log" || true
+          sudo journalctl -u hyperlane-mainnet-validator-zetaphy -n 80 --no-pager || true
+          sudo journalctl -u hyperlane-mainnet-relayer -n 80 --no-pager || true

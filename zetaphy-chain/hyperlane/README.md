@@ -68,3 +68,12 @@ precompile, `zZETAPHY` on the other side; BZTPHY listed but not movable) and the
 destination: a `ZetaphyTokenVault` on ZETAPHY (escrow) and a `SaphanSyntheticToken` on the destination (minted only
 by that vault's messages, verified by our validators). Deployed routes go to `saphan-routes.json` under `tokens`; the
 relayer whitelists and relays them both ways. Design and the owner's steps: docs/SAPHAN-TOKENS.md.
+
+## Mainnet: ZTPHY between ZETAPHY (3659) and Base (8453) (`mainnet/`)
+
+`mainnet/saphan-mainnet.json` is the mainnet config (owner decision 2026-11-14): Hyperlane core of our own on ZETAPHY
+mainnet (every owner the ZETAPHY timelock), Hyperlane's existing core on Base, our multisig ISMs on both sides, the ZTPHY
+vault and the synthetic ZTPHY on Base with conservative caps, deployed closed. `mainnet/registry/` is ZETAPHY mainnet for
+the CLI (never passed together with the testnet's `registry/`), `mainnet/setup-agents-mainnet.sh` runs the validator(s)
+and the relayer. Owner-run tooling (`zetaphy-network/scripts/saphan-mainnet.js`, `saphan-pool.js`), costs, risks and the
+runbook with every command labelled: docs/SAPHAN-MAINNET.md (TH: docs/SAPHAN-MAINNET.th.md).
