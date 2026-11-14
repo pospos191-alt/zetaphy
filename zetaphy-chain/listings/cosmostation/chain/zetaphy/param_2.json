@@ -1,0 +1,77 @@
+{
+    "chain_id_cosmos": "zetaphy_3659-1",
+    "chain_id_evm": "0xe4b",
+    "chain_name": "ZETAPHY",
+    "chain_image": "https://raw.githubusercontent.com/CosmosLabsKR/chainlist/master/chain/zetaphy/resource/chain_zetaphy.png",
+    "staking_asset_denom": "azetaphy",
+    "staking_asset_symbol": "ZTPHY",
+    "staking_asset_image": "https://raw.githubusercontent.com/CosmosLabsKR/chainlist/master/chain/zetaphy/asset/ztphy.png",
+    "bech_account_prefix": "zetaphy",
+    "bech_validator_prefix": "zetaphyvaloper",
+    "origin_genesis_time": "2026-11-13T14:00:00Z",
+    "api_name": "zetaphy",
+    "is_support_mintscan": false,
+    "is_support_mobile_wallet": true,
+    "is_support_extension_wallet": true,
+    "is_support_erc20": false,
+    "chain_type": [
+        "cosmos",
+        "evm"
+    ],
+    "account_type": [
+        {
+            "hd_path": "m/44'/60'/0'/0/X",
+            "pubkey_style": "keccak256",
+            "pubkey_type": "/cosmos.evm.crypto.v1.ethsecp256k1.PubKey"
+        }
+    ],
+    "cosmos_fee_info": {
+        "base": "0",
+        "rate": [
+            "1000000000azetaphy",
+            "1000000000azetaphy",
+            "2000000000azetaphy"
+        ],
+        "is_feemarket": true,
+        "is_simulable": true,
+        "simulated_gas_multiply": 1.3,
+        "init_gas_limit": 300000,
+        "fee_threshold": ""
+    },
+    "evm_fee_info": {
+        "is_eip1559": true,
+        "simulated_gas_multiply": 1.2
+    },
+    "evm_multicall_info": {
+        "is_support_multicall": true,
+        "multicall_address": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    },
+    "grpc_endpoint": [
+    ],
+    "lcd_endpoint": [
+        {
+            "provider": "ZETAPHY",
+            "url": "https://129-221-199-191.sslip.io/rest/"
+        }
+    ],
+    "evm_rpc_endpoint": [
+        {
+            "provider": "ZETAPHY",
+            "url": "https://129-221-199-191.sslip.io"
+        }
+    ],
+    "explorer": {
+        "name": "ZETAPHY Explorer",
+        "url": "https://explorer.sawasdeecoin.com/?network=mainnet",
+        "account": "https://explorer.sawasdeecoin.com/?network=mainnet#/address/${address}",
+        "tx": "https://explorer.sawasdeecoin.com/?network=mainnet#/tx/${hash}",
+        "proposal": "https://explorer.sawasdeecoin.com/?network=mainnet#/gov/${id}"
+    },
+    "about": {
+        "website": "https://app.sawasdeecoin.com",
+        "github": "https://github.com/pospos191-alt/zetaphy"
+    },
+    "description": {
+        "en": "ZETAPHY is a Cosmos SDK chain with an EVM (cosmos/evm) and post-quantum (ML-DSA-44) accounts and vote keys, with Neuro scam protection. Coin: ZTPHY. ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not yet completed an independent external audit. Until more independent validators join and the audit is published, the project can halt or change the chain. Use it only with amounts you can afford to lose."
+    }
+}

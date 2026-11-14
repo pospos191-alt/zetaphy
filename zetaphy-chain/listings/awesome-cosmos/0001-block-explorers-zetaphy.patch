@@ -1,0 +1,12 @@
+diff --git a/README.md b/README.md
+index e4be679..c6f0469 100644
+--- a/README.md
++++ b/README.md
+@@ -113,6 +113,7 @@ Please read the [Contributing guide](./CONTRIBUTING.md). Thank you to all our [c
+ * [NG Explorers](https://explorers.guru/)
+ * [Ping.pub](https://ping.pub) - [Source](https://github.com/ping-pub/explorer)
+ * [Stake ID](https://stake.id)
++* [ZETAPHY Explorer](https://explorer.sawasdeecoin.com/?network=mainnet) - [Source](https://github.com/pospos191-alt/zetaphy/tree/main/zetaphy-explorer)
+ 
+ ### Visual Block Explorers
+ 

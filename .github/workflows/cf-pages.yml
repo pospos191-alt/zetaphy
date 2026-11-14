@@ -8,6 +8,8 @@
 #   zetaphy-hub -> app, zetaphy-wallet -> wallet, zetaphy-swap -> swap,
 #   zetaphy-nft -> nft, zetaphy-explorer -> explorer, zetaphy-neuro -> neuro
 #   (.sawasdeecoin.com). Neuro's /api functions are not part of this move.
+# The explorer also gets /holders.json, the daily ZTPHY holders snapshot, from the holders-data branch
+# (holders-snapshot.yml makes it and starts this workflow for the explorer after each snapshot).
 #
 # Needs, once (Settings -> Secrets and variables -> Actions):
 #   secret   CLOUDFLARE_API_TOKEN   an API token with "Cloudflare Pages: Edit"
@@ -115,6 +117,16 @@ jobs:
         run: |
           if [ "$SITE" = hub ]; then (cd zetaphy-hub && node build.mjs); fi
           node cloudflare/pages.mjs stage "$SITE" "$RUNNER_TEMP/site"
+          # The explorer's daily ZTPHY holders snapshot (holders-snapshot.yml pushes it to the holders-data branch):
+          # served at /holders.json when it is there and valid; without it #/holders says so and shows what it can.
+          if [ "$SITE" = explorer ]; then
+            if git fetch -q --depth=1 origin holders-data 2>/dev/null && git show FETCH_HEAD:holders.json > "$RUNNER_TEMP/holders.json" \
+              && node zetaphy-explorer/scripts/holders-snapshot.js --check "$RUNNER_TEMP/holders.json"; then
+              cp "$RUNNER_TEMP/holders.json" "$RUNNER_TEMP/site/holders.json"
+            else
+              echo "::warning::No valid holders snapshot on the holders-data branch: the explorer is deployed without /holders.json (run holders-snapshot.yml)."
+            fi
+          fi
       - name: Deploy to Cloudflare Pages
         if: steps.creds.outputs.ok == '1'
         env:

@@ -1,0 +1,13 @@
+[
+    {
+        "type": "native",
+        "denom": "azetaphy",
+        "name": "ZETAPHY",
+        "symbol": "ZTPHY",
+        "description": "The native coin of ZETAPHY: fees, staking and governance. ZETAPHY mainnet currently runs on a single validator operated by the ZETAPHY project, and its code has not yet completed an independent external audit. Use it only with amounts you can afford to lose.",
+        "decimals": 18,
+        "image": "https://raw.githubusercontent.com/CosmosLabsKR/chainlist/master/chain/zetaphy/asset/ztphy.png",
+        "coinGeckoId": "",
+        "color": "#0369A1"
+    }
+]

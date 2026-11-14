@@ -19,6 +19,7 @@ import * as txg from './txguard.js';
 import { renderMainnet } from './mainnet.js';
 import { activeNetwork, contractsOf, hasFeature, networkBadge, notOnMainnetBox, watchNetwork, netText, withDeployed } from './network.js';
 import { readFaucet, faucetLine, faucetState } from './faucet-core.js';
+import { getJson, rpcCall } from './rpc.js';
 
 // The network this page uses (network.js: mainnet unless the visitor picked the testnet). Read once; a switch reloads
 // the page (and every app frame in it), so every chain id, RPC and contract below belongs to one network.
@@ -111,19 +112,8 @@ let current = null;
 const frames = new Map();
 
 // ------------------------------------------------------------------ helpers
-async function getJson(url, init) {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 12_000);
-  try {
-    const r = await fetch(url, { cache: 'no-store', credentials: 'omit', ...init, signal: ctl.signal });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return await r.json();
-  } finally { clearTimeout(t); }
-}
 async function evmCall(method, params = []) {
-  const j = await getJson(ep().evm, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
-  if (j.error) throw new Error(j.error.message || 'RPC error');
-  return j.result;
+  return rpcCall(ep().evm, method, params);
 }
 const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
@@ -190,7 +180,9 @@ function buildTabs() {
   // the validator guide is a page of its own on this site (validators.html), not a tab
   el('a', { class: 'tab', href: 'validators.html', id: 'nav-guide', 'data-tip': T('tipGuide') }, svg('guide'), el('span', { text: T('navGuide') })),
   // risk forecasts, Proof of Foresight, detectors, Data DAO, arena: a page of its own (forecasts.html; docs/future/markets.md)
-  el('a', { class: 'tab', href: 'forecasts.html', id: 'nav-forecasts', 'data-tip': T('tipForecasts') }, svg('guide'), el('span', { text: T('navForecasts') })));
+  el('a', { class: 'tab', href: 'forecasts.html', id: 'nav-forecasts', 'data-tip': T('tipForecasts') }, svg('guide'), el('span', { text: T('navForecasts') })),
+  // "Did you get ZTPHY?": any address's balance, the airdrop list and the safety rules, a page of its own (got-ztphy.html)
+  el('a', { class: 'tab', href: 'got-ztphy.html', id: 'nav-got', 'data-tip': T('tipGot') }, svg('wallet'), el('span', { text: T('navGot') })));
   const quick = $('quick');
   quick.replaceChildren(...TABS.filter((t) => t.id !== 'home' && !t.group).map((t) => el('a', { class: 'chip', href: `?tab=${t.id}`, 'data-tab': t.id, 'data-tip': tabText(t, TIP) }, svg(t.id), el('span', { text: tabText(t, LABEL) }))));
 }

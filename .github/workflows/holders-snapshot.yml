@@ -1,0 +1,109 @@
+# ZTPHY holders snapshot: once a day, read every holder of the native coin (denom azetaphy) from ZETAPHY mainnet's
+# bank module and publish the result with the explorer (#/holders, zetaphy-explorer/src/richlist.js).
+#
+#   1. zetaphy-explorer/scripts/holders-snapshot.js reads, through the public sentry's rpc-guard, CometBFT
+#      abci_query (an allowed method): SupplyOf and DenomOwners (1000 owners a page, count_total on the first,
+#      every page pinned to one block height; ~100 pages for 100,000 holders, one at a time). It writes
+#      holders.json: holder count, supply, top 100 (0x and zetaphy1, balance, share), project wallets / chain
+#      modules / everyone else, balance bands. Labels: zetaphy-explorer/scripts/project-wallets.json, the mainnet
+#      README's Allocations, contracts.json, zetaphy-launch/state/3659.contracts.json, the module accounts.
+#   2. The file is pushed (force, one commit) to the `holders-data` branch of this repository: the deploy's source,
+#      and a public copy (https://raw.githubusercontent.com/<owner>/<repo>/holders-data/holders.json). main gets
+#      no daily commits.
+#   3. It starts the Cloudflare Pages workflow (cf-pages.yml) for the explorer only; its deploy job copies
+#      holders.json from `holders-data` into the site (checked by `holders-snapshot.js --check` first), so the
+#      page reads it from its own origin (CSP connect-src 'self'). Every other explorer deploy picks it up too.
+#
+# Free: a GitHub-hosted runner (~2 minutes a day), the public RPC (~100 small reads a day, under rpc-guard's
+# 300 a minute per IP), the repository and Cloudflare Pages' free plan. No new machine, no secret of its own
+# (cf-pages.yml's Cloudflare secrets deploy it). Scheduled workflows run on the default branch only.
+# Docs: zetaphy-explorer/README.md (Holders).
+
+name: holders-snapshot
+
+on:
+  schedule:
+    - cron: '37 1 * * *'   # 01:37 UTC daily
+  workflow_dispatch:
+    inputs:
+      rpc:
+        description: "The node's https address (default: the public sentry https://129-221-199-191.sslip.io)"
+        required: false
+        default: ''
+      deploy:
+        description: "Start the explorer deploy afterwards (cf-pages.yml)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # the holders-data branch only
+  actions: write    # start cf-pages.yml (workflow_dispatch)
+
+concurrency:
+  group: holders-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Read every ZTPHY holder and publish the snapshot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            zetaphy-explorer
+            zetaphy-chain/mainnet/zetaphy_3659-1
+            zetaphy-launch/state
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install (the explorer's pinned dev dependencies; known.js needs @noble/hashes)
+        run: npm ci --no-audit --no-fund --prefix zetaphy-explorer
+
+      - name: Unit tests of the snapshot builder
+        run: cd zetaphy-explorer && node --test test/holders.test.js
+
+      - name: Take the snapshot
+        env:
+          RPC: ${{ inputs.rpc }}
+        run: |
+          set -o pipefail
+          args=(--out "$RUNNER_TEMP/holders/holders.json")
+          if [ -n "$RPC" ]; then
+            [[ "$RPC" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?/?$ ]] || { echo "::error::rpc must be https://<host>"; exit 1; }
+            args+=(--rpc "$RPC")
+          fi
+          node zetaphy-explorer/scripts/holders-snapshot.js "${args[@]}" | tee "$RUNNER_TEMP/log.txt"
+          node zetaphy-explorer/scripts/holders-snapshot.js --check "$RUNNER_TEMP/holders/holders.json"
+          if grep -q '^warning:' "$RUNNER_TEMP/log.txt"; then grep '^warning:' "$RUNNER_TEMP/log.txt" | sed 's/^/::warning::/'; fi
+          {
+            echo "### ZTPHY holders snapshot"
+            jq -r '"block \(.height) (\(.time)): \(.holders) holders, supply \(.supply) azetaphy, \(.pages) pages"' "$RUNNER_TEMP/holders/holders.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to the holders-data branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cd "$RUNNER_TEMP/holders"
+          git init -q -b holders-data
+          git config user.name "holders-snapshot[bot]"
+          git config user.email "holders-snapshot@users.noreply.github.com"
+          printf '# ZTPHY holders snapshot\n\nGenerated daily by .github/workflows/holders-snapshot.yml (zetaphy-explorer/scripts/holders-snapshot.js) from ZETAPHY mainnet. The explorer deploy (cf-pages.yml) serves holders.json at /holders.json.\n' > README.md
+          git add -A
+          git commit -q -m "holders snapshot: block $(jq -r .height holders.json), $(jq -r .holders holders.json) holders"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" holders-data
+
+      - name: Deploy the explorer with it (cf-pages.yml)
+        if: github.event_name == 'schedule' || inputs.deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run cf-pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f sites=explorer

@@ -331,3 +331,11 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .nft-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tally-legend li { display: block; }
 }
+/* #/holders (src/richlist.js) */
+.label-project { color: var(--warn); border-color: var(--warn); }
+.nh-key { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: middle; }
+.nh-form { margin-top: 0; }
+.nh-search { flex: 1 1 260px; width: auto; }
+.nh-result { margin-top: 10px; }
+.nh-wallets summary { cursor: pointer; margin-top: 8px; }
+.nh-bands .gasbar { width: 80px; }
