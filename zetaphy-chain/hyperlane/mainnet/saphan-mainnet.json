@@ -1,0 +1,109 @@
+{
+  "about": "ZETAPHY Saphan MAINNET: the ZTPHY route ZETAPHY mainnet (3659) <-> Base mainnet (8453), owner decision 2026-11-14. Read by zetaphy-network/scripts/saphan-mainnet.js (plan / deploy / open / pause / agents) and scripts/saphan-pool.js (the Base pools). Public values only: no key, no secret. null = an owner input that is still missing (the plan lists them; deploy refuses while one is missing). Runbook: docs/SAPHAN-MAINNET.md.",
+  "network": "mainnet",
+  "sources": {
+    "hyperlaneRegistry": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/d36ac66ef726bdce6691d4ce4be8ab3dab39cb29/chains/base/addresses.yaml (read 2026-11-14; sha256 6350c18b9e25045faf433dab3c0f72358fba9894a6e94de261a42900538ef1f3) and chains/base/metadata.yaml",
+    "hyperlaneValidators": "https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/ade1d96dadcda8add30045c8cc13d7ebd147dcef/typescript/sdk/src/consts/multisigIsm.ts (defaultMultisigConfigs.base, read 2026-11-14)",
+    "uniswap": "https://github.com/Uniswap/sdk-core/blob/baff6d3c78b09aa0b2f96148bc223b42a57fd28a/src/addresses.ts (BASE_ADDRESSES, read 2026-11-14)",
+    "usdc": "zetaphy-neuro/src/known-tokens.js (base: USDC, Circle) = Uniswap default-token-list 0ae664438dd43d428c5cbef2726af1ba6378a17c src/tokens/base.json = Superchain token list (ethereum-optimism.github.io 69f8dd4e2b8b785c3f493576a95b284cd6385f4e). NOT 0x833589fCD6eDb6E08f4c7C32D29b5Dd5Ac9F4f8E (that address is not USDC: it differs after ...D4)",
+    "checkedOnChain": "not from the machine that wrote this file (its network could not reach a Base or ZETAPHY RPC). The saphan-mainnet CI job forks Base mainnet and checks every Base address here has code and answers as expected; `saphan-mainnet.js check` does the same against the live chains [read only]."
+  },
+  "zetaphy": {
+    "name": "zetaphy",
+    "displayName": "ZETAPHY",
+    "chainId": 3659,
+    "domain": 3659,
+    "cosmosChainId": "zetaphy_3659-1",
+    "rpc": ["https://129-221-199-191.sslip.io"],
+    "minGasPriceGwei": "1",
+    "estimateBlockTime": 5,
+    "timelock": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+    "timelockDelay": 172800,
+    "govModule": "0x7b5Fe22B5446f7C62Ea27B8BD71CeF94e03f3dF2",
+    "govModuleBech32": "zetaphy10d07y265gmmuvt4z0w9aw880jnsr700jvr86lj",
+    "proposalDeposit": "10000",
+    "guardian": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+    "guardianOwners": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
+    "guardianThreshold": 2,
+    "threats": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+    "core": "registry/chains/zetaphy/addresses.yaml (next to this file; written by the hyperlane CLI at the core step, then committed)"
+  },
+  "base": {
+    "name": "base",
+    "displayName": "Base",
+    "chainId": 8453,
+    "domain": 8453,
+    "rpc": ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.drpc.org", "https://1rpc.io/base"],
+    "explorer": "https://basescan.org",
+    "estimateBlockTime": 2,
+    "reorgPeriod": 10,
+    "mailbox": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
+    "merkleTreeHook": "0x19dc38aeae620380430C200a6E990D5Af5480117",
+    "validatorAnnounce": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B",
+    "staticMessageIdMultisigIsmFactory": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+    "interchainGasPaymaster": "0xc3F23848Ed2e04C0c6d41bd7804fa8f89F940B94",
+    "owners": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
+    "ownersAbout": "the Base SimpleMultisig (guardian of the synthetic, proposer of the Base timelock). Default: the ZETAPHY guardian multisig's three owners (EOAs: the same keys sign on Base). Owner: confirm, or replace.",
+    "threshold": 2,
+    "timelockDelay": 172800
+  },
+  "validators": {
+    "about": "OUR Hyperlane validators. zetaphyOrigin signs ZETAPHY -> Base messages (the ISM on the Base synthetic). baseOrigin signs Base -> ZETAPHY messages (the ISM on the ZETAPHY vault); mode 'ours' = our validator(s) also validate Base (a second validator process, setup-agents-mainnet.sh VALIDATE_BASE=yes), mode 'hyperlane' = use hyperlaneBaseDefault instead (Hyperlane's published 3-of-5, stronger, no extra process). Addresses come from setup-agents-mainnet.sh addresses on the agents machine.",
+    "zetaphyOrigin": { "validators": [], "threshold": 1 },
+    "baseOrigin": { "mode": "ours", "validators": [], "threshold": 1 },
+    "hyperlaneBaseDefault": {
+      "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03", "0x5450447aee7b544c462c9352bef7cad049b0c2dc", "0xb8cf45d7bab79c965843206d5f4d83bb866d6e86", "0xe957310e17730f29862e896709cce62d24e4b773", "0x34a14934d7c18a21440b59dfe9bf132ce601457d"],
+      "threshold": 3
+    },
+    "allowSingleValidator": false,
+    "allowSingleValidatorAbout": "a 1-of-1 ISM is refused unless this is true (owner flag): then one key on one machine can mint unbacked ZTPHY on Base (bounded by the caps and the delay)."
+  },
+  "token": {
+    "key": "ztphy",
+    "symbol": "ZTPHY",
+    "displayName": "ZTPHY (native coin)",
+    "address": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    "decimals": 18,
+    "native": true,
+    "synthetic": { "name": "ZTPHY (bridged from ZETAPHY)", "symbol": "ZTPHY" },
+    "limits": {
+      "about": "Whole ZTPHY. Big enough for the owner's first liquidity (2 x 1,000,000 ZTPHY in one day), small against the supply (1,000,000,000): at most 0.25% can ever be out. The way back is tighter (a forged release would drain the vault). Raising any of them is a 48 h timelock call; guardians can lower them at once.",
+      "lockCap": "2500000",
+      "supplyCap": "2500000",
+      "mintDailyLimit": "2000000",
+      "mintDelay": 3600,
+      "releaseDailyLimit": "250000",
+      "releaseDelay": 21600
+    }
+  },
+  "deployer": {
+    "address": null,
+    "about": "a FRESH key used only for this deploy (the same address on ZETAPHY and Base), holding no role afterwards. Owner input: its address; the key stays in a keystore on the owner's machine (KEYFILE / --keystore), never in this repository."
+  },
+  "liquidity": {
+    "about": "The owner's first pools on Base (scripts/saphan-pool.js). Amounts are owner inputs (decided 2026-11-14: 1,000,000 ZTPHY + 100 stable per pool, 0.0001 USD per ZTPHY); edit them here.",
+    "zetaphyMultisig": "0x859872fBaB7ad2C0663DC0253E61Cea628cA15d1",
+    "zetaphyMultisigBech32": null,
+    "zetaphyMultisigKind": "cosmos-multisig",
+    "baseRecipient": null,
+    "baseRecipientAbout": "REQUIRED owner input: a Safe on Base (2 of 3, made at app.safe.global by the liquidity multisig's members) that receives the bridged ZTPHY, holds the USDC/USDT and owns the pool positions. NEVER the ZETAPHY multisig's 0x address: on Base nobody holds its key, coins sent there are lost.",
+    "dex": "uniswap-v3",
+    "uniswapV3": {
+      "factory": "0x33128a8fC17869897dcE68Ed026d694621f6FDfD",
+      "positionManager": "0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1"
+    },
+    "feeTier": 10000,
+    "slippageBps": 100,
+    "pools": [
+      { "stable": "USDC", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6, "stableAmount": "100", "ztphyAmount": "1000000", "issuer": "Circle (native USDC on Base)" },
+      { "stable": "USDT", "address": null, "decimals": 6, "stableAmount": "100", "ztphyAmount": "1000000", "issuer": "UNVERIFIED: Tether does not list Base among its issuing chains in any source in this repository. Owner input: the exact token, checked on basescan.org (name, decimals 6, who can mint and freeze it)" }
+    ]
+  },
+  "costs": {
+    "about": "Inputs of the cost estimate (saphan-mainnet.js costs / plan). Base gas price in gwei (check basescan.org/gastracker before), ETH price only for the USD column.",
+    "baseGasGwei": "0.02",
+    "baseL1FeeEth": "0.0005",
+    "ethUsd": "3000",
+    "relayerDeliveries": 200
+  }
+}
