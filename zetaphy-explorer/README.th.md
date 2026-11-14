@@ -2,7 +2,10 @@
 
 # ZETAPHY Explorer (explorer.sawasdeecoin.com)
 
-Block explorer ของเชน ZETAPHY (Cosmos SDK v0.54 + Cosmos EVM v0.7.3, chain id `zetaphy_77390-1`, EVM chain id 77390)
+Block explorer ของ ZETAPHY mainnet (Cosmos SDK v0.54 + Cosmos EVM v0.7.3, chain id `zetaphy_3659-1`, EVM chain id 3659, เหรียญ ZTPHY):
+**https://explorer.sawasdeecoin.com/?network=mainnet** อ่านจากโหนดสาธารณะของ mainnet `https://129-221-199-191.sslip.io`
+(EVM JSON-RPC ที่ `/`, CometBFT ที่ `/rpc`, REST ที่ `/rest`) testnet (`zetaphy_77390-1`) ปิดถาวรแล้วเมื่อ 2026-11-14 ลิงก์
+`?network=testnet` จะเปิด mainnet
 เป็น**เว็บนิ่งล้วน (static site)**: ไม่มีเซิร์ฟเวอร์ ไม่มีฐานข้อมูล ไม่มี indexer เบราว์เซอร์ของผู้ใช้อ่านข้อมูลจาก RPC/REST สาธารณะของโหนดโดยตรง
 จึงวางบน Vercel ได้ฟรี
 
@@ -51,6 +54,7 @@ Block explorer ของเชน ZETAPHY (Cosmos SDK v0.54 + Cosmos EVM v0.7.3,
 แล้ว EVM `wss://<node>/ws` (`eth_subscribe newHeads`) ถ้าไม่ได้จะถาม `status` ทุก 6 วินาทีขณะแท็บเปิดอยู่ หน้าเว็บบอกว่าใช้แบบไหน ("สด · …")
 rpc-guard ของโหนดสาธารณะปิด websocket ของ CometBFT และ `unconfirmed_txs` ที่นั่น explorer จึงใช้ socket ของ EVM และแสดงเฉพาะจำนวนธุรกรรมที่รอ
 (`num_unconfirmed_txs`) เปิด socket เฉพาะไปยังโหนดใน `config.json` ซึ่ง origin `wss://` อยู่ใน CSP โหนดที่ตั้งในหน้าตั้งค่าใช้ polling
+บน mainnet หน้าเว็บใช้ polling (ไม่มี socket): `config.json` และรายการ `wss://` ใน CSP เป็นของ testnet ที่ปิดแล้ว อ่านเฉพาะบนระเบียนของมันในการทดสอบเบราว์เซอร์
 
 **รายการติดตามและชื่อเล่น:** ที่อยู่ที่ติดตามพร้อมชื่อเล่น และธุรกรรมที่ติดตาม เก็บใน localStorage ของเบราว์เซอร์นี้เท่านั้น (ทุกครั้งอยู่ใน try/catch
 และตรวจค่าที่เก็บใหม่ทุกครั้งที่อ่าน) หน้าแรกแสดงที่อยู่ที่ติดตามพร้อมความเคลื่อนไหวในบล็อกที่สแกน มีข้อความแจ้งบนหน้าเว็บเมื่อที่อยู่ที่ติดตาม
@@ -109,7 +113,7 @@ rpc-guard ของโหนดสาธารณะปิด websocket ขอ�
 |---|---|---|
 | สรุป | หนึ่งบรรทัดเป็นภาษาคน: "0xab… แลก 10 ZETAPHY เป็น 1,234 SWD บน ZetaphyRouter", "ส่ง 1.5 SWD ให้ …", "โอน NFT 5 ชิ้น", "อนุญาตให้ … ใช้ … ได้ไม่จำกัดจำนวน", การสร้างสัญญา, ความล้มเหลว | อินพุตที่ถอดแล้ว + log การโอนโทเคน + การเคลื่อนของเหรียญหลัก (prestate diff ถ้าไม่มีใช้ call trace ถ้าไม่มีอีกใช้มูลค่าของธุรกรรม) |
 | ธงความเสี่ยง ⚠ | `approve` / `increaseAllowance` แบบไม่จำกัด (≥ 2^96−1 กฎเดียวกับ `wallet-safety.js`), `setApprovalForAll(true)`, การอนุญาตเดียวกันที่เห็นใน log `Approval` / `ApprovalForAll` ของผู้ส่ง (multicall, permit), สัญญาที่ถูกเรียกหรือผู้ได้รับอนุญาตติดธงใน **ThreatRegistry** (ถ้อยคำเป็นกลาง + ข้อความปฏิเสธความรับผิด) | `txdeep.js`, `threat.js` |
-| ข้อมูลอินพุต (ถอดแล้ว) | ชื่อฟังก์ชันและอาร์กิวเมนต์พร้อมชื่อและชนิด (รายการและ struct ซ้อนกัน ที่อยู่เป็นลิงก์) ติดป้าย **ยืนยันแล้ว** / **รู้จัก** / **คาดเดา** (และ "ผ่าน implementation ของ proxy") | 1. ABI ที่ยืนยันแล้วบน **Sourcify** (API v2, เชน 77390, full หรือ partial match) · 2. สัญญาของ repo นี้เอง (`src/known-abi.js` สร้างด้วย `npm run build` จาก artifact ของ zetaphy-network, zetaphy-dex และ zetaphy-nft: เก็บเฉพาะลายเซ็น พร้อม code hash, ลายนิ้วมือ Neuro fp1 ของแต่ละสัญญา และที่อยู่ในบันทึกการ deploy) · 3. ตารางทั่วไปขนาดเล็ก (`src/sigs.js`: ERC-20/721/1155, permit / Permit2, wrapped native, router และ pair แบบ Uniswap-v2, multicall, Ownable / AccessControl, proxy) การคาดเดาต้องถอดแบบเข้มงวดและเข้ารหัสกลับได้ไบต์เดิมทุกไบต์ |
+| ข้อมูลอินพุต (ถอดแล้ว) | ชื่อฟังก์ชันและอาร์กิวเมนต์พร้อมชื่อและชนิด (รายการและ struct ซ้อนกัน ที่อยู่เป็นลิงก์) ติดป้าย **ยืนยันแล้ว** / **รู้จัก** / **คาดเดา** (และ "ผ่าน implementation ของ proxy") | 1. ABI ที่ยืนยันแล้วบน **Sourcify** (API v2, เชน 3659, full หรือ partial match) · 2. สัญญาของ repo นี้เอง (`src/known-abi.js` สร้างด้วย `npm run build` จาก artifact ของ zetaphy-network, zetaphy-dex และ zetaphy-nft: เก็บเฉพาะลายเซ็น พร้อม code hash, ลายนิ้วมือ Neuro fp1 ของแต่ละสัญญา และที่อยู่ในบันทึกการ deploy) · 3. ตารางทั่วไปขนาดเล็ก (`src/sigs.js`: ERC-20/721/1155, permit / Permit2, wrapped native, router และ pair แบบ Uniswap-v2, multicall, Ownable / AccessControl, proxy) การคาดเดาต้องถอดแบบเข้มงวดและเข้ารหัสกลับได้ไบต์เดิมทุกไบต์ |
 | Log | ถอดทุก log แบบเดียวกัน (topic0 → event, ค่า indexed จาก topic; string/bytes/struct ที่ indexed แสดงเป็น hash), การโอนโทเคนเหมือนเดิม, topic/data ดิบซ่อนไว้ให้กดดู | เหมือนด้านบน |
 | สาเหตุที่ไม่สำเร็จ | `Error(string)`, `Panic(uint256)` พร้อมความหมาย (ตัวเลขล้น, หารด้วยศูนย์, ดัชนีเกินขอบเขต, …), custom error ตาม selector (ABI ของสัญญาก่อน แล้วจึงตาราง) หรือ "ย้อนกลับโดยไม่มีเหตุผล" | `output` ของ callTracer; ถ้าไม่มี trace จะรันการเรียกซ้ำบนสถานะก่อนบล็อกของมัน และหน้าเว็บบอกไว้ |
 | แก๊สและค่าธรรมเนียม | แก๊สที่ใช้ / เพดาน พร้อม %, ราคาแก๊สที่จ่ายจริง, ค่าธรรมเนียมฐานของบล็อก, ค่าธรรมเนียมสูงสุด / ทิป, ค่าธรรมเนียมเป็น ZETAPHY, ส่วนค่าธรรมเนียมฐาน + ทิป, **เผา (50%)** และ **ให้ validator (50%)** | receipt + `eth_getBlockByNumber`; การแบ่ง 50/50 เป็นกฎของเชนใน `evmd/zetaphy_feeburn.go` |
@@ -125,7 +129,7 @@ rpc-guard ของโหนดสาธารณะปิด websocket ขอ�
 | Proxy | slot ของ EIP-1967 implementation / admin / beacon (beacon → `implementation()`), minimal proxy EIP-1167 (และแบบ PUSH0): ลิงก์ไป implementation และใช้ ABI ของมันในการถอดรหัสและแท็บอ่าน / เขียน |
 | โค้ด | ไฟล์ซอร์ส (แสดงเป็นข้อความเท่านั้น), คอมไพเลอร์, ภาษา, ลิงก์ Sourcify; ถ้าไม่มีแสดง runtime bytecode และวิธียืนยัน |
 | อ่าน | ทุกฟังก์ชัน `view` / `pure` ฟอร์มละฟังก์ชัน เรียก `eth_call` ผ่านคิวของโหนด ถอดค่าที่คืน; ฟังก์ชันที่ไม่มีอาร์กิวเมนต์อ่านทันทีเมื่อเปิดแท็บ; ถอด revert ให้ |
-| เขียน | ทุกฟังก์ชัน `nonpayable` / `payable` ผ่านกระเป๋าของผู้ใช้เอง (`window.ethereum`): ตรวจ chain id 77390 (ขอให้สลับ), จำลองด้วย `eth_call` ก่อน (อธิบาย revert ก่อนกระเป๋าเปิด), ถามเชนอีกครั้งก่อนลงนาม, แล้วแสดง **กล่องยืนยันของ wallet-safety** (`sf.confirmTx` แบบเดียวกับ DEX / NFT / hub) แล้วจึง `eth_sendTransaction` เว็บไม่ถือกุญแจใดๆ |
+| เขียน | ทุกฟังก์ชัน `nonpayable` / `payable` ผ่านกระเป๋าของผู้ใช้เอง (`window.ethereum`): ตรวจ chain id 3659 (ขอให้สลับ), จำลองด้วย `eth_call` ก่อน (อธิบาย revert ก่อนกระเป๋าเปิด), ถามเชนอีกครั้งก่อนลงนาม, แล้วแสดง **กล่องยืนยันของ wallet-safety** (`sf.confirmTx` แบบเดียวกับ DEX / NFT / hub) แล้วจึง `eth_sendTransaction` เว็บไม่ถือกุญแจใดๆ |
 
 อ่าน Sourcify จากเบราว์เซอร์โดยตรง (`https://sourcify.dev/server`) ซึ่ง `connect-src 'self' https:` อนุญาตอยู่แล้ว
 ถ้าล็อก `connect-src` ไว้เฉพาะโหนดของตัวเอง ให้เพิ่ม `https://sourcify.dev` ด้วย (ไม่อย่างนั้นการ์ดสัญญาจะแจ้งว่าติดต่อ Sourcify ไม่ได้)
@@ -229,12 +233,13 @@ service worker จัดการเฉพาะคำขอ GET ของไฟ
 และการโอนผ่าน `MsgEVMCall` ไม่อยู่ใน `eth_getLogs`; id ของ NFT มาจาก `tokenByIndex` หรือ log ล่าสุด; ค่าที่ถูกเผาเป็นค่าประมาณ; ปริมาณแก๊สเป็นค่าทั่วไป
 ข้อความทั้งหมดของหน้าเหล่านี้มีครบทั้ง 8 ภาษาของ explorer (en, zh, es, ko, ja, ru, vi, th; `T_MORE` ใน `src/i18n.js`) และการทดสอบ i18n บังคับให้ทุกคีย์มีครบทุกภาษา
 ทดสอบ: `test/explore2.unit.test.js` และ `test/explore2.e2e.js` (`npm test` รันทั้งคู่ ไฟล์ e2e เลือกพอร์ตว่างเอง หรือกำหนด `E2E_PORT` / `E2E2_PORT`)
-**แหล่ง `wss://`** ได้มาจาก `node` ใน `config.json` (`https://rpc.sawasdeecoin.com` → `wss://rpc.sawasdeecoin.com`) เมื่อเปลี่ยนโหนดใน `config.json`
+**แหล่ง `wss://`** ได้มาจาก `node` ใน `config.json` (ยังเป็นของ testnet ที่ปิดแล้ว `https://rpc.sawasdeecoin.com` → `wss://rpc.sawasdeecoin.com` บน mainnet โหนด chain id และสัญญาใน `config.json` ถูกแทนด้วยค่าจาก `src/network.js` ดู `siteLayer` ใน `src/config.js`) เมื่อเปลี่ยนโหนดใน `config.json`
 ให้แก้ค่านี้ใน `vercel.json` ด้วย (unit test จะไม่ผ่านจนกว่าจะตรงกัน) `npm run serve` สร้างค่านี้จาก config ที่ serve อยู่
 
 ## ตั้ง URL ของโหนด (RPC)
 
-ตอนนี้ยังไม่มีโหนดจริง `config.json` จึงเป็นค่าตัวอย่าง `https://<node-host>` และหน้าเว็บจะขึ้นแถบเตือนจนกว่าจะตั้ง
+บน mainnet โหนดคือ RPC สาธารณะของ mainnet จาก `src/network.js` (sync จาก `zetaphy-hub/network.js`) ส่วน `node` และที่อยู่สัญญาใน `config.json`
+ใช้เฉพาะกับระเบียนของ testnet ที่ปิดแล้ว (การทดสอบเบราว์เซอร์) ถ้า `node` เป็นค่าตัวอย่างเช่น `https://<node-host>` หน้าเว็บจะขึ้นแถบเตือนจนกว่าจะตั้ง
 
 โหนดที่ติดตั้งด้วย `zetaphy-chain/setup-node.sh` มี Caddy เปิด https ให้ที่ `https://<ip แบบขีด>.sslip.io` (ดู `NODE-INFO.txt` บนเซิร์ฟเวอร์) โดย
 - `https://<host>/` = EVM JSON-RPC

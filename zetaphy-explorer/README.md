@@ -2,7 +2,10 @@
 
 # ZETAPHY Explorer (explorer.sawasdeecoin.com)
 
-Block explorer for the ZETAPHY chain (Cosmos SDK v0.54 + Cosmos EVM v0.7.3, chain id `zetaphy_77390-1`, EVM chain id 77390)
+Block explorer for ZETAPHY mainnet (Cosmos SDK v0.54 + Cosmos EVM v0.7.3, chain id `zetaphy_3659-1`, EVM chain id 3659, coin ZTPHY):
+**https://explorer.sawasdeecoin.com/?network=mainnet**. It reads the public mainnet node `https://129-221-199-191.sslip.io`
+(EVM JSON-RPC at `/`, CometBFT at `/rpc`, REST at `/rest`). The testnet (`zetaphy_77390-1`) was shut down on 2026-11-14: a
+`?network=testnet` link opens mainnet.
 It is a **fully static site**: no server, no database, no indexer. The user's browser reads data directly from the node's public RPC/REST,
 so it can be hosted on Vercel for free
 
@@ -51,6 +54,7 @@ with event queries, newest first (`order_by "desc"`, `per_page 100`), and merges
 then EVM `wss://<node>/ws` (`eth_subscribe newHeads`), else polling `status` every 6 s while the tab is visible. The page shows which ("Live · …").
 The public node's rpc-guard closes the CometBFT websocket and `unconfirmed_txs`, so there the explorer uses the EVM socket and shows the pending count only
 (`num_unconfirmed_txs`). A socket is only opened to `config.json`'s node, whose `wss://` origin is in the CSP; a node set on the Settings page uses polling.
+On mainnet the page polls (no socket): `config.json` and the CSP's `wss://` entry are the retired testnet's and are read only on its record in the browser tests.
 
 **Watch list and labels:** watched addresses with a nickname and watched transactions are kept in this browser's localStorage only (every access in try/catch;
 stored values are re-validated on read). The home page lists the watched addresses with their activity in the scanned blocks; an in-page notice appears when
@@ -110,7 +114,7 @@ If no ThreatRegistry address is set yet, the page says "Not checked"
 |---|---|---|
 | Summary | one line in plain words: "0xab… swapped 10 ZETAPHY for 1,234 SWD on ZetaphyRouter", "sent 1.5 SWD to …", "transferred 5 NFT", "approved … to spend an UNLIMITED amount of …", contract creation, failure | decoded input + token Transfer logs + native moves (prestate diff, else call trace, else the tx value) |
 | Risk flags ⚠ | unlimited `approve` / `increaseAllowance` (≥ 2^96−1, the same rule as `wallet-safety.js`), `setApprovalForAll(true)`, the same approvals seen in the sender's `Approval` / `ApprovalForAll` logs (multicalls, permits), the callee or an approved spender flagged in **ThreatRegistry** (neutral wording + the disclaimer) | `txdeep.js`, `threat.js` |
-| Input data (decoded) | function name and named, typed arguments (lists and structs nested, addresses linked), marked **Verified** / **Known** / **Guessed** (and "via the proxy's implementation") | 1. verified ABI on **Sourcify** (v2 API, chain 77390, full or partial match) · 2. this repo's own contracts (`src/known-abi.js`, written by `npm run build` from the artifacts of zetaphy-network, zetaphy-dex and zetaphy-nft: signatures only, plus each contract's code hash and Neuro fp1 fingerprint and the addresses in the deployment records) · 3. a small common table (`src/sigs.js`: ERC-20/721/1155, permit / Permit2, wrapped native, Uniswap-v2 style router and pair, multicall, Ownable / AccessControl, proxies). A guess must decode strictly and re-encode to exactly the same bytes |
+| Input data (decoded) | function name and named, typed arguments (lists and structs nested, addresses linked), marked **Verified** / **Known** / **Guessed** (and "via the proxy's implementation") | 1. verified ABI on **Sourcify** (v2 API, chain 3659, full or partial match) · 2. this repo's own contracts (`src/known-abi.js`, written by `npm run build` from the artifacts of zetaphy-network, zetaphy-dex and zetaphy-nft: signatures only, plus each contract's code hash and Neuro fp1 fingerprint and the addresses in the deployment records) · 3. a small common table (`src/sigs.js`: ERC-20/721/1155, permit / Permit2, wrapped native, Uniswap-v2 style router and pair, multicall, Ownable / AccessControl, proxies). A guess must decode strictly and re-encode to exactly the same bytes |
 | Logs | every log decoded the same way (topic0 → event, indexed values from topics; an indexed string/bytes/struct shows its hash), token transfers as before, raw topics/data behind a toggle | same as above |
 | Why it failed | `Error(string)`, `Panic(uint256)` with its meaning (overflow, division by zero, out-of-bounds index, …), custom errors by selector (callee's ABI first, then the tables), or "reverted without a reason" | callTracer `output`; without traces the call is re-run on the state before its block, and the page says so |
 | Gas and fee | gas used / limit with %, effective gas price, base fee of the block, max fee / priority, fee paid in ZETAPHY, base-fee part + tip, **burned (50%)** and **to validators (50%)** | receipt + `eth_getBlockByNumber`; the 50/50 split is the chain rule in `evmd/zetaphy_feeburn.go` |
@@ -126,7 +130,7 @@ Contract card (address page of a contract, and the token page):
 | Proxy | EIP-1967 implementation / admin / beacon slots (beacon → `implementation()`), EIP-1167 minimal proxy (and its PUSH0 form): implementation linked, its ABI used for decoding and for Read / Write |
 | Code | source files (shown as text only), compiler, language, link to Sourcify; otherwise the runtime bytecode and how to verify |
 | Read | every `view` / `pure` function, one form per function, `eth_call` through the node queue, outputs decoded; zero-argument views are read when the tab opens; reverts decoded |
-| Write | every `nonpayable` / `payable` function through the visitor's own injected wallet (`window.ethereum`): chain id 77390 checked (switch asked), a dry-run `eth_call` first (a revert is explained before the wallet opens), the chain asked again right before signing, then the **wallet-safety confirmation** (`sf.confirmTx`, the same as the DEX / NFT / hub), then `eth_sendTransaction`. The site never holds keys |
+| Write | every `nonpayable` / `payable` function through the visitor's own injected wallet (`window.ethereum`): chain id 3659 checked (switch asked), a dry-run `eth_call` first (a revert is explained before the wallet opens), the chain asked again right before signing, then the **wallet-safety confirmation** (`sf.confirmTx`, the same as the DEX / NFT / hub), then `eth_sendTransaction`. The site never holds keys |
 
 Sourcify is read straight from the browser (`https://sourcify.dev/server`); `connect-src 'self' https:` already allows it.
 If you lock `connect-src` to your node, add `https://sourcify.dev` too (or the contract card says Sourcify could not be reached).
@@ -231,12 +235,13 @@ go straight to the network and are never stored.** Network first, so a new deplo
 `MsgEVMCall` transfers are not in `eth_getLogs`; NFT ids come from `tokenByIndex` or recent logs; burned fees are an estimate; gas amounts are typical, not exact.
 All texts of these pages are in the explorer's 8 languages (en, zh, es, ko, ja, ru, vi, th; `T_MORE` in `src/i18n.js`), and the i18n test requires every key in every language.
 Tests: `test/explore2.unit.test.js` and `test/explore2.e2e.js` (both run by `npm test`; the e2e files pick free ports, or `E2E_PORT` / `E2E2_PORT`).
-**The `wss://` source** is derived from `config.json`'s `node` (`https://rpc.sawasdeecoin.com` → `wss://rpc.sawasdeecoin.com`). When you change the node in `config.json`,
+**The `wss://` source** is derived from `config.json`'s `node` (still the retired testnet's `https://rpc.sawasdeecoin.com` → `wss://rpc.sawasdeecoin.com`; on mainnet `config.json`'s node, chain id and contracts are replaced by `src/network.js`'s, see `siteLayer` in `src/config.js`). When you change the node in `config.json`,
 change that entry in `vercel.json` too (a unit test fails until they match). `npm run serve` derives it from the config it serves.
 
 ## Setting the node URL (RPC)
 
-There is no real node yet, so `config.json` has the placeholder value `https://<node-host>`, and the page shows a warning bar until it is set
+On mainnet the node is the public mainnet RPC from `src/network.js` (synced from `zetaphy-hub/network.js`); `config.json`'s `node` and contract
+addresses apply only to the retired testnet's record (browser tests). A `node` with a placeholder such as `https://<node-host>` shows a warning bar until it is set
 
 A node installed with `zetaphy-chain/setup-node.sh` has Caddy serving https at `https://<dashed-ip>.sslip.io` (see `NODE-INFO.txt` on the server), where
 - `https://<host>/` = EVM JSON-RPC
