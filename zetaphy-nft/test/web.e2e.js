@@ -575,7 +575,7 @@ test('mainnet: closed until nftCodeKeysProtected, then the app on chain 3659 (ma
     await page.waitForSelector('.page[data-ready]', { timeout: 20_000 });
     assert.equal(await page.locator('#main .zn-gate').count(), 0, 'no "not on mainnet yet"');
     assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet/);
-    assert.ok(seen.length > 0 && seen.every((u) => u.startsWith(MAIN_RPC)), 'it reads mainnet\'s node');
+    assert.ok(seen.length > 0 && seen.every((u) => { const a = new URL(u), b = new URL(MAIN_RPC); return a.origin === b.origin && a.pathname.startsWith(b.pathname); }), 'it reads mainnet\'s node');
     await page.click('#connect');
     await page.click('dialog .wallet-choice');
     await page.waitForFunction(() => /^0x/.test(document.querySelector('#connect').textContent));

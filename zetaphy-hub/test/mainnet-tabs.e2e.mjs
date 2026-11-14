@@ -142,7 +142,7 @@ test('mainnet: the Offline, Audit, Quantum and Immunity tabs open once their con
     await page.waitForSelector('.panel[data-page="audit"]:not([hidden]) #au-cert-chain');
     assert.ok(await page.isHidden('#panel-gate'));
     assert.equal(await page.inputValue('#au-cert-chain'), '3659');
-    assert.match(await page.textContent('#au-meaning'), new RegExp(NET_TEXT.en.risk.slice(0, 40).replace(/[.()]/g, '\\$&')));
+    assert.match(await page.textContent('#au-meaning'), new RegExp(NET_TEXT.en.risk.slice(0, 40).replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')));
 
     // ---- Quantum: the rescue kit for chain 3659, its commit sent to mainnet's QuantumRescue for chain 0xe4b
     await page.click('.tab[data-tab="quantum"]');
