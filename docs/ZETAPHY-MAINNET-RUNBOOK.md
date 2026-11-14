@@ -161,3 +161,7 @@ DEX; Neuro; `ZetaphyBounty` (funded). Verify each contract's source (Sourcify) a
   former testnet machine. Signed release `zetaphyd-493f142343d6`, pinned genesis, peers only with the sentry, no public
   RPC, low-egress mode (stops before 800 MB a month). It holds a full copy of the chain for recovery; it is not a
   validator.
+- Public CometBFT websocket (2026-11-14, for Keplr's registry check and wallets): on the sentry, Caddy sends
+  `/rpc/websocket` straight to the node's `/websocket` (rpc-guard filters HTTP only); `max_subscription_clients = 20`,
+  `max_subscriptions_per_client = 5`, `unsafe = false`. A manual change on the sentry: a re-run of setup-node.sh drops it
+  until setup-node.sh carries it.

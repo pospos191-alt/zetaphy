@@ -147,3 +147,7 @@ deploy ด้วย deployer ของด่าน 4 แล้วส่งสิ
 - Full node สำรอง (2026-11-14): `zetaphy-gcp-backup` บน Google Cloud Free Tier (e2-micro, us-central1, 30 GB) ซึ่งเป็นเครื่อง
   testnet เดิม ใช้ release ที่เซ็นแล้ว `zetaphyd-493f142343d6` และ genesis ที่ล็อกไว้ ต่อกับ sentry อย่างเดียว ไม่เปิด RPC
   สาธารณะ และอยู่ในโหมดประหยัดการส่งข้อมูล (หยุดก่อนถึง 800 MB ต่อเดือน) มีสำเนาเชนครบไว้กู้คืน ไม่ใช่ validator
+- WebSocket ของ CometBFT แบบสาธารณะ (2026-11-14 สำหรับตัวตรวจของ Keplr และกระเป๋า): บน sentry ให้ Caddy ส่ง `/rpc/websocket`
+  ตรงไปที่ `/websocket` ของ node (rpc-guard กรองเฉพาะ HTTP) ตั้ง `max_subscription_clients = 20`,
+  `max_subscriptions_per_client = 5`, `unsafe = false` แก้บนเครื่องโดยตรง ถ้ารัน setup-node.sh ใหม่ค่านี้จะหาย
+  จนกว่า setup-node.sh จะมีค่านี้ในตัว
