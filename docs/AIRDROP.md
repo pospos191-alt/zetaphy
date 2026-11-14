@@ -185,7 +185,7 @@ Decide first (owner): pool for this round, equal vs pro-rata, the cap, `claimSta
 `claimDeadline` (e.g. 90-180 days), `returnTo` (the community fund or the governance module address) and the
 guardian (a multisig, or none).
 
-**Testnet** (with existing tooling):
+**Testnet** (the record: the testnet was shut down on 2026-11-14, so these commands no longer have a chain to run on; mainnet below):
 
 ```bash
 INIT=$(node airdrop/cli.js init-code round1 --start 2026-12-01T00:00:00Z --deadline 2027-03-01T00:00:00Z \

@@ -172,7 +172,7 @@ node airdrop/cli.js verify round1
 เจ้าของต้องตัดสินใจก่อน: กองของรอบนี้ แบ่งเท่ากันหรือตามสัดส่วน เพดาน `claimStart` (ช่วงตรวจหลังโอนเงิน)
 `claimDeadline` (เช่น 90-180 วัน) `returnTo` (ที่อยู่กองทุนชุมชนหรือโมดูล governance) และ guardian (multisig หรือไม่มี)
 
-**Testnet** (ด้วยเครื่องมือที่มีอยู่):
+**Testnet** (บันทึก: testnet ปิดถาวรแล้วเมื่อ 2026-11-14 คำสั่งเหล่านี้จึงไม่มีเชนให้รันแล้ว ดู mainnet ด้านล่าง):
 
 ```bash
 INIT=$(node airdrop/cli.js init-code round1 --start 2026-12-01T00:00:00Z --deadline 2027-03-01T00:00:00Z \
