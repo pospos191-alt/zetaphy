@@ -35,7 +35,7 @@ test('mainnet is the network; its ids, RPCs and explorer; the retired testnet\'s
   // the hub's mainnet card reads the same facts
   for (const k of ['chainId', 'cosmosChainId', 'symbol', 'decimals', 'genesisSha256', 'genesisTime', 'rpc', 'explorer', 'notice', 'noticeTh', 'files']) assert.equal(MAINNET[k], m[k], k);
   assert.deepEqual(addChainParams(m), cardParams());
-  assert.deepEqual(addChainParams(m), { chainId: '0xe4b', chainName: 'ZETAPHY', nativeCurrency: { name: 'ZETAPHY', symbol: 'ZTPHY', decimals: 18 }, rpcUrls: ['https://129-221-199-191.sslip.io'] });
+  assert.deepEqual(addChainParams(m), { chainId: '0xe4b', chainName: 'ZETAPHY', nativeCurrency: { name: 'ZETAPHY', symbol: 'ZTPHY', decimals: 18 }, rpcUrls: ['https://129-221-199-191.sslip.io'], iconUrls: ['https://app.sawasdeecoin.com/zetaphy-256.png'] });
   assert.deepEqual(addChainParams(t).blockExplorerUrls, ['https://explorer.sawasdeecoin.com']);
 });
 
