@@ -162,7 +162,7 @@ test('pages: shipped, strict-CSP friendly (no inline script/style), 8-language m
   assert.ok(existsSync(new URL('../../.github/actions/zetaphy-audit/action.yml', import.meta.url)));
 });
 
-test('the network (network.js): mainnet by default, "testnet only for now" until the audit network has mainnet contracts, never a testnet address on mainnet', async () => {
+test('the network (network.js): mainnet, "not on mainnet yet" until the audit network has mainnet contracts, never a testnet address on mainnet', async () => {
   const { loadConfig } = await import('../aas-page.js');
   const { NETWORKS } = await import('../network.js');
   const A = (c) => `0x${c.repeat(40)}`;

@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): dry_run forked and award/deploy acted on the live ZETAPHY testnet (chain 77390), which no longer runs, so the pull-request and daily runs are off (zetaphy-network test/points.test.js still runs in security.yml); manual runs only.
 # BZTPHY testnet reward points (zetaphy-chain/rewards/README.md).
 #
 # mode = dry_run  on a local copy (anvil fork) of the ZETAPHY testnet with a throwaway key: deploy,
@@ -12,14 +13,6 @@
 name: rewards
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/rewards.yml'
-      - 'zetaphy-network/scripts/points.js'
-      - 'zetaphy-network/src/points.js'
-      - 'zetaphy-network/contracts/ZetaphyPoints.sol'
-  schedule:
-    - cron: '23 0 * * *'
   workflow_dispatch:
     inputs:
       mode:

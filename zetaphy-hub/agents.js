@@ -17,7 +17,7 @@
 // Contract addresses come from hub-config.json (contracts.intentExecutor, labelRegistry, vouchRegistry,
 // agentRegistry) or are typed in. Everything shown is set with textContent.
 import { isEvmAddress, short, formatZeta, formatUnits } from './chainlib.js';
-import { activeNetwork, hasFeature, testnetOnlyBox } from './network.js';
+import { activeNetwork, hasFeature, notOnMainnetBox } from './network.js';
 import { withFallback } from './i18n.js';
 import { AGENTS } from './agents-i18n.js';
 import {
@@ -546,11 +546,11 @@ export default {
     const t = L(ctx);
     const el = ctx.el;
     draft = null; signed = null;
-    // a network without the agent contracts (mainnet, for now): "testnet only for now" for them, and the airdrop card
+    // a network without the agent contracts: "not on mainnet yet" for them, and the airdrop card
     // alone when that round is deployed there (hub.js opens this tab for either)
     const net = ctx.net ?? activeNetwork();
     if (!hasFeature(net, 'agents')) {
-      root.replaceChildren(testnetOnlyBox(document, { lang: ctx.lang, feature: 'agents' }),
+      root.replaceChildren(notOnMainnetBox(document, { lang: ctx.lang, feature: 'agents' }),
         ...(hasFeature(net, 'airdrop') ? [el('div', { class: 'ag-grid' }, el('div', { class: 'ag-col' }, airdropCard(ctx)))] : []));
       return;
     }

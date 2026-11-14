@@ -4,7 +4,7 @@
 // EIP-6963; older injected objects (window.ethereum, Binance, Phantom) are
 // found too. ZETAPHY is offered with wallet_addEthereumChain (EIP-3085).
 
-// The NFT contracts are on the testnet only: the page runs on the testnet (on mainnet it shows "testnet only for now",
+// The NFT contracts are on the testnet only: the page runs on the testnet (on mainnet it shows "not on mainnet yet",
 // app.js startGated, and loads no wallet), so these are the testnet's values (lib/network.js NETWORKS.testnet).
 export const CHAIN_ID = 'zetaphy_77390-1';
 export const EVM_CHAIN_ID = 77390;

@@ -3,7 +3,7 @@
 // registry is untrusted input (aas-core cleanRegistry checks every field) and only an index: its states are as of
 // its build; each row links to audit.html, which re-reads ZETAPHY and the target chain live.
 // The network (network.js): the registry is built from the testnet audit network's events. On mainnet the page shows
-// "testnet only for now" until the audit network has contracts there, and then lists only a registry made for that
+// "not on mainnet yet" until the audit network has contracts there, and then lists only a registry made for that
 // network's certificate contract (never the testnet's under the mainnet badge).
 import * as aas from './aas-core.js';
 import { T, page, el, when, setupLang, fmt, short, loadConfig, showNetwork, followNetwork } from './aas-page.js';
@@ -75,7 +75,7 @@ async function main() {
   filters();
   setupLang(() => { filters(); render(); showNetwork(cfg); });
   showNetwork(cfg);
-  if (cfg.gated) return; // "testnet only for now": no registry under the mainnet badge
+  if (cfg.gated) return; // "not on mainnet yet": no registry under the mainnet badge
   for (const id of ['q', 'f-chain', 'f-state']) document.getElementById(id).addEventListener('input', render);
   status('…');
   REG = cfg.net.testnet ? await loadRegistry() : cfg.certificate ? await loadRegistry(aas.REGISTRY_URLS, globalThis.fetch, { certificate: cfg.certificate }) : null;

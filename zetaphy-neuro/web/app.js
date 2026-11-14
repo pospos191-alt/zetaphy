@@ -317,7 +317,7 @@ loadCounts();
 loadChainStats(() => lang);
 // Shareable links: ?chain=bsc&address=0x…
 const q = new URLSearchParams(location.search);
-// a ZETAPHY link opens on this page's network (the switch picks the other one)
+// a ZETAPHY link opens on this page's network (mainnet)
 if (Object.hasOwn(CHAINS, q.get('chain') ?? '')) $('chain').value = isZetaphy(q.get('chain')) ? ZETAPHY_KEY : q.get('chain');
 setPlaceholder();
 if (q.get('address')) { $('address').value = q.get('address'); run($('chain').value, q.get('address').trim()); }

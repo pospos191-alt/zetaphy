@@ -1,9 +1,9 @@
 // Shared by the Audit-as-a-Service pages (audit.html: aas-verify.js, audits.html: aas-directory.js): language,
-// the network (network.js: mainnet by default, the testnet with the switch), hub-config.json, DOM helpers.
+// the network (network.js: mainnet, the only network since 2026-11-14), hub-config.json, DOM helpers.
 // Everything goes in with textContent; no inline styles (CSP style-src 'self'; network.js sets element.style only).
 import { pickLang, locale, withFallback } from './i18n.js';
 import { AAS } from './aas-i18n.js';
-import { activeNetwork, hasFeature, networkBadge, testnetOnlyBox, watchNetwork, withDeployed } from './network.js';
+import { activeNetwork, hasFeature, networkBadge, notOnMainnetBox, watchNetwork, withDeployed } from './network.js';
 
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } } };
 export const fmt = (s, vars = {}) => String(s).replace(/\{(\w+)\}/g, (m, x) => (x in vars ? String(vars[x]) : m));
@@ -30,7 +30,7 @@ export function el(tag, attrs = {}, ...kids) {
  * The page's network, its node and the addresses this page needs from hub-config.json (public data); anything
  * malformed is ignored. The testnet: the top level (the testnet's deployment records), as before. Mainnet: only
  * hub-config.json `mainnet` (build.mjs mainnetHub), never a testnet address; `gated` while the audit network has no
- * contracts there (network.js FEATURE_CONTRACTS: then "testnet only for now", and no contract is called).
+ * contracts there (network.js FEATURE_CONTRACTS: then "not on mainnet yet", and no contract is called).
  * `fetchImpl` / `net` are passed by tests.
  */
 export async function loadConfig({ fetchImpl = globalThis.fetch, net = activeNetwork() } = {}) {
@@ -52,14 +52,13 @@ export async function loadConfig({ fetchImpl = globalThis.fetch, net = activeNet
 }
 
 /**
- * #net: the network badge with the switch and, where the audit network is not on this network, "testnet only for
- * now" with a one-click switch; while gated the page's own parts ([data-needs-net]) are hidden and nothing is read.
+ * #net: the network badge and, where the audit network is not on this network, "not on mainnet yet"; while gated the page's own parts ([data-needs-net]) are hidden and nothing is read.
  * On mainnet the testnet note is hidden (the badge says what mainnet is).
  */
 export function showNetwork(cfg) {
   const box = document.getElementById('net');
   if (!box) return;
-  box.replaceChildren(networkBadge(document, { lang: page.lang, net: cfg.net }), ...(cfg.gated ? [testnetOnlyBox(document, { lang: page.lang, feature: 'audit' })] : []));
+  box.replaceChildren(networkBadge(document, { lang: page.lang, net: cfg.net }), ...(cfg.gated ? [notOnMainnetBox(document, { lang: page.lang, feature: 'audit' })] : []));
   for (const n of document.querySelectorAll('[data-needs-net]')) n.hidden = cfg.gated;
   for (const n of document.querySelectorAll('[data-t="testnet"]')) n.hidden = !cfg.net.testnet;
 }

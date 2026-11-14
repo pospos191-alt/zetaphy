@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): this launched contracts on the ZETAPHY testnet (chain 77390), which no longer runs; manual runs only.
 # ZETAPHY testnet launch day (docs/LAUNCH.md): deploy and wire every contract on the
 # live testnet, write the addresses into every web app's config, and open a pull
 # request with them. Run by hand only (Actions → launch-testnet → Run workflow);

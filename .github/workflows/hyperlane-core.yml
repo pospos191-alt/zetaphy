@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): the deploy mode targeted the ZETAPHY testnet (chain 77390), which no longer runs; the dry run is a local chain; manual runs only.
 # ZETAPHY Saphan, EVM route: deploy Hyperlane core (Mailbox, ISMs, hooks,
 # ValidatorAnnounce, ProxyAdmin) on the ZETAPHY testnet with the pinned
 # @hyperlane-xyz/cli, then push the addresses and the agent config to the

@@ -45,13 +45,16 @@ test('about pages: static, canonical, every language linked, structured data par
   }
 });
 
-test('the site describes mainnet (with the testnet one switch away), never "(testnet)" only; the footer carries mainnet\'s risk sentence', () => {
+test('the site describes mainnet, the only network (the testnet was shut down on 2026-11-14), never "(testnet)"; the footer carries mainnet\'s risk sentence', () => {
   for (const l of LANG_CODES) {
     const c = ABOUT[l];
     assert.doesNotMatch(c.description, /[(（](testnet|测试网|тестовая сеть|테스트넷|テストネット)[)）]/i, `${l}: description`);
     assert.match(c.description, /mainnet|主网|мейннет|메인넷|メインネット/i, `${l}: description names mainnet`);
-    assert.match(c.description + c.lead, /testnet|测试网|тестнет|테스트넷|テストネット/i, `${l}: the testnet is still there`);
-    assert.ok(c.sections[0].p.includes('3659') && c.sections[0].p.includes('77390'), `${l}: both chain ids`);
+    assert.doesNotMatch(c.description, /testnet|测试网|тестнет|테스트넷|テストネット/i, `${l}: no testnet to practise on in the description`);
+    assert.match(c.lead, /(testnet|测试网|тестнет|테스트넷|テストネット).*2026-11-14/i, `${l}: the lead says the testnet was shut down`);
+    assert.ok(c.sections[0].p.includes('3659') && c.sections[0].p.includes('77390') && c.sections[0].p.includes('2026-11-14'), `${l}: mainnet's chain id, the old testnet's and its shutdown date`);
+    assert.match(c.notice, /2026-11-14/, `${l}: the notice says the testnet was shut down`);
+    assert.doesNotMatch(JSON.stringify(c), /one switch away|一键即可切换|한 번에 전환|ワンクリックで切り替え|в одном переключении|chỉ cách một lần chuyển|a un clic|ในคลิกเดียว/, `${l}: no switch to the testnet`);
     assert.ok(c.notice.includes(NET_TEXT[l].risk.slice(0, 40)), `${l}: the mainnet notice's own risk sentence`);
   }
   const html = readFileSync(join(HERE, 'index.html'), 'utf8');

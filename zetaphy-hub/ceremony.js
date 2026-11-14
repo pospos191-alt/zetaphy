@@ -22,7 +22,7 @@ const S = { t: null, tOk: false, zkey: null, zOk: false, result: null, extra: []
 function say(id, text, cls = '') { const n = $(id); n.textContent = text; n.className = `mono ${cls}`.trim(); }
 
 /**
- * The network (network.js: mainnet by default, the testnet with the switch). The contribution itself touches no chain
+ * The network (network.js: mainnet, the only network since 2026-11-14). The contribution itself touches no chain
  * (the page cannot connect anywhere): the badge says which network the hub's other pages are on, and lets you switch.
  */
 function network() {

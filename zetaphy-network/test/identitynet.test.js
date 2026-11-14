@@ -1,10 +1,10 @@
 // The identity commands on either ZETAPHY network (mainnet 3659, the testnet 77390): ZETAPHY's entry in the chain
 // list, the registry's deploy arguments, signed messages and their source chain all take the chain id of the
-// connected RPC (or --chain-id), never a fixed 77390; every other CLI command stays testnet only and refuses
-// mainnet in plain words.
+// connected RPC (or --chain-id), never a fixed 77390. The runner and job commands take mainnet too (NeuroJobs is
+// deployed there); every other CLI command stays on a local devnet and refuses mainnet in plain words.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,7 +14,7 @@ process.env.ZETAPHY_HOME = HOME;
 const { neuroChainsFor, NEURO_CHAINS, chainArgs, ZETAPHY_EVM_CHAIN_IDS } = await import('../src/identity.js');
 const { identityCommand, evmChainId, IDENTITY_CHAINS } = await import('../src/identitycli.js');
 const { verifyMessage } = await import('../src/neuromsg.js');
-const { wrongChainMessage } = await import('../cli.js');
+const { wrongChainMessage, RUNNER_CHAINS, MAINNET_RPC } = await import('../cli.js');
 test.after(() => rmSync(HOME, { recursive: true, force: true }));
 
 const REGISTRY = `0x${'12'.repeat(20)}`;
@@ -71,12 +71,33 @@ test('msg sign on mainnet: the envelope names chain 3659 and eip155:3659, and ve
   assert.deepEqual([JSON.parse(out).domain.chainId, JSON.parse(out).message.sourceChain], ['77390', 'eip155:77390']);
 });
 
-test('every other CLI command stays on the testnet: mainnet is refused in plain words', () => {
+test('a command whose contracts are not on mainnet stays on a local devnet: mainnet is refused in plain words', () => {
   const m = wrongChainMessage(3659n);
   assert.match(m, /ZETAPHY mainnet \(chain 3659\)/);
+  assert.match(m, /contracts that are not on mainnet yet/);
   assert.match(m, /refuses to act on mainnet/);
-  assert.match(m, /ZETAPHY testnet \(77390\) only/);
-  assert.match(m, /rpc\.sawasdeecoin\.com/);
-  assert.equal(wrongChainMessage(1n), 'that RPC is chain 1, not ZETAPHY testnet (77390)');
-  assert.equal(wrongChainMessage(5n, [3659n, 77390n]), 'that RPC is chain 5, not ZETAPHY mainnet (3659) or ZETAPHY testnet (77390)');
+  assert.match(m, /a local ZETAPHY devnet \(77390\) only/);
+  assert.match(m, /testnet was shut down on 2026-11-14/);
+  assert.doesNotMatch(m, /sawasdeecoin/);
+  assert.equal(wrongChainMessage(1n), 'that RPC is chain 1, not a local ZETAPHY devnet (77390)');
+  assert.equal(wrongChainMessage(5n, [3659n, 77390n]), 'that RPC is chain 5, not ZETAPHY mainnet (3659) or a local ZETAPHY devnet (77390)');
+});
+
+test('the runner and job commands act on mainnet (NeuroJobs is deployed there) or a devnet, nothing else', () => {
+  assert.deepEqual(RUNNER_CHAINS, [3659n, 77390n]);
+  assert.equal(MAINNET_RPC, 'https://129-221-199-191.sslip.io');
+  assert.equal(wrongChainMessage(1n, RUNNER_CHAINS), 'that RPC is chain 1, not ZETAPHY mainnet (3659) or a local ZETAPHY devnet (77390)');
+  const cli = readFileSync(new URL('../cli.js', import.meta.url), 'utf8');
+  for (const head of ["group === 'node' && cmd === 'start'", "group === 'node' && cmd === 'status'", "group === 'node' && cmd === 'register'",
+    "group === 'job' && cmd === 'get'", "group === 'gate'"]) {
+    const at = cli.indexOf(head);
+    assert.ok(at > 0, head);
+    assert.match(cli.slice(at, at + 1200), /connect\(s, \{ chains: RUNNER_CHAINS \}\)/, `${head} takes mainnet`);
+  }
+  // deploys make new contracts: a local devnet only (the default)
+  for (const head of ["group === 'deploy') {", "group === 'deploy-control'", "group === 'deploy-pq'"]) {
+    const at = cli.indexOf(head);
+    assert.ok(at > 0, head);
+    assert.match(cli.slice(at, at + 200), /connect\(s, \{ needJobs: false \}\)/, `${head} stays devnet only`);
+  }
 });

@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): the ZETAPHY side of check / deploy was the testnet (chain 77390), which no longer runs; the pull-request dry run stays (a fresh local ZETAPHY).
 # ZETAPHY Saphan, EVM routes v2: one source chain <-> ZETAPHY, both ways, testnets only.
 # The chain comes from zetaphy-chain/hyperlane/saphan-chains.json (adding a chain = an entry there + this workflow).
 #   source chain: SimpleMultisig (guardian, proposer) + ZetaphyTimelock (governance), our multisig ISM for origin

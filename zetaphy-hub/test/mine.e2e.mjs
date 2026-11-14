@@ -1,4 +1,4 @@
-// Browser test: "Mine testnet ZETAPHY" (the proof-of-work faucet), the Earn page's faucet form and the
+// Browser test: "Mine ZTPHY in the browser" (the proof-of-work faucet; run on the retired testnet's record here), the Earn page's faucet form and the
 // validator guide's faucet form, on a built dist/ served with the site's own CSP, against a mocked node
 // (low difficulty). Nothing runs before Start; the claim carries a proof the mock checks like the node.
 import { test } from 'node:test';
@@ -61,7 +61,7 @@ test('mine testnet ZETAPHY in the browser, and the faucet forms', { timeout: 120
 
     await page.goto(`${site.url}?tab=mine`);
     await page.waitForSelector('#mn-start');
-    assert.equal(await page.textContent('#page-title'), 'Mine testnet ZETAPHY');
+    assert.equal(await page.textContent('#page-title'), 'Mine ZTPHY in the browser');
     assert.match(await page.textContent('.page-mine'), /not real mining/);
     await page.waitForFunction(() => /12 zero bits/.test(document.getElementById('mn-bits').textContent));
     assert.match(await page.textContent('#mn-left'), /199 \/ 200/);
@@ -175,7 +175,7 @@ test('mine testnet ZETAPHY in the browser, and the faucet forms', { timeout: 120
     // Thai: the mining page and its tab
     await page.selectOption('#lang', 'th');
     await page.click('.tab[data-tab="mine"]');
-    await page.waitForFunction(() => document.getElementById('page-title').textContent === 'ขุด ZETAPHY ทดลอง');
+    await page.waitForFunction(() => document.getElementById('page-title').textContent === 'ขุด ZTPHY บนเบราว์เซอร์');
     assert.match(await page.textContent('.page-mine'), /ไม่ใช่การขุดจริง/);
     await page.selectOption('#lang', 'en');
 

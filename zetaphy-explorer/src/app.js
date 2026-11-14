@@ -36,7 +36,7 @@ import { createWatchStore, createTxWatch, watchControls, watchedCard, toast } fr
 import { analyticsView, ANALYTICS_MAX_BLOCKS } from './charts.js';
 import { cometTxHash } from './cosmos.js';
 import { activeNetwork, networkBadge, watchNetwork } from './network.js';
-// The network (network.js): mainnet unless the visitor picked the testnet; a switch (here or in another tab) reloads.
+// The network (network.js): ZETAPHY mainnet, the only one (the testnet was shut down on 2026-11-14).
 const NET = activeNetwork();
 watchNetwork(window);
 
@@ -156,7 +156,7 @@ function applyTheme(theme) {
   $('theme-toggle').textContent = dark ? '☀' : '☾';
 }
 
-/** The network badge and switch (network.js) under the header; on the testnet with the footer's own words. */
+/** The network badge (network.js) under the header (no switch: mainnet is the only network). */
 function netBadge() {
   $('net-badge')?.replaceChildren(networkBadge(document, { lang, net: NET, testnetText: t('footerUnaudited') }));
 }

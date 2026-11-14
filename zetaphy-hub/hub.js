@@ -17,7 +17,7 @@ import * as walletLib from './wallet/wallets.js';
 import { A as assistText, badgeOf, presignHooks, immuneWarnings } from './assist.js';
 import * as txg from './txguard.js';
 import { renderMainnet } from './mainnet.js';
-import { activeNetwork, contractsOf, hasFeature, networkBadge, networkSelect, testnetOnlyBox, watchNetwork, netText, withDeployed } from './network.js';
+import { activeNetwork, contractsOf, hasFeature, networkBadge, notOnMainnetBox, watchNetwork, netText, withDeployed } from './network.js';
 import { readFaucet, faucetLine, faucetState } from './faucet-core.js';
 
 // The network this page uses (network.js: mainnet unless the visitor picked the testnet). Read once; a switch reloads
@@ -65,7 +65,7 @@ const TABS = [
   { id: 'wallet', src: 'wallet/' },
   { id: 'swap', src: 'swap/' },
   { id: 'stake', fresh: true },
-  // feature: the network.js feature the tab needs; where the network has none, the tab shows "testnet only for now"
+  // feature: the network.js feature the tab needs; where mainnet has none yet, the tab shows "not on mainnet yet"
   { id: 'earn', page: true, fresh: true, feature: 'faucet' },
   { id: 'mine', page: true, fresh: true, feature: 'mining' },
   { id: 'saphan', page: true, fresh: true, feature: 'bridge' },
@@ -99,7 +99,7 @@ const T = (k) => {
   const s = TEXT[lang]?.[key] ?? TEXT.en[key] ?? k;
   return NET.testnet || typeof s !== 'string' ? s : s.replaceAll('77390', String(NET.chainId));
 };
-/** Is this tab "testnet only for now" on the page's network? */
+/** Is this tab "not on mainnet yet" on the page's network? */
 const gated = (t) => !!t?.feature && !hasFeature(NET, t.feature) && !(t.also ?? []).some((f) => hasFeature(NET, f));
 /** A tab's label / title / hover text in the current language (English if missing). */
 const tabText = (t, i) => TAB_TEXT[lang]?.[t.id]?.[i] ?? TAB_TEXT.en[t.id][i];
@@ -185,7 +185,7 @@ function buildTabs() {
     const head = t.group && t.group !== last ? el('span', { class: 'group', text: GROUP[t.group] }) : null;
     last = t.group;
     return [head, el('a', { class: 'tab', href: `?tab=${t.id}`, 'data-tab': t.id, 'data-tip': tabText(t, TIP), 'data-gated': gated(t) ? '1' : null },
-      svg(t.id), el('span', { text: tabText(t, LABEL) }), gated(t) ? el('span', { class: 'new', text: 'testnet' }) : t.fresh ? el('span', { class: 'new', text: 'new' }) : null)];
+      svg(t.id), el('span', { text: tabText(t, LABEL) }), gated(t) ? el('span', { class: 'new soon', text: T('tabSoon') }) : null)];
   }).filter(Boolean),
   // the validator guide is a page of its own on this site (validators.html), not a tab
   el('a', { class: 'tab', href: 'validators.html', id: 'nav-guide', 'data-tip': T('tipGuide') }, svg('guide'), el('span', { text: T('navGuide') })),
@@ -206,12 +206,12 @@ function show(id, { hash, push = true } = {}) {
   $('panel-home').hidden = tab.id !== 'home';
   $('panel-stake').hidden = tab.id !== 'stake';
   for (const p of document.querySelectorAll('.panel[data-page]')) p.hidden = p.dataset.page !== tab.id;
-  // a tab whose contracts are not on this network: "testnet only for now" and a switch, never its page or app
+  // a tab whose contracts are not on mainnet yet: "not on mainnet yet", never its page or app
   const gate = gated(tab);
   let gp = $('panel-gate');
   if (gate) {
     if (!gp) { gp = el('section', { class: 'panel gate-panel', id: 'panel-gate' }); $('stage').insertBefore(gp, $('frames')); }
-    gp.replaceChildren(testnetOnlyBox(document, { lang, feature: tab.feature }));
+    gp.replaceChildren(notOnMainnetBox(document, { lang, feature: tab.feature }));
     gp.hidden = false;
   } else if (gp) gp.hidden = true;
   if (tab.page && !gate) openPage(tab.id);
@@ -373,21 +373,20 @@ function syncApps() {
   for (const [k, v] of APP_THEME) store.set(k, v);
 }
 
-// ------------------------------------------------------------------ the network: badge, switch, mainnet risk line, the faucet where the network has one
+// ------------------------------------------------------------------ the network: badge, mainnet risk line, the faucet where the network has one
 function renderNetwork() {
   const b = $('net-badge');
   const t = netText(lang);
   b.textContent = NET.testnet ? 'Testnet' : t.badgeMainnet;
   b.classList.toggle('mainnet', !NET.testnet);
   if (NET.testnet) { b.dataset.tipKey = 'tipTestnet'; delete b.dataset.tip; } else { delete b.dataset.tipKey; b.dataset.tip = t.risk; }
-  $('net-switch').replaceChildren(networkSelect(document, { lang, net: NET }));
   const note = $('net-note');
   note.hidden = NET.testnet;
-  note.replaceChildren(...(NET.testnet ? [] : [networkBadge(document, { lang, net: NET, select: false })]));
+  note.replaceChildren(...(NET.testnet ? [] : [networkBadge(document, { lang, net: NET })]));
   const faucetOn = hasFeature(NET, 'faucet');
   $('faucet-form').hidden = !faucetOn;
   $('faucet-gate').hidden = faucetOn;
-  $('faucet-gate').replaceChildren(...(faucetOn ? [] : [testnetOnlyBox(document, { lang, feature: 'faucet' })]));
+  $('faucet-gate').replaceChildren(...(faucetOn ? [] : [notOnMainnetBox(document, { lang, feature: 'faucet' })]));
   if (faucetOn) showFaucet();
 }
 /** Step 2's line under the form: the node's own amounts and budget, or why the faucet cannot pay now (faucet-core.js). */

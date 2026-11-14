@@ -30,7 +30,7 @@ import { scanEntry } from '../ml/fl/labels.js';
 import { decodeUpdate } from '../ml/fl/codec.js';
 import { aggregateRound } from '../ml/fl/aggregate.js';
 import { FL_TEXT } from '../web/fl-i18n.js';
-import { onNetwork } from './net.js';
+import { onTestnet } from './net.js';
 
 const PORT = 18097;
 const RPC_PORT = 18098;
@@ -106,8 +106,9 @@ async function client(i, { deployed = true, seed = true, network = 'testnet' } =
     };
   }, { acct, seed: seed ? JSON.stringify(seeded(i)) : null });
   const page = await ctx.newPage();
-  // these checks are about the testnet unless a test asks for mainnet (network.js defaults to mainnet)
-  if (network) await onNetwork(page, network);
+  // these checks are about the rounds of the retired testnet's record unless a test asks for the page as visitors see it
+  // (mainnet, the only network since 2026-11-14)
+  if (network === 'testnet') await onTestnet(page);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('request', (r) => log.requests.push({ url: r.url(), method: r.method(), body: r.postData() ?? '' }));
@@ -299,9 +300,10 @@ test('nothing but the clipped and noised update left the browsers', async () => 
   assert.ok(clients.every(({ log }) => log.requests.every((r) => !r.body.includes(anyAddr) && !r.body.includes('neuro-fl'))));
 });
 
-test('mainnet (the default): the rounds are "testnet only for now"; ZETAPHY in the chain list is mainnet; no round, no wallet', async () => {
+test('mainnet (the only network): the rounds are "not on mainnet yet", nothing to click; ZETAPHY in the chain list is mainnet; no round, no wallet', async () => {
   const { page, errors, log } = await client(0, { network: null });
-  assert.match(await text(page, '#fl'), /Testnet only for now.*Federated learning rounds is not on ZETAPHY mainnet yet/s);
+  assert.match(await text(page, '#fl'), /Not on mainnet yet.*Federated learning rounds is not on ZETAPHY mainnet yet\. It appears here once its contracts are deployed on mainnet\. \(The testnet was shut down on 2026-11-14\.\)/s);
+  assert.equal(await page.locator('#fl button, #fl select, .zn-gate-switch, .zn-net-select').count(), 0, 'no switch to the testnet');
   assert.equal(await page.locator('#fl-train, #fl-optin').count(), 0, 'no round to join');
   assert.match(await text(page, '#net-badge'), /ZETAPHY mainnet.*single validator operated by the ZETAPHY project/s);
   const chains = await page.$$eval('#chain option', (o) => o.map((x) => x.value));
@@ -309,7 +311,7 @@ test('mainnet (the default): the rounds are "testnet only for now"; ZETAPHY in t
   assert.ok(!log.requests.some((r) => r.url.startsWith(FL_RPC) || /deployment\.json/.test(r.url)), 'nothing of the testnet rounds is read');
   assert.equal(log.wallet.length, 0);
   await page.selectOption('#lang', 'th');
-  await waitText(page, '#fl', /ตอนนี้ใช้ได้เฉพาะบน testnet/);
+  await waitText(page, '#fl', /ยังไม่มีบน mainnet.*testnet ปิดถาวรเมื่อ 2026-11-14/s);
   assert.deepEqual(errors, []);
 });
 

@@ -19,7 +19,7 @@ import { getAddress } from 'ethers';
 import { T, LANGS } from '../src/i18n.js';
 import { buildChain, CHAIN_ID, LATEST, ME, ME_HEX, LOCKED, LOCKED_HEX, TOKEN, NFT, REGISTRY, AUDIT_CERT, REPORT, RESPONSE_TEXT, ROUTER, PROXY, FACTORY, DEPLOYER, MAILBOX, SEPOLIA_DELIVERY_TX,
   BUSY, BUSY_HEX, BUSY_TXS, FLOW_HEX } from './mock-chain.js';
-import { onNetwork } from './net.js';
+import { onTestnet } from './net.js';
 // ZETAPHY mainnet's public node (src/network.js): answered by the same mock chain when a test opens the page on mainnet
 const MAINNET_HOST = '129-221-199-191.sslip.io';
 
@@ -74,8 +74,9 @@ async function openPage({ viewport, lang = 'th', origin = ORIGIN, ws = 'comet', 
   // service workers blocked: the PWA has its own test (explore2.e2e.js)
   const ctx = await browser.newContext({ viewport: viewport ?? { width: 1280, height: 900 }, acceptDownloads: true, serviceWorkers: 'block' });
   const page = await ctx.newPage();
-  // these checks are about the testnet unless a test asks for mainnet (src/network.js defaults to mainnet)
-  if (network) await onNetwork(page, network);
+  // these checks run on the retired testnet's record (config.json's node) unless a test asks for the page as visitors
+  // see it (mainnet, the only network since 2026-11-14: network null)
+  if (network === 'testnet') await onTestnet(page);
   const problems = []; const mine = {};
   // The node's websockets (wss://<node>/rpc/websocket and /ws), mocked: no network.
   const sockets = []; const wsUrls = [];
@@ -140,7 +141,7 @@ async function waitText(page, s, timeout = 15000) {
   }
 }
 
-test('mainnet (the default): its own node and ThreatRegistry, chain 3659, the badge and risk line; the switch picks the testnet', async () => {
+test('mainnet (the only network): its own node and ThreatRegistry, chain 3659, the badge and risk line, no switch; a saved or linked testnet opens mainnet', async () => {
   const { page, ctx, problems, counts: mine } = await openPage({ lang: 'en', network: null });
   const evmCalls = [];
   page.on('request', (r) => { if (new URL(r.url()).host === MAINNET_HOST && r.postData()) for (const c of [JSON.parse(r.postData())].flat()) if (c.method === 'eth_call') evmCalls.push(String(c.params?.[0]?.to).toLowerCase()); });
@@ -158,13 +159,18 @@ test('mainnet (the default): its own node and ThreatRegistry, chain 3659, the ba
   assert.ok(mine[`https://${MAINNET_HOST}`] > 3, 'read from the mainnet node');
   assert.equal(mine[NODE] ?? 0, 0, 'nothing asked of config.json\'s (testnet) node');
   assert.ok(!evmCalls.includes(REGISTRY.toLowerCase()) && !evmCalls.includes(AUDIT_CERT.toLowerCase()), 'no testnet contract called');
-  // the switch: the testnet, remembered, read from config.json's node
-  await Promise.all([page.waitForEvent('load'), page.selectOption('#net-badge select', 'testnet')]);
-  assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), 'testnet');
-  await waitText(page, 'MsgSend');
-  assert.match(await page.textContent('#net-badge'), /ZETAPHY testnet/);
-  assert.equal((await page.evaluate(() => window.__explorer.config())).evmChainId, 77390);
-  assert.ok(mine[NODE] > 3, 'now the testnet node');
+  // no network switch (no testnet option anywhere)
+  assert.equal(await page.locator('#net-badge select, select.zn-net-select, option[value="testnet"]').count(), 0, 'no testnet option');
+  // a testnet choice saved before the shutdown, then a ?network=testnet link: mainnet both times, the saved value cleared
+  await page.evaluate(() => localStorage.setItem('zetaphy:network', 'testnet'));
+  for (const q of ['?reload=1', '?network=testnet']) { // a real load each time (a hash-only change would not reload)
+    await page.goto(`${ORIGIN}/${q}#/`);
+    await waitText(page, 'MsgSend');
+    assert.match(await page.textContent('#net-badge'), /ZETAPHY mainnet/, q);
+    assert.equal((await page.evaluate(() => window.__explorer.config())).evmChainId, 3659, q);
+    assert.equal(await page.evaluate(() => localStorage.getItem('zetaphy:network')), null, `${q}: cleared, nothing saved`);
+  }
+  assert.equal(mine[NODE] ?? 0, 0, 'still nothing asked of the testnet node');
   assert.deepEqual(problems, []);
   await ctx.close();
 });

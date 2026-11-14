@@ -17,7 +17,7 @@ export { decodeCertificate, LEVELS, calldata, decodeArgs };
 
 export const ZETAPHY_CHAIN_ID = 77390;
 export const ZETAPHY_RPC = 'https://rpc.sawasdeecoin.com';
-/** ZETAPHY mainnet (zetaphy-hub/network.js): its contracts can be audited too, and the pages follow the network switch. */
+/** ZETAPHY mainnet (zetaphy-hub/network.js): its contracts can be audited too (the only network since the testnet was shut down on 2026-11-14). */
 export const ZETAPHY_MAINNET_CHAIN_ID = 3659;
 export const ZETAPHY_MAINNET_RPC = 'https://129-221-199-191.sslip.io';
 /** Both ZETAPHY networks: there AuditCertificate.valid also checks the live code itself (EXTCODEHASH). */

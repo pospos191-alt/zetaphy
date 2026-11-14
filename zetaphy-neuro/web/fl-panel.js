@@ -17,7 +17,7 @@
 import { flText, fill } from './fl-i18n.js';
 import { createWallet } from './fl-wallet.js';
 // The network (network.js, shared with the hub): the federated rounds (FederatedRounds) are on the testnet only.
-import { activeNetwork, hasFeature, testnetOnlyBox } from './network.js';
+import { activeNetwork, hasFeature, notOnMainnetBox } from './network.js';
 import { CHAINS } from '../src/chains.js';
 import { createRpc } from '../src/rpc.js';
 import { readContract } from '../src/reader.js';
@@ -402,11 +402,11 @@ function render() {
 }
 
 // ------------------------------------------------------------ start
-// mainnet: no FederatedRounds contract there yet. "testnet only for now" with the switch; no wallet, no round, no label.
+// mainnet: no FederatedRounds contract in this page's network.js yet: "not on mainnet yet"; no wallet, no round, no label.
 function startGated() {
   const s = make('section', { id: 'fl', class: 'fl' });
   const draw = () => s.replaceChildren(make('h2', { id: 'fl-title' }, flText(document.documentElement.lang || 'en').title),
-    testnetOnlyBox(document, { lang: document.documentElement.lang || 'en', feature: 'federated' }));
+    notOnMainnetBox(document, { lang: document.documentElement.lang || 'en', feature: 'federated' }));
   draw();
   const footer = document.querySelector('footer');
   if (footer) footer.before(s); else document.body.append(s);

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { MAINNET, addChainParams, renderMainnet } from '../mainnet.js';
 import { MAINNET_TEXT } from '../mainnet-i18n.js';
 import { LANG_CODES } from '../i18n.js';
+import { NET_TEXT } from '../network.js';
 
 // a tiny stand-in for hub.js el(): plain objects, enough to read the card back
 const el = (tag, attrs = {}, ...kids) => {
@@ -45,10 +46,15 @@ test('rpc null: "coming soon", the Add to MetaMask button is disabled and asks n
   assert.ok('disabled' in c.add.attrs, 'disabled');
   assert.equal(c.add.attrs['data-tip'], MAINNET_TEXT.en.addSoon);
   const text = c.root.textContent;
-  for (const s of ['Public RPC', 'coming soon', '3659 · zetaphy_3659-1', 'ZTPHY', 'ca0efb15…0a94667', '2026-11-13 14:00 UTC', MAINNET_TEXT.en.risk]) assert.ok(text.includes(s), s);
+  for (const s of ['Public RPC', 'coming soon', '3659 · zetaphy_3659-1', 'ZTPHY', 'ca0efb15…0a94667', '2026-11-13 14:00 UTC']) assert.ok(text.includes(s), s);
+  // the risk sentence is said once, by the network bar on top of every page (network.js networkBadge): not again here
+  assert.ok(!text.includes(MAINNET_TEXT.en.risk), 'no second risk notice in the card');
+  assert.ok(!find(c.root, (n) => /mainnet-risk/.test(n.attrs?.class ?? '')), 'no risk box');
+  assert.doesNotMatch(text, /testnet|77390|switch/i, 'no testnet line in the card');
   assert.ok(find(c.root.kids[1], (n) => n.attrs?.['data-copy'] === MAINNET.genesisSha256), 'the full genesis hash is copied');
-  assert.ok(find(c.root.kids[3], (n) => n.attrs?.href === MAINNET.notice), 'notice link');
-  assert.ok(find(c.root.kids[3], (n) => n.attrs?.href === MAINNET.files), 'genesis folder link');
+  assert.ok(find(c.root.kids[2], (n) => n.attrs?.href === MAINNET.notice), 'notice link');
+  assert.ok(find(c.root.kids[2], (n) => n.attrs?.href === MAINNET.files), 'genesis folder link');
+  assert.ok(find(c.root.kids[2], (n) => n === c.add), 'Add to MetaMask with the links');
   await c.add.on.click();
   assert.equal(asked, 0);
 });
@@ -64,7 +70,7 @@ test('rpc set: the button adds chain 0xe4b (ZETAPHY, ZTPHY, 18) with that RPC', 
   assert.ok(!('disabled' in c.add.attrs));
   assert.ok(find(c.root, (n) => n.text === rpc), 'the RPC is shown as its own text');
   assert.ok(!c.root.textContent.includes(MAINNET_TEXT.th.rpcSoon));
-  assert.ok(find(c.root.kids[3], (n) => n.attrs?.href === MAINNET.noticeTh), 'Thai notice for Thai');
+  assert.ok(find(c.root.kids[2], (n) => n.attrs?.href === MAINNET.noticeTh), 'Thai notice for Thai');
   await c.add.on.click();
   assert.deepEqual(calls, [{ method: 'wallet_addEthereumChain', params: [want] }]);
   const out = c.root.kids.at(-1);
@@ -81,9 +87,11 @@ test('every language has every text; the risk sentence is translated and keeps t
   for (const l of LANG_CODES) {
     assert.deepEqual(Object.keys(MAINNET_TEXT[l]).sort(), keys, l);
     for (const [k, v] of Object.entries(MAINNET_TEXT[l])) assert.ok(typeof v === 'string' && v.trim(), `${l}.${k}`);
-    if (l !== 'en') for (const k of ['risk', 'tip', 'apps', 'addSoon']) assert.notEqual(MAINNET_TEXT[l][k], MAINNET_TEXT.en[k], `${l}.${k}: translated`);
+    if (l !== 'en') for (const k of ['risk', 'tip', 'addSoon']) assert.notEqual(MAINNET_TEXT[l][k], MAINNET_TEXT.en[k], `${l}.${k}: translated`);
     assert.match(MAINNET_TEXT[l].risk, /ZETAPHY/);
-    assert.match(MAINNET_TEXT[l].apps, /77390/);
+    assert.match(MAINNET_TEXT[l].tip, /77390.*2026-11-14/s, `${l}.tip: the testnet's chain and its shutdown date`);
+    assert.equal(MAINNET_TEXT[l].apps, undefined, `${l}: no "mainnet by default, switch to the testnet" line any more`);
+    assert.equal(MAINNET_TEXT[l].risk, NET_TEXT[l].risk, `${l}: the same risk sentence as the network bar (which alone shows it)`);
     assert.match(MAINNET_TEXT[l].add, /MetaMask/);
   }
 });

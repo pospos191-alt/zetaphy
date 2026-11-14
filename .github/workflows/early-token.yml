@@ -1,3 +1,4 @@
+# testnet shut down 2026-11-14 (owner decision): ZEARLY lived on the ZETAPHY testnet (chain 77390), which no longer runs, so the daily quests run is off; manual runs only.
 # ZETAPHY Early (ZEARLY): the community token of the testnet airdrop (zetaphy-chain/rewards/EARLY.md).
 #   mode = deploy    deploys ZEARLY on the ZETAPHY testnet; all 1,000,000,000 go to the deployer key (the airdrop
 #                    wallet); pushes zetaphy-chain/rewards/early-testnet.json to the branch rewards/early.
@@ -20,8 +21,6 @@
 name: early-token
 
 on:
-  schedule:
-    - cron: "41 4 * * *"   # quests, every day
   workflow_dispatch:
     inputs:
       mode:

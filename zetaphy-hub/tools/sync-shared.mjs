@@ -18,7 +18,7 @@ const ZKVERDICT = ['zkverdict-core.js', 'zkverdict-vkey.json'];
 const TXGUARD = ['txguard.js'];
 /** post-quantum signing: the ZETAPHY Snap (ML-DSA-44 in MetaMask) as an EIP-1193 provider (pqsnap.js; imports ./txguard.js) */
 const PQSNAP = ['pqsnap.js'];
-/** the networks (mainnet default, testnet selectable): ids, RPCs, contracts, features, badge and "testnet only" box (network.js) */
+/** the network (mainnet only; the testnet was shut down 2026-11-14): ids, RPCs, contracts, features, badge and "not on mainnet yet" box (network.js) */
 const NETWORK = ['network.js'];
 /** site folder (from the repo root) -> the files it gets */
 export const SHARED = {

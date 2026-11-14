@@ -1,7 +1,10 @@
-# Runs the one-command installer (install.sh runner) on a clean Ubuntu runner against the live
-# ZETAPHY testnet, read only: the runner key is made, the service starts and waits for its bond
-# (nothing is funded or registered), the helper commands work, and uninstall leaves the key.
-# Also install.sh validator up to the node setup (DOWNLOAD_ONLY): the signed release for this
+# Runs the one-command installer (install.sh runner) on a clean Ubuntu runner against ZETAPHY
+# mainnet (chain 3659, public RPC https://129-221-199-191.sslip.io, NeuroJobs from
+# zetaphy-launch/state/3659.contracts.json; the testnet was shut down 2026-11-14, owner decision),
+# read only: the runner key is made, the service starts and waits for its bond (nothing is funded,
+# signed or sent), the helper commands work, and uninstall leaves the key. A handful of small read
+# calls (chain id, code, balance, bond), well inside the public RPC's egress budget.
+# Also install.sh validator up to the node setup (DOWNLOAD_ONLY, GitHub releases only, no chain RPC): the signed release for this
 # setup-node.sh is found and verified (Sigstore signature with the pinned cosign, SHA-256, setup-node.sh);
 # a tampered binary is refused. It never joins the
 # live chain from here (syncing would spend the main node's small monthly traffic allowance).

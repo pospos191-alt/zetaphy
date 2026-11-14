@@ -282,7 +282,7 @@ test('CLI timelock execute: an RPC that is not chain 77390 gets nothing signed',
   try {
     const { main } = await import('../cli.js');
     const id = '0x' + '11'.repeat(32);
-    await assert.rejects(main(['timelock', 'execute', id, '--timelock', '0x' + '22'.repeat(20), '--rpc', rpc], {}, () => {}), /that RPC is chain 1, not ZETAPHY testnet \(77390\)/);
+    await assert.rejects(main(['timelock', 'execute', id, '--timelock', '0x' + '22'.repeat(20), '--rpc', rpc], {}, () => {}), /that RPC is chain 1, not a local ZETAPHY devnet \(77390\)/);
     assert.ok(!seen.includes('eth_sendRawTransaction'), 'nothing signed or sent');
     assert.deepEqual([...new Set(seen)], ['eth_chainId']);
   } finally {

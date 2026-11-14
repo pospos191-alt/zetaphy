@@ -16,8 +16,8 @@ import { LEDGER_ID_RE, ledgerId, ledgerProvider, hidSupported, preloadTransport 
 import * as txg from './lib/txguard.js';
 import { PQSNAP_ID, snapHost, snapProvider, pqsText } from './lib/pqsnap.js';
 // The network (lib/network.js, shared with the hub): mainnet unless the visitor picked the testnet. The NFT contracts
-// are on the testnet only, so on mainnet this page shows "testnet only for now" and never reads or calls them.
-import { activeNetwork, hasFeature, networkBadge, testnetOnlyBox, watchNetwork, linkExplorer } from './lib/network.js';
+// are on the testnet only, so on mainnet this page shows "not on mainnet yet" and never reads or calls them.
+import { activeNetwork, hasFeature, networkBadge, notOnMainnetBox, watchNetwork, linkExplorer } from './lib/network.js';
 const NET = activeNetwork();
 watchNetwork(window);
 
@@ -960,9 +960,9 @@ function applyChrome() {
 // The block explorer (its own site): set here so index.html links nowhere else.
 const EXPLORER_URL = 'https://explorer.sawasdeecoin.com/';
 
-/** Mainnet: no NFT contracts there yet. The badge, "testnet only for now" with the switch; no RPC, no wallet, no contract. */
+/** Mainnet: no NFT contracts there yet. The badge and "not on mainnet yet"; no RPC, no wallet, no contract. */
 function startGated() {
-  const gate = () => { applyChrome(); $('#main').replaceChildren(testnetOnlyBox(document, { lang: S.lang, feature: 'nft' })); };
+  const gate = () => { applyChrome(); $('#main').replaceChildren(notOnMainnetBox(document, { lang: S.lang, feature: 'nft' })); };
   $('#lang').addEventListener('change', (ev) => { S.lang = pickLang(ev.target.value); save('zn.lang', S.lang); gate(); });
   $('#theme').addEventListener('click', () => {
     const dark = S.theme ? S.theme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;

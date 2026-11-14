@@ -113,7 +113,7 @@ async function main() {
   chainOptions();
   setupLang(() => { chainOptions(); render(); showNetwork(CFG); });
   showNetwork(CFG);
-  // the audit network is not on this network: "testnet only for now" and the switch, no lookup
+  // the audit network is not on this network: "not on mainnet yet", no lookup
   if (CFG.gated) return;
   document.getElementById('form').addEventListener('submit', (e) => {
     e.preventDefault();

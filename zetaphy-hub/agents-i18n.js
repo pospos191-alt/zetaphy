@@ -5,7 +5,7 @@ const ROWS_EN = { kind: 'What', youGiveAtMost: 'You give at most', theyGetAtLeas
 
 export const AGENTS = {
   en: {
-    intro: 'AI agents on ZETAPHY (testnet): say what you want and sign only the limits; see who is a person and who is a bonded agent; stop an agent wallet with your passkey.',
+    intro: 'AI agents on ZETAPHY: say what you want and sign only the limits; see who is a person and who is a bonded agent; stop an agent wallet with your passkey.',
     intentTitle: 'Say what you want', tipIntent: 'Proof of Intent: you sign WHAT you want (limits), not HOW. Any solver builds the transactions; the IntentExecutor contract reverts unless the result matches your limits.',
     intentHow: 'Your own AI model drafts the fields from your words. You check every field, then sign. The chain enforces the limits, not the AI.',
     placeholder: 'e.g. swap 10 TKA for TKB, at most 1% slippage, within 30 minutes',
@@ -33,10 +33,10 @@ export const AGENTS = {
     leftToday: 'Agent may still send (this period)', emergencyPasskey: 'Emergency passkey', set: 'set', notSet: 'not set',
     noSavedPasskey: 'No passkey on this browser yet: set it as the emergency key first.', freezeAction: 'Freeze this agent wallet (signed with your passkey)', frozenOk: 'Frozen. Only the owner can unfreeze.',
     emergencyAction: 'Set this passkey as the wallet’s emergency freeze key', emergencyOk: 'This passkey can now freeze the wallet.',
-    limits: 'Testnet only. A person label shows a person used a device; it does not prove one person has one account. Contracts not yet listed in the hub config can be entered by address.',
+    limits: 'A person label shows a person used a device; it does not prove one person has one account. Contracts not yet listed in the hub config can be entered by address.',
   },
   th: {
-    intro: 'AI agent บน ZETAPHY (testnet): บอกสิ่งที่ต้องการแล้วเซ็นแค่ขอบเขต ดูว่าใครเป็นคนหรือเป็น agent ที่วางเงินประกัน และหยุดกระเป๋าของ agent ด้วย passkey ของคุณ',
+    intro: 'AI agent บน ZETAPHY: บอกสิ่งที่ต้องการแล้วเซ็นแค่ขอบเขต ดูว่าใครเป็นคนหรือเป็น agent ที่วางเงินประกัน และหยุดกระเป๋าของ agent ด้วย passkey ของคุณ',
     intentTitle: 'บอกสิ่งที่ต้องการ', tipIntent: 'Proof of Intent: คุณเซ็นว่าต้องการอะไร (ขอบเขต) ไม่ใช่ทำอย่างไร ใครก็สร้างธุรกรรมให้ได้ สัญญา IntentExecutor จะยกเลิกทั้งหมดถ้าผลไม่ตรงกับขอบเขต',
     intentHow: 'โมเดล AI ของคุณเองร่างช่องต่าง ๆ จากคำพูดของคุณ คุณตรวจทุกช่องแล้วจึงเซ็น เชนเป็นผู้บังคับขอบเขต ไม่ใช่ AI',
     placeholder: 'เช่น แลก 10 TKA เป็น TKB ราคาเพี้ยนไม่เกิน 1% ภายใน 30 นาที',
@@ -66,10 +66,10 @@ export const AGENTS = {
     leftToday: 'agent ยังส่งได้ (รอบนี้)', emergencyPasskey: 'passkey ฉุกเฉิน', set: 'ตั้งแล้ว', notSet: 'ยังไม่ตั้ง',
     noSavedPasskey: 'เบราว์เซอร์นี้ยังไม่มี passkey: ตั้งเป็นกุญแจฉุกเฉินก่อน', freezeAction: 'แช่แข็งกระเป๋า agent นี้ (เซ็นด้วย passkey ของคุณ)', frozenOk: 'แช่แข็งแล้ว เจ้าของเท่านั้นที่ปลดได้',
     emergencyAction: 'ตั้ง passkey นี้เป็นกุญแจแช่แข็งฉุกเฉินของกระเป๋า', emergencyOk: 'passkey นี้แช่แข็งกระเป๋าได้แล้ว',
-    limits: 'testnet เท่านั้น ป้าย "คน" บอกว่ามีคนใช้อุปกรณ์อยู่ ไม่ได้พิสูจน์ว่าหนึ่งคนมีบัญชีเดียว สัญญาที่ยังไม่อยู่ในค่าตั้งของ hub ใส่ที่อยู่เองได้',
+    limits: 'ป้าย "คน" บอกว่ามีคนใช้อุปกรณ์อยู่ ไม่ได้พิสูจน์ว่าหนึ่งคนมีบัญชีเดียว สัญญาที่ยังไม่อยู่ในค่าตั้งของ hub ใส่ที่อยู่เองได้',
   },
   zh: {
-    intro: 'ZETAPHY 上的 AI 代理（测试网）：说出你想要的，只签署限额；查看谁是真人、谁是有保证金的代理；用你的通行密钥停止代理钱包。',
+    intro: 'ZETAPHY 上的 AI 代理：说出你想要的，只签署限额；查看谁是真人、谁是有保证金的代理；用你的通行密钥停止代理钱包。',
     intentTitle: '说出你想要的', tipIntent: '意图证明：你签署想要什么（限额），而不是怎么做。任何求解者都可以构建交易；如果结果不符合你的限额，IntentExecutor 合约会全部回滚。',
     intentHow: '你自己的 AI 模型根据你的话起草各个字段。你检查每个字段后再签名。限额由链来执行，而不是 AI。',
     placeholder: '例如：把 10 TKA 换成 TKB，滑点不超过 1%，30 分钟内',
@@ -99,10 +99,10 @@ export const AGENTS = {
     leftToday: '代理本期仍可发送', emergencyPasskey: '紧急通行密钥', set: '已设置', notSet: '未设置',
     noSavedPasskey: '此浏览器还没有通行密钥：请先将其设为紧急密钥。', freezeAction: '冻结此代理钱包（用你的通行密钥签名）', frozenOk: '已冻结。只有所有者可以解冻。',
     emergencyAction: '将此通行密钥设为钱包的紧急冻结密钥', emergencyOk: '此通行密钥现在可以冻结钱包。',
-    limits: '仅限测试网。真人标签表示有人使用了设备，并不证明一人只有一个账户。尚未在 hub 配置中列出的合约可以手动输入地址。',
+    limits: '真人标签表示有人使用了设备，并不证明一人只有一个账户。尚未在 hub 配置中列出的合约可以手动输入地址。',
   },
   es: {
-    intro: 'Agentes de IA en ZETAPHY (testnet): di lo que quieres y firma solo los límites; mira quién es una persona y quién un agente con fianza; detén la billetera de un agente con tu passkey.',
+    intro: 'Agentes de IA en ZETAPHY: di lo que quieres y firma solo los límites; mira quién es una persona y quién un agente con fianza; detén la billetera de un agente con tu passkey.',
     intentTitle: 'Di lo que quieres', tipIntent: 'Prueba de intención: firmas QUÉ quieres (límites), no CÓMO. Cualquier solver construye las transacciones; el contrato IntentExecutor revierte todo si el resultado no cumple tus límites.',
     intentHow: 'Tu propio modelo de IA rellena los campos a partir de tus palabras. Revisas cada campo y luego firmas. La cadena impone los límites, no la IA.',
     placeholder: 'p. ej. cambia 10 TKA por TKB, deslizamiento máximo 1 %, en 30 minutos',
@@ -132,10 +132,10 @@ export const AGENTS = {
     leftToday: 'El agente aún puede enviar (este periodo)', emergencyPasskey: 'Passkey de emergencia', set: 'configurada', notSet: 'sin configurar',
     noSavedPasskey: 'Aún no hay passkey en este navegador: configúrala primero como clave de emergencia.', freezeAction: 'Congelar esta billetera de agente (firmado con tu passkey)', frozenOk: 'Congelada. Solo el dueño puede descongelarla.',
     emergencyAction: 'Configurar esta passkey como clave de congelación de emergencia', emergencyOk: 'Esta passkey ya puede congelar la billetera.',
-    limits: 'Solo testnet. La etiqueta de persona muestra que una persona usó un dispositivo; no prueba que cada persona tenga una sola cuenta. Los contratos que aún no están en la configuración del hub se pueden introducir por dirección.',
+    limits: 'La etiqueta de persona muestra que una persona usó un dispositivo; no prueba que cada persona tenga una sola cuenta. Los contratos que aún no están en la configuración del hub se pueden introducir por dirección.',
   },
   ko: {
-    intro: 'ZETAPHY의 AI 에이전트(테스트넷): 원하는 것을 말하고 한도만 서명하세요. 누가 사람이고 누가 보증금을 건 에이전트인지 확인하고, 패스키로 에이전트 지갑을 멈추세요.',
+    intro: 'ZETAPHY의 AI 에이전트: 원하는 것을 말하고 한도만 서명하세요. 누가 사람이고 누가 보증금을 건 에이전트인지 확인하고, 패스키로 에이전트 지갑을 멈추세요.',
     intentTitle: '원하는 것을 말하기', tipIntent: '의도 증명: 어떻게가 아니라 무엇을(한도) 서명합니다. 누구든 솔버가 거래를 만들 수 있으며, 결과가 한도와 맞지 않으면 IntentExecutor 계약이 모두 되돌립니다.',
     intentHow: '당신의 AI 모델이 말에서 항목을 작성합니다. 모든 항목을 확인한 뒤 서명하세요. 한도는 AI가 아니라 체인이 강제합니다.',
     placeholder: '예: 10 TKA를 TKB로 교환, 슬리피지 최대 1%, 30분 이내',
@@ -165,10 +165,10 @@ export const AGENTS = {
     leftToday: '에이전트가 이번 기간에 더 보낼 수 있는 양', emergencyPasskey: '비상 패스키', set: '설정됨', notSet: '미설정',
     noSavedPasskey: '이 브라우저에 아직 패스키가 없습니다: 먼저 비상 키로 설정하세요.', freezeAction: '이 에이전트 지갑 동결 (패스키로 서명)', frozenOk: '동결됨. 소유자만 해제할 수 있습니다.',
     emergencyAction: '이 패스키를 지갑의 비상 동결 키로 설정', emergencyOk: '이제 이 패스키로 지갑을 동결할 수 있습니다.',
-    limits: '테스트넷 전용. 사람 라벨은 누군가 기기를 사용했음을 보여줄 뿐, 한 사람이 계정 하나만 가진다는 증명은 아닙니다. hub 설정에 아직 없는 계약은 주소로 입력할 수 있습니다.',
+    limits: '사람 라벨은 누군가 기기를 사용했음을 보여줄 뿐, 한 사람이 계정 하나만 가진다는 증명은 아닙니다. hub 설정에 아직 없는 계약은 주소로 입력할 수 있습니다.',
   },
   ja: {
-    intro: 'ZETAPHY の AI エージェント（テストネット）：やりたいことを伝え、上限だけに署名。誰が人で誰が保証金を預けたエージェントかを確認し、パスキーでエージェントのウォレットを止められます。',
+    intro: 'ZETAPHY の AI エージェント：やりたいことを伝え、上限だけに署名。誰が人で誰が保証金を預けたエージェントかを確認し、パスキーでエージェントのウォレットを止められます。',
     intentTitle: 'やりたいことを伝える', tipIntent: 'Proof of Intent：どうやるかではなく、何をしたいか（上限）に署名します。どのソルバーでも取引を組めます。結果が上限に合わなければ IntentExecutor コントラクトがすべて取り消します。',
     intentHow: 'あなた自身の AI モデルが言葉から項目を下書きします。すべての項目を確認してから署名してください。上限を守らせるのは AI ではなくチェーンです。',
     placeholder: '例：10 TKA を TKB に交換、スリッページ最大 1%、30 分以内',
@@ -198,10 +198,10 @@ export const AGENTS = {
     leftToday: 'エージェントが今期まだ送れる量', emergencyPasskey: '緊急パスキー', set: '設定済み', notSet: '未設定',
     noSavedPasskey: 'このブラウザにはまだパスキーがありません：先に緊急キーとして設定してください。', freezeAction: 'このエージェントウォレットを凍結（パスキーで署名）', frozenOk: '凍結しました。解除できるのは所有者だけです。',
     emergencyAction: 'このパスキーをウォレットの緊急凍結キーに設定', emergencyOk: 'このパスキーでウォレットを凍結できるようになりました。',
-    limits: 'テストネットのみ。人ラベルは誰かが端末を使ったことを示すだけで、一人一アカウントを証明するものではありません。hub の設定にまだないコントラクトはアドレスで入力できます。',
+    limits: '人ラベルは誰かが端末を使ったことを示すだけで、一人一アカウントを証明するものではありません。hub の設定にまだないコントラクトはアドレスで入力できます。',
   },
   ru: {
-    intro: 'ИИ-агенты в ZETAPHY (тестнет): скажите, что нужно, и подпишите только ограничения; узнайте, кто человек, а кто агент с залогом; остановите кошелёк агента своим ключом доступа.',
+    intro: 'ИИ-агенты в ZETAPHY: скажите, что нужно, и подпишите только ограничения; узнайте, кто человек, а кто агент с залогом; остановите кошелёк агента своим ключом доступа.',
     intentTitle: 'Скажите, что нужно', tipIntent: 'Proof of Intent: вы подписываете, ЧТО хотите (ограничения), а не КАК. Транзакции может собрать любой солвер; контракт IntentExecutor откатит всё, если результат не укладывается в ограничения.',
     intentHow: 'Ваша собственная модель ИИ заполняет поля по вашим словам. Вы проверяете каждое поле и только потом подписываете. Ограничения соблюдает блокчейн, а не ИИ.',
     placeholder: 'например: обменять 10 TKA на TKB, проскальзывание не больше 1%, в течение 30 минут',
@@ -231,10 +231,10 @@ export const AGENTS = {
     leftToday: 'Агент ещё может отправить (в этом периоде)', emergencyPasskey: 'Аварийный ключ доступа', set: 'задан', notSet: 'не задан',
     noSavedPasskey: 'В этом браузере ещё нет ключа доступа: сначала сделайте его аварийным ключом.', freezeAction: 'Заморозить этот кошелёк агента (подпись ключом доступа)', frozenOk: 'Заморожен. Разморозить может только владелец.',
     emergencyAction: 'Сделать этот ключ доступа аварийным ключом заморозки кошелька', emergencyOk: 'Теперь этим ключом доступа можно заморозить кошелёк.',
-    limits: 'Только тестнет. Метка человека показывает, что устройством пользовался человек; она не доказывает, что у одного человека один счёт. Контракты, которых ещё нет в настройках hub, можно ввести по адресу.',
+    limits: 'Метка человека показывает, что устройством пользовался человек; она не доказывает, что у одного человека один счёт. Контракты, которых ещё нет в настройках hub, можно ввести по адресу.',
   },
   vi: {
-    intro: 'Tác tử AI trên ZETAPHY (testnet): nói điều bạn muốn và chỉ ký các giới hạn; xem ai là người, ai là tác tử có ký quỹ; dừng ví của tác tử bằng passkey của bạn.',
+    intro: 'Tác tử AI trên ZETAPHY: nói điều bạn muốn và chỉ ký các giới hạn; xem ai là người, ai là tác tử có ký quỹ; dừng ví của tác tử bằng passkey của bạn.',
     intentTitle: 'Nói điều bạn muốn', tipIntent: 'Proof of Intent: bạn ký điều bạn MUỐN (giới hạn), không phải CÁCH làm. Bất kỳ solver nào cũng có thể tạo giao dịch; hợp đồng IntentExecutor hoàn tác tất cả nếu kết quả không đúng giới hạn.',
     intentHow: 'Mô hình AI của chính bạn điền các ô từ lời bạn nói. Bạn kiểm tra từng ô rồi mới ký. Chuỗi khối thực thi giới hạn, không phải AI.',
     placeholder: 'vd: đổi 10 TKA sang TKB, trượt giá tối đa 1%, trong 30 phút',
@@ -264,7 +264,7 @@ export const AGENTS = {
     leftToday: 'Tác tử còn gửi được (kỳ này)', emergencyPasskey: 'Passkey khẩn cấp', set: 'đã đặt', notSet: 'chưa đặt',
     noSavedPasskey: 'Trình duyệt này chưa có passkey: hãy đặt nó làm khóa khẩn cấp trước.', freezeAction: 'Đóng băng ví tác tử này (ký bằng passkey của bạn)', frozenOk: 'Đã đóng băng. Chỉ chủ ví mới mở được.',
     emergencyAction: 'Đặt passkey này làm khóa đóng băng khẩn cấp của ví', emergencyOk: 'Passkey này giờ có thể đóng băng ví.',
-    limits: 'Chỉ testnet. Nhãn người cho thấy có người đã dùng thiết bị; không chứng minh mỗi người chỉ có một tài khoản. Hợp đồng chưa có trong cấu hình hub có thể nhập bằng địa chỉ.',
+    limits: 'Nhãn người cho thấy có người đã dùng thiết bị; không chứng minh mỗi người chỉ có một tài khoản. Hợp đồng chưa có trong cấu hình hub có thể nhập bằng địa chỉ.',
   },
 };
 
