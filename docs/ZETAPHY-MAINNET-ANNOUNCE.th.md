@@ -11,6 +11,7 @@
 | เพิ่มในกระเป๋า | chain id 3659 (`0xe4b`), RPC `https://129-221-199-191.sslip.io`, เหรียญ ZTPHY |
 | ZTPHY ฟรีไว้จ่ายค่าธรรมเนียม | faucet บนเว็บไซต์ (1 ZTPHY ต่อที่อยู่ต่อวัน) |
 | Airdrop รอบ 1 (ผู้ถือ SWD) | [docs/AIRDROP-ROUND1.th.md](AIRDROP-ROUND1.th.md): snapshot 2026-11-20 21:00 น. เวลาไทย ผูกกระเป๋าได้ถึง 2026-12-04 21:00 น. |
+| Push airdrop (10 ZTPHY ให้ 100,000 กระเป๋า Ethereum) | ตรวจที่อยู่ใดก็ได้: https://app.sawasdeecoin.com/got-ztphy.html โพสต์ แผน 30 วัน และกฎแต่ละช่องทางอยู่ใน [OUTREACH.th.md](OUTREACH.th.md) |
 | โค้ดและ genesis | https://github.com/pospos191-alt/zetaphy |
 
 ช่องทางโพสต์ฟรี: X, Telegram, Discord, Reddit (ทำตามกฎเรื่องการโปรโมตของแต่ละกลุ่ม), Medium, Facebook, LINE OpenChat และฟอรัม

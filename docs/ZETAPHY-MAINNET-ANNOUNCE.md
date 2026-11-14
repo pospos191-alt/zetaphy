@@ -11,6 +11,7 @@ Ready-to-post texts in the hub's 8 languages. Every text carries the risk senten
 | Add to a wallet | chain id 3659 (`0xe4b`), RPC `https://129-221-199-191.sslip.io`, coin ZTPHY |
 | Free ZTPHY for fees | the faucet on the site (1 ZTPHY per address a day) |
 | Airdrop round 1 (SWD holders) | [docs/AIRDROP-ROUND1.md](AIRDROP-ROUND1.md): snapshot 2026-11-20 14:00 UTC, linking until 2026-12-04 14:00 UTC |
+| Push airdrop (10 ZTPHY to 100,000 Ethereum wallets) | check any address: https://app.sawasdeecoin.com/got-ztphy.html; posts, 30-day plan and channel rules in [OUTREACH.md](OUTREACH.md) |
 | Code and genesis | https://github.com/pospos191-alt/zetaphy |
 
 Where to post (free): X, Telegram, Discord, Reddit (follow each community's self-promotion rules), Medium, Facebook,
