@@ -34,7 +34,7 @@ DECLARE min_success_txs INT64 DEFAULT 10;
 DECLARE min_months INT64 DEFAULT 3;
 DECLARE max_total_txs INT64 DEFAULT 50000;
 DECLARE max_txs_per_day INT64 DEFAULT 500;
-DECLARE top_n INT64 DEFAULT 100000;
+-- How many rows: the LIMIT at the bottom (BigQuery takes only a literal there, not a DECLAREd variable). Default 100000.
 DECLARE window_start DATE DEFAULT DATE_SUB(window_end, INTERVAL lookback_months MONTH);
 
 WITH daily AS (
@@ -72,4 +72,4 @@ WHERE c.address IS NULL
   AND p.total_txs <= max_total_txs
   AND p.busiest_day_txs <= max_txs_per_day
 ORDER BY score DESC, p.address
-LIMIT top_n;
+LIMIT 100000;  -- the number of addresses (a literal: BigQuery refuses a variable here)
