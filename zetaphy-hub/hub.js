@@ -142,24 +142,34 @@ function tipText(target, doc) {
 }
 function bindTips(doc, tip) {
   const sel = '[data-tip], [data-tip-key], .hub-i';
+  // Only while the pointer is on the item or the keyboard focus is (a click's focus does not keep it open).
+  // Beside a rail item (never over the items under it); under other items, or above them when there is no room.
   const show = (e) => {
     const t = e.target.closest?.(sel);
     if (!t) return;
+    if (e.type === 'focusin' && !t.matches(':focus-visible')) return;
     const text = tipText(t, doc);
     if (!text) return;
     tip.textContent = text;
     tip.hidden = false;
     const r = t.getBoundingClientRect(), vw = doc.documentElement.clientWidth, vh = doc.documentElement.clientHeight;
     const w = tip.offsetWidth, hgt = tip.offsetHeight;
-    let x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), vw - w - 8);
-    let y = r.bottom + 8;
-    if (y + hgt > vh - 8) y = Math.max(8, r.top - hgt - 8);
+    let x, y;
+    if (t.closest('.side') && r.right + 10 + w <= vw - 8) {
+      x = r.right + 10;
+      y = Math.min(Math.max(8, r.top + r.height / 2 - hgt / 2), vh - hgt - 8);
+    } else {
+      x = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), vw - w - 8);
+      y = r.bottom + 8;
+      if (y + hgt > vh - 8) y = Math.max(8, r.top - hgt - 8);
+    }
     tip.style.left = `${x}px`; tip.style.top = `${y}px`;
   };
   const hide = (e) => { if (!e.relatedTarget || !e.relatedTarget.closest?.(sel)) tip.hidden = true; };
   doc.addEventListener('mouseover', show);
   doc.addEventListener('focusin', show);
   doc.addEventListener('mouseout', hide);
+  doc.addEventListener('pointerdown', () => { tip.hidden = true; }, true);
   doc.addEventListener('focusout', () => { tip.hidden = true; });
   doc.addEventListener('scroll', () => { tip.hidden = true; }, true);
   doc.addEventListener('keydown', (e) => { if (e.key === 'Escape') tip.hidden = true; });

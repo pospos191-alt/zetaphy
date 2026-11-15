@@ -174,5 +174,5 @@ export function riskSummaryCard(ui, a, { counterparties = Promise.resolve([]), i
       [t('riskCounterpartiesLabel'), others],
       [t('neuroReport'), link ? h('a', { href: link, target: '_blank', rel: 'noopener noreferrer' }, t('openNeuro')) : t('neuroUnset')],
     ]),
-    note(t('riskSummaryNote'), 'info'));
+    h('details', { class: 'more-info' }, h('summary', null, t('moreInfo')), note(t('riskSummaryNote'), 'info')));
 }

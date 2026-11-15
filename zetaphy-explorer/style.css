@@ -76,14 +76,19 @@ h3 { font-size: 15px; margin: 0 0 8px; }
 .break { word-break: break-all; }
 
 /* header */
-.app-header { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--panel-border); padding: 10px 16px; }
+/* the sticky header is opaque and above everything in the page (nothing shows through it while scrolling); a link to
+   an anchor lands below it (scroll-padding-top: its height, kept by app.js in --hdr-h) */
+html { scroll-padding-top: calc(var(--hdr-h, 120px) + 8px); }
+.app-header { position: sticky; top: 0; z-index: 30; background: var(--bg); border-bottom: 1px solid var(--panel-border); padding: 10px 16px; }
+main [id] { scroll-margin-top: calc(var(--hdr-h, 120px) + 8px); }
 .hdr-row { display: flex; align-items: center; gap: 16px; max-width: 1200px; margin: 0 auto; flex-wrap: wrap; }
 .hdr-brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
 .hdr-brand:hover { text-decoration: none; }
 .hdr-brand img { width: 28px; height: 28px; border-radius: 50%; }
 .hdr-brand-text { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .hdr-brand-sub { font-size: 13px; color: var(--text-dim); font-weight: 600; }
-.nav { display: flex; gap: 4px; flex: 1; }
+/* the tab row wraps on wide screens and scrolls sideways on phones: labels never run into each other */
+.nav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
 .nav a { color: var(--text-dim); padding: 6px 10px; border-radius: 8px; font-weight: 600; }
 .nav a:hover, .nav a.active { color: var(--text); background: var(--panel-alt); text-decoration: none; }
 .hdr-actions { display: flex; gap: 6px; }
@@ -139,6 +144,12 @@ tbody tr:hover { background: var(--row-hover); }
 
 .note { color: var(--text-dim); font-size: 13px; margin: 8px 0; }
 .note-info { border-left: 3px solid var(--accent); padding-left: 10px; }
+/* explanations folded under a short line (quantum "what to do", the risk card's sources): open on click */
+details.more-info { margin: 8px 0 0; font-size: 13px; }
+details.more-info > summary { cursor: pointer; color: var(--link); width: max-content; max-width: 100%; }
+details.more-info > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+details.more-info[open] > summary { margin-bottom: 4px; }
+details.more-info ul { margin: 4px 0; padding-left: 20px; }
 .note-warn { color: var(--warn-text); background: var(--warn-bg); border-radius: 8px; padding: 8px 10px; }
 .error { color: var(--down); }
 .loading { color: var(--text-dim); }
@@ -216,7 +227,7 @@ details summary { cursor: pointer; color: var(--link); }
   .app-header { padding: 8px 12px; }
   .hdr-row { gap: 8px; }
   .hdr-brand-sub { display: none; }
-  .nav { order: 3; flex-basis: 100%; overflow-x: auto; }
+  .nav { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
   .hdr-actions { margin-left: auto; }
   .lang-select { max-width: 112px; padding: 6px; }
   main { padding: 12px; }

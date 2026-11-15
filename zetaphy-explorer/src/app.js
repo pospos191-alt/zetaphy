@@ -908,7 +908,17 @@ async function notifyWatched(c, b) {
   }
 }
 
+/** The sticky header's height as --hdr-h (style.css: anchors and scroll targets land below it, never under it). */
+function trackHeader() {
+  const hd = document.querySelector('.app-header');
+  if (!hd) return;
+  const set = () => document.documentElement.style.setProperty('--hdr-h', `${Math.ceil(hd.getBoundingClientRect().height)}px`);
+  set();
+  try { new ResizeObserver(set).observe(hd); } catch { window.addEventListener('resize', set); }
+}
+
 async function start() {
+  trackHeader();
   fill($('lang'), LANGS.map(([code, label]) => h('option', { value: code, lang: code }, label)));
   applyStatic();
   applyTheme(pref('theme'));

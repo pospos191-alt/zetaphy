@@ -94,9 +94,11 @@ export function quantumCard(ui, a, acc) {
   return card(t('qTitle'),
     h('p', { class: 'q-verdict' }, badge(t(`qLevel_${v.level}`), LEVEL_BADGE[v.level]), ' ', t(`qSay_${v.level}`)),
     kv(facts),
-    h('div', { class: 'q-actions' }, h('strong', null, t('qWhatToDo')), h('ul', null, actions.map((x) => h('li', null, x)))),
-    ['exposed', 'hidden', 'unknown'].includes(v.level) && hubLink ? h('p', null, hubLink) : null,
-    note(t('qExplain'), 'info'));
+    // what to do, and why: folded under one line (open it to read); the verdict and the facts stay in view
+    h('details', { class: 'q-actions more-info' }, h('summary', null, t('qWhatToDo')),
+      h('ul', null, actions.map((x) => h('li', null, x))),
+      ['exposed', 'hidden', 'unknown'].includes(v.level) && hubLink ? h('p', null, hubLink) : null,
+      note(t('qExplain'), 'info')));
 }
 
 /** #/quantum (dashboard) and #/quantum/<address> (one address). */
