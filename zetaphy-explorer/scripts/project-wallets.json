@@ -2,6 +2,6 @@
  "about": "Project wallets the ZTPHY holders page labels, on top of the ones read from zetaphy-chain/mainnet/zetaphy_3659-1 (README Allocations, contracts.json), zetaphy-launch/state/3659.contracts.json and the module accounts. To add one: a row with address (0x or zetaphy1), name (at most 60 characters) and kind (multisig, validator, faucet, airdrop, timelock, guardian, deployer, contract or project). A row with an empty address is skipped. A row here wins over the same address read elsewhere. The next daily snapshot (.github/workflows/holders-snapshot.yml) uses it.",
  "wallets": [
   { "address": "0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160", "name": "Faucet", "kind": "faucet", "note": "the public sentry's faucet (zetaphy_faucet, zetaphy_faucetPow)" },
-  { "address": "", "name": "Airdrop hot key", "kind": "airdrop", "note": "the key named \"airdrop\" that sends the 10 ZTPHY airdrop (MsgMultiSend); fill in its address once it is made" }
+  { "address": "zetaphy1spew50xq33tmy2qd0rzxamyjtdrrzcccc0r7xq", "name": "Airdrop hot key", "kind": "airdrop", "note": "the key named \"airdrop\" that sent 10 ZTPHY to each of 100,000 addresses on 2026-11-14 (MsgMultiSend, blocks 20310-21422), funded with 1,000,100 ZTPHY by the Community multisig (tx 615FE905B902C30E45F4005D7ADCA2DB523EFEAC1819BC9BEFAE9E3B85E6C323)" }
  ]
 }

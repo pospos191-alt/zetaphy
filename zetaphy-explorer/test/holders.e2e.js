@@ -28,6 +28,7 @@ let server; let browser;
 const Z = 10n ** 18n;
 const FAUCET = '0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160';
 const REWARDS = '0x3B87f248a644aA66Bf35a33c26AbefF3326b3dD7';
+const AIRDROP_KEY = '0x8072ea3cc08c57b2280d78c46eec925b46316318'; // zetaphy1spew50xq33tmy2qd0rzxamyjtdrrzcccc0r7xq (scripts/project-wallets.json)
 const bech = (hex) => toBech32(hexToBytes(hex.replace(/^0x/, '')), 'zetaphy');
 const addrN = (n) => '0x' + n.toString(16).padStart(40, '0');
 
@@ -35,7 +36,7 @@ const addrN = (n) => '0x' + n.toString(16).padStart(40, '0');
 function snapshot({ time = new Date(Date.now() - 2 * 3600_000).toISOString(), labels = projectLabels(repoReader(), MODS) } = {}) {
   const owners = [
     [REWARDS, 500_000_000n * Z], ['0xaE842c15Ad4A6D6027597C3c3d44A4ada8FB0318', 200_000_000n * Z], ['0x53E762B680b28a378cE33eafc6b6384D9DF4B989', 150_000_000n * Z],
-    [moduleAddress('bonded_tokens_pool'), 1_000_000n * Z], [FAUCET, 50_000n * Z],
+    [moduleAddress('bonded_tokens_pool'), 1_000_000n * Z], [FAUCET, 50_000n * Z], [AIRDROP_KEY, 97n * Z],
     ...Array.from({ length: 150 }, (_, i) => [addrN(0x1000 + i), 10n * Z]),
     [addrN(0x9999), Z / 2n],
   ].map(([a, amount]) => ({ address: bech(a), amount }));
@@ -115,17 +116,17 @@ test('holders: count, snapshot block and time, live count, project wallets vs ev
   assert.equal(await page.getAttribute('a[href="#/block/4242"]', 'class'), 'mono');
   // project wallets / modules / everyone else
   const groups = await page.locator('table.nh-groups').innerText();
-  assert.match(groups, /Project wallets\s+4\s+850,050,000 ZTPHY\s+99\.8\d%/);
+  assert.match(groups, /Project wallets\s+5\s+850,050,097 ZTPHY\s+99\.8\d%/); // 3 allocations, the faucet, the airdrop hot key
   assert.match(groups, /Chain modules \(staking pool, fees, …\)\s+1\s+1,000,000 ZTPHY\s+0\.1\d+%/);
   assert.match(groups, /Everyone else\s+151\s+1,500 ZTPHY/);
   assert.equal(await page.locator('.dist-bar .dist-seg').count(), 3);
-  // labelled wallets (closed by default), the airdrop key not among them until it has an address
+  // labelled wallets (closed by default), the airdrop hot key among them
   await page.click('details.nh-wallets summary');
   const wallets = await page.locator('table.nh-wallet-table').innerText();
   assert.match(wallets, /Rewards\s+multisig/);
   assert.match(wallets, /Faucet\s+faucet/);
   assert.match(wallets, /ZetaphyTimelock\s+timelock/);
-  assert.ok(!/Airdrop hot key/.test(wallets));
+  assert.match(wallets, /Airdrop hot key\s+airdrop/);
   // top list: 100 rows, largest first, the snapshot's labels as chips, both address forms in the link title
   const rows = page.locator('table.nh-top tbody tr');
   assert.equal(await rows.count(), 100);
@@ -133,13 +134,14 @@ test('holders: count, snapshot block and time, live count, project wallets vs ev
   assert.match(await rows.nth(0).innerText(), /Rewards\s+500,000,000 ZTPHY\s+58\.\d+%/);
   assert.match(await rows.nth(3).innerText(), /Bonded tokens pool \(module\)/);
   assert.match(await rows.nth(4).innerText(), /Faucet\s+50,000 ZTPHY/);
-  assert.match(await rows.nth(5).innerText(), /10 ZTPHY\s+<0\.0001%/);
+  assert.match(await rows.nth(5).innerText(), /Airdrop hot key\s+97 ZTPHY\s+<0\.0001%/);
+  assert.match(await rows.nth(6).innerText(), /10 ZTPHY\s+<0\.0001%/);
   assert.equal(await page.locator('table.nh-top .label-project').first().innerText(), 'Rewards');
   assert.match(await page.locator(`table.nh-top a[href="#/address/${REWARDS}"]`).getAttribute('title'), new RegExp(bech(REWARDS)));
   // bands
   const bands = await page.locator('table.nh-bands').innerText();
   assert.match(bands, /0 to 1\s+1\s+0\.6\d+%/);
-  assert.match(bands, /10 to 100\s+150\s+96\.\d+%\s+1,500 ZTPHY/);
+  assert.match(bands, /10 to 100\s+151\s+96\.\d+%\s+1,597 ZTPHY/); // the 150 airdropped and the hot key's 97
   assert.match(bands, /10,000,000 or more\s+3\s+/);
   assert.match(t, /all at block 4,242/);
   // the page asked only what rpc-guard lets through, and the snapshot once

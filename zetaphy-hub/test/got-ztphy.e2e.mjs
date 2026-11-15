@@ -7,7 +7,8 @@
 // so. 8 languages with the safety rules in large text, the notice's risk sentence, a phone, no sideways scroll.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, randomBytes } from 'node:crypto';
@@ -48,7 +49,9 @@ const stub = ({ account, wallet, share }) => {
 };
 
 test('got-ztphy.html: balance of any address, the airdrop list, add the network, share (8 languages, phone width)', { timeout: 120_000 }, async () => {
-  const dist = build();
+  // the build ships the published list (airdrop-push/); this test serves its own small list, or none, over a copy without it
+  const dist = mkdtempSync(join(tmpdir(), 'got-ztphy-'));
+  cpSync(build(), dist, { recursive: true, filter: (src) => !/[\\/]airdrop-push([\\/]|$)/.test(src) });
   const on10 = withPrefix('ab'), on0 = withPrefix('ab'), off = withPrefix('ab'), noShard = withPrefix('cd'), mine = withPrefix('ef');
   const listText = `${[on10, on0, mine, withPrefix('12')].join('\n')}\n`;
   const sha256 = createHash('sha256').update(listText).digest('hex');
@@ -200,5 +203,6 @@ test('got-ztphy.html: balance of any address, the airdrop list, add the network,
     await browser.close();
     await withList.close();
     await noList.close();
+    rmSync(dist, { recursive: true, force: true });
   }
 });
