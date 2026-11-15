@@ -140,6 +140,8 @@ textarea { width: 100%; box-sizing: border-box; min-height: 150px; font: 14px/1.
 /* inside the hub (validators.html?embed): no own header, the hub's dark colours */
 html.embed { --bg: #10151f; --surface: #0b0f16; --ink: #e8edf5; --muted: #8e9aae; --line: #1f2836; --accent: #7c6cff; --accent-ink: #ffffff; --warn: #f0b45a; color-scheme: dark; }
 html.embed header { display: none; }
+/* the hub's bar above every tab already says the mainnet notice: not a second time in the guide's frame */
+html.embed #net-gate .zn-net { display: none !important; }
 html.embed .wrap { max-width: none; padding: 0 4px 16px; gap: 24px; }
 html.embed .vtabs { position: static; margin-bottom: -8px; padding-top: 0; }
 html.embed dialog.placed { position: absolute; margin: 0 auto; bottom: auto; }

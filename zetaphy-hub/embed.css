@@ -44,10 +44,16 @@ html.hub-embed[data-app="neuro"] header h1,
 html.hub-embed[data-app="neuro"] header .sub,
 html.hub-embed[data-app="neuro"] #lang { display: none !important; }
 
-/* compact headers that keep only what the app needs (tabs, connect, search) */
+/* the mainnet notice is said once, by the hub's bar above every tab (hub.js renderNetwork): each app's own
+   badge (network.js networkBadge, .zn-net) stays in the page for its own site but is not shown again here */
+html.hub-embed[data-app] .zn-net,
+html.hub-embed[data-app] .net-badge:not(:has(> :not(.zn-net))) { display: none !important; }
+
+/* compact headers that keep only what the app needs (tabs, connect, search). They stay sticky, so they are
+   opaque (nothing scrolls through them) and above the app's own cards and table headers. */
 html.hub-embed[data-app="swap"] .app-header,
 html.hub-embed[data-app="nft"] .top,
-html.hub-embed[data-app="explorer"] .app-header { background: transparent !important; border-bottom: 1px solid var(--hub-line) !important; box-shadow: none !important; backdrop-filter: none !important; }
+html.hub-embed[data-app="explorer"] .app-header { background: var(--hub-bg) !important; border-bottom: 1px solid var(--hub-line) !important; box-shadow: none !important; backdrop-filter: none !important; z-index: 20 !important; }
 html.hub-embed[data-app="wallet"] header,
 html.hub-embed[data-app="neuro"] header { margin: 0 0 8px !important; min-height: 0; }
 html.hub-embed[data-app="wallet"] main,
