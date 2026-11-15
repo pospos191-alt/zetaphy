@@ -139,7 +139,7 @@ test('sorting: largest first, equal balances by address', () => {
 
 // ---------------- labels ----------------
 
-test('labels: README allocations, project-wallets.json (faucet; airdrop skipped until it has an address), modules, contracts', () => {
+test('labels: README allocations, project-wallets.json (faucet, the airdrop hot key), modules, contracts', () => {
   const l = projectLabels(repoReader(), MODS);
   const get = (a) => l.get(a.toLowerCase());
   assert.deepEqual(get('0x766690Cc27485dedC4d01Eb10AC66dbAb4FD0160'), { name: 'Faucet', kind: 'faucet', group: 'project', note: "the public sentry's faucet (zetaphy_faucet, zetaphy_faucetPow)" });
@@ -161,8 +161,10 @@ test('labels: README allocations, project-wallets.json (faucet; airdrop skipped 
   const alloc = readmeAllocations(readme);
   assert.equal(alloc.length, 7);
   for (const a of alloc) assert.ok(l.has(a.address.toLowerCase()), a.name);
-  // the airdrop row has no address yet: skipped, and nothing named after it
-  assert.ok(![...l.values()].some((v) => v.kind === 'airdrop'));
+  // the airdrop hot key (given as zetaphy1… in project-wallets.json) is labelled under its 0x form, and it is the only one
+  assert.equal(get('0x8072ea3cc08c57b2280d78c46eec925b46316318').name, 'Airdrop hot key');
+  assert.equal(get('0x8072ea3cc08c57b2280d78c46eec925b46316318').kind, 'airdrop');
+  assert.equal([...l.values()].filter((v) => v.kind === 'airdrop').length, 1);
 });
 
 test('labels: adding one is a row in project-wallets.json (0x or zetaphy1); it wins over the other sources', () => {
