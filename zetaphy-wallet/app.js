@@ -39,27 +39,28 @@ const KEYS = { seed: 'zetaphy-wallet:seed:v1', rpc: netKey(NETWORK, 'zetaphy-wal
   passkey: 'zetaphy-wallet:passkey:v1', // the seed wrapped under a passkey's PRF output (security.js wrapSeed); never the PRF output
   bigHidden: 'zetaphy-wallet:big-balance-hidden-until:', // + address: the large-balance banner hidden until (ms)
   comet: 'zetaphy-wallet:comet-rpc', // CometBFT RPC for finality certificates (else <the node's origin>/rpc/)
-  rollback: `zetaphy-wallet:rollback:v1:${NETWORK.chainId}` }; // checkpoints held and the alarm (rollback.js), per chain
+  rollback: `zetaphy-wallet:rollback:v1:${NETWORK.chainId}`, // checkpoints held and the alarm (rollback.js), per chain
+  warnRead: 'zetaphy-wallet:warn-read' }; // '1': the safety box was read and folded (it stays folded)
 const EVM_CHAIN_ID = BigInt(NETWORK.chainId);
 watchNetwork(window);
 
 // On mainnet: its own words where the testnet's would be wrong; elsewhere the chain's name and id follow the network.
 const MAIN_T = {
-  en: { warnTitle: 'Before you start', warnTestnet: 'This is ZETAPHY mainnet: real ZTPHY. A transfer cannot be undone.', wrongChain: 'That RPC is not ZETAPHY mainnet (chain id {id}).',
+  en: { warnTitle: 'Before you start', warnTestnet: 'Mainnet: real ZTPHY. A transfer cannot be undone.', wrongChain: 'That RPC is not ZETAPHY mainnet (chain id {id}).',
     mmWrongChain: 'MetaMask is not on ZETAPHY mainnet (chain id {id}). Switch networks in MetaMask first.', helpMore: 'The README\'s security section has the details. This is mainnet: real ZTPHY.' },
-  th: { warnTitle: 'อ่านก่อนใช้งาน', warnTestnet: 'นี่คือ ZETAPHY mainnet ใช้ ZTPHY จริง โอนแล้วยกเลิกไม่ได้', wrongChain: 'RPC นี้ไม่ใช่ ZETAPHY mainnet (chain id {id})',
+  th: { warnTitle: 'อ่านก่อนใช้งาน', warnTestnet: 'mainnet: ZTPHY จริง โอนแล้วยกเลิกไม่ได้', wrongChain: 'RPC นี้ไม่ใช่ ZETAPHY mainnet (chain id {id})',
     mmWrongChain: 'MetaMask ไม่ได้อยู่บน ZETAPHY mainnet (chain id {id}) สลับเครือข่ายใน MetaMask ก่อน', helpMore: 'รายละเอียดอยู่ในส่วนความปลอดภัยของ README นี่คือ mainnet ใช้ ZTPHY จริง' },
-  zh: { warnTitle: '使用前请阅读', warnTestnet: '这是 ZETAPHY 主网：真实的 ZTPHY。转账无法撤销。', wrongChain: '该 RPC 不是 ZETAPHY 主网（chain id {id}）。',
+  zh: { warnTitle: '使用前请阅读', warnTestnet: '主网：真实的 ZTPHY，转账无法撤销。', wrongChain: '该 RPC 不是 ZETAPHY 主网（chain id {id}）。',
     mmWrongChain: 'MetaMask 当前不在 ZETAPHY 主网（chain id {id}）。请先在 MetaMask 中切换网络。', helpMore: '详情见 README 的安全部分。这是主网：真实的 ZTPHY。' },
-  es: { warnTitle: 'Antes de empezar', warnTestnet: 'Esta es la mainnet de ZETAPHY: ZTPHY real. Una transferencia no se puede deshacer.', wrongChain: 'Ese RPC no es la mainnet de ZETAPHY (chain id {id}).',
+  es: { warnTitle: 'Antes de empezar', warnTestnet: 'Mainnet: ZTPHY real. Una transferencia no se puede deshacer.', wrongChain: 'Ese RPC no es la mainnet de ZETAPHY (chain id {id}).',
     mmWrongChain: 'MetaMask no está en la mainnet de ZETAPHY (chain id {id}). Cambia primero de red en MetaMask.', helpMore: 'La sección de seguridad del README tiene los detalles. Esto es la mainnet: ZTPHY real.' },
-  ko: { warnTitle: '시작하기 전에', warnTestnet: '여기는 ZETAPHY 메인넷입니다: 실제 ZTPHY입니다. 전송은 되돌릴 수 없습니다.', wrongChain: '이 RPC는 ZETAPHY 메인넷이 아닙니다 (chain id {id}).',
+  ko: { warnTitle: '시작하기 전에', warnTestnet: '메인넷: 실제 ZTPHY. 전송은 되돌릴 수 없습니다.', wrongChain: '이 RPC는 ZETAPHY 메인넷이 아닙니다 (chain id {id}).',
     mmWrongChain: 'MetaMask가 ZETAPHY 메인넷에 있지 않습니다 (chain id {id}). 먼저 MetaMask에서 네트워크를 전환하세요.', helpMore: '자세한 내용은 README의 보안 섹션에 있습니다. 메인넷이므로 실제 ZTPHY입니다.' },
-  ja: { warnTitle: '始める前に', warnTestnet: 'ここは ZETAPHY メインネットです: 本物の ZTPHY です。送金は取り消せません。', wrongChain: 'その RPC は ZETAPHY メインネットではありません（chain id {id}）。',
+  ja: { warnTitle: '始める前に', warnTestnet: 'メインネット: 本物の ZTPHY。送金は取り消せません。', wrongChain: 'その RPC は ZETAPHY メインネットではありません（chain id {id}）。',
     mmWrongChain: 'MetaMask が ZETAPHY メインネットに接続されていません（chain id {id}）。先に MetaMask でネットワークを切り替えてください。', helpMore: '詳しくは README のセキュリティの節にあります。これはメインネットで、本物の ZTPHY です。' },
-  ru: { warnTitle: 'Перед началом', warnTestnet: 'Это мейннет ZETAPHY: настоящие ZTPHY. Перевод нельзя отменить.', wrongChain: 'Этот RPC не относится к мейннету ZETAPHY (chain id {id}).',
+  ru: { warnTitle: 'Перед началом', warnTestnet: 'Мейннет: настоящие ZTPHY. Перевод нельзя отменить.', wrongChain: 'Этот RPC не относится к мейннету ZETAPHY (chain id {id}).',
     mmWrongChain: 'MetaMask не подключён к мейннету ZETAPHY (chain id {id}). Сначала переключите сеть в MetaMask.', helpMore: 'Подробности — в разделе безопасности README. Это мейннет: настоящие ZTPHY.' },
-  vi: { warnTitle: 'Trước khi bắt đầu', warnTestnet: 'Đây là mainnet ZETAPHY: ZTPHY thật. Giao dịch chuyển không thể hoàn tác.', wrongChain: 'RPC đó không phải mainnet ZETAPHY (chain id {id}).',
+  vi: { warnTitle: 'Trước khi bắt đầu', warnTestnet: 'Mainnet: ZTPHY thật. Giao dịch chuyển không thể hoàn tác.', wrongChain: 'RPC đó không phải mainnet ZETAPHY (chain id {id}).',
     mmWrongChain: 'MetaMask không ở mainnet ZETAPHY (chain id {id}). Hãy chuyển mạng trong MetaMask trước.', helpMore: 'Chi tiết có trong phần bảo mật của README. Đây là mainnet: ZTPHY thật.' },
 };
 
@@ -68,8 +69,8 @@ const T = {
     subtitle: 'กระเป๋าต้านควอนตัม (ML-DSA-44) · ไม่มีกุญแจ ECDSA',
     warnTitle: 'ใช้กับ testnet เท่านั้น',
     warnTestnet: 'ZETAPHY testnet ไม่ใช่เงินจริง ห้ามใส่ของที่มีมูลค่า',
-    warnSeed: 'seed คือกุญแจเดียวของกระเป๋า ถ้าหายหรือลืมรหัสผ่าน เงินในกระเป๋าหายถาวร ไม่มีใครกู้คืนให้ได้',
-    warnLocal: 'seed อยู่ในเบราว์เซอร์นี้เท่านั้น เก็บแบบเข้ารหัสด้วยรหัสผ่านของคุณ และไม่ถูกส่งไปที่ไหน',
+    warnSeed: 'seed คือกุญแจเดียว ถ้าหาย (หรือลืมรหัสผ่าน) เงินหายถาวร',
+    warnLocal: 'seed เก็บแบบเข้ารหัสในเบราว์เซอร์นี้ ไม่ถูกส่งไปที่ไหน',
     rpcLabel: 'ที่อยู่ RPC ของโหนด ZETAPHY (JSON-RPC พอร์ต 8545)',
     rpcSave: 'บันทึก',
     rpcHint: 'ถ้าเปิดหน้านี้ผ่าน https ต้องใช้ RPC แบบ https ด้วย (เบราว์เซอร์บล็อก http)',
@@ -462,8 +463,8 @@ const T = {
     subtitle: 'Quantum-safe wallet (ML-DSA-44) · no ECDSA key',
     warnTitle: 'Testnet only',
     warnTestnet: 'ZETAPHY testnet is not real money. Do not put anything of value here.',
-    warnSeed: 'The seed is the only key to this wallet. Lose it or forget the passphrase and the funds are gone for good. Nobody can recover them.',
-    warnLocal: 'The seed stays in this browser only, encrypted with your passphrase, and is never sent anywhere.',
+    warnSeed: 'The seed is the only key. Lose it (or the passphrase) and the funds are gone for good.',
+    warnLocal: 'The seed stays encrypted in this browser and is never sent anywhere.',
     rpcLabel: 'Your ZETAPHY node RPC URL (JSON-RPC, port 8545)',
     rpcSave: 'Save',
     rpcHint: 'If this page is opened over https, the RPC must be https too (browsers block http).',
@@ -849,8 +850,8 @@ const T = {
     subtitle: '抗量子钱包（ML-DSA-44）· 无 ECDSA 密钥',
     warnTitle: '仅限测试网',
     warnTestnet: 'ZETAPHY 测试网上的币不是真钱。请勿在此存放任何有价值的资产。',
-    warnSeed: '种子是这个钱包唯一的密钥。一旦丢失种子或忘记密码，资金将永久丢失，任何人都无法找回。',
-    warnLocal: '种子只保存在本浏览器中，并用你的密码加密，绝不会发送到任何地方。',
+    warnSeed: '种子是唯一的密钥。丢失种子（或忘记密码），资金将永久丢失。',
+    warnLocal: '种子加密保存在本浏览器中，绝不外发。',
     rpcLabel: '你的 ZETAPHY 节点 RPC 地址（JSON-RPC，端口 8545）',
     rpcSave: '保存',
     rpcHint: '如果本页面通过 https 打开，RPC 也必须是 https（浏览器会拦截 http）。',
@@ -1238,8 +1239,8 @@ const T = {
     subtitle: 'Billetera resistente a la computación cuántica (ML-DSA-44) · sin clave ECDSA',
     warnTitle: 'Solo testnet',
     warnTestnet: 'La testnet de ZETAPHY no es dinero real. No guardes aquí nada de valor.',
-    warnSeed: 'La semilla es la única clave de esta billetera. Si la pierdes u olvidas la contraseña, los fondos se pierden para siempre. Nadie puede recuperarlos.',
-    warnLocal: 'La semilla se queda solo en este navegador, cifrada con tu contraseña, y nunca se envía a ningún sitio.',
+    warnSeed: 'La semilla es la única clave. Si la pierdes (o la contraseña), los fondos se pierden para siempre.',
+    warnLocal: 'La semilla se guarda cifrada en este navegador y nunca se envía.',
     rpcLabel: 'URL RPC de tu nodo ZETAPHY (JSON-RPC, puerto 8545)',
     rpcSave: 'Guardar',
     rpcHint: 'Si esta página se abre por https, el RPC también debe ser https (los navegadores bloquean http).',
@@ -1627,8 +1628,8 @@ const T = {
     subtitle: '양자 내성 지갑 (ML-DSA-44) · ECDSA 키 없음',
     warnTitle: '테스트넷 전용',
     warnTestnet: 'ZETAPHY 테스트넷은 실제 돈이 아닙니다. 가치 있는 자산을 여기에 두지 마세요.',
-    warnSeed: '시드는 이 지갑의 유일한 키입니다. 시드를 잃어버리거나 비밀번호를 잊으면 자금은 영구히 사라지며, 누구도 복구할 수 없습니다.',
-    warnLocal: '시드는 비밀번호로 암호화되어 이 브라우저에만 저장되며, 어디로도 전송되지 않습니다.',
+    warnSeed: '시드가 유일한 키입니다. 시드(또는 비밀번호)를 잃으면 자금은 영구히 사라집니다.',
+    warnLocal: '시드는 이 브라우저에 암호화되어 저장되며 어디로도 전송되지 않습니다.',
     rpcLabel: 'ZETAPHY 노드 RPC URL (JSON-RPC, 포트 8545)',
     rpcSave: '저장',
     rpcHint: '이 페이지를 https로 열었다면 RPC도 https여야 합니다 (브라우저가 http를 차단합니다).',
@@ -2016,8 +2017,8 @@ const T = {
     subtitle: '耐量子ウォレット（ML-DSA-44）· ECDSA 鍵なし',
     warnTitle: 'テストネット専用',
     warnTestnet: 'ZETAPHY テストネットのコインは本物のお金ではありません。価値のあるものをここに置かないでください。',
-    warnSeed: 'シードはこのウォレットの唯一の鍵です。シードを失くすかパスフレーズを忘れると、資金は永久に失われます。誰も復元できません。',
-    warnLocal: 'シードはパスフレーズで暗号化され、このブラウザ内にのみ保存されます。どこにも送信されません。',
+    warnSeed: 'シードが唯一の鍵です。シード（またはパスフレーズ）を失うと資金は永久に失われます。',
+    warnLocal: 'シードはこのブラウザに暗号化して保存され、どこにも送信されません。',
     rpcLabel: 'ZETAPHY ノードの RPC URL（JSON-RPC、ポート 8545）',
     rpcSave: '保存',
     rpcHint: 'このページを https で開いている場合、RPC も https である必要があります（ブラウザは http をブロックします）。',
@@ -2405,8 +2406,8 @@ const T = {
     subtitle: 'Квантово-устойчивый кошелёк (ML-DSA-44) · без ключа ECDSA',
     warnTitle: 'Только тестнет',
     warnTestnet: 'Тестнет ZETAPHY — это не настоящие деньги. Не храните здесь ничего ценного.',
-    warnSeed: 'Сид — единственный ключ к этому кошельку. Потеряете его или забудете пароль — средства пропадут навсегда. Восстановить их не сможет никто.',
-    warnLocal: 'Сид хранится только в этом браузере, зашифрованный вашим паролем, и никуда не отправляется.',
+    warnSeed: 'Сид — единственный ключ. Потеряете его (или пароль) — средства пропадут навсегда.',
+    warnLocal: 'Сид хранится зашифрованным в этом браузере и никуда не отправляется.',
     rpcLabel: 'RPC URL вашей ноды ZETAPHY (JSON-RPC, порт 8545)',
     rpcSave: 'Сохранить',
     rpcHint: 'Если страница открыта по https, RPC тоже должен быть https (браузеры блокируют http).',
@@ -2794,8 +2795,8 @@ const T = {
     subtitle: 'Ví kháng lượng tử (ML-DSA-44) · không có khóa ECDSA',
     warnTitle: 'Chỉ dành cho testnet',
     warnTestnet: 'Testnet ZETAPHY không phải tiền thật. Đừng để bất cứ thứ gì có giá trị ở đây.',
-    warnSeed: 'Seed là khóa duy nhất của ví này. Mất seed hoặc quên mật khẩu thì tiền sẽ mất vĩnh viễn. Không ai có thể khôi phục được.',
-    warnLocal: 'Seed chỉ được lưu trong trình duyệt này, mã hóa bằng mật khẩu của bạn, và không bao giờ được gửi đi đâu.',
+    warnSeed: 'Seed là khóa duy nhất. Mất seed (hoặc mật khẩu) là mất tiền vĩnh viễn.',
+    warnLocal: 'Seed được mã hóa và chỉ lưu trong trình duyệt này, không gửi đi đâu.',
     rpcLabel: 'URL RPC của node ZETAPHY của bạn (JSON-RPC, cổng 8545)',
     rpcSave: 'Lưu',
     rpcHint: 'Nếu trang này được mở qua https thì RPC cũng phải là https (trình duyệt chặn http).',
@@ -3206,6 +3207,13 @@ const t = (k, vars = {}) => {
   if (!NETWORK.testnet) s = s.replaceAll('ZETAPHY Testnet', CHAIN_NAME).replaceAll('77390', String(NETWORK.chainId));
   return s.replace(/\{(\w+)\}/g, (_, v) => String(vars[v] ?? ''));
 };
+/** The safety box (#warning): open until the user folds it once; folded from then on, a click opens it again. */
+function warnBox() {
+  const box = $('warning');
+  if (!box) return;
+  if (store.get(KEYS.warnRead) === '1') box.open = false;
+  box.addEventListener('toggle', () => store.set(KEYS.warnRead, box.open ? '0' : '1'));
+}
 /** The network badge and switch above the warning box (network.js). */
 function showNetwork() {
   const host = $('net-badge');
@@ -5003,6 +5011,7 @@ function init() {
   // The typed URL is used right away; Save also remembers it.
   $('rpc').addEventListener('input', () => { checkedRpc = null; showManual(); });
   applyLang();
+  warnBox();
   setMode('new');
   render();
   showWalletConnect();

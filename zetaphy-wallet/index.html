@@ -53,14 +53,15 @@
   <!-- the network badge (network.js): mainnet is the only network (the testnet was shut down on 2026-11-14) -->
   <div id="net-badge" class="net-badge"></div>
 
-  <section class="warn" id="warning">
-    <strong data-i18n="warnTitle">Before you start</strong>
+  <!-- the three safety points: open on the first visit; once closed it stays closed in this browser (app.js warnBox) -->
+  <details class="warn" id="warning" open>
+    <summary><strong data-i18n="warnTitle">Before you start</strong></summary>
     <ul>
-      <li data-i18n="warnTestnet">This is ZETAPHY mainnet: real ZTPHY. A transfer cannot be undone.</li>
-      <li data-i18n="warnSeed">The seed is the only key to this wallet. Lose it or forget the passphrase and the funds are gone for good. Nobody can recover them.</li>
-      <li data-i18n="warnLocal">The seed stays in this browser only, encrypted with your passphrase, and is never sent anywhere.</li>
+      <li data-i18n="warnTestnet">Mainnet: real ZTPHY. A transfer cannot be undone.</li>
+      <li data-i18n="warnSeed">The seed is the only key. Lose it (or the passphrase) and the funds are gone for good.</li>
+      <li data-i18n="warnLocal">The seed stays encrypted in this browser and is never sent anywhere.</li>
     </ul>
-  </section>
+  </details>
 
   <section class="card">
     <label for="rpc" data-i18n="rpcLabel">Your ZETAPHY node RPC URL (JSON-RPC, port 8545)</label>
