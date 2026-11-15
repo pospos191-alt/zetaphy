@@ -1,0 +1,8 @@
+{
+  "chainId": 3659,
+  "each": "10",
+  "count": 100000,
+  "sha256": "5b28d6ea88503a58118a3478953d4a77ef699a1f6dfc8f72ddb9ba29e0b4e23a",
+  "shardPrefixLength": 2,
+  "list": "list.txt"
+}
