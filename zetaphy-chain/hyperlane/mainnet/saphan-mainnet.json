@@ -81,7 +81,7 @@
     "about": "a FRESH key used only for this deploy (the same address on ZETAPHY and Base), holding no role afterwards. Owner input: its address; the key stays in a keystore on the owner's machine (KEYFILE / --keystore), never in this repository."
   },
   "liquidity": {
-    "about": "The owner's first pools on Base (scripts/saphan-pool.js). Amounts are owner inputs (decided 2026-11-14: 1,000,000 ZTPHY + 100 stable per pool, 0.0001 USD per ZTPHY); edit them here.",
+    "about": "The owner's first pools on Base (scripts/saphan-pool.js). Amounts are owner inputs (2026-11-14: 0.0001 USD per ZTPHY; 2026-11-16: start with one pool, ZTPHY/USDC, 500,000 ZTPHY + 50 USDC; a USDT pool waits until the owner names the token, then add it here); edit them here.",
     "zetaphyMultisig": "0x859872fBaB7ad2C0663DC0253E61Cea628cA15d1",
     "zetaphyMultisigBech32": null,
     "zetaphyMultisigKind": "cosmos-multisig",
@@ -95,8 +95,7 @@
     "feeTier": 10000,
     "slippageBps": 100,
     "pools": [
-      { "stable": "USDC", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6, "stableAmount": "100", "ztphyAmount": "1000000", "issuer": "Circle (native USDC on Base)" },
-      { "stable": "USDT", "address": null, "decimals": 6, "stableAmount": "100", "ztphyAmount": "1000000", "issuer": "UNVERIFIED: Tether does not list Base among its issuing chains in any source in this repository. Owner input: the exact token, checked on basescan.org (name, decimals 6, who can mint and freeze it)" }
+      { "stable": "USDC", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6, "stableAmount": "50", "ztphyAmount": "500000", "issuer": "Circle (native USDC on Base)" }
     ]
   },
   "costs": {

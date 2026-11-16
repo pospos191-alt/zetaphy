@@ -72,8 +72,8 @@ mainnet เองได้
 | **Safe บน Base** ที่รับ ZTPHY ที่ข้ามมาและเป็นเจ้าของ pool (2 ใน 3 สร้างที่ app.safe.global) | `liquidity.baseRecipient` | ยังขาด |
 | **โทเคน USDT บน Base** (ตรวจที่ basescan.org ดูด้านล่าง) | `liquidity.pools[1].address` | ยังขาด |
 | เจ้าของ multisig บน Base (ค่าเริ่มต้น: เจ้าของ guardian ของ ZETAPHY) | `base.owners` | ยืนยัน |
-| จำนวนใน pool (ตัดสินแล้ว: 1,000,000 ZTPHY + 100 USDC; 1,000,000 ZTPHY + 100 USDT; 0.0001 USD ต่อ ZTPHY) | `liquidity.pools` | ตั้งแล้ว |
-| ETH บน Base: deployer ~0.0035, relayer ~0.002 (เงินสำรอง), Safe ~0.001; ใส่ 100 USDC + 100 USDT เข้า Safe | — | ต้องซื้อ/ส่ง |
+| จำนวนใน pool (ตัดสินเมื่อ 2026-11-16: เริ่ม pool เดียว 500,000 ZTPHY + 50 USDC, 0.0001 USD ต่อ ZTPHY; pool USDT ทีหลังเมื่อเลือกสัญญาแล้ว) | `liquidity.pools` | ตั้งแล้ว |
+| ETH บน Base: deployer ~0.0035, relayer ~0.002 (เงินสำรอง), Safe ~0.001; ใส่ 50 USDC เข้า Safe | — | ต้องซื้อ/ส่ง |
 | ZTPHY: 1 ให้ deployer, 0.1 ให้แต่ละ validator, 1 ให้ relayer (ฝั่ง ZETAPHY), 10,000 เป็นมัดจำ gov proposal แต่ละอัน | — | ต้องส่ง |
 
 **USDC บน Base** คือ `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Circle): address ที่ repository ตรวจไว้แล้ว

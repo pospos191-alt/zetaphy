@@ -29,7 +29,9 @@ function filled(over = (c) => c) {
   c.validators.zetaphyOrigin = { validators: [A(2), A(3), A(4)], threshold: 2 };
   c.validators.baseOrigin = { mode: 'ours', validators: [A(5), A(6), A(7)], threshold: 2 };
   c.liquidity.baseRecipient = A(8);
-  c.liquidity.pools[1].address = A(9);
+  // the behaviour tests run with two pools (USDC + a USDT stand-in), as the owner may add the USDT pool later
+  c.liquidity.pools = [{ ...c.liquidity.pools[0], stableAmount: '100', ztphyAmount: '1000000' },
+    { stable: 'USDT', address: A(9), decimals: 6, stableAmount: '100', ztphyAmount: '1000000', issuer: 'test stand-in' }];
   return over(c) ?? c;
 }
 const STATE = { steps: { 'base-roles': { multisig: A(20), timelock: A(21), ism: A(22), syntheticAt: A(23), nonce: 3, fromBlock: 1000 },
@@ -51,12 +53,13 @@ test('the committed mainnet config is valid, conservative, and lists exactly the
   assert.deepEqual(launched.guardianMultisig.owners, c.zetaphy.guardianOwners);
   assert.equal(launched.contracts.ThreatRegistry, c.zetaphy.threats);
   assert.deepEqual(M.missingInputs(c).map((m) => m.field).sort(),
-    ['deployer.address', 'liquidity.pools[1].address', 'validators.zetaphyOrigin.validators']);
+    ['deployer.address', 'validators.zetaphyOrigin.validators']);
   // owner inputs given on 2026-11-16: the Safe on Base (1 of 1, activated on Base), Hyperlane's 3-of-5 for Base-origin
   assert.equal(c.liquidity.baseRecipient, '0x08Da43D48f1f68587220768Faf5a00C28962Dc36');
   assert.equal(c.validators.baseOrigin.mode, 'hyperlane');
   // the owner's pools: 2 x 1,000,000 ZTPHY + 100 stable, 0.0001 USD per ZTPHY; the caps let 2,000,000 cross in one day
-  assert.deepEqual(c.liquidity.pools.map((p) => [p.stable, p.ztphyAmount, p.stableAmount]), [['USDC', '1000000', '100'], ['USDT', '1000000', '100']]);
+  // 2026-11-16: one pool to start, ZTPHY/USDC, 500,000 ZTPHY + 50 USDC (still 0.0001 USD per ZTPHY)
+  assert.deepEqual(c.liquidity.pools.map((p) => [p.stable, p.ztphyAmount, p.stableAmount]), [['USDC', '500000', '50']]);
   const L = c.token.limits;
   assert.ok(U(L.mintDailyLimit) >= U('2000000') && U(L.lockCap) >= U('2000000') && U(L.supplyCap) >= U('2000000'));
   assert.ok(U(L.lockCap) <= U('10000000'), 'at most 1% of the supply can ever be out');
@@ -72,7 +75,7 @@ test('USDC on Base is the address the repository verified (known-tokens), never 
   assert.equal(known.address, M.BASE_USDC);
   assert.equal(committed().liquidity.pools[0].address, M.BASE_USDC);
   assert.equal(KNOWN_TOKENS.base.find((t) => t.symbol === 'USDT'), undefined, 'no USDT on Base in the repository: it stays an owner input');
-  assert.equal(committed().liquidity.pools[1].address, null);
+  assert.equal(committed().liquidity.pools.length, 1, 'no USDT pool committed until the owner names the token');
   const brief = filled((c) => { c.liquidity.pools[0].address = '0x833589fCD6eDb6E08f4c7C32D29b5Dd5Ac9F4f8E'; });
   assert.ok(M.mainnetProblems(brief).some((p) => /NOT USDC/.test(p)));
   const other = filled((c) => { c.liquidity.pools[0].address = A(30); });
@@ -270,10 +273,16 @@ test('the pool plan: approvals, create at the owner price, mint full range to th
   }
   assert.deepEqual(x.warnings, []);
   // USDT not set: no calldata, a warning to verify it on basescan, the price and impact still shown
-  const y = poolPlans(committed(), STATE, {});
+  const u = committed(); u.liquidity.pools.push({ stable: 'USDT', address: null, decimals: 6, stableAmount: '100', ztphyAmount: '1000000', issuer: 'to verify' });
+  const y = poolPlans(u, STATE, {});
   assert.ok(y.warnings.some((w) => /USDT.*basescan/.test(w)));
   assert.equal(y.pools[1].missing, 'address');
   assert.ok(y.pools[1].impacts[0].movePct > 20);
+  // the committed plan: one pool, ZTPHY/USDC at 0.0001 USD, no warnings
+  const z = poolPlans(committed(), STATE, {});
+  assert.deepEqual(z.warnings, []);
+  assert.equal(z.pools.length, 1);
+  assert.equal(z.pools[0].price, 0.0001);
 });
 
 test('the bridge for the pools: one Cosmos tx of two MsgEVMCall from the liquidity multisig, approve + lock 2,000,000 ZTPHY for the Safe', () => {
@@ -291,7 +300,7 @@ test('the bridge for the pools: one Cosmos tx of two MsgEVMCall from the liquidi
   assert.equal(b.unsigned.auth_info.fee.amount[0].denom, 'azetaphy');
   assert.equal(BigInt(b.unsigned.auth_info.fee.amount[0].amount), BigInt(b.unsigned.auth_info.fee.gas_limit) * 10n ** 9n);
   // the committed config locks for the owner's Safe on Base; without a Safe it refuses
-  assert.deepEqual([...new Interface(['function lock(address,uint256)']).decodeFunctionData('lock', hex(P.bridgePlan(committed(), STATE).unsigned.body.messages[1]))].map(String), ['0x08Da43D48f1f68587220768Faf5a00C28962Dc36', String(U('2000000'))]);
+  assert.deepEqual([...new Interface(['function lock(address,uint256)']).decodeFunctionData('lock', hex(P.bridgePlan(committed(), STATE).unsigned.body.messages[1]))].map(String), ['0x08Da43D48f1f68587220768Faf5a00C28962Dc36', String(U('500000'))]);
   const noSafe = committed(); noSafe.liquidity.baseRecipient = null;
   assert.throws(() => P.bridgePlan(noSafe, STATE), /baseRecipient/);
   assert.throws(() => P.bridgePlan(c, { steps: {} }), /no ZetaphyTokenVault/);

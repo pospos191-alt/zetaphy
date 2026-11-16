@@ -72,8 +72,8 @@ Files: `zetaphy-chain/hyperlane/mainnet/saphan-mainnet.json` (the config), `regi
 | The **Safe on Base** that receives the bridged ZTPHY and owns the pools (2 of 3, made at app.safe.global) | `liquidity.baseRecipient` | missing |
 | The **USDT token on Base** (verify on basescan.org: see below) | `liquidity.pools[1].address` | missing |
 | The Base multisig owners (default: the ZETAPHY guardian owners) | `base.owners` | confirm |
-| Pool amounts (decided: 1,000,000 ZTPHY + 100 USDC; 1,000,000 ZTPHY + 100 USDT; 0.0001 USD per ZTPHY) | `liquidity.pools` | set |
-| ETH on Base: deployer ~0.0035, relayer ~0.002 (float), Safe ~0.001; 100 USDC + 100 USDT into the Safe | — | to buy/send |
+| Pool amounts (decided 2026-11-16: one pool to start, 500,000 ZTPHY + 50 USDC, 0.0001 USD per ZTPHY; a USDT pool later, once the token is named) | `liquidity.pools` | set |
+| ETH on Base: deployer ~0.0035, relayer ~0.002 (float), Safe ~0.001; 50 USDC into the Safe | — | to buy/send |
 | ZTPHY: 1 to the deployer, 0.1 to each validator, 1 to the relayer (ZETAPHY side), 10,000 per gov proposal deposit | — | to send |
 
 **USDC on Base** is `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Circle): the address the repository already verified
