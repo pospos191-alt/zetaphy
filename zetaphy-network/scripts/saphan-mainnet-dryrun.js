@@ -216,7 +216,9 @@ async function run(work) {
   const signZ = async (m, ws) => { const [root, index] = await new Contract(core.merkleTreeHook, HOOK, zp).latestCheckpoint(); return messageIdMetadata(m, sorted(ws), { merkleTreeHook: core.merkleTreeHook, root, index: Number(index) }); };
   const signB = async (m, ws) => { const [root, index] = await new Contract(cfg.base.merkleTreeHook, HOOK, bp).latestCheckpoint(); return messageIdMetadata(m, sorted(ws), { merkleTreeHook: cfg.base.merkleTreeHook, root, index: Number(index) }); };
   const bridge = P.bridgePlan(cfg, ctx.state);
-  if (bridge.total !== String(U('2000000'))) fail(`bridge total ${bridge.total}`);
+  // the pools' ZTPHY in one lock: what the committed config asks for (2026-11-16: one pool, 500,000 ZTPHY)
+  const TOT = cfg.liquidity.pools.reduce((s, p) => s + U(p.ztphyAmount), 0n);
+  if (bridge.total !== String(TOT)) fail(`bridge total ${bridge.total}, the pools need ${TOT}`);
   const liq = KEYS.liq.connect(zp);
   let rcLock = null;
   for (const c of bridge.calls) rcLock = await (await liq.sendTransaction({ to: getAddress(c.to) === getAddress(cfg.token.address) ? S.native : c.to, data: c.data })).wait();
@@ -229,11 +231,11 @@ async function run(work) {
   await refused('a claim before the mint delay', () => syn.claim.staticCall(idOf(mOut)), 'NotReady');
   await warp(bp, L.mintDelay + 1);
   await (await syn.claim(idOf(mOut))).wait();
-  if ((await syn.balanceOf(KEYS.safe.address)) !== U('2000000')) fail('the Safe did not get 2,000,000 ZTPHY');
-  log(`lock -> mint: ${formatUnits(U('2000000'), 18)} ZTPHY locked by the liquidity multisig, minted to the Safe on Base after ${L.mintDelay} s`);
+  if ((await syn.balanceOf(KEYS.safe.address)) !== TOT) fail(`the Safe did not get ${formatUnits(TOT, 18)} ZTPHY`);
+  log(`lock -> mint: ${formatUnits(TOT, 18)} ZTPHY locked by the liquidity multisig, minted to the Safe on Base after ${L.mintDelay} s`);
 
   // 5. caps: the rest of lockCap fits, the daily mint limit makes it wait a day, one more is over the cap
-  const rest = U(L.lockCap) - U('2000000');
+  const rest = U(L.lockCap) - TOT;
   await (await native.connect(KEYS.liq.connect(zp)).approve(r2.vault, rest + E)).wait();
   const rcRest = await (await vault.connect(KEYS.liq.connect(zp)).lock(KEYS.safe.address, rest)).wait();
   await refused('a lock over lockCap', () => vault.connect(KEYS.liq.connect(zp)).lock.staticCall(KEYS.safe.address, E), 'OverCap');
