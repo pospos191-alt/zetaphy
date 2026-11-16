@@ -23,10 +23,10 @@
 | เหรียญหลัก | ชื่อ ZETAPHY, สัญลักษณ์ ZTPHY, ทศนิยม 18 หลัก (base denom `azetaphy`) |
 | รูปแบบ address | EVM `0x…` บัญชีเดียวกันในรูปแบบ Cosmos คือ `zetaphy1…` (bech32 prefix `zetaphy`) |
 | Coin type (slip44) | 60, อัลกอริทึมกุญแจ `eth_secp256k1` |
-| EVM RPC (HTTPS) | https://129-221-199-191.sslip.io |
+| EVM RPC (HTTPS) | https://rpc.sawasdeecoin.com |
 | EVM websocket | ไม่มีแบบสาธารณะ |
-| CometBFT RPC / websocket | https://129-221-199-191.sslip.io/rpc, wss://129-221-199-191.sslip.io/rpc/websocket |
-| Cosmos REST | https://129-221-199-191.sslip.io/rest |
+| CometBFT RPC / websocket | https://rpc.sawasdeecoin.com/rpc, wss://rpc.sawasdeecoin.com/rpc/websocket |
+| Cosmos REST | https://rpc.sawasdeecoin.com/rest |
 | gRPC | ไม่มีแบบสาธารณะ |
 | Block explorer | https://explorer.sawasdeecoin.com/?network=mainnet (หน้าธุรกรรม `…/?network=mainnet#/tx/<hash>` หน้า address `…/?network=mainnet#/address/<address>`) |
 | เว็บไซต์ | https://app.sawasdeecoin.com |

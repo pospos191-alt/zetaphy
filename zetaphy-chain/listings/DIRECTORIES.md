@@ -147,7 +147,7 @@ It installs the signed release and the published genesis (sha256 checked) and sy
 - Explorer: https://explorer.sawasdeecoin.com/?network=mainnet
 - Code: https://github.com/pospos191-alt/zetaphy
 - Genesis and mainnet notice: https://github.com/pospos191-alt/zetaphy/blob/main/docs/ZETAPHY-MAINNET-NOTICE.md (genesis sha256 `ca0efb15f6ca80f57e157b32837e012a15f3dc3597531b18747629c8f0a94667`)
-- Public endpoints (one sentry): EVM JSON-RPC https://129-221-199-191.sslip.io, CometBFT https://129-221-199-191.sslip.io/rpc, REST https://129-221-199-191.sslip.io/rest
+- Public endpoints (one sentry): EVM JSON-RPC https://rpc.sawasdeecoin.com, CometBFT https://rpc.sawasdeecoin.com/rpc, REST https://rpc.sawasdeecoin.com/rest
 - Faucet: https://app.sawasdeecoin.com/?tab=earn
 - Chain registry files: https://github.com/pospos191-alt/zetaphy/tree/main/zetaphy-chain/listings/cosmos-chain-registry/zetaphy
 

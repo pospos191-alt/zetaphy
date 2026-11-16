@@ -20,10 +20,10 @@ Logo: `zetaphy-hub/zetaphy-256.png` (256x256, 26,592 bytes) is pinned on IPFS (P
 `chainlist/icons/zetaphy.json` points at it. Wallets that read EIP-3085 `iconUrls` (the apps' "Add network" button sends
 `https://app.sawasdeecoin.com/zetaphy-256.png`) show the logo when the network is added; MetaMask ignores `iconUrls`.
 
-Public RPC: https://129-221-199-191.sslip.io (EVM JSON-RPC at `/`, CometBFT at `/rpc`, websocket at `/rpc/websocket`,
+Public RPC: https://rpc.sawasdeecoin.com (since 2026-11-16; the same sentry also still answers on https://129-221-199-191.sslip.io; EVM JSON-RPC at `/`, CometBFT at `/rpc`, websocket at `/rpc/websocket`,
 REST at `/rest`, through rpc-guard; no public gRPC). Check that each path answers before submitting
-(`curl -s https://129-221-199-191.sslip.io/rpc/status`,
-`curl -s https://129-221-199-191.sslip.io/rest/cosmos/base/tendermint/v1beta1/node_info`): reviewers test them.
+(`curl -s https://rpc.sawasdeecoin.com/rpc/status`,
+`curl -s https://rpc.sawasdeecoin.com/rest/cosmos/base/tendermint/v1beta1/node_info`): reviewers test them.
 
 Every free-text description in these files carries the risk sentence from
 [docs/ZETAPHY-MAINNET-NOTICE.md](../../docs/ZETAPHY-MAINNET-NOTICE.md). Keep it when you edit them.

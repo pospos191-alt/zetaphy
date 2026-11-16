@@ -24,10 +24,10 @@ Use these for every form below. Copy them exactly.
 | Native coin | name ZETAPHY, symbol ZTPHY, 18 decimals (base denom `azetaphy`) |
 | Address format | EVM `0x…`; the same account in Cosmos format is `zetaphy1…` (bech32 prefix `zetaphy`) |
 | Coin type (slip44) | 60, key algorithm `eth_secp256k1` |
-| EVM RPC (HTTPS) | https://129-221-199-191.sslip.io |
+| EVM RPC (HTTPS) | https://rpc.sawasdeecoin.com |
 | EVM websocket | none public |
-| CometBFT RPC / websocket | https://129-221-199-191.sslip.io/rpc, wss://129-221-199-191.sslip.io/rpc/websocket |
-| Cosmos REST | https://129-221-199-191.sslip.io/rest |
+| CometBFT RPC / websocket | https://rpc.sawasdeecoin.com/rpc, wss://rpc.sawasdeecoin.com/rpc/websocket |
+| Cosmos REST | https://rpc.sawasdeecoin.com/rest |
 | gRPC | none public |
 | Block explorer | https://explorer.sawasdeecoin.com/?network=mainnet (transaction page: `…/?network=mainnet#/tx/<hash>`, address page: `…/?network=mainnet#/address/<address>`) |
 | Website | https://app.sawasdeecoin.com |

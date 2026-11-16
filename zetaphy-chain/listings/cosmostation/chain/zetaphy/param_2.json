@@ -51,13 +51,13 @@
     "lcd_endpoint": [
         {
             "provider": "ZETAPHY",
-            "url": "https://129-221-199-191.sslip.io/rest/"
+            "url": "https://rpc.sawasdeecoin.com/rest/"
         }
     ],
     "evm_rpc_endpoint": [
         {
             "provider": "ZETAPHY",
-            "url": "https://129-221-199-191.sslip.io"
+            "url": "https://rpc.sawasdeecoin.com"
         }
     ],
     "explorer": {

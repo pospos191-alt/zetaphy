@@ -15,10 +15,10 @@
 | `FORMS.th.md` | Rabby / DeBank, OKX Wallet, Bitget Wallet, SafePal (แบบฟอร์ม ไม่ใช่ pull request) | คำตอบพร้อมวาง |
 | `DIRECTORIES.th.md`, `awesome-cosmos/` | DappRadar, cosmos/awesome-cosmos, forum.cosmos.network | ข้อความและ patch พร้อมส่ง |
 
-RPC สาธารณะ: https://129-221-199-191.sslip.io (EVM JSON-RPC ที่ `/`, CometBFT ที่ `/rpc`, websocket ที่ `/rpc/websocket`,
+RPC สาธารณะ: https://rpc.sawasdeecoin.com (EVM JSON-RPC ที่ `/`, CometBFT ที่ `/rpc`, websocket ที่ `/rpc/websocket`,
 REST ที่ `/rest` ผ่าน rpc-guard ไม่มี gRPC สาธารณะ) ตรวจว่าแต่ละ path ตอบก่อนส่ง
-(`curl -s https://129-221-199-191.sslip.io/rpc/status`,
-`curl -s https://129-221-199-191.sslip.io/rest/cosmos/base/tendermint/v1beta1/node_info`) เพราะผู้รีวิวจะทดสอบ
+(`curl -s https://rpc.sawasdeecoin.com/rpc/status`,
+`curl -s https://rpc.sawasdeecoin.com/rest/cosmos/base/tendermint/v1beta1/node_info`) เพราะผู้รีวิวจะทดสอบ
 
 คำอธิบายแบบข้อความอิสระทุกจุดในไฟล์เหล่านี้มีประโยคเตือนความเสี่ยงจาก
 [docs/ZETAPHY-MAINNET-NOTICE.th.md](../../docs/ZETAPHY-MAINNET-NOTICE.th.md) อยู่ด้วย ถ้าแก้ไขให้คงไว้

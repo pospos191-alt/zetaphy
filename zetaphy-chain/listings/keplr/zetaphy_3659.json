@@ -5,11 +5,11 @@
   "explorers": {
     "txPage": "https://explorer.sawasdeecoin.com/?network=mainnet#/tx/{txHash}"
   },
-  "rpc": "https://129-221-199-191.sslip.io/rpc",
-  "rest": "https://129-221-199-191.sslip.io/rest",
+  "rpc": "https://rpc.sawasdeecoin.com/rpc",
+  "rest": "https://rpc.sawasdeecoin.com/rest",
   "evm": {
     "chainId": 3659,
-    "rpc": "https://129-221-199-191.sslip.io"
+    "rpc": "https://rpc.sawasdeecoin.com"
   },
   "nodeProvider": {
     "name": "ZETAPHY",

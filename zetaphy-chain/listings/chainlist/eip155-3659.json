@@ -2,7 +2,7 @@
   "name": "ZETAPHY",
   "chain": "ZETAPHY",
   "icon": "zetaphy",
-  "rpc": ["https://129-221-199-191.sslip.io"],
+  "rpc": ["https://rpc.sawasdeecoin.com"],
   "faucets": ["https://app.sawasdeecoin.com/?tab=earn"],
   "nativeCurrency": {
     "name": "ZETAPHY",

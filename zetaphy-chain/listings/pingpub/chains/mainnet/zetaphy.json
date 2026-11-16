@@ -4,13 +4,13 @@
   "api": [
     {
       "provider": "ZETAPHY",
-      "address": "https://129-221-199-191.sslip.io/rest"
+      "address": "https://rpc.sawasdeecoin.com/rest"
     }
   ],
   "rpc": [
     {
       "provider": "ZETAPHY",
-      "address": "https://129-221-199-191.sslip.io/rpc"
+      "address": "https://rpc.sawasdeecoin.com/rpc"
     }
   ],
   "snapshot_provider": "",
