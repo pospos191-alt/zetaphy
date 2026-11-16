@@ -1,5 +1,5 @@
 {
-  "about": "ZETAPHY Saphan MAINNET: the ZTPHY route ZETAPHY mainnet (3659) <-> Base mainnet (8453), owner decision 2026-11-14. Read by zetaphy-network/scripts/saphan-mainnet.js (plan / deploy / open / pause / agents) and scripts/saphan-pool.js (the Base pools). Public values only: no key, no secret. null = an owner input that is still missing (the plan lists them; deploy refuses while one is missing). Runbook: docs/SAPHAN-MAINNET.md.",
+  "about": "ZETAPHY Saphan MAINNET: the ZTPHY routes from ZETAPHY mainnet (3659) to Base (8453; owner decision 2026-11-14) and to the chains under \"destinations\" (BNB Smart Chain 56 and Arbitrum One 42161 open, Polygon PoS 137 prepared but disabled; owner decision 2026-11-16). Read by zetaphy-network/scripts/saphan-mainnet.js (plan / deploy / open / pause / agents; --route <chain>) and scripts/saphan-pool.js (the pools; --route <chain>). Public values only: no key, no secret. null = an owner input that is still missing (the plan lists them per chain; deploy refuses while one is missing). Runbook: docs/SAPHAN-MAINNET.md.",
   "network": "mainnet",
   "sources": {
     "hyperlaneRegistry": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/d36ac66ef726bdce6691d4ce4be8ab3dab39cb29/chains/base/addresses.yaml (read 2026-11-14; sha256 6350c18b9e25045faf433dab3c0f72358fba9894a6e94de261a42900538ef1f3) and chains/base/metadata.yaml",
@@ -97,6 +97,243 @@
     "pools": [
       { "stable": "USDC", "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "decimals": 6, "stableAmount": "50", "ztphyAmount": "500000", "issuer": "Circle (native USDC on Base)" }
     ]
+  },
+  "destinations": {
+    "about": "More destination chains, one entry each, same design as Base: per chain a NEW ZetaphyTokenVault on ZETAPHY (its own lockCap and release limit), a NEW SaphanSyntheticToken + SimpleMultisig + ZetaphyTimelock + our ISM there, its own Safe, DEX and pools. A new EVM chain is only an entry here (verified addresses, source and commit in \"sources\"); no code change. \"enabled\": false = prepared only: every deploy step refuses it and the agents leave it out. null = an owner input still missing (plan lists it per chain).",
+    "bsc": {
+      "enabled": true,
+      "displayName": "BNB Smart Chain",
+      "chainId": 56,
+      "domain": 56,
+      "sources": {
+        "hyperlaneRegistry": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/099d9d2a5f27f6d40589a0b55102f917a50b79c7/chains/bsc/addresses.yaml (read 2026-11-16; sha256 550979aad3afeadfb1e8cc39da223c015a9d4f822d3aa7d17938b9ee8c774fea) and chains/bsc/metadata.yaml (sha256 4a589d876885dd02a820c1b94b63ee8f35f8e0577dd9d5740cd27ab7d417df0a: chainId 56, domainId 56, BNB, rpcUrls)",
+        "hyperlaneValidators": "https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/5db7d80874062bfede7b81fb5eb5ad44398c9c52/typescript/sdk/src/consts/multisigIsm.ts (defaultMultisigConfigs.bsc: threshold 4 of 6, read 2026-11-16; sha256 7488f2846437c0e97e3565216ac74e4eef1b7fa34c4e1c725c4254873147e80b)",
+        "dex": "https://github.com/pancakeswap/pancake-v3-contracts/blob/986847948755cba528324d41be19480731c36c2a/projects/v3-core/deployments/bscMainnet.json (PancakeV3Factory) and https://github.com/pancakeswap/pancake-v3-contracts/blob/986847948755cba528324d41be19480731c36c2a/projects/v3-periphery/deployments/bscMainnet.json (NonfungiblePositionManager); fee tiers https://github.com/pancakeswap/pancake-v3-contracts/blob/986847948755cba528324d41be19480731c36c2a/projects/v3-core/contracts/PancakeV3Factory.sol (100/1, 500/10, 2500/50, 10000/200; read 2026-11-16)",
+        "stables": "https://github.com/pancakeswap/token-list/blob/1dd8633d75ea081a9fbf88b1a22f29f74c06b36d/lists/pancakeswap-default.json (chainId 56: \"Binance Pegged USDT\" and \"Binance Pegged USD Coin\", decimals 18; sha256 9c494f5ce246deb4f54f6928aa71f12425fce38369c77292fb63dcba5f58299e) = https://github.com/trustwallet/assets/blob/50d6fd574843da19cdd5fded102b5d6b951c72d2/blockchains/smartchain/assets/<address>/info.json (decimals 18; USDC: \"issued by Binance\") = zetaphy-neuro/src/known-tokens.js (bsc)",
+        "checkedOnChain": "not from the machine that wrote this entry (no BSC RPC reachable). `saphan-mainnet.js check --route bsc` reads every address here on the live chain [read only]."
+      },
+      "rpc": ["https://bsc.drpc.org", "https://bsc-rpc.publicnode.com", "https://bsc.rpc.blxrbdn.com"],
+      "rpcAbout": "the public list of the Hyperlane registry (chains/bsc/metadata.yaml). Owner override: BSC_RPC=<url> or --rpc-bsc <url> (a free-tier key from an RPC provider is steadier for the relayer).",
+      "explorer": "https://bscscan.com",
+      "estimateBlockTime": 0.45,
+      "reorgPeriod": "finalized",
+      "confirmations": 1,
+      "indexChunk": 1999,
+      "nativeToken": { "name": "BNB", "symbol": "BNB", "decimals": 18 },
+      "hyperlane": {
+        "mailbox": "0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4",
+        "merkleTreeHook": "0xFDb9Cd5f9daAA2E4474019405A328a88E7484f26",
+        "validatorAnnounce": "0x7024078130D9c2100fEA474DAD009C2d1703aCcd",
+        "staticMessageIdMultisigIsmFactory": "0x4B1d8352E35e3BDE36dF5ED2e73C24E35c4a96b7",
+        "interchainGasPaymaster": "0x78E25e7f84416e69b9339B0A6336EB6EFfF6b451"
+      },
+      "owners": null,
+      "ownersSuggested": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
+      "ownersAbout": "OWNER INPUT: the owners of the NEW SimpleMultisig on this chain (guardian of the synthetic, proposer of its timelock). Suggested: the ZETAPHY guardian multisig's three owners (EOAs: the same keys sign on every EVM chain). Copy them to \"owners\" to confirm, or name others.",
+      "threshold": 2,
+      "timelockDelay": 172800,
+      "originValidators": {
+        "mode": "hyperlane",
+        "validators": [],
+        "threshold": 1
+      },
+      "hyperlaneDefault": {
+        "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03", "0x5450447aee7b544c462c9352bef7cad049b0c2dc", "0x0d4c1394a255568ec0ecd11795b28d1bda183ca4", "0x24c1506142b2c859aee36474e59ace09784f71e8", "0xc67789546a7a983bf06453425231ab71c119153f", "0x2d74f6edfd08261c927ddb6cb37af57ab89f0eff"],
+        "threshold": 4
+      },
+      "limits": {
+        "about": "Whole ZTPHY, this route only (its own vault on ZETAPHY, its own synthetic). The pools need 500,000 in one day; every route together stays under 1% of the supply (the config refuses more). Raising is a 48 h timelock call; guardians lower at once.",
+        "lockCap": "1000000",
+        "supplyCap": "1000000",
+        "mintDailyLimit": "1000000",
+        "mintDelay": 3600,
+        "releaseDailyLimit": "250000",
+        "releaseDelay": 21600
+      },
+      "liquidity": {
+        "recipient": null,
+        "recipientAbout": "OWNER INPUT: a Safe ON BNB Smart Chain that receives the bridged ZTPHY, holds the USDT and owns the pool position. The owner's Base Safe 0x08Da43D48f1f68587220768Faf5a00C28962Dc36 can be deployed at the same address on BSC (app.safe.global); it does not exist there until then, and `check --route bsc` reads it.",
+        "dex": "pancakeswap-v3",
+        "factory": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
+        "positionManager": "0x46A15B0b27311cedF172AB29E4f4766fbE7F4364",
+        "feeTier": 10000,
+        "slippageBps": 100,
+        "verifiedTokens": {
+          "USDT": { "address": "0x55d398326f99059fF775485246999027B3197955", "decimals": 18, "issuer": "Binance-Peg BSC-USD: issued by Binance, not by Tether; Binance (its owner key) can mint more; worth 1 USD only while Binance honours the peg" },
+          "USDC": { "address": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d", "decimals": 18, "issuer": "Binance-Peg USD Coin: issued by Binance, not by Circle; Binance (its owner key) can mint more" }
+        },
+        "pools": [
+          {
+            "stable": "USDT",
+            "address": "0x55d398326f99059fF775485246999027B3197955",
+            "decimals": 18,
+            "stableAmount": "50",
+            "ztphyAmount": "500000",
+            "issuer": "Binance-Peg BSC-USD (issued by Binance, which can mint it; not Tether)"
+          }
+        ]
+      },
+      "costs": {
+        "gasGwei": "0.1",
+        "l1FeeNative": "0",
+        "nativeUsd": "700",
+        "relayerFloor": "0.005",
+        "about": "gas price in gwei (check bscscan.com/gastracker), BNB price only for the USD column, the relayer's minimum float in BNB"
+      },
+      "funding": {
+        "deployer": null,
+        "relayer": null,
+        "about": "OWNER INPUT: the BNB you will send to the deployer and the relayer on BSC (costs prints what it recommends at your gwei; the plan warns when an amount is below it). Buy BNB on Binance and withdraw on the \"BSC (BEP20)\" network."
+      }
+    },
+    "arbitrum": {
+      "enabled": true,
+      "displayName": "Arbitrum One",
+      "chainId": 42161,
+      "domain": 42161,
+      "sources": {
+        "hyperlaneRegistry": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/099d9d2a5f27f6d40589a0b55102f917a50b79c7/chains/arbitrum/addresses.yaml (read 2026-11-16; sha256 382cc030acb41addfc2a4d27ac2322829a182ee3d71c6d4d83a9ab1f25db2fa1) and chains/arbitrum/metadata.yaml (sha256 77c4e265944c95d88cdcd19ed7be159e802450463311501663a0cce65777ec7a: chainId 42161, domainId 42161, ETH)",
+        "hyperlaneValidators": "https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/5db7d80874062bfede7b81fb5eb5ad44398c9c52/typescript/sdk/src/consts/multisigIsm.ts (defaultMultisigConfigs.arbitrum: threshold 3 of 5, read 2026-11-16)",
+        "dex": "https://github.com/Uniswap/sdk-core/blob/baff6d3c78b09aa0b2f96148bc223b42a57fd28a/src/addresses.ts (ARBITRUM_ONE_ADDRESSES = DEFAULT_ADDRESSES: v3CoreFactoryAddress, nonfungiblePositionManagerAddress; read 2026-11-16; sha256 b5d5b88b3e40303509ead72ba25f65bc9ef73101b265b805eaa720038d43b2f7)",
+        "stables": "https://github.com/OffchainLabs/arbitrum-docs/blob/8f3db19377666b0b2f1a5180e34754160f7047e5/content/docs/arbitrum-bridge/usdc-arbitrum-one.mdx (native USDC, sha256 9ba6bea1eb550bb1643904b30e363117a5d60defae7a8fbfb38c76440a3626d7) = https://github.com/trustwallet/assets/blob/50d6fd574843da19cdd5fded102b5d6b951c72d2/blockchains/arbitrum/assets/0xaf88d065e77c8cC2239327C5EDb3A432268e5831/info.json (decimals 6) = zetaphy-neuro/src/known-tokens.js (arbitrum). Circle's own page could not be fetched from the machine that wrote this.",
+        "checkedOnChain": "not from the machine that wrote this entry. `saphan-mainnet.js check --route arbitrum` reads every address here [read only]."
+      },
+      "rpc": ["https://arb1.arbitrum.io/rpc", "https://arbitrum.drpc.org", "https://arbitrum-one-rpc.publicnode.com"],
+      "rpcAbout": "the public list of the Hyperlane registry (chains/arbitrum/metadata.yaml). Owner override: ARBITRUM_RPC=<url> or --rpc-arbitrum <url>.",
+      "explorer": "https://arbiscan.io",
+      "estimateBlockTime": 0.25,
+      "reorgPeriod": 5,
+      "confirmations": 1,
+      "indexChunk": 1999,
+      "nativeToken": { "name": "Ether", "symbol": "ETH", "decimals": 18 },
+      "hyperlane": {
+        "mailbox": "0x979Ca5202784112f4738403dBec5D0F3B9daabB9",
+        "merkleTreeHook": "0x748040afB89B8FdBb992799808215419d36A0930",
+        "validatorAnnounce": "0x1df063280C4166AF9a725e3828b4dAC6c7113B08",
+        "staticMessageIdMultisigIsmFactory": "0x12Df53079d399a47e9E730df095b712B0FDFA791",
+        "interchainGasPaymaster": "0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22"
+      },
+      "owners": null,
+      "ownersSuggested": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
+      "ownersAbout": "OWNER INPUT: the owners of the NEW SimpleMultisig on this chain (guardian of the synthetic, proposer of its timelock). Suggested: the ZETAPHY guardian multisig's three owners (EOAs: the same keys sign on every EVM chain). Copy them to \"owners\" to confirm, or name others.",
+      "threshold": 2,
+      "timelockDelay": 172800,
+      "originValidators": {
+        "mode": "hyperlane",
+        "validators": [],
+        "threshold": 1
+      },
+      "hyperlaneDefault": {
+        "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03", "0x5450447aee7b544c462c9352bef7cad049b0c2dc", "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36", "0x57ddf0cd46f31ead8084069ce481507f4305c716", "0xde6c50c3e49852dd9fe0388166ebc1ba39ad8505"],
+        "threshold": 3
+      },
+      "limits": {
+        "about": "Whole ZTPHY, this route only (its own vault on ZETAPHY, its own synthetic). The pools need 500,000 in one day; every route together stays under 1% of the supply (the config refuses more). Raising is a 48 h timelock call; guardians lower at once.",
+        "lockCap": "1000000",
+        "supplyCap": "1000000",
+        "mintDailyLimit": "1000000",
+        "mintDelay": 3600,
+        "releaseDailyLimit": "250000",
+        "releaseDelay": 21600
+      },
+      "liquidity": {
+        "recipient": null,
+        "recipientAbout": "OWNER INPUT: a Safe ON Arbitrum One (the Base Safe's address can be deployed there too at app.safe.global; it does not exist there until then).",
+        "dex": "uniswap-v3",
+        "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        "positionManager": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+        "feeTier": 10000,
+        "slippageBps": 100,
+        "verifiedTokens": {
+          "USDC": { "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", "decimals": 6, "issuer": "Circle (native USDC on Arbitrum One; NOT USDC.e 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8)" }
+        },
+        "pools": [
+          { "stable": "USDC", "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", "decimals": 6, "stableAmount": "50", "ztphyAmount": "500000", "issuer": "Circle (native USDC on Arbitrum One)" }
+        ]
+      },
+      "costs": {
+        "gasGwei": "0.02",
+        "l1FeeNative": "0.0003",
+        "nativeUsd": "3000",
+        "relayerFloor": "0.002",
+        "about": "gas price in gwei (arbiscan.io), an L1 data fee allowance in ETH, the ETH price only for the USD column, the relayer's minimum float in ETH"
+      },
+      "funding": { "deployer": null, "relayer": null, "about": "OWNER INPUT: the ETH on Arbitrum One you will send to the deployer and the relayer (costs recommends; the plan warns when below)." }
+    },
+    "polygon": {
+      "enabled": false,
+      "displayName": "Polygon PoS",
+      "chainId": 137,
+      "domain": 137,
+      "sources": {
+        "hyperlaneRegistry": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/099d9d2a5f27f6d40589a0b55102f917a50b79c7/chains/polygon/addresses.yaml (read 2026-11-16; sha256 4ae73bf497b4ae53a02e00f288adfe647a63b1896edc5d5a02be1831e8667dc3) and chains/polygon/metadata.yaml (sha256 4568ad09ed0f6f4325a5261414ca6668d9d80f056dba669e796f76d49ebd36e2: chainId 137, domainId 137, POL)",
+        "hyperlaneValidators": "https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/5db7d80874062bfede7b81fb5eb5ad44398c9c52/typescript/sdk/src/consts/multisigIsm.ts (defaultMultisigConfigs.polygon: threshold 2 of 3, read 2026-11-16)",
+        "dex": "https://github.com/Uniswap/sdk-core/blob/baff6d3c78b09aa0b2f96148bc223b42a57fd28a/src/addresses.ts (POLYGON_ADDRESSES = DEFAULT_ADDRESSES). Uniswap v3, not QuickSwap v3: QuickSwap v3 is Algebra (no fee tiers, another position manager interface), which the pool code does not build.",
+        "stables": "https://github.com/Uniswap/default-token-list/blob/0ae664438dd43d428c5cbef2726af1ba6378a17c/src/tokens/polygon.json (\"USDCoin\" 0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359, decimals 6; sha256 d6db36f75ecee19edeeae4bfcd6357c61435c83aa0b97257d67b0b56a3a45a7d) = https://github.com/trustwallet/assets/blob/50d6fd574843da19cdd5fded102b5d6b951c72d2/blockchains/polygon/assets/0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359/info.json (decimals 6). Not USDC.e 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174 (bridged).",
+        "checkedOnChain": "not checked on chain. Disabled: prepared only."
+      },
+      "rpc": ["https://polygon-bor.publicnode.com", "https://polygon.drpc.org", "https://polygon.gateway.tenderly.co"],
+      "rpcAbout": "the public list of the Hyperlane registry (chains/polygon/metadata.yaml). Owner override: POLYGON_RPC=<url> or --rpc-polygon <url>.",
+      "explorer": "https://polygonscan.com",
+      "estimateBlockTime": 1.5,
+      "reorgPeriod": "finalized",
+      "confirmations": 3,
+      "indexChunk": 1999,
+      "nativeToken": { "name": "Polygon Ecosystem Token", "symbol": "POL", "decimals": 18 },
+      "hyperlane": {
+        "mailbox": "0x5d934f4e2f797775e53561bB72aca21ba36B96BB",
+        "merkleTreeHook": "0x73FbD25c3e817DC4B4Cd9d00eff6D83dcde2DfF6",
+        "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
+        "staticMessageIdMultisigIsmFactory": "0xEa5Be2AD66BB1BA321B7aCf0A079fBE304B09Ca0",
+        "interchainGasPaymaster": "0x0071740Bf129b05C4684abfbBeD248D80971cce2"
+      },
+      "owners": null,
+      "ownersSuggested": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
+      "ownersAbout": "OWNER INPUT: the owners of the NEW SimpleMultisig on this chain (guardian of the synthetic, proposer of its timelock). Suggested: the ZETAPHY guardian multisig's three owners (EOAs: the same keys sign on every EVM chain). Copy them to \"owners\" to confirm, or name others.",
+      "threshold": 2,
+      "timelockDelay": 172800,
+      "originValidators": {
+        "mode": "hyperlane",
+        "validators": [],
+        "threshold": 1
+      },
+      "hyperlaneDefault": {
+        "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03", "0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f", "0x5450447aee7b544c462c9352bef7cad049b0c2dc"],
+        "threshold": 2
+      },
+      "limits": {
+        "about": "Whole ZTPHY, this route only (its own vault on ZETAPHY, its own synthetic). The pools need 500,000 in one day; every route together stays under 1% of the supply (the config refuses more). Raising is a 48 h timelock call; guardians lower at once.",
+        "lockCap": "1000000",
+        "supplyCap": "1000000",
+        "mintDailyLimit": "1000000",
+        "mintDelay": 3600,
+        "releaseDailyLimit": "250000",
+        "releaseDelay": 21600
+      },
+      "liquidity": {
+        "recipient": null,
+        "recipientAbout": "OWNER INPUT: a Safe ON Polygon PoS.",
+        "dex": "uniswap-v3",
+        "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+        "positionManager": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+        "feeTier": 10000,
+        "slippageBps": 100,
+        "verifiedTokens": {
+          "USDC": { "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", "decimals": 6, "issuer": "Circle (native USDC on Polygon PoS; NOT USDC.e 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174)" }
+        },
+        "pools": [
+          { "stable": "USDC", "address": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", "decimals": 6, "stableAmount": "50", "ztphyAmount": "500000", "issuer": "Circle (native USDC on Polygon PoS)" }
+        ]
+      },
+      "costs": {
+        "gasGwei": "50",
+        "l1FeeNative": "0",
+        "nativeUsd": "0.25",
+        "relayerFloor": "5",
+        "about": "gas price in gwei (polygonscan.com/gastracker), the POL price only for the USD column, the relayer's minimum float in POL"
+      },
+      "funding": { "deployer": null, "relayer": null, "about": "OWNER INPUT: the POL you will send to the deployer and the relayer (costs recommends)." }
+    }
   },
   "costs": {
     "about": "Inputs of the cost estimate (saphan-mainnet.js costs / plan). Base gas price in gwei (check basescan.org/gastracker before), ETH price only for the USD column.",

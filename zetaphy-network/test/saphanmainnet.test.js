@@ -32,6 +32,13 @@ function filled(over = (c) => c) {
   // the behaviour tests run with two pools (USDC + a USDT stand-in), as the owner may add the USDT pool later
   c.liquidity.pools = [{ ...c.liquidity.pools[0], stableAmount: '100', ztphyAmount: '1000000' },
     { stable: 'USDT', address: A(9), decimals: 6, stableAmount: '100', ztphyAmount: '1000000', issuer: 'test stand-in' }];
+  // the other open routes (BSC, Arbitrum One): their owner inputs filled with throwaway values
+  for (const [n, i] of [['bsc', 60], ['arbitrum', 70]]) {
+    const d = c.destinations[n];
+    d.owners = [A(i), A(i + 1), A(i + 2)];
+    d.liquidity.recipient = A(i + 3);
+    d.funding = { ...d.funding, deployer: '1', relayer: '1' };
+  }
   return over(c) ?? c;
 }
 const STATE = { steps: { 'base-roles': { multisig: A(20), timelock: A(21), ism: A(22), syntheticAt: A(23), nonce: 3, fromBlock: 1000 },
@@ -52,8 +59,15 @@ test('the committed mainnet config is valid, conservative, and lists exactly the
   assert.equal(launched.guardianMultisig.address, c.zetaphy.guardian);
   assert.deepEqual(launched.guardianMultisig.owners, c.zetaphy.guardianOwners);
   assert.equal(launched.contracts.ThreatRegistry, c.zetaphy.threats);
-  assert.deepEqual(M.missingInputs(c).map((m) => m.field).sort(),
+  // Base and the shared inputs: unchanged by the other routes
+  assert.deepEqual(M.missingInputs(c).filter((m) => ['all', 'base'].includes(m.chain)).map((m) => m.field).sort(),
     ['deployer.address', 'validators.zetaphyOrigin.validators']);
+  // the other open routes (2026-11-16: BSC and Arbitrum One): their Safe, multisig owners and funding, per chain
+  for (const n of ['bsc', 'arbitrum']) {
+    assert.deepEqual(M.missingInputs(c).filter((m) => m.chain === n).map((m) => m.field).sort(),
+      [`destinations.${n}.funding.deployer`, `destinations.${n}.funding.relayer`, `destinations.${n}.liquidity.recipient`, `destinations.${n}.owners`]);
+  }
+  assert.deepEqual([...new Set(M.missingInputs(c).map((m) => m.chain))], ['all', 'bsc', 'arbitrum']);
   // owner inputs given on 2026-11-16: the Safe on Base (1 of 1, activated on Base), Hyperlane's 3-of-5 for Base-origin
   assert.equal(c.liquidity.baseRecipient, '0x08Da43D48f1f68587220768Faf5a00C28962Dc36');
   assert.equal(c.validators.baseOrigin.mode, 'hyperlane');
