@@ -85,7 +85,7 @@ test('the committed mainnet config is valid, conservative, and lists exactly the
   assert.ok(U(L.lockCap) <= U('10000000'), 'at most 1% of the supply can ever be out');
   assert.ok(U(L.releaseDailyLimit) < U(L.mintDailyLimit), 'the way back is tighter');
   assert.ok(L.releaseDelay >= 6 * 3600 && L.mintDelay >= 3600);
-  assert.equal(c.validators.allowSingleValidator, false);
+  assert.equal(c.validators.allowSingleValidator, true); // the owner's 1-of-1 decision (2026-11-16), checked above
   assert.deepEqual(M.mainnetProblems(filled()), []);
   assert.deepEqual(M.missingInputs(filled()), []);
 });
