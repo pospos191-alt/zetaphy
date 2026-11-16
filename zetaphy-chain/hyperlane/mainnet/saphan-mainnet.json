@@ -49,13 +49,14 @@
   },
   "validators": {
     "about": "OUR Hyperlane validators. zetaphyOrigin signs ZETAPHY -> Base messages (the ISM on the Base synthetic). baseOrigin signs Base -> ZETAPHY messages (the ISM on the ZETAPHY vault); mode 'ours' = our validator(s) also validate Base (a second validator process, setup-agents-mainnet.sh VALIDATE_BASE=yes), mode 'hyperlane' = use hyperlaneBaseDefault instead (Hyperlane's published 3-of-5, stronger, no extra process). Addresses come from setup-agents-mainnet.sh addresses on the agents machine.",
-    "zetaphyOrigin": { "validators": [], "threshold": 1 },
+    "zetaphyOrigin": { "validators": ["0xF134CCb10c1DAca611096AD8Bd0aBd43c3b4F6Ea"], "threshold": 1 },
     "baseOrigin": { "mode": "hyperlane", "validators": [], "threshold": 1 },
     "hyperlaneBaseDefault": {
       "validators": ["0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03", "0x5450447aee7b544c462c9352bef7cad049b0c2dc", "0xb8cf45d7bab79c965843206d5f4d83bb866d6e86", "0xe957310e17730f29862e896709cce62d24e4b773", "0x34a14934d7c18a21440b59dfe9bf132ce601457d"],
       "threshold": 3
     },
-    "allowSingleValidator": false,
+    "allowSingleValidator": true,
+    "allowSingleValidatorDecision": "owner decision 2026-11-16: 1 of 1 (one validator on the sentry) accepted, with the caps, the mint delay and the guardian veto as the bound; add a second validator machine later and raise the threshold.",
     "allowSingleValidatorAbout": "a 1-of-1 ISM is refused unless this is true (owner flag): then one key on one machine can mint unbacked ZTPHY on Base (bounded by the caps and the delay)."
   },
   "token": {
@@ -77,7 +78,7 @@
     }
   },
   "deployer": {
-    "address": null,
+    "address": "0x11391E190692BE087792c6e34FB699828b6BFC4e",
     "about": "a FRESH key used only for this deploy (the same address on ZETAPHY and Base), holding no role afterwards. Owner input: its address; the key stays in a keystore on the owner's machine (KEYFILE / --keystore), never in this repository."
   },
   "liquidity": {

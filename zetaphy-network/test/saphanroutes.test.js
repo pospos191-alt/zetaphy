@@ -26,6 +26,7 @@ function filled(over = (c) => c) {
   const c = committed();
   c.deployer.address = A(1);
   c.validators.zetaphyOrigin = { validators: [A(2), A(3), A(4)], threshold: 2 };
+  c.validators.allowSingleValidator = false; // behaviour tests start from the conservative default, not the owner's 1-of-1 flag
   for (const [n, i] of [['bsc', 60], ['arbitrum', 70], ['polygon', 80]]) {
     const d = c.destinations[n];
     d.owners = [A(i), A(i + 1), A(i + 2)];

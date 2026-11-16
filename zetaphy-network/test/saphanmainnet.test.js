@@ -27,6 +27,7 @@ function filled(over = (c) => c) {
   const c = committed();
   c.deployer.address = A(1);
   c.validators.zetaphyOrigin = { validators: [A(2), A(3), A(4)], threshold: 2 };
+  c.validators.allowSingleValidator = false; // behaviour tests start from the conservative default, not the owner's 1-of-1 flag
   c.validators.baseOrigin = { mode: 'ours', validators: [A(5), A(6), A(7)], threshold: 2 };
   c.liquidity.baseRecipient = A(8);
   // the behaviour tests run with two pools (USDC + a USDT stand-in), as the owner may add the USDT pool later
@@ -61,13 +62,18 @@ test('the committed mainnet config is valid, conservative, and lists exactly the
   assert.equal(launched.contracts.ThreatRegistry, c.zetaphy.threats);
   // Base and the shared inputs: unchanged by the other routes
   assert.deepEqual(M.missingInputs(c).filter((m) => ['all', 'base'].includes(m.chain)).map((m) => m.field).sort(),
-    ['deployer.address', 'validators.zetaphyOrigin.validators']);
+    []);
+  // owner inputs of 2026-11-16: the deployer, our one ZETAPHY validator (on the sentry), and the owner's 1-of-1 flag
+  assert.equal(c.deployer.address, '0x11391E190692BE087792c6e34FB699828b6BFC4e');
+  assert.deepEqual(c.validators.zetaphyOrigin, { validators: ['0xF134CCb10c1DAca611096AD8Bd0aBd43c3b4F6Ea'], threshold: 1 });
+  assert.equal(c.validators.allowSingleValidator, true);
+  assert.ok(M.riskLines(c).some((r) => /owner flag allowSingleValidator/.test(r)), 'the plan prints the 1-of-1 risk');
   // the other open routes (2026-11-16: BSC and Arbitrum One): their Safe, multisig owners and funding, per chain
   for (const n of ['bsc', 'arbitrum']) {
     assert.deepEqual(M.missingInputs(c).filter((m) => m.chain === n).map((m) => m.field).sort(),
       [`destinations.${n}.funding.deployer`, `destinations.${n}.funding.relayer`, `destinations.${n}.liquidity.recipient`, `destinations.${n}.owners`]);
   }
-  assert.deepEqual([...new Set(M.missingInputs(c).map((m) => m.chain))], ['all', 'bsc', 'arbitrum']);
+  assert.deepEqual([...new Set(M.missingInputs(c).map((m) => m.chain))], ['bsc', 'arbitrum']);
   // owner inputs given on 2026-11-16: the Safe on Base (1 of 1, activated on Base), Hyperlane's 3-of-5 for Base-origin
   assert.equal(c.liquidity.baseRecipient, '0x08Da43D48f1f68587220768Faf5a00C28962Dc36');
   assert.equal(c.validators.baseOrigin.mode, 'hyperlane');
