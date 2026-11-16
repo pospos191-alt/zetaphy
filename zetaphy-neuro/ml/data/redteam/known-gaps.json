@@ -1,19 +1,17 @@
 {
- "modelId": "nml-3ab3cd303911",
+ "modelId": "nml-ac17d469ebb6",
  "note": "Recorded red-team evasions this model still misses (see ml/README.md). ml/test/redteam.test.js fails if any other recorded evasion slips back below medium.",
  "gaps": [
   {
-   "id": "rt-neuro_redteam_A_142",
+   "id": "rt-neuro_redteam_A_15",
    "family": "stealth",
    "mutations": [
-    "noise",
-    "rename",
-    "split-guard",
-    "timebomb",
-    "xor-owner"
+    "block-ramp",
+    "hashed-owner",
+    "rename"
    ],
    "tell": null,
-   "p": 0.7391
+   "p": 0.7968
   },
   {
    "id": "rt-neuro_redteam_A_54",
@@ -24,7 +22,27 @@
     "rename"
    ],
    "tell": null,
-   "p": 0.7201
+   "p": 0.7512
+  },
+  {
+   "id": "rt-rt_2026_W47_125",
+   "family": "stealth",
+   "mutations": [
+    "block-ramp",
+    "rename"
+   ],
+   "tell": null,
+   "p": 0.6472
+  },
+  {
+   "id": "rt-rt_2026_W47_146",
+   "family": "stealth",
+   "mutations": [
+    "block-ramp",
+    "rename"
+   ],
+   "tell": null,
+   "p": 0.7779
   }
  ]
 }
