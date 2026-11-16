@@ -128,7 +128,7 @@
         "staticMessageIdMultisigIsmFactory": "0x4B1d8352E35e3BDE36dF5ED2e73C24E35c4a96b7",
         "interchainGasPaymaster": "0x78E25e7f84416e69b9339B0A6336EB6EFfF6b451"
       },
-      "owners": null,
+      "owners": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
       "ownersSuggested": ["0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b", "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6", "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD"],
       "ownersAbout": "OWNER INPUT: the owners of the NEW SimpleMultisig on this chain (guardian of the synthetic, proposer of its timelock). Suggested: the ZETAPHY guardian multisig's three owners (EOAs: the same keys sign on every EVM chain). Copy them to \"owners\" to confirm, or name others.",
       "threshold": 2,
@@ -152,7 +152,7 @@
         "releaseDelay": 21600
       },
       "liquidity": {
-        "recipient": null,
+        "recipient": "0x08Da43D48f1f68587220768Faf5a00C28962Dc36",
         "recipientAbout": "OWNER INPUT: a Safe ON BNB Smart Chain that receives the bridged ZTPHY, holds the USDT and owns the pool position. The owner's Base Safe 0x08Da43D48f1f68587220768Faf5a00C28962Dc36 can be deployed at the same address on BSC (app.safe.global); it does not exist there until then, and `check --route bsc` reads it.",
         "dex": "pancakeswap-v3",
         "factory": "0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865",
@@ -182,8 +182,8 @@
         "about": "gas price in gwei (check bscscan.com/gastracker), BNB price only for the USD column, the relayer's minimum float in BNB"
       },
       "funding": {
-        "deployer": null,
-        "relayer": null,
+        "deployer": "0.003",
+        "relayer": "0.008",
         "about": "OWNER INPUT: the BNB you will send to the deployer and the relayer on BSC (costs prints what it recommends at your gwei; the plan warns when an amount is below it). Buy BNB on Binance and withdraw on the \"BSC (BEP20)\" network."
       }
     },

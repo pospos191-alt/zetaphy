@@ -68,12 +68,16 @@ test('the committed mainnet config is valid, conservative, and lists exactly the
   assert.deepEqual(c.validators.zetaphyOrigin, { validators: ['0xF134CCb10c1DAca611096AD8Bd0aBd43c3b4F6Ea'], threshold: 1 });
   assert.equal(c.validators.allowSingleValidator, true);
   assert.ok(M.riskLines(c).some((r) => /owner flag allowSingleValidator/.test(r)), 'the plan prints the 1-of-1 risk');
-  // the other open routes (2026-11-16: BSC and Arbitrum One): their Safe, multisig owners and funding, per chain
-  for (const n of ['bsc', 'arbitrum']) {
-    assert.deepEqual(M.missingInputs(c).filter((m) => m.chain === n).map((m) => m.field).sort(),
-      [`destinations.${n}.funding.deployer`, `destinations.${n}.funding.relayer`, `destinations.${n}.liquidity.recipient`, `destinations.${n}.owners`]);
-  }
-  assert.deepEqual([...new Set(M.missingInputs(c).map((m) => m.chain))], ['bsc', 'arbitrum']);
+  // BSC inputs given on 2026-11-16: the guardian owners, the Safe on BNB Chain (the same 1-of-1 Safe as on Base), BNB funding
+  assert.deepEqual(M.missingInputs(c).filter((m) => m.chain === 'bsc'), []);
+  assert.deepEqual(c.destinations.bsc.owners, c.zetaphy.guardianOwners);
+  assert.equal(c.destinations.bsc.liquidity.recipient, '0x08Da43D48f1f68587220768Faf5a00C28962Dc36');
+  assert.equal(c.destinations.bsc.funding.deployer, '0.003');
+  assert.equal(c.destinations.bsc.funding.relayer, '0.008');
+  // Arbitrum One: its Safe, multisig owners and funding are still owner inputs
+  assert.deepEqual(M.missingInputs(c).filter((m) => m.chain === 'arbitrum').map((m) => m.field).sort(),
+    ['destinations.arbitrum.funding.deployer', 'destinations.arbitrum.funding.relayer', 'destinations.arbitrum.liquidity.recipient', 'destinations.arbitrum.owners']);
+  assert.deepEqual([...new Set(M.missingInputs(c).map((m) => m.chain))], ['arbitrum']);
   // owner inputs given on 2026-11-16: the Safe on Base (1 of 1, activated on Base), Hyperlane's 3-of-5 for Base-origin
   assert.equal(c.liquidity.baseRecipient, '0x08Da43D48f1f68587220768Faf5a00C28962Dc36');
   assert.equal(c.validators.baseOrigin.mode, 'hyperlane');

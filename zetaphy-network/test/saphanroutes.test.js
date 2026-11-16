@@ -18,6 +18,8 @@ import { createChain } from './helpers/evm.js';
 import { kitArtifacts, tokenKitArtifacts, messageIdMetadata, validator } from './helpers/hyperlanekit.js';
 
 const committed = () => JSON.parse(readFileSync(M.MAINNET_FILE, 'utf8'));
+/** The committed config without the BSC Safe: the refusals still hold for a route whose Safe is missing. */
+const noBscSafe = () => { const c = committed(); c.destinations.bsc.liquidity.recipient = null; return c; };
 const U = (x) => parseUnits(String(x), 18);
 const A = (i) => new Wallet(keccak256(solidityPacked(['string', 'uint256'], ['saphan routes test', i]))).address;
 const OPEN = ['bsc', 'arbitrum'];
@@ -76,8 +78,13 @@ test('the committed routes: Base, BSC and Arbitrum One open, Polygon PoS prepare
   for (const [r, sym] of [[b, 'USDT'], [a, 'USDC'], [p, 'USDC']]) {
     assert.deepEqual(r.liquidity.pools.map((x) => [x.stable, x.ztphyAmount, x.stableAmount]), [[sym, '500000', '50']]);
     assert.equal(r.liquidity.feeTier, 10000);
-    assert.equal(r.liquidity.recipient, null, 'the Safe is an owner input per chain (the same address as on Base is not assumed)');
-    assert.equal(r.owners, null);
+    if (r === b) {
+      assert.equal(r.liquidity.recipient, c.liquidity.baseRecipient, 'BSC: the owner gave the same Safe, verified on BNB Chain');
+      assert.deepEqual(r.owners, c.zetaphy.guardianOwners);
+    } else {
+      assert.equal(r.liquidity.recipient, null, 'the Safe is an owner input per chain (the same address as on Base is not assumed)');
+      assert.equal(r.owners, null);
+    }
     assert.deepEqual(r.ownersSuggested, c.zetaphy.guardianOwners);
   }
   // the open routes' vaults together stay under 1% of the supply
@@ -215,8 +222,8 @@ test('the BSC pool plan: PancakeSwap v3 position manager, 18-decimal USDT, the o
     const usdPerZtphy = p.token0 === getAddress(ztphy) ? raw : 1 / raw;    // 18 and 18 decimals: raw = human
     assert.ok(Math.abs(usdPerZtphy - 0.0001) < 1e-15, `${usdPerZtphy}`);
   }
-  // the committed BSC pool still builds (placeholders for the Safe) and warns that the Safe is missing
-  const y = poolPlans(committed(), STATE, { route: 'bsc' });
+  // without its Safe the BSC pool still builds (placeholders for the Safe) and warns that the Safe is missing
+  const y = poolPlans(noBscSafe(), STATE, { route: 'bsc' });
   assert.ok(y.warnings.some((w) => /destinations.bsc.liquidity.recipient \(the Safe on BNB Smart Chain\) is not set/.test(w)));
   // Arbitrum: Uniswap v3 with 6-decimal native USDC
   const ar = poolPlans(c, STATE, { route: 'arbitrum' }).pools[0];
@@ -243,7 +250,7 @@ test('the bridge per destination: the liquidity multisig locks into THAT route\'
   }
   assert.equal(P.bridgePlan(c, STATE, 'bsc').total, String(U('500000')));
   assert.notEqual(P.bridgePlan(c, STATE, 'bsc').vault, P.bridgePlan(c, STATE, 'base').vault);
-  assert.throws(() => P.bridgePlan(committed(), STATE, 'bsc'), /destinations.bsc.liquidity.recipient \(the Safe on BNB Smart Chain\)/);
+  assert.throws(() => P.bridgePlan(noBscSafe(), STATE, 'bsc'), /destinations.bsc.liquidity.recipient \(the Safe on BNB Smart Chain\)/);
   assert.throws(() => P.bridgePlan(c, { steps: { ...STATE.steps, 'zetaphy-vault-bsc': undefined } }, 'bsc'), /zetaphy-vault-bsc/);
 });
 
