@@ -1,13 +1,15 @@
-// ZETAPHY Saphan MAINNET: the owner's first ZTPHY pools on Base (Uniswap v3), as pure functions. Nothing is sent here:
-// scripts/saphan-pool.js prints these for the liquidity multisig (ZETAPHY) and the liquidity Safe (Base) to sign.
+// ZETAPHY Saphan MAINNET: the owner's first ZTPHY pools on each destination (Uniswap v3 on Base and Arbitrum,
+// PancakeSwap v3 on BNB Smart Chain: the same position manager interface), as pure functions. Nothing is sent here:
+// scripts/saphan-pool.js prints these for the liquidity multisig (ZETAPHY) and the route's liquidity Safe to sign.
 //
-//   bridgePlan(cfg, state)      ZETAPHY: approve the vault on the native ERC-20 + vault.lock(baseRecipient, total), as an
+//   bridgePlan(cfg, state, route)  ZETAPHY: approve the route's vault on the native ERC-20 + vault.lock(Safe, total), as an
 //                               unsigned Cosmos tx of MsgEVMCall (the liquidity multisig is a Cosmos 2-of-3) and as raw calls
-//   poolPlan(...)               Base, per pool: approvals, createAndInitializePoolIfNecessary at the owner's price, mint full range
+//   poolPlan(...)               per pool: approvals, createAndInitializePoolIfNecessary at the owner's price, mint full range
+//                               (any stable decimals: 6 on Base/Arbitrum, 18 on BSC; the price is set in raw units)
 //   priceImpact(...)            how far one buy of N USD moves the price (a full-range v3 position is x*y=k)
 //   safeBatch(...)              a Safe Transaction Builder file (app.safe.global -> Transaction Builder -> load)
 import { Interface, getAddress, parseUnits, formatUnits, getBytes } from 'ethers';
-import { TICK_SPACING, units, zetaphyBech32, BASE_USDC } from './saphanmainnet.js';
+import { DEXES, units, zetaphyBech32, BASE_USDC, route as routeOf } from './saphanmainnet.js';
 
 export const MIN_TICK = -887272;
 export const MAX_TICK = 887272;
@@ -37,10 +39,12 @@ export function isqrt(n) {
   return x;
 }
 
-/** The full range of a fee tier: the outermost usable ticks. */
-export function fullRange(feeTier) {
-  const s = TICK_SPACING[feeTier];
-  if (!s) throw new Error(`fee tier ${feeTier}: one of ${Object.keys(TICK_SPACING).join(', ')}`);
+/** The full range of a fee tier of a DEX: the outermost usable ticks (tick spacing per DEX: PancakeSwap has 2500, not 3000). */
+export function fullRange(feeTier, dex = 'uniswap-v3') {
+  const T = DEXES[dex]?.tickSpacing;
+  if (!T) throw new Error(`dex ${dex}: one of ${Object.keys(DEXES).join(', ')}`);
+  const s = T[feeTier];
+  if (!s) throw new Error(`fee tier ${feeTier}: one of ${Object.keys(T).join(', ')} (${DEXES[dex].label})`);
   return { tickLower: Math.ceil(MIN_TICK / s) * s, tickUpper: Math.floor(MAX_TICK / s) * s, tickSpacing: s };
 }
 
@@ -64,26 +68,28 @@ const fmtPrice = (x) => (x >= 0.01 ? x.toFixed(6) : x.toPrecision(4));
  * One pool: the Safe's calls on Base, in order. `ztphy`: the synthetic on Base (18 decimals). The price is set by the two
  * amounts: price = stableAmount / ztphyAmount (USD per ZTPHY for a 1-USD stable).
  */
-export function poolPlan({ ztphy, pool, feeTier, slippageBps, recipient, positionManager, factory, deadline }) {
-  if (!pool.address) throw new Error(`the ${pool.stable} address on Base is an owner input (liquidity.pools[].address), not set`);
+export function poolPlan({ ztphy, pool, feeTier, slippageBps, recipient, positionManager, factory, deadline, dex = 'uniswap-v3', chain = 'Base' }) {
+  if (!pool.address) throw new Error(`the ${pool.stable} address on ${chain} is an owner input (pools[].address), not set`);
+  const label = DEXES[dex]?.label ?? dex;
   const zAmt = units(pool.ztphyAmount, 18), sAmt = units(pool.stableAmount, pool.decimals);
   const z = getAddress(ztphy), s = getAddress(pool.address);
   const zFirst = BigInt(z) < BigInt(s);
   const [token0, token1, amount0, amount1] = zFirst ? [z, s, zAmt, sAmt] : [s, z, sAmt, zAmt];
   const sqrtP = sqrtPriceX96(amount0, amount1);
-  const { tickLower, tickUpper } = fullRange(feeTier);
+  const { tickLower, tickUpper } = fullRange(feeTier, dex);
   const min = (x) => (x * BigInt(10000 - slippageBps)) / 10000n;
   const npm = getAddress(positionManager);
   const mint = { token0, token1, fee: feeTier, tickLower, tickUpper, amount0Desired: amount0, amount1Desired: amount1, amount0Min: min(amount0), amount1Min: min(amount1), recipient: getAddress(recipient), deadline: BigInt(deadline) };
+  // the price the two amounts set (whole tokens: decimals do not change it); exact for the defaults, 50 / 500,000 = 0.0001
   const price = Number(pool.stableAmount) / Number(pool.ztphyAmount);
   const txs = [
-    { to: z, value: '0', data: ERC20.encodeFunctionData('approve', [npm, zAmt]), what: `approve ${pool.ztphyAmount} ZTPHY to the Uniswap v3 position manager` },
-    { to: s, value: '0', data: ERC20.encodeFunctionData('approve', [npm, sAmt]), what: `approve ${pool.stableAmount} ${pool.stable} to the Uniswap v3 position manager` },
+    { to: z, value: '0', data: ERC20.encodeFunctionData('approve', [npm, zAmt]), what: `approve ${pool.ztphyAmount} ZTPHY to the ${label} position manager` },
+    { to: s, value: '0', data: ERC20.encodeFunctionData('approve', [npm, sAmt]), what: `approve ${pool.stableAmount} ${pool.stable} to the ${label} position manager` },
     { to: npm, value: '0', data: NPM.encodeFunctionData('createAndInitializePoolIfNecessary', [token0, token1, feeTier, sqrtP]), what: `create the ZTPHY/${pool.stable} pool (fee ${feeTier / 10000}%) at ${fmtPrice(price)} ${pool.stable} per ZTPHY` },
     { to: npm, value: '0', data: NPM.encodeFunctionData('mint', [mint]), what: `add ${pool.ztphyAmount} ZTPHY + ${pool.stableAmount} ${pool.stable}, full range, position NFT to ${getAddress(recipient)}` },
   ];
   return {
-    stable: pool.stable, stableAddress: s, ztphy: z, token0, token1, amount0: String(amount0), amount1: String(amount1), feeTier, sqrtPriceX96: String(sqrtP), tickLower, tickUpper,
+    stable: pool.stable, stableAddress: s, stableDecimals: pool.decimals, dex, ztphy: z, token0, token1, amount0: String(amount0), amount1: String(amount1), feeTier, sqrtPriceX96: String(sqrtP), tickLower, tickUpper,
     price, priceText: `${fmtPrice(price)} ${pool.stable} per ZTPHY (1 ${pool.stable} = ${(1 / price).toLocaleString('en-US')} ZTPHY)`,
     factory: getAddress(factory), positionManager: npm, mint: { ...mint, amount0Desired: String(amount0), amount1Desired: String(amount1), amount0Min: String(mint.amount0Min), amount1Min: String(mint.amount1Min), deadline: String(mint.deadline) },
     impacts: [10, 50].map((buyUsd) => priceImpact({ stable: pool.stableAmount, ztphy: pool.ztphyAmount, buyUsd, feeTier })),
@@ -102,31 +108,32 @@ export function safeBatch({ chainId, name, description, txs, createdAt = 0 }) {
 }
 
 /**
- * The ZETAPHY side of seeding the pools: the liquidity multisig approves the vault on the native ERC-20 and locks the total
- * for the Base Safe, in ONE Cosmos tx of two MsgEVMCall (signed offline by 2 of 3 members, as the launch's funding was).
- * Also the same two calls as raw (to, data) in case the members use an EVM multisig instead.
+ * The ZETAPHY side of seeding a route's pools: the liquidity multisig approves that route's vault on the native ERC-20 and
+ * locks the total for the route's Safe, in ONE Cosmos tx of two MsgEVMCall (signed offline by 2 of 3 members, as the
+ * launch's funding was). Also the same two calls as raw (to, data) in case the members use an EVM multisig instead.
  */
-export function bridgePlan(cfg, state) {
-  const vault = state?.steps?.['zetaphy-vault']?.vault;
-  if (!vault) throw new Error('no ZetaphyTokenVault in the state yet (deploy step zetaphy-vault)');
-  const to = cfg.liquidity.baseRecipient;
-  if (!to) throw new Error('liquidity.baseRecipient (the Safe on Base) is an owner input, not set');
-  const total = cfg.liquidity.pools.reduce((s, p) => s + units(p.ztphyAmount, 18), 0n);
+export function bridgePlan(cfg, state, name = 'base') {
+  const r = routeOf(cfg, name), S = r.steps, D = r.displayName;
+  const vault = state?.steps?.[S.vault]?.vault;
+  if (!vault) throw new Error(`no ZetaphyTokenVault in the state yet (deploy step ${S.vault})`);
+  const to = r.liquidity.recipient;
+  if (!to) throw new Error(`${r.at.recipient} (the Safe on ${D}) is an owner input, not set`);
+  const total = r.liquidity.pools.reduce((s, p) => s + units(p.ztphyAmount, 18), 0n);
   const calls = [
-    { to: getAddress(cfg.token.address), data: ERC20.encodeFunctionData('approve', [getAddress(vault), total]), gas: 120000n, what: `approve ${formatUnits(total, 18)} ZTPHY (native ERC-20) to the vault` },
-    { to: getAddress(vault), data: VAULT.encodeFunctionData('lock', [getAddress(to), total]), gas: 600000n, what: `lock ${formatUnits(total, 18)} ZTPHY for ${getAddress(to)} on Base` },
+    { to: getAddress(cfg.token.address), data: ERC20.encodeFunctionData('approve', [getAddress(vault), total]), gas: 120000n, what: `approve ${formatUnits(total, 18)} ZTPHY (native ERC-20) to the ${D} vault` },
+    { to: getAddress(vault), data: VAULT.encodeFunctionData('lock', [getAddress(to), total]), gas: 600000n, what: `lock ${formatUnits(total, 18)} ZTPHY for ${getAddress(to)} on ${D}` },
   ];
   const sender = cfg.liquidity.zetaphyMultisigBech32 ?? zetaphyBech32(cfg.liquidity.zetaphyMultisig);
   const gas = calls.reduce((s, c) => s + c.gas, 0n) + 400000n;
   const fee = gas * parseUnits(String(cfg.zetaphy.minGasPriceGwei), 9);
   const unsigned = {
     body: { messages: calls.map((c) => ({ '@type': '/zetaphy.pq.v1.MsgEVMCall', Sender: sender, To: c.to, Value: '0', Data: Buffer.from(getBytes(c.data)).toString('base64'), GasLimit: String(c.gas) })),
-      memo: 'saphan-pool: ZTPHY to Base for the first pools', timeout_height: '0', extension_options: [], non_critical_extension_options: [] },
+      memo: name === 'base' ? 'saphan-pool: ZTPHY to Base for the first pools' : `saphan-pool: ZTPHY to ${D} for the first pools`, timeout_height: '0', extension_options: [], non_critical_extension_options: [] },
     auth_info: { signer_infos: [], fee: { amount: [{ denom: 'azetaphy', amount: String(fee) }], gas_limit: String(gas), payer: '', granter: '' } },
     signatures: [],
   };
-  return { total: String(total), totalText: `${formatUnits(total, 18)} ZTPHY`, vault: getAddress(vault), recipient: getAddress(to), sender, calls: calls.map((c) => ({ ...c, gas: String(c.gas) })), unsigned,
-    claim: { to: state?.steps?.['base-synthetic']?.synthetic ?? null, how: `after the mint delay (${cfg.token.limits.mintDelay} s) anyone calls claim(id) on the synthetic; id = keccak256 of the message body (the Queued event)`, data: (id) => SYN.encodeFunctionData('claim', [id]) } };
+  return { route: name, total: String(total), totalText: `${formatUnits(total, 18)} ZTPHY`, vault: getAddress(vault), recipient: getAddress(to), sender, calls: calls.map((c) => ({ ...c, gas: String(c.gas) })), unsigned,
+    claim: { to: state?.steps?.[S.synthetic]?.synthetic ?? null, how: `after the mint delay (${r.limits.mintDelay} s) anyone calls claim(id) on the synthetic on ${D}; id = keccak256 of the message body (the Queued event)`, data: (id) => SYN.encodeFunctionData('claim', [id]) } };
 }
 
 export { BASE_USDC };

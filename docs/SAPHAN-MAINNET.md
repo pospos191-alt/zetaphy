@@ -3,7 +3,8 @@
 # Saphan mainnet: ZTPHY between ZETAPHY and Base
 
 Owner decision 2026-11-14: open the Saphan bridge between ZETAPHY mainnet (`zetaphy_3659-1`, EVM chain 3659) and Base
-mainnet (8453), so ZTPHY can trade against USDC (and USDT) on Base. The testnet is shut down; this is the mainnet tooling.
+mainnet (8453), so ZTPHY can trade against USDC (and USDT) on Base. Owner decision 2026-11-16: also BNB Smart Chain (56)
+and Arbitrum One (42161), each its own route (see "More destinations" below; Polygon PoS prepared, disabled). The testnet is shut down; this is the mainnet tooling.
 Everything here is **owner-run** from the owner's own machine: no workflow holds a mainnet key, and nothing in this
 repository ever sends a mainnet transaction by itself.
 
@@ -277,6 +278,189 @@ The hub's bridge page reads `saphan-routes.json` (testnet). For mainnet it shoul
 verbatim, the caps and delays, and a link to the two Uniswap pools; it should never offer an amount above one day's
 release limit for the way back.
 
+## More destinations: BNB Smart Chain and Arbitrum One (Polygon PoS prepared, disabled)
+
+Owner decisions of 2026-11-16: Base is hard to fund, so ZTPHY also goes to **BNB Smart Chain** (BSC, chain 56) with one
+**PancakeSwap v3** pool against **USDT**, and to **Arbitrum One** (42161) with one **Uniswap v3** pool against Circle's
+native **USDC**. **Polygon PoS** (137) is prepared in the config but `"enabled": false`. No other chain is added. Nothing
+here is deployed: these are tooling, config, tests and docs.
+
+**ZTPHY on BSC is NOT the same token as ZTPHY on Base (or on Arbitrum).** Each chain gets its own synthetic, backed by its
+own vault of locked native ZTPHY on ZETAPHY. The pools are separate markets, each with its own price. Moving ZTPHY from
+BSC to Base means sending it back to ZETAPHY first (6 h release delay) and then out again.
+
+### The design: one vault per destination
+
+The existing `ZetaphyTokenVault` sends to exactly one remote contract on one domain (`remote`, `remoteDomain`) and takes
+one ISM. A single vault for every chain would need a new, unaudited contract. So each route gets **its own vault** on
+ZETAPHY, deployed by the same unchanged code, and this is the safer choice too:
+
+- **A failure stays on one route.** A forged message or a bad key on BSC can at most drain the BSC vault (lockCap
+  1,000,000 ZTPHY). It cannot touch what is locked for Base: the Base vault takes only messages from Base's domain and
+  from the Base synthetic (tested: `test/saphanroutes.test.js`, and the dry run).
+- **Its own caps and delays per route** (`destinations.<route>.limits`). The open routes together are refused above 1% of
+  the supply (now 2,500,000 + 1,000,000 + 1,000,000 = 4,500,000 ZTPHY).
+- **Every safety rule is the same**: each vault and synthetic is deployed closed, opening is a gov proposal plus 48 h on
+  ZETAPHY and the route's multisig plus a 48 h timelock on the other side. The same guardian multisig `0x54EF…4519`
+  pauses and vetoes every vault at once; on each destination a new SimpleMultisig is the guardian. Replay and veto rules
+  are in the contracts and do not change.
+- **Our one ZETAPHY validator signs for every destination.** A Hyperlane validator signs ZETAPHY's merkle tree, which every
+  destination's ISM checks. The messages from each destination back to ZETAPHY are checked by Hyperlane's published set
+  for that chain: BSC 4 of 6, Arbitrum 3 of 5 (Polygon 2 of 3), the same idea as Base's 3 of 5.
+- ZETAPHY's Hyperlane core and its default ISM do not change (the default ISM keeps trusting only the Base set; every
+  vault has its own ISM).
+
+Config: `zetaphy-chain/hyperlane/mainnet/saphan-mainnet.json` -> `destinations.bsc`, `.arbitrum`, `.polygon`. **A new EVM
+chain is one entry there, with no code change** (the same fields, verified addresses with their source and commit in
+`sources`). Base keeps its original fields and state file names (`base-roles`, `zetaphy-vault`, `base-synthetic`).
+The other routes add `<route>-roles`, `zetaphy-vault-<route>`, `<route>-synthetic` to the same state file.
+
+### Addresses and where they come from (read 2026-11-16)
+
+| What | BNB Smart Chain (56) | Arbitrum One (42161) | Polygon PoS (137, disabled) |
+|---|---|---|---|
+| Hyperlane Mailbox | `0x2971b9Aec44bE4eb673DF1B88cDB57b96eefe8a4` | `0x979Ca5202784112f4738403dBec5D0F3B9daabB9` | `0x5d934f4e2f797775e53561bB72aca21ba36B96BB` |
+| merkle tree hook | `0xFDb9Cd5f9daAA2E4474019405A328a88E7484f26` | `0x748040afB89B8FdBb992799808215419d36A0930` | `0x73FbD25c3e817DC4B4Cd9d00eff6D83dcde2DfF6` |
+| ValidatorAnnounce | `0x7024078130D9c2100fEA474DAD009C2d1703aCcd` | `0x1df063280C4166AF9a725e3828b4dAC6c7113B08` | `0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5` |
+| message-id multisig ISM factory | `0x4B1d8352E35e3BDE36dF5ED2e73C24E35c4a96b7` | `0x12Df53079d399a47e9E730df095b712B0FDFA791` | `0xEa5Be2AD66BB1BA321B7aCf0A079fBE304B09Ca0` |
+| Hyperlane's validators for messages from it | 4 of 6 | 3 of 5 | 2 of 3 |
+| DEX | PancakeSwap v3: factory `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865`, position manager `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` | Uniswap v3: factory `0x1F98431c8aD98523631AE4a59f267346ea31F984`, position manager `0xC36442b4a4522E871399CD717aBDD847Ab11FE88` | Uniswap v3 (same addresses) |
+| stable | USDT (BSC-USD) `0x55d398326f99059fF775485246999027B3197955`, **18 decimals**; also USDC `0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d`, 18 decimals | native USDC (Circle) `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`, 6 decimals | native USDC (Circle) `0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`, 6 decimals |
+| gas token | BNB | ETH | POL |
+
+Sources, pinned by commit in the config (`destinations.<route>.sources`):
+
+- Hyperlane core and domain ids: `hyperlane-xyz/hyperlane-registry` commit `099d9d2a5f27f6d40589a0b55102f917a50b79c7`,
+  `chains/{bsc,arbitrum,polygon}/addresses.yaml` and `metadata.yaml` (domain = chain id for all three; sha256 in the config).
+- Hyperlane's validator sets: `hyperlane-xyz/hyperlane-monorepo` commit `5db7d80874062bfede7b81fb5eb5ad44398c9c52`,
+  `typescript/sdk/src/consts/multisigIsm.ts` (`defaultMultisigConfigs.bsc`, `.arbitrum`, `.polygon`).
+- PancakeSwap v3: `pancakeswap/pancake-v3-contracts` commit `986847948755cba528324d41be19480731c36c2a`,
+  `projects/v3-core/deployments/bscMainnet.json` and `projects/v3-periphery/deployments/bscMainnet.json`; the fee tiers
+  from `projects/v3-core/contracts/PancakeV3Factory.sol`: 100/1, 500/10, **2500/50** (Uniswap has 3000/60), 10000/200.
+  The tool keeps a tick spacing table per DEX, so a 2500 pool gets full-range ticks of ±887,250 and Base refuses 2500.
+- Uniswap v3 on Arbitrum and Polygon: `Uniswap/sdk-core` commit `baff6d3c78b09aa0b2f96148bc223b42a57fd28a`,
+  `src/addresses.ts` (`DEFAULT_ADDRESSES`, as for Base). On Polygon Uniswap v3 was chosen over QuickSwap v3: QuickSwap v3
+  is Algebra (no fee tiers, another position manager interface), which the pool code does not build.
+- BSC stables: PancakeSwap's own token list (`pancakeswap/token-list` commit `1dd8633d75ea081a9fbf88b1a22f29f74c06b36d`,
+  `lists/pancakeswap-default.json`: "Binance Pegged USDT", "Binance Pegged USD Coin", decimals 18), the same in Trust
+  Wallet's asset list (`trustwallet/assets` commit `50d6fd574843da19cdd5fded102b5d6b951c72d2`) and in this repository's
+  `zetaphy-neuro/src/known-tokens.js`.
+- Arbitrum USDC: Arbitrum's own docs (`OffchainLabs/arbitrum-docs` commit `8f3db19377666b0b2f1a5180e34754160f7047e5`,
+  `content/docs/arbitrum-bridge/usdc-arbitrum-one.mdx`: native USDC, not USDC.e `0xFF97…5CC8`), Trust Wallet (6 decimals)
+  and `known-tokens.js`. Polygon USDC: Uniswap's default token list (commit `0ae664438dd43d428c5cbef2726af1ba6378a17c`,
+  `src/tokens/polygon.json`: "USDCoin", 6 decimals; not USDC.e `0x2791…4174`) and Trust Wallet.
+- **Not verified**: Circle's own address page (developers.circle.com could not be reached from the machine that wrote
+  this); any read of the live chains (no BSC, Arbitrum or Polygon RPC was reachable). `check --route <route>` reads every
+  address on the live chain before anything is sent: the Mailbox's domain, the hook, the ISM factory, the stable's
+  decimals, the position manager's `factory()`, the fee tier's tick spacing, and that your Safe exists there.
+
+### Owner inputs per chain
+
+`node scripts/saphan-mainnet.js plan` **[อ่าน]** lists what is still missing, per chain. For BSC and Arbitrum today:
+
+| Input | Where | Status |
+|---|---|---|
+| The **Safe on that chain** that receives its ZTPHY and owns its pool. You may use the same address as on Base (`0x08Da43D48f1f68587220768Faf5a00C28962Dc36`): at app.safe.global, open the Safe, "Add another network", pick the chain; it exists there only once you have done that (and paid its gas). `check --route` reads it on that chain. | `destinations.<route>.liquidity.recipient` | missing |
+| The multisig owners on that chain (suggested: the three ZETAPHY guardian owners, in `ownersSuggested`; copy them to `owners` to confirm) and the threshold (2) | `destinations.<route>.owners`, `.threshold` | missing |
+| The gas you send the deployer and the relayer on that chain (`costs` recommends; `plan` warns if lower) | `destinations.<route>.funding.deployer`, `.relayer` | missing |
+| Pool amounts (default 500,000 ZTPHY + 50 USDT on BSC, + 50 USDC on Arbitrum, 0.0001 USD per ZTPHY, 1% tier, full range) | `destinations.<route>.liquidity.pools`, `.feeTier` | set (edit if you want) |
+| The deployer key and our ZETAPHY validator: the same as for Base (one key; the synthetic's address on each chain depends only on that chain's nonce) | `deployer.address`, `validators.zetaphyOrigin` | missing (shared) |
+
+The BSC pool needs 500,000 ZTPHY of its own (a separate lock into the BSC vault): ZETAPHY's liquidity multisig locks
+500,000 for Base, 500,000 for BSC and 500,000 for Arbitrum, 1,500,000 ZTPHY in all, and 50 + 50 + 50 USD of stables.
+
+### BSC: the owner's steps, in order
+
+1. **[อ่าน]** `node scripts/saphan-mainnet.js plan` and `node scripts/saphan-pool.js plan --route bsc`.
+2. **[เปลี่ยนเชน]** **The Safe on BSC**: at app.safe.global add BNB Smart Chain to your Safe (or create a new 2-of-3
+   there). Put its address in `destinations.bsc.liquidity.recipient` **[เปลี่ยนไฟล์]**.
+3. **[เปลี่ยนเชน]** **USDT into the Safe through Binance**: in Binance, Withdraw -> USDT -> network **"BSC (BEP20)"**
+   (also shown as "BNB Smart Chain (BEP20)"), address = the Safe on BSC. Send a small test amount first and see it
+   arrive on bscscan.com, then the rest (50 USDT plus Binance's withdrawal fee). **Never pick another network** for that
+   address (ERC20, Arbitrum, opBNB...): the same address on another chain may be no Safe, and the coins are then lost.
+   USDT on BSC has 18 decimals: 50 USDT is shown as 50 in wallets and as 50,000,000,000,000,000,000 in raw calldata.
+4. **[เปลี่ยนเชน]** **BNB**: withdraw BNB on "BSC (BEP20)" to (a) the deployer (`costs` recommends ~0.0022 BNB at 0.1
+   gwei, 3x the estimate), (b) the relayer (~0.008 BNB for 200 deliveries) and (c) the Safe owner key that will execute the
+   pool batch (~0.001 BNB). Write the deployer and relayer amounts into `destinations.bsc.funding`.
+5. **[เปลี่ยนไฟล์]** The BSC multisig owners: copy `ownersSuggested` to `owners` (or name others), open a pull request.
+6. **[อ่าน]** `node scripts/saphan-mainnet.js check --route bsc` (BSC core, PancakeSwap, USDT decimals 18, the Safe on BSC).
+7. **[เปลี่ยนเชน]** After the Base route's core step (ZETAPHY's core is shared, done once):
+   ```bash
+   KEYFILE=… node scripts/saphan-mainnet.js deploy --route bsc --step roles --send yes       # BSC: multisig, timelock, our ISM
+   KEYFILE=… node scripts/saphan-mainnet.js deploy --route bsc --step vault --send yes       # ZETAPHY: the BSC vault (closed)
+   KEYFILE=… node scripts/saphan-mainnet.js deploy --route bsc --step synthetic --send yes   # BSC: the BSC synthetic (closed)
+   node scripts/saphan-mainnet.js verify --route bsc                                        # [อ่าน]
+   ```
+   Do not use the deployer key on BSC for anything else in between (the synthetic's address is fixed by its BSC nonce).
+8. **[เปลี่ยนการตั้งค่า]** The agents: `agent-config` and `relayer-env` now include every deployed route; install them on
+   the agents machine as in step 6 of the runbook, then send the relayer its BNB.
+9. **[เปลี่ยนเชน]** Open: `node scripts/saphan-mainnet.js open-proposals --route bsc` writes
+   `open/open-zetaphy-bsc.gov-proposal.json` (its own gov proposal, 10,000 ZTPHY deposit, refunded) and the BSC multisig
+   calls; 48 h on each side.
+10. **[เปลี่ยนเชน]** The pool: `node scripts/saphan-pool.js plan --route bsc --live yes --out pools/` writes
+    `bridge-zetaphy-bsc.unsigned.json` (the liquidity multisig locks 500,000 ZTPHY into the BSC vault for the BSC Safe) and
+    `pool-bsc-USDT.safe-batch.json` (approve ZTPHY, approve USDT, create the PancakeSwap v3 pool at 0.0001 USDT per ZTPHY,
+    mint full range with 1% minimums). After the 1 h mint delay anyone sends `claim(id)` on BSC; then load the batch in
+    app.safe.global (BNB Smart Chain) -> Transaction Builder, check it, sign, execute.
+
+Arbitrum One is the same with `--route arbitrum`, ETH on Arbitrum One for gas (withdraw on the "Arbitrum One" network,
+never "Arbitrum Nova"), and native USDC (6 decimals) into its Safe.
+
+### Costs of the new routes
+
+`node scripts/saphan-mainnet.js costs --bsc-gwei <gwei> --arbitrum-gwei <gwei>` **[อ่าน]** prints each route in its own gas
+token. At the defaults (BSC 0.1 gwei and $700/BNB; Arbitrum 0.02 gwei plus an L1 data fee allowance and $3,000/ETH):
+
+| Route | Deployer (estimate; fund 3x) | Relayer float (200 deliveries) | Total on that chain | ZETAPHY gas |
+|---|---:|---:|---:|---:|
+| BNB Smart Chain | ~0.000725 BNB (fund ~0.0022) | ~0.008 BNB (~$5.60) | ~0.0095 BNB (~$6.60) | ~0.084 ZTPHY |
+| Arbitrum One | ~0.00075 ETH incl. L1 fee (fund ~0.0022) | 0.002 ETH (floor) | ~0.0031 ETH (~$9.30) | ~0.084 ZTPHY |
+
+Plus one gov proposal deposit per route to open (10,000 ZTPHY, refunded when it passes). Check bscscan.com/gastracker
+and arbiscan.io before funding and run `costs` again.
+
+### Agents on the 1-CPU / 6 GB sentry
+
+One relayer relays every deployed route; its whitelist names only our vaults and synthetics (two entries per route), so
+nobody can spend its BNB or ETH on other messages. Our one ZETAPHY validator signs for every destination: no extra
+validator is needed (unless a route's `originValidators.mode` is "ours": then `VALIDATE_ORIGINS="bsc"`). The RPCs are the
+Hyperlane registry's public lists (BSC: bsc.drpc.org, bsc-rpc.publicnode.com, bsc.rpc.blxrbdn.com); override them with
+`--rpc-bsc <url>` / `BSC_RPC` (a free-tier key from an RPC provider is steadier: then do not commit `agent-config.json`).
+Memory: the relayer's cap is 480 MB for two chains plus 200 MB per further chain (880 MB for ZETAPHY + Base + BSC +
+Arbitrum), at most 40% of the RAM; set `MEM_RELAYER` to override. Every agent container runs with a low CPU weight
+(`--cpu-shares 512`), so on one CPU the ZETAPHY node wins when both need it. BSC makes a block every 0.45 s: indexing it
+from a public RPC is the heaviest part; if the relayer falls behind, give it a private RPC.
+
+### Risks of the new routes, plainly
+
+- **USDT on BSC is Binance-Peg BSC-USD, issued by Binance, not by Tether.** Binance (its owner key) can mint more of it,
+  and it is worth 1 USD only while Binance honours the peg. The same holds for Binance-Peg USDC on BSC (issued by Binance,
+  not Circle). The ZTPHY/USDT pool on BSC carries that trust in Binance.
+- **ZTPHY on BSC, on Base and on Arbitrum are three separate synthetics and three separate markets.** Their prices can
+  drift apart; arbitrage between them needs a trip through ZETAPHY (hours).
+- **PancakeSwap's factory owner can switch a fee tier off or whitelist it** for new pools (`PancakeV3Factory`); `check`
+  and `saphan-pool.js --live` read the tier before you sign. An existing pool is not affected.
+- Everything in "Read this first" applies to each route: one ZETAPHY validator, our small signing set, unaudited
+  contracts, thin pools ($50 a side: a $10 buy moves the price about +43%).
+
+**Why more chains is not free.** Each route was kept only because the owner asked for it, and no more than these four are
+configured, because:
+
+- every pool splits the same small liquidity: three pools of $50 are each thinner than one of $150;
+- every route adds a synthetic, a timelock and a multisig that the guardians must watch every day;
+- the relayer pays gas on every chain, and must be kept funded on each;
+- each is one more place where a bug or a lost key can lose funds.
+
+### The dry run for BSC
+
+The `saphan-mainnet` workflow runs the BSC route after the Base route on the **same local ZETAPHY** (two vaults side by
+side), on a **local anvil with chain id 56**: Hyperlane core from the pinned CLI and Uniswap v3 from its npm artifacts
+(v3-core 1.0.1, v3-periphery 1.4.4; the pool init code hash matches) as the stand-in for PancakeSwap v3, which has the
+same position manager interface and the same 1% tier and tick spacing (200). A fork of BSC mainnet is not used: no
+public BSC RPC that a GitHub runner can use keeps archive state, and with 0.45 s blocks a non-archive node prunes the fork
+block's state within about a minute, much less than this run takes. The real PancakeSwap v3 on BSC is checked by
+`check --route bsc` and `saphan-pool.js plan --route bsc --live yes` (read only) from the owner's machine.
+
 ## Verified, and not
 
 - `npm test` (zetaphy-network) runs `test/saphanmainnet.test.js`: the config, the refusals, 1-of-1 only with the flag,
@@ -287,6 +471,15 @@ release limit for the way back.
   29 read-backs, opening through both timelocks, 2,000,000 ZTPHY to the Safe, caps, both pools at 0.0001 USD,
   burn -> release after 6 h, the daily limits, pause, forged messages. The `saphan-mainnet` workflow runs the same on a
   **fork of Base mainnet** (its real Mailbox, ISM factory, USDC and Uniswap) and starts the agents.
-- Not verified: any read of the live ZETAPHY or Base chains (the machine that wrote this could not reach their RPCs);
-  the USDT token; the liquidity multisig signing `MsgEVMCall`; the Hyperlane agents against mainnet; the memory use of the
-  agents on an E2.1.Micro.
+- `test/saphanroutes.test.js` covers the other routes: the committed BSC, Arbitrum and Polygon entries against their
+  sources and `known-tokens.js`, the refusals of a weakened BSC route, Polygon refused while disabled and valid once
+  enabled with its inputs, the PancakeSwap v3 tiers and full range, the 18-decimal USDT pool at exactly 0.0001, the
+  bridge per destination, opening and pause per route, the relayer whitelist and the agent config naming every chain,
+  the costs in BNB, and two routes' contracts side by side (each vault takes only its own chain's messages).
+- The BSC pool plan's four calls were also executed once against real Uniswap v3 bytecode (npm v3-core 1.0.1 /
+  v3-periphery 1.4.4, the stand-in for PancakeSwap v3) with an 18-decimal USDT stand-in: the pool was created at exactly
+  the planned sqrtPriceX96 and the full-range mint passed its 1% minimums. The extended dry run (`--route bsc`) and its
+  workflow steps were written but not run on the machine that wrote them (no anvil there): the first CI run is their test.
+- Not verified: any read of the live ZETAPHY, Base, BSC, Arbitrum or Polygon chains (the machine that wrote this could
+  not reach their RPCs); Circle's own USDC address page; the USDT token on Base; the liquidity multisig signing
+  `MsgEVMCall`; the Hyperlane agents against mainnet; the memory use of the agents on an E2.1.Micro or the sentry.
