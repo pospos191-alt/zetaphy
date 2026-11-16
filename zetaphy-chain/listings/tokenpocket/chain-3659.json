@@ -11,7 +11,7 @@
     "decimals": 18
   },
   "rpc": [
-    "https://129-221-199-191.sslip.io"
+    "https://rpc.sawasdeecoin.com"
   ],
   "faucets": [
     "https://app.sawasdeecoin.com/?tab=earn"
