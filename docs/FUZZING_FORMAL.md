@@ -157,6 +157,22 @@ or divide in the code into a circuit, however small the inputs:
 - bin-price monotonicity, and no panic for any bin id;
 - `q64_mul` with no panic on two full u128 operands.
 
+**Longer attempt, 2026-11-11** (`amm-formal.yml` with `kani_slow = v2`, one
+GitHub-hosted job per harness, 180-minute limit each, run 43036180357). The
+five SLOW harnesses of the mainnet scope (SWDMM v2 math):
+
+| Harness | Result |
+|---|---|
+| `v2_fee_amount_u32` | ✅ **verified** in 31 min — `fee_amount` rounds up and stays ≤ the amount (32-bit inputs) |
+| `v2_swap_props_u16` | not finished after 180 min |
+| `v2_liquidity_never_over_issues_u16` | not finished after 180 min |
+| `v2_fee_growth_never_over_pays` | not finished after 180 min |
+| `v2_pending_fee_split_never_creates_fees` | not finished after 180 min |
+
+"Not finished" means the solver was stopped by the time limit; it says
+nothing about the property either way. The eleven CP / DLMM SLOW harnesses
+(not in the mainnet binary) were not run (`kani_slow = all`).
+
 **Next-best evidence for exactly these properties:**
 `fuzz/tests/exhaustive.rs` uses the same assertions and checks **every
 combination** in small ranges, plus the fuzzing on the full range in §3.

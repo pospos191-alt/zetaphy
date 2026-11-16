@@ -55,10 +55,17 @@ pub struct BinLiquidityAmount;
 #[cfg(all(feature = "v2-only", feature = "idl-build"))]
 impl anchor_lang::IdlBuild for BinLiquidityAmount {}
 
-// Program id. The mainnet id is generated fresh at deploy time
-// (docs/MAINNET_RUNBOOK.md Gate 5, scripts/deploy-mainnet.sh preflight
-// refuses to deploy unless this matches the program keypair).
+// Program id. Devnet / localnet builds keep the devnet id; a `mainnet` build
+// declares the mainnet id (set 2026-11-11 from the owner's fresh program
+// keypair, which never leaves the owner's machine). scripts/deploy-mainnet.sh
+// preflight refuses to deploy unless the mainnet id matches PROGRAM_KEYPAIR
+// (docs/MAINNET_RUNBOOK.md Gate 5). Keep the devnet line first: tools that
+// read "the" id from this file (LiteSVM harness, CI devnet deploy) take the
+// first one.
+#[cfg(not(feature = "mainnet"))]
 declare_id!("3zKYYQT7LhCWLLnzbRMhTZJKmQdSwGzEghRrTyT4jdCL");
+#[cfg(feature = "mainnet")]
+declare_id!("3acaVErTYMArMbfXwMTEQiefUHBZgAkPuVaBgo1ptkc4");
 
 // security.txt (2026-11-08): read by Solscan / Solana Explorer from the
 // deployed binary ("Security" tab) and by `query-security-txt`. Same
@@ -383,6 +390,17 @@ pub mod swd_amm {
     pub fn emergency_pause_v2_pool(ctx: Context<EmergencyPauseV2Pool>, pause_swap: bool, pause_deposit: bool, pause_withdraw: bool) -> Result<()> {
         swdmm_v2::emergency_pause_v2_pool(ctx, pause_swap, pause_deposit, pause_withdraw)
     }
+
+    /// `emergency_pause_v2_pool` for many pools at once: the pools are the
+    /// remaining accounts (writable).
+    pub fn emergency_pause_v2_pools<'info>(
+        ctx: Context<'_, '_, 'info, 'info, EmergencyPauseV2Pools<'info>>,
+        pause_swap: bool,
+        pause_deposit: bool,
+        pause_withdraw: bool,
+    ) -> Result<()> {
+        swdmm_v2::emergency_pause_v2_pools(ctx, pause_swap, pause_deposit, pause_withdraw)
+    }
 }
 
 
@@ -686,6 +704,24 @@ mod tests {
         // forever — e.g. right after a later emergency pause.
         assert!(timelock::check_execution_window(after + timelock::EXECUTION_GRACE_SECS + 1, after).is_err());
         assert!(timelock::check_execution_window(i64::MAX, i64::MAX - 1).is_err(), "no overflow panic");
+    }
+
+    /// Internal review 2026-11-11: a matured action queued by a governance
+    /// key that has since been replaced (e.g. the deployer's SetTreasury)
+    /// must not be executable — execution is permissionless.
+    #[test]
+    fn attack_action_of_a_replaced_governance_is_stale() {
+        let old_gov = Pubkey::new_unique();
+        let mut c = governance::GlobalConfig {
+            governance_authority: old_gov,
+            emergency_authority: Pubkey::new_unique(),
+            pool_creation_paused: false,
+            bump: 255,
+        };
+        assert!(timelock::check_proposer_is_governance(&old_gov, &c).is_ok());
+        c.governance_authority = Pubkey::new_unique(); // the vault accepted
+        assert!(timelock::check_proposer_is_governance(&old_gov, &c).is_err());
+        assert!(timelock::check_proposer_is_governance(&c.governance_authority, &c).is_ok());
     }
 
     #[test]

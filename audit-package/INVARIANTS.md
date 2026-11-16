@@ -49,7 +49,7 @@ TypeScript localnet test (`tests/*.ts`). Details and run budgets:
 
 | # | Invariant | Evidence |
 |---|---|---|
-| I-17 | A timelocked action executes at most once, only when `execute_after ≤ now ≤ execute_after + 7 days`, and only against the account named in the action. | U (`attack_stale_timelock_action_expires`), S (9,300 executed actions), T (`swdmm_v2.ts` governance tests, `security-review.ts` F-2) |
+| I-17 | A timelocked action executes at most once, only when `execute_after ≤ now ≤ execute_after + 7 days`, only while its proposer is still the governance authority, and only against the account named in the action. | U (`attack_stale_timelock_action_expires`, `attack_action_of_a_replaced_governance_is_stale`), S (9,300 executed actions), T (`swdmm_v2.ts` governance tests, `security-review.ts` F-2) |
 | I-18 | On a `mainnet` build the timelock delay is always within 24 h–48 h (init and `SetTimelockDelay`). | Code (`validate_delay`), T (`v2-only.ts` with `SWD_MAINNET_BUILD=1`: a 5 s delay is refused) |
 | I-19 | Only the upgrade authority can initialise `GlobalConfig`; neither authority can ever be the default key; governance ≠ emergency (at init, and at propose **and** accept of every rotation). | U (`attack_authority_rotation_bad_keys`), T (`governance.ts`, `security-review.ts` F-4) |
 | I-20 | The emergency authority can pause and cancel pending unpauses, and nothing else. | T (`swdmm_v2.ts`, `security-review.ts` F-2, `v2-only.ts`) |

@@ -51,7 +51,7 @@ def instructions():
         s = line.strip()
         if s == GATE:
             gated = True; continue
-        m = re.match(r'pub fn (\w+)\(\s*ctx:\s*Context<(\w+)>', s) or re.match(r'pub fn (\w+)\($', s)
+        m = re.match(r'pub fn (\w+)\(\s*ctx:\s*Context<(\w+)>', s) or re.match(r"pub fn (\w+)(?:<'info>)?\($", s)
         if m:
             out.append((m.group(1), not gated)); gated = False
     return out

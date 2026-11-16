@@ -162,8 +162,7 @@ pub(crate) fn emergency_cancel_unpause(ctx: Context<EmergencyCancelUnpause>) -> 
 /// has moved, rotations queued by an earlier governance are stale.
 pub(crate) fn accept_authority(ctx: Context<AcceptAuthority>) -> Result<()> {
     let config = &mut ctx.accounts.config;
-    require_keys_eq!(ctx.accounts.pending.proposer, config.governance_authority, TimelockError::StaleAuthorityProposal);
-    let action = take_ready(&mut ctx.accounts.pending)?;
+    let action = take_ready(&mut ctx.accounts.pending, config)?;
     // Re-checked: the other authority may have changed since the proposal.
     check_authority_change(config, &action)?;
     let signer = ctx.accounts.new_authority.key();
@@ -186,9 +185,18 @@ pub(crate) fn accept_authority(ctx: Context<AcceptAuthority>) -> Result<()> {
     Ok(())
 }
 
-/// Shared checks for every execute_* instruction: still pending and the
-/// delay has passed. Marks it executed.
-fn take_ready(p: &mut Account<PendingAction>) -> Result<GovAction> {
+/// Shared checks for every execute_* instruction and `accept_authority`:
+/// proposed by the CURRENT governance, still pending and the delay has
+/// passed. Marks it executed.
+///
+/// The proposer check (2026-11-11, internal review): execution is
+/// permissionless, so without it an action queued by an earlier governance
+/// (e.g. the deployer key before the handover, or a key that was rotated
+/// away because it leaked) stayed executable after governance moved, until
+/// the new governance found and cancelled it. Now every pending action dies
+/// with the governance that proposed it.
+fn take_ready(p: &mut Account<PendingAction>, config: &GlobalConfig) -> Result<GovAction> {
+    check_proposer_is_governance(&p.proposer, config)?;
     require!(!p.executed && !p.cancelled, TimelockError::ActionNotPending);
     check_execution_window(Clock::get()?.unix_timestamp, p.execute_after)?;
     p.executed = true;
@@ -198,7 +206,7 @@ fn take_ready(p: &mut Account<PendingAction>) -> Result<GovAction> {
 
 #[cfg(not(feature = "v2-only"))]
 pub(crate) fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<()> {
-    match take_ready(&mut ctx.accounts.pending)? {
+    match take_ready(&mut ctx.accounts.pending, &ctx.accounts.config)? {
         GovAction::UnpauseCpPool { pool, swap, deposit, withdraw } => {
             require_keys_eq!(pool, ctx.accounts.pool.key(), TimelockError::ActionAccountMismatch);
             let p = &mut ctx.accounts.pool;
@@ -213,7 +221,7 @@ pub(crate) fn execute_unpause_pool(ctx: Context<ExecuteUnpausePool>) -> Result<(
 
 #[cfg(not(feature = "v2-only"))]
 pub(crate) fn execute_unpause_dlmm_pool(ctx: Context<ExecuteUnpauseDlmmPool>) -> Result<()> {
-    match take_ready(&mut ctx.accounts.pending)? {
+    match take_ready(&mut ctx.accounts.pending, &ctx.accounts.config)? {
         GovAction::UnpauseDlmmPool { pool, swap, deposit, withdraw } => {
             require_keys_eq!(pool, ctx.accounts.pool.key(), TimelockError::ActionAccountMismatch);
             let p = &mut ctx.accounts.pool;
@@ -227,7 +235,7 @@ pub(crate) fn execute_unpause_dlmm_pool(ctx: Context<ExecuteUnpauseDlmmPool>) ->
 }
 
 pub(crate) fn execute_v2_pool_action(ctx: Context<ExecuteV2PoolAction>) -> Result<()> {
-    let action = take_ready(&mut ctx.accounts.pending)?;
+    let action = take_ready(&mut ctx.accounts.pending, &ctx.accounts.config)?;
     let pool_key = ctx.accounts.pool.key();
     let p = &mut ctx.accounts.pool;
     match action {
@@ -261,7 +269,7 @@ pub(crate) fn execute_v2_pool_action(ctx: Context<ExecuteV2PoolAction>) -> Resul
 }
 
 pub(crate) fn execute_settings_action(ctx: Context<ExecuteSettingsAction>) -> Result<()> {
-    let action = take_ready(&mut ctx.accounts.pending)?;
+    let action = take_ready(&mut ctx.accounts.pending, &ctx.accounts.config)?;
     let s = &mut ctx.accounts.settings;
     match action {
         GovAction::SetProtocolFeeShare { bps } => s.protocol_fee_share_bps = bps,
@@ -275,12 +283,17 @@ pub(crate) fn execute_settings_action(ctx: Context<ExecuteSettingsAction>) -> Re
 /// Moves a SWDMM v2 pool's accrued protocol fees to the treasury's token
 /// accounts. Only reachable through a timelocked WithdrawV2ProtocolFees.
 pub(crate) fn execute_withdraw_protocol_fees(ctx: Context<ExecuteWithdrawProtocolFees>) -> Result<()> {
-    match take_ready(&mut ctx.accounts.pending)? {
+    match take_ready(&mut ctx.accounts.pending, &ctx.accounts.config)? {
         GovAction::WithdrawV2ProtocolFees { pool } => {
             require_keys_eq!(pool, ctx.accounts.pool.key(), TimelockError::ActionAccountMismatch);
         }
         _ => return err!(TimelockError::WrongActionKind),
     }
+    // A withdraw pause stops every outflow from the vaults (2026-11-11,
+    // internal review): if the incident is a fee-accounting bug, a matured
+    // protocol-fee withdrawal must not run either. The error reverts the
+    // whole instruction, so the action stays pending (until it expires).
+    require!(!ctx.accounts.pool.withdraw_paused, SwdmmV2Error::WithdrawPaused);
     crate::swdmm_v2::withdraw_protocol_fees(
         &mut ctx.accounts.pool,
         &ctx.accounts.vault_a,
@@ -336,6 +349,12 @@ pub(crate) fn set_mint_policy(
         freeze_authority,
         freeze_authority_trusted: freeze_authority.is_some() && trust_freeze_authority,
     });
+    Ok(())
+}
+
+/// A pending action counts only while its proposer is still governance.
+pub fn check_proposer_is_governance(proposer: &Pubkey, config: &GlobalConfig) -> Result<()> {
+    require_keys_eq!(*proposer, config.governance_authority, TimelockError::StaleAuthorityProposal);
     Ok(())
 }
 
@@ -493,6 +512,9 @@ pub struct EmergencyCancelUnpause<'info> {
 #[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct ExecuteUnpausePool<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
     pub pending: Account<'info, PendingAction>,
 
@@ -503,6 +525,9 @@ pub struct ExecuteUnpausePool<'info> {
 #[cfg(not(feature = "v2-only"))]
 #[derive(Accounts)]
 pub struct ExecuteUnpauseDlmmPool<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
     pub pending: Account<'info, PendingAction>,
 
@@ -512,6 +537,9 @@ pub struct ExecuteUnpauseDlmmPool<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteV2PoolAction<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
     pub pending: Account<'info, PendingAction>,
 
@@ -525,6 +553,9 @@ pub struct ExecuteV2PoolAction<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteSettingsAction<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
     pub pending: Account<'info, PendingAction>,
 
@@ -534,6 +565,9 @@ pub struct ExecuteSettingsAction<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteWithdrawProtocolFees<'info> {
+    #[account(seeds = [GLOBAL_CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+
     #[account(mut, seeds = [PENDING_ACTION_SEED, &pending.id.to_le_bytes()], bump = pending.bump)]
     pub pending: Account<'info, PendingAction>,
 
@@ -744,6 +778,6 @@ pub enum TimelockError {
     MathOverflow,
     #[msg("This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again")]
     ActionExpired,
-    #[msg("This authority rotation was proposed by an earlier governance authority: propose it again")]
+    #[msg("This governance action was proposed by an earlier governance authority: propose it again")]
     StaleAuthorityProposal,
 }

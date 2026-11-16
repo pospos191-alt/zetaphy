@@ -6,8 +6,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import BN from "bn.js";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
-import { createMint, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { createAssociatedTokenAccount, createMint, mintTo, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { assert } from "chai";
+import { LEGACY_POOLS, mintFeedPda, registerFeeds, v2PositionIndex } from "./oracle-fixtures";
 
 const code = (e: any) => e?.error?.errorCode?.code ?? (String(e).match(/Error Code: (\w+)/) || [])[1];
 async function expectThrows(fn: () => Promise<unknown>, label: string): Promise<any> {
@@ -72,9 +73,9 @@ describe("v2-only build (reduced mainnet scope)", function () {
       "initializeGovernanceSettings", "proposeGovAction", "cancelGovAction", "emergencyCancelUnpause",
       "executeV2PoolAction", "executeSettingsAction", "executeWithdrawProtocolFees", "setMintPolicy",
       "initializeV2Pool", "createV2Position", "addV2Liquidity", "removeV2Liquidity", "claimV2Fees",
-      "lockV2Liquidity", "transferV2Position", "closeV2Position", "swapV2", "emergencyPauseV2Pool",
+      "lockV2Liquidity", "transferV2Position", "closeV2Position", "swapV2", "emergencyPauseV2Pool", "emergencyPauseV2Pools",
     ]) assert.isTrue(names.has(n), `${n} missing`);
-    assert.equal(names.size, 23);
+    assert.equal(names.size, 24);
   });
 
   it("the binary refuses a CP instruction discriminator (not just the IDL)", async () => {
@@ -179,5 +180,94 @@ describe("v2-only build (reduced mainnet scope)", function () {
     }
     const p: any = await program.account.swdmmV2Pool.fetch(pool);
     assert.equal(p.creator.toBase58(), (MAINNET_BUILD ? payer : creator).publicKey.toBase58());
+  });
+
+  // KNOWN_ISSUES K-17: the most expensive swap_v2 path — Token-2022 mints on
+  // both sides, the Pyth guard, the dynamic fee, an exponential fee scheduler
+  // and (second swap of a transaction) the per-slot impact check — must fit
+  // the DEFAULT compute budget (200,000 units per instruction), because a
+  // wallet or aggregator may not set a limit. The swaps below carry no
+  // ComputeBudget instruction, so they would fail if they needed more; the
+  // numbers are printed for the audit package.
+  it("K-17: worst-case swap_v2 (Token-2022 + oracle guard + dynamic fee) fits the default compute budget", async () => {
+    const conn = provider.connection;
+    const T22 = TOKEN_2022_PROGRAM_ID;
+    const mintPolicy = (m: PublicKey) => pda(Buffer.from("mint_policy"), m.toBuffer());
+    const u16le = (n: number) => { const x = Buffer.alloc(2); x.writeUInt16LE(n); return x; };
+    const mints: PublicKey[] = [];
+    const tokens: PublicKey[] = [];
+    for (let i = 0; i < 2; i++) {
+      // 6 decimals on both sides: the "legacy-ratio1" fixture prices 1 raw B per raw A
+      const m = await createMint(conn, payer, payer.publicKey, null, 6, undefined, undefined, T22);
+      await program.methods.setMintPolicy(true, true, false)
+        .accounts({ config: globalConfig, governanceAuthority: payer.publicKey, mint: m, tokenProgram: T22, mintPolicy: mintPolicy(m), payer: payer.publicKey, systemProgram: SystemProgram.programId }).rpc();
+      const t = await createAssociatedTokenAccount(conn, payer, m, payer.publicKey, undefined, T22);
+      await mintTo(conn, payer, m, t, payer, 100_000_000_000n, [], undefined, T22);
+      mints.push(m); tokens.push(t);
+    }
+    const [a, b] = mints;
+    const [ta, tb] = tokens;
+    const fx = LEGACY_POOLS.ratioOne;
+    await registerFeeds(program, payer, globalConfig, [[a, fx.feedIdA], [b, fx.feedIdB]]);
+
+    const FLOOR = 100;
+    const pool = pda(Buffer.from("swdmm_v2_pool"), a.toBuffer(), b.toBuffer(), u16le(FLOOR));
+    const vaultA = pda(Buffer.from("swdmm_v2_vault"), pool.toBuffer(), a.toBuffer());
+    const vaultB = pda(Buffer.from("swdmm_v2_vault"), pool.toBuffer(), b.toBuffer());
+    const params = {
+      // time scheduler, exponential decay, the maximum number of periods (pow_q64 loop)
+      baseFee: { mode: 1, decay: 1, cliffFeeBps: 500, floorFeeBps: FLOOR, numberOfPeriods: 10_000, periodFrequency: new BN(1), reductionFactor: new BN(1) },
+      dynamicFee: { enabled: true, maxDynamicFeeBps: 500, variableFeeControl: 1_000, filterPeriod: 10, decayPeriod: 120, reductionFactor: 5_000, maxVolatilityAccumulator: new BN(100_000) },
+      collectFeeMode: 1, // fee in token B: taken from the output on A -> B, from the input on B -> A
+      activationTs: new BN(0), maxPriceImpactBps: 5_000,
+      oracle: { enabled: true, pythFeedIdA: fx.feedIdA, pythFeedIdB: fx.feedIdB, maxStalenessSecs: 3_600, maxDeviationBps: 5_000 },
+    };
+    await program.methods.initializeV2Pool(params).accounts({
+      creator: payer.publicKey, config: globalConfig, settings, mintA: a, mintB: b,
+      mintPolicyA: mintPolicy(a), mintPolicyB: mintPolicy(b), pool, vaultA, vaultB,
+      mintFeedA: mintFeedPda(program.programId, a), mintFeedB: mintFeedPda(program.programId, b),
+      tokenProgramA: T22, tokenProgramB: T22, systemProgram: SystemProgram.programId,
+    }).rpc();
+
+    const index = new BN(v2PositionIndex(payer.publicKey, 0).toString());
+    const position = pda(Buffer.from("swdmm_v2_position"), pool.toBuffer(), u64le(index));
+    await program.methods.createV2Position(new BN(0), index).accounts({ owner: payer.publicKey, pool, position, systemProgram: SystemProgram.programId }).rpc();
+    await program.methods.addV2Liquidity(new BN(10_000_000_000), new BN(10_000_000_000), new BN(0)).accounts({
+      owner: payer.publicKey, pool, position, mintA: a, mintB: b, vaultA, vaultB,
+      ownerTokenA: ta, ownerTokenB: tb, tokenProgramA: T22, tokenProgramB: T22,
+    }).rpc();
+
+    const swapIx = (amount: number, aToB: boolean) => program.methods.swapV2(new BN(amount), new BN(0), aToB).accounts({
+      trader: payer.publicKey, settings, pool, mintA: a, mintB: b, vaultA, vaultB,
+      traderTokenA: ta, traderTokenB: tb, tokenProgramA: T22, tokenProgramB: T22,
+      priceUpdateA: fx.priceUpdateA, priceUpdateB: fx.priceUpdateB,
+    }).instruction();
+    const units = async (label: string, ixs: anchor.web3.TransactionInstruction[]) => {
+      // provider defaults (a per-call commitment made the preflight look for a
+      // blockhash the node did not have at that commitment yet)
+      const sig = await provider.sendAndConfirm(new anchor.web3.Transaction().add(...ixs), []);
+      let tx = null;
+      for (let i = 0; i < 60 && !tx; i++) {
+        tx = await conn.getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+        if (!tx) await new Promise((r) => setTimeout(r, 500));
+      }
+      const cu = tx?.meta?.computeUnitsConsumed;
+      assert.isNumber(cu, `no compute-unit figure for ${label}`);
+      console.log(`    [K-17] ${label}: ${cu} compute units`);
+      return cu as number;
+    };
+
+    const LIMIT = 200_000; // default per instruction when no ComputeBudget instruction is sent
+    const first = await units("swap_v2 A->B (fee on output)", [await swapIx(500_000_000, true)]);
+    const back = await units("swap_v2 B->A (fee on input, volatility accumulated)", [await swapIx(300_000_000, false)]);
+    const pair = await units("two swap_v2 in one transaction (per-slot impact check on the second)", [await swapIx(200_000_000, true), await swapIx(200_000_000, true)]);
+    const worst = Math.max(first, back, pair - Math.min(first, back));
+    console.log(`    [K-17] worst single swap_v2: about ${worst} of ${LIMIT} compute units (${MAINNET_BUILD ? "mainnet,v2-only" : "v2-only"} build)`);
+    assert.isBelow(first, LIMIT);
+    assert.isBelow(back, LIMIT);
+    assert.isBelow(pair, 2 * LIMIT);
+    const after: any = await program.account.swdmmV2Pool.fetch(pool);
+    assert.equal(after.swapCount.toString(), "4");
+    assert.ok(new BN(after.volatilityAccumulator).gtn(0), "the dynamic fee path ran");
   });
 });

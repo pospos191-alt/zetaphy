@@ -8,8 +8,8 @@
 | Toolchain | Anchor 0.31.1, Solana / Agave CLI 3.1.10 (its platform-tools for the SBF build), Rust stable for host tests |
 | Build audited | `anchor build -- --features mainnet,v2-only` (what `scripts/deploy-mainnet.sh` deploys) |
 | Program size | 806,640-byte `.so`, sha256 `e6e3921713380585…3c423651f` (local `anchor build -- --features mainnet,v2-only`, 2026-11-11, after the pre-audit hardening; the reproducible Docker `solana-verify build` hash is recorded at freeze) |
-| Instructions | 23 (list: [INSTRUCTIONS.md](INSTRUCTIONS.md)) |
-| **nSLOC in scope** | **2,600** |
+| Instructions | 24 (list: [INSTRUCTIONS.md](INSTRUCTIONS.md)) |
+| **nSLOC in scope** | **2,647** |
 
 nSLOC = non-blank, non-comment Rust lines, `#[cfg(test)]` modules excluded, items
 compiled out by `v2-only` excluded. Reproduce with
@@ -24,8 +24,8 @@ binary by the Cargo feature `v2-only` (not just "unused"):
 
 | | Full build (default) | Mainnet build (`mainnet,v2-only`) |
 |---|---|---|
-| nSLOC | 4,820 | **2,600** (−46%) |
-| Instructions | 38 | 23 |
+| nSLOC | 4,871 | **2,647** (−46%) |
+| Instructions | 39 | 24 |
 | Account types (IDL) | 13 | 8 |
 | Events | 32 | 19 |
 | `.so` size | 1,294,360 B | 806,640 B |
@@ -37,20 +37,20 @@ structs and events. The `GovAction` enum and every `#[error_code]` enum are kept
 identical in both builds (stable Borsh layout and error numbers); a `v2-only` build
 refuses to *propose* `UnpauseCpPool` / `UnpauseDlmmPool` (`WrongActionKind`). CI
 builds both feature sets and runs the v2 / governance / security suites against the
-`v2-only` binary, and checks the `mainnet,v2-only` IDL has exactly 23 instructions
+`v2-only` binary, and checks the `mainnet,v2-only` IDL has exactly 24 instructions
 (`.github/workflows/security.yml`, job `program`; `tests/v2-only.ts`).
 
 ## Files in scope
 
 | File | nSLOC | Contents |
 |---|---|---|
-| `programs/swd_amm/src/swdmm_v2.rs` | 983 | SWDMM v2 pools: `SwdmmV2Pool` / `SwdmmV2Position` state, 10 instruction handlers, account validation, token CPIs (`transfer_checked`, PDA-signed outflows), mint-policy check, transfer-fee refusal, governance-only creation on `mainnet` (`check_v2_creator`) |
-| `programs/swd_amm/src/timelock.rs` | 517 | `GovernanceSettings`, `PendingAction` / `GovAction` (propose → delay → permissionless execute within 7 days; cancel; emergency cancel of unpauses), two-step authority rotation (`accept_authority`), protocol-fee withdrawal, `MintPolicy` (`set_mint_policy`, freeze-authority trust), 24–48 h bound under `mainnet` |
+| `programs/swd_amm/src/swdmm_v2.rs` | 1,009 | SWDMM v2 pools: `SwdmmV2Pool` / `SwdmmV2Position` state, 11 instruction handlers, account validation, token CPIs (`transfer_checked`, PDA-signed outflows), mint-policy check, transfer-fee refusal, governance-only creation on `mainnet` (`check_v2_creator`) |
+| `programs/swd_amm/src/timelock.rs` | 528 | `GovernanceSettings`, `PendingAction` / `GovAction` (propose → delay → permissionless execute within 7 days; cancel; emergency cancel of unpauses), two-step authority rotation (`accept_authority`), protocol-fee withdrawal, `MintPolicy` (`set_mint_policy`, freeze-authority trust), 24–48 h bound under `mainnet` |
 | `programs/swd_amm/src/swdmm_math.rs` | 387 | Pure integer math (no Anchor): mul-div floor/ceil, isqrt, Q64.64 price, fee schedulers (time / market cap, linear / exponential), dynamic (volatility) fee, swap with three fee-collection modes and protocol share, deposit / withdraw quotes, fee growth, pending fee, impact caps |
-| `programs/swd_amm/src/oracle.rs` | 280 | Hand-written Pyth `PriceUpdateV2` account type (owner, discriminator, Borsh layout), staleness / confidence / verification checks, oracle price in Q64.64, deviation guard (optional for v2 pools) |
+| `programs/swd_amm/src/oracle.rs` | 279 | Hand-written Pyth `PriceUpdateV2` account type (owner, discriminator, Borsh layout), staleness / confidence / verification checks, oracle price in Q64.64, deviation guard (optional for v2 pools) |
 | `programs/swd_amm/src/governance.rs` | 231 | `GlobalConfig` (governance + emergency authority, pool-creation pause), `initialize_global_config` (upgrade-authority gated), `set_mint_feed` / `MintFeed`, `verify_governance_multisig` (Squads v4 account parsing at fixed offsets) |
-| `programs/swd_amm/src/lib.rs` | 202 | `#[program]` entry points (thin wrappers), `SwdAmmError`, Token-2022 extension gate `assert_mint_extensions_safe`, freeze checks `assert_freeze_authority_trusted` / `assert_vault_not_frozen`, embedded `security.txt`, `declare_id!` |
-| **Total** | **2,600** | |
+| `programs/swd_amm/src/lib.rs` | 213 | `#[program]` entry points (thin wrappers), `SwdAmmError`, Token-2022 extension gate `assert_mint_extensions_safe`, freeze checks `assert_freeze_authority_trusted` / `assert_vault_not_frozen`, embedded `security.txt`, `declare_id!` |
+| **Total** | **2,647** | |
 
 Also in scope (small, configuration):
 
@@ -61,9 +61,9 @@ Also in scope (small, configuration):
 
 - **lib.rs** — entry points: `initialize_global_config`, `accept_authority`, `set_pool_creation_paused`, `set_mint_feed`, `verify_governance_multisig`, `initialize_governance_settings`, `propose_gov_action`, `cancel_gov_action`, `emergency_cancel_unpause`, `execute_v2_pool_action`, `execute_settings_action`, `execute_withdraw_protocol_fees`, `set_mint_policy`, `initialize_v2_pool`, `create_v2_position`, `add_v2_liquidity`, `remove_v2_liquidity`, `claim_v2_fees`, `lock_v2_liquidity`, `transfer_v2_position`, `close_v2_position`, `swap_v2`, `emergency_pause_v2_pool`; helpers `assert_mint_extensions_safe`, `assert_freeze_authority_trusted`, `assert_vault_not_frozen`; `SwdAmmError`.
 - **governance.rs** — `initialize_global_config`, `creation_allowed`, `set_pool_creation_paused`, `set_mint_feed`, `verify_governance_multisig`, `read_squads_multisig_summary`, `derive_squads_vault_pda`; accounts `InitializeGlobalConfig`, `GovernanceOnly`, `SetMintFeed`, `VerifyGovernanceMultisig`; state `GlobalConfig`, `MintFeed`; `GovernanceError`.
-- **timelock.rs** — `initialize_governance_settings`, `propose_action`, `cancel_action`, `emergency_cancel_unpause`, `take_ready`, `execute_v2_pool_action`, `execute_settings_action`, `execute_withdraw_protocol_fees`, `accept_authority`, `set_mint_policy`, `check_execution_window`, `check_authority_change`, `action_delay`, `validate_delay`, `validate_action`, `is_mainnet_build`; accounts `InitializeGovernanceSettings`, `ProposeAction`, `CancelAction`, `EmergencyCancelUnpause`, `ExecuteV2PoolAction`, `ExecuteSettingsAction`, `ExecuteWithdrawProtocolFees`, `AcceptAuthority`, `SetMintPolicy`; state `GovernanceSettings`, `GovAction`, `PendingAction`, `MintPolicy`; `TimelockError`.
+- **timelock.rs** — `initialize_governance_settings`, `propose_action`, `cancel_action`, `emergency_cancel_unpause`, `take_ready`, `check_proposer_is_governance`, `execute_v2_pool_action`, `execute_settings_action`, `execute_withdraw_protocol_fees`, `accept_authority`, `set_mint_policy`, `check_execution_window`, `check_authority_change`, `action_delay`, `validate_delay`, `validate_action`, `is_mainnet_build`; accounts `InitializeGovernanceSettings`, `ProposeAction`, `CancelAction`, `EmergencyCancelUnpause`, `ExecuteV2PoolAction`, `ExecuteSettingsAction`, `ExecuteWithdrawProtocolFees`, `AcceptAuthority`, `SetMintPolicy`; state `GovernanceSettings`, `GovAction`, `PendingAction`, `MintPolicy`; `TimelockError`.
 - **oracle.rs** — `PriceUpdateV2` (`Owner`, `Discriminator`, `AccountSerialize`, `AccountDeserialize`, `get_price_no_older_than`), `validate_oracle_params`, `oracle_price_q64`, `deviation_bps`, `dynamic_fee_bps`, `confidence_ok`, `guard_allows`, `OracleFeeResult::enforce_guard`, `evaluate_oracle_and_fee`; `OracleError`.
-- **swdmm_v2.rs** — `initialize_v2_pool`, `v2_position_index`, `create_v2_position`, `add_v2_liquidity`, `remove_v2_liquidity`, `claim_v2_fees`, `lock_v2_liquidity`, `transfer_v2_position`, `close_v2_position`, `swap_v2`, `emergency_pause_v2_pool`, `withdraw_protocol_fees`, `check_v2_creator`, `check_mint_policy`, `assert_no_transfer_fee`, `transfer_in`, `transfer_out`, `SwdmmV2Pool::{signer_seeds, vol_state, set_vol_state, current_base_fee_bps}`, `SwdmmV2Position::settle`; 8 Accounts structs; `SwdmmV2Error`.
+- **swdmm_v2.rs** — `initialize_v2_pool`, `v2_position_index`, `create_v2_position`, `add_v2_liquidity`, `remove_v2_liquidity`, `claim_v2_fees`, `lock_v2_liquidity`, `transfer_v2_position`, `close_v2_position`, `swap_v2`, `emergency_pause_v2_pool`, `emergency_pause_v2_pools`, `withdraw_protocol_fees`, `check_v2_creator`, `check_mint_policy`, `assert_no_transfer_fee`, `transfer_in`, `transfer_out`, `SwdmmV2Pool::{signer_seeds, vol_state, set_vol_state, current_base_fee_bps}`, `SwdmmV2Position::settle`; 9 Accounts structs; `SwdmmV2Error`.
 - **swdmm_math.rs** — every `pub fn` (27 functions, listed in the file).
 
 ## Out of scope

@@ -105,4 +105,4 @@ lists only one of these enums (and numbers it from 6000), so use this table, not
 | 8511 | 0x213f | TimelockError | UseTimelockedUnpause | Instant unpause is disabled: use the timelocked propose/execute flow | `timelock.rs` | yes |
 | 8512 | 0x2140 | TimelockError | MathOverflow | Math overflow | `timelock.rs` | yes |
 | 8513 | 0x2141 | TimelockError | ActionExpired | This governance action matured more than EXECUTION_GRACE_SECS ago and expired: propose it again | `timelock.rs` | yes |
-| 8514 | 0x2142 | TimelockError | StaleAuthorityProposal | This authority rotation was proposed by an earlier governance authority: propose it again | `timelock.rs` | yes |
+| 8514 | 0x2142 | TimelockError | StaleAuthorityProposal | This governance action was proposed by an earlier governance authority: propose it again | `timelock.rs` | yes |

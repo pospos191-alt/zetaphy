@@ -304,7 +304,7 @@ describe("security review 2026-11-10 (attack tests)", () => {
     assert.equal(code(await expectThrows(() => accept(pending, stranger), "accept by a stranger")), "Unauthorized");
     assert.deepEqual(await authorities(), before, "nothing changed");
     // Not executable through any permissionless execute_* either.
-    assert.equal(code(await expectThrows(() => program.methods.executeSettingsAction().accounts({ pending, settings }).rpc(), "execute")), "WrongActionKind");
+    assert.equal(code(await expectThrows(() => program.methods.executeSettingsAction().accounts({ config: globalConfig, pending, settings }).rpc(), "execute")), "WrongActionKind");
     await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending }).rpc();
     assert.equal(code(await expectThrows(() => accept(pending, typo), "accept a cancelled rotation")), "ActionNotPending");
   });
@@ -316,6 +316,11 @@ describe("security review 2026-11-10 (attack tests)", () => {
     // queued by the CURRENT governance, accepted only after it moved: stale
     const strayEmergency = Keypair.generate(); await fund(strayEmergency, 1);
     const stray = await proposeAs({ setEmergencyAuthority: { newAuthority: strayEmergency.publicKey } });
+    // Same for every other kind of action (internal review 2026-11-11): one
+    // queued by a governance key that has since been replaced must not be
+    // executable by anyone.
+    const strayTreasury = await proposeAs({ setTreasury: { treasury: Keypair.generate().publicKey } });
+    const executeStray = () => program.methods.executeSettingsAction().accounts({ config: globalConfig, pending: strayTreasury, settings }).rpc();
     assert.equal(code(await expectThrows(() => accept(pending, newGov), "accept before the delay")), "TimelockNotElapsed");
     await sleep(await delayMs());
     await accept(pending, newGov);
@@ -324,6 +329,9 @@ describe("security review 2026-11-10 (attack tests)", () => {
       assert.equal(code(await expectThrows(() => program.methods.setPoolCreationPaused(true)
         .accounts({ config: globalConfig, governanceAuthority: payer.publicKey }).rpc(), "old governance")), "Unauthorized");
       assert.equal(code(await expectThrows(() => accept(stray, strayEmergency), "stale emergency rotation")), "StaleAuthorityProposal");
+      const treasuryBefore = ((await program.account.governanceSettings.fetch(settings)) as any).treasury.toBase58();
+      assert.equal(code(await expectThrows(executeStray, "matured SetTreasury of the old governance")), "StaleAuthorityProposal");
+      assert.equal(((await program.account.governanceSettings.fetch(settings)) as any).treasury.toBase58(), treasuryBefore);
       // its own proposer (payer) is no longer governance either, so a replay is stale before it is "executed"
       assert.equal(code(await expectThrows(() => accept(pending, newGov), "accept twice")), "StaleAuthorityProposal");
     } finally {
@@ -336,6 +344,7 @@ describe("security review 2026-11-10 (attack tests)", () => {
     // `stray` was proposed by the governance key that is back in charge, so it
     // is valid again: governance cancels what it no longer wants.
     await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending: stray }).rpc();
+    await program.methods.cancelGovAction().accounts({ config: globalConfig, governanceAuthority: payer.publicKey, pending: strayTreasury }).rpc();
   });
 
   it("K-3: the emergency key rotates without a delay, but still only with the new key's signature", async () => {

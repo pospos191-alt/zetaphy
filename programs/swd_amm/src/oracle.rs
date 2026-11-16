@@ -395,12 +395,16 @@ pub fn oracle_price_q64(
 pub fn deviation_bps(pool_price_q64: u128, oracle_price_q64: u128) -> Result<u64> {
     require!(oracle_price_q64 > 0, OracleError::InvalidOraclePrice);
     let diff = pool_price_q64.abs_diff(oracle_price_q64);
-    let bps = diff
-        .checked_mul(10_000)
-        .ok_or(OracleError::MathOverflow)?
-        .checked_div(oracle_price_q64)
-        .ok_or(OracleError::MathOverflow)?;
-    u64::try_from(bps).map_err(|_| OracleError::MathOverflow.into())
+    // diff * 10_000 overflows u128 for a Q64.64 price above ~2^114; divide
+    // first then (a little precision for no overflow, as in
+    // swdmm_math::price_change_bps) and saturate, so an extreme price reads
+    // as "very far from the oracle" instead of failing the swap with
+    // MathOverflow (2026-11-11, internal review).
+    let bps = match diff.checked_mul(10_000) {
+        Some(p) => p / oracle_price_q64,
+        None => (diff / oracle_price_q64).saturating_mul(10_000),
+    };
+    Ok(u64::try_from(bps).unwrap_or(u64::MAX))
 }
 
 /// Linearly scales this swap's fee from `base_fee_bps` (at zero
@@ -571,6 +575,19 @@ mod oracle_math_tests {
     fn oracle_price_q64_rejects_nonpositive_price() {
         assert!(oracle_price_q64(0, -8, 6, 1_00000000, -8, 6).is_err());
         assert!(oracle_price_q64(1_00000000, -8, 6, -1, -8, 6).is_err());
+    }
+
+    /// Internal review 2026-11-11: `diff * 10_000` overflowed u128 for a
+    /// Q64.64 pool price above ~2^114 and failed the swap with MathOverflow.
+    #[test]
+    fn deviation_bps_does_not_overflow_on_extreme_prices() {
+        assert_eq!(deviation_bps(u128::MAX, Q64_ONE).unwrap(), u64::MAX);
+        assert_eq!(deviation_bps(u128::MAX, u128::MAX - 1).unwrap(), 0);
+        // just past the overflow point: divide-first keeps the right magnitude
+        let oracle = 1u128 << 100;
+        let pool = (1u128 << 120) + oracle; // 2^20 x above the oracle
+        assert_eq!(deviation_bps(pool, oracle).unwrap(), (1u64 << 20) * 10_000);
+        assert!(!guard_allows(0, deviation_bps(pool, oracle).unwrap(), 5_000));
     }
 
     #[test]
