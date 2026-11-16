@@ -1,5 +1,7 @@
 #!/bin/bash
-# ZETAPHY Saphan MAINNET: the Hyperlane validator(s) and the relayer for ZTPHY ZETAPHY (3659) <-> Base (8453).
+# ZETAPHY Saphan MAINNET: the Hyperlane validator(s) and the relayer for ZTPHY ZETAPHY (3659) <-> Base (8453) and the
+# other routes of saphan-mainnet.json (BNB Smart Chain 56, Arbitrum One 42161; any enabled destination): ONE relayer for
+# every route, our ONE ZETAPHY validator (its checkpoints are good for every destination).
 # Runbook (EN/TH): docs/SAPHAN-MAINNET.md "Agents". Ubuntu 22.04/24.04, x86_64 or arm64, run with sudo.
 #
 #   sudo bash setup-agents-mainnet.sh install            [เปลี่ยนการตั้งค่า] Docker, the pinned agent image, swap on small
@@ -8,11 +10,12 @@
 #   sudo AGENT_CONFIG=<file> [CONFIG_SHA256=<hex>] bash setup-agents-mainnet.sh config
 #                                                         [เปลี่ยนการตั้งค่า] the agent config written by
 #                                                         `node scripts/saphan-mainnet.js agent-config` (no secrets in it)
-#   sudo bash setup-agents-mainnet.sh start-validators   [เปลี่ยนการตั้งค่า] our ZETAPHY validator (+ the Base one with VALIDATE_BASE=yes)
+#   sudo bash setup-agents-mainnet.sh start-validators   [เปลี่ยนการตั้งค่า] our ZETAPHY validator (+ the Base one with VALIDATE_BASE=yes,
+#                                                         + one per route in VALIDATE_ORIGINS="bsc arbitrum" where originValidators.mode = "ours")
 #   sudo RELAYER_ENV=<file> bash setup-agents-mainnet.sh start-relayer
 #                                                         [เปลี่ยนการตั้งค่า] the relayer; RELAYER_ENV = the output of
 #                                                         `node scripts/saphan-mainnet.js relayer-env` (whitelist: the vault
-#                                                         and the synthetic only, so nobody can spend its Base ETH)
+#                                                         and the synthetic of each route only, so nobody can spend its gas)
 #   sudo DOMAIN=<host> bash setup-agents-mainnet.sh publish-checkpoints
 #                                                         [เปลี่ยนการตั้งค่า] optional: a read-only public copy of the signed
 #                                                         checkpoints over HTTPS (Caddy), so anyone can audit what we signed
@@ -20,7 +23,9 @@
 #
 # Machine: see the runbook. On a 1 GB Oracle E2.1.Micro the validators fit (with the 2 GB swap made here); the relayer
 # with them is tight and may be restarted by the kernel under memory pressure (it resumes from its database, nothing is
-# lost, deliveries wait). The free Ampere A1 (arm64, up to 24 GB) runs all three comfortably: prefer it.
+# lost, deliveries wait). The free Ampere A1 (arm64, up to 24 GB) runs all three comfortably: prefer it. On the 1-CPU /
+# 6 GB sentry: the relayer's cap grows with the chains it relays (MEM_RELAYER_PER_CHAIN per chain after the first two,
+# at most 40% of the RAM), and every agent runs with a low CPU weight so the ZETAPHY node keeps the CPU when it needs it.
 #
 # Checkpoints: local storage (free). The validators write /var/lib/hyperlane-mainnet/checkpoints/<origin>; the relayer
 # on this same machine reads them (the same path inside the containers). Keys: 32 bytes from /dev/urandom, written once
@@ -38,7 +43,9 @@ SETTINGS=$ETC/settings.env
 AGENT_UID=10392   # the containers run as this uid, never root
 # memory caps (MB): small enough for a 1 GB machine with swap; raise them on a bigger one (MEM_RELAYER=1500 etc.)
 MEM_VALIDATOR="${MEM_VALIDATOR:-220}"
-MEM_RELAYER="${MEM_RELAYER:-480}"
+MEM_RELAYER_BASE="${MEM_RELAYER_BASE:-480}"            # ZETAPHY + one destination
+MEM_RELAYER_PER_CHAIN="${MEM_RELAYER_PER_CHAIN:-200}"  # each more destination (its index, its RPC, its queue)
+CPU_SHARES="${CPU_SHARES:-512}"                         # docker's default is 1024: under contention the node wins
 
 say() { printf '\n== %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -109,7 +116,19 @@ rpc() { curl -fsS --max-time 20 -H 'content-type: application/json' --data "{\"j
 cfg() { jq -r "$1" "$ETC/agent-config.json"; }
 eth() { local w; w=$(rpc "$1" eth_getBalance "[\"$2\",\"latest\"]" 2>/dev/null) || { echo '?'; return; }
   [ -n "$w" ] && python3 -c "print(f'{int(\"$w\",16)/1e18:.6f}')" || echo '?'; }
-validators() { echo zetaphy; [ "${VALIDATE_BASE:-no}" = yes ] && echo base; true; }
+# our validators: ZETAPHY always; Base with VALIDATE_BASE=yes (as before); any route in VALIDATE_ORIGINS="bsc arbitrum"
+validators() {
+  echo zetaphy
+  local o; for o in $( [ "${VALIDATE_BASE:-no}" = yes ] && echo base ) ${VALIDATE_ORIGINS:-}; do
+    { [[ "$o" =~ ^[a-z]{2,20}$ ]] && [ "$o" != zetaphy ] && echo "$o"; } || true
+  done | sort -u
+}
+# the relayer's memory cap (MB): MEM_RELAYER if set, else by the number of chains in the agent config, at most 40% of the RAM
+mem_relayer() {
+  [ -n "${MEM_RELAYER:-}" ] && { echo "$MEM_RELAYER"; return; }
+  local n ram m; n=$(jq '.chains | length' "$ETC/agent-config.json" 2>/dev/null || echo 2); ram=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
+  m=$(( MEM_RELAYER_BASE + (n > 2 ? n - 2 : 0) * MEM_RELAYER_PER_CHAIN )); [ "$m" -gt $(( ram * 2 / 5 )) ] && [ $(( ram * 2 / 5 )) -ge "$MEM_RELAYER_BASE" ] && m=$(( ram * 2 / 5 ))
+  echo "$m"; }
 
 install_all() {
   say "packages (Docker, jq, curl, python3)"
@@ -131,11 +150,12 @@ install_all() {
 
   say "folders"
   install -d -m 700 "$ETC"; install -d -m 755 "$DATA" "$DATA/checkpoints"
-  for d in validator-zetaphy validator-base relayer checkpoints/zetaphy checkpoints/base; do install -d -m 750 -o "$AGENT_UID" -g "$AGENT_UID" "$DATA/$d"; done
+  for d in validator-zetaphy validator-base relayer checkpoints/zetaphy checkpoints/base $(validators | sed 's#^#validator-#') $(validators | sed 's#^#checkpoints/#'); do install -d -m 750 -o "$AGENT_UID" -g "$AGENT_UID" "$DATA/$d"; done
   chown "$AGENT_UID:$AGENT_UID" "$DATA/checkpoints"
 
   say "keys (made here, never printed)"
   [ -n "${VALIDATE_BASE:-}" ] && save VALIDATE_BASE "$VALIDATE_BASE"
+  [ -n "${VALIDATE_ORIGINS:-}" ] && save VALIDATE_ORIGINS "$VALIDATE_ORIGINS"
   for v in $(validators); do keytool new "$ETC/validator-$v.key" >/dev/null; done
   keytool new "$ETC/relayer.key" >/dev/null
   chmod 600 "$ETC"/*.key
@@ -146,8 +166,8 @@ Next (docs/SAPHAN-MAINNET.md "Agents"):
   1. put the validator address(es) in zetaphy-chain/hyperlane/mainnet/saphan-mainnet.json (validators.*), pull request
   2. after the deploy: node scripts/saphan-mainnet.js agent-config --out agent-config.json   (copy it here)
        sudo AGENT_CONFIG=agent-config.json bash setup-agents-mainnet.sh config
-  3. send 0.1 ZTPHY to the ZETAPHY validator$( [ "${VALIDATE_BASE:-no}" = yes ] && echo ', 0.0002 ETH on Base to the Base validator'), then start-validators
-  4. ETH on Base to the relayer (the plan's float), then start-relayer
+  3. send 0.1 ZTPHY to the ZETAPHY validator$( [ "${VALIDATE_BASE:-no}" = yes ] && echo ', 0.0002 ETH on Base to the Base validator')$( [ -n "${VALIDATE_ORIGINS:-}" ] && echo ", a little gas to each validator of $VALIDATE_ORIGINS"), then start-validators
+  4. gas to the relayer on every route's chain (ETH on Base and Arbitrum, BNB on BSC: the plan's floats) and 1 ZTPHY, then start-relayer
 EOF
 }
 
@@ -162,7 +182,7 @@ Requires=docker.service
 
 [Service]
 ExecStartPre=-/usr/bin/docker rm -f hypm-$1
-ExecStart=/usr/bin/docker run --rm --name hypm-$1 --user $AGENT_UID:$AGENT_UID --memory ${4}m --memory-swap $(( $4 * 2 ))m \\
+ExecStart=/usr/bin/docker run --rm --name hypm-$1 --user $AGENT_UID:$AGENT_UID --memory ${4}m --memory-swap $(( $4 * 2 ))m --cpu-shares $CPU_SHARES \\
   --cap-drop ALL --security-opt no-new-privileges --env-file $ETC/$1.env \\
   -v $ETC/agent-config.json:/config/agent-config.json:ro -v $DATA/$1:/data $3 \\
   -p 127.0.0.1:$2:$2 $IMAGE ./$5
@@ -198,7 +218,8 @@ write_relayer() {
   mapfile -t lines < <(grep -E '^HYP_(RELAYCHAINS|WHITELIST|CHAINS_[A-Z]+_INDEX_(FROM|CHUNK)|GASPAYMENTENFORCEMENT)=' "$RELAYER_ENV")
   env_file relayer CONFIG_FILES=/config/agent-config.json HYP_DB=/data HYP_DEFAULTSIGNER_TYPE=hexKey "HYP_DEFAULTSIGNER_KEY=$rk" \
     HYP_ALLOWLOCALCHECKPOINTSYNCERS=true "${lines[@]}" HYP_METRICSPORT=9101 HYP_LOG_FORMAT=pretty HYP_LOG_LEVEL=info
-  unit relayer 9101 "-v $DATA/checkpoints:/checkpoints:ro" "$MEM_RELAYER" relayer
+  unit relayer 9101 "-v $DATA/checkpoints:/checkpoints:ro" "$(mem_relayer)" relayer
+  echo "relayer: $(jq -r '[.chains | keys[]] | join(", ")' "$ETC/agent-config.json"), memory cap $(mem_relayer) MB"
   unset rk
 }
 
@@ -209,15 +230,15 @@ start() { systemctl enable "hyperlane-mainnet-$1" >/dev/null 2>&1; systemctl res
 
 show_addresses() {
   say "addresses (fund these; the keys stay in $ETC)"
-  for v in $(validators); do echo "validator-$v  $(addr_of "validator-$v")   $( [ "$v" = zetaphy ] && echo 'ZETAPHY: 0.1 ZTPHY once (announce)' || echo 'Base: 0.0002 ETH once (announce)')"; done
-  echo "relayer            $(addr_of relayer)   Base: ETH for ZETAPHY -> Base deliveries; ZETAPHY: 1 ZTPHY for Base -> ZETAPHY"
+  for v in $(validators); do echo "validator-$v  $(addr_of "validator-$v")   $(case "$v" in zetaphy) echo 'ZETAPHY: 0.1 ZTPHY once (announce)';; base) echo 'Base: 0.0002 ETH once (announce)';; *) echo "$v: a little of its gas token once (announce)";; esac)"; done
+  echo "relayer            $(addr_of relayer)   every route's chain: its gas token for ZETAPHY -> that chain (ETH on Base/Arbitrum, BNB on BSC); ZETAPHY: 1 ZTPHY for the way back"
 }
 
 status() {
   for a in $(validators | sed 's/^/validator-/') relayer; do printf '%-18s %s\n' "$a" "$(systemctl is-active "hyperlane-mainnet-$a" 2>/dev/null || true)"; done
   [ -f "$ETC/relayer.key" ] || { echo "not installed: sudo bash setup-agents-mainnet.sh install"; return; }
   [ -f "$ETC/agent-config.json" ] || { echo "no agent config yet"; show_addresses; return; }
-  local zr br; zr=$(cfg '.chains.zetaphy.rpcUrls[0].http'); br=$(cfg '.chains.base.rpcUrls[0].http')
+  local zr; zr=$(cfg '.chains.zetaphy.rpcUrls[0].http')
   for v in $(validators); do
     local cp; cp=$(ls "$DATA/checkpoints/$v" 2>/dev/null | grep -E '^[0-9]+_with_id\.json$' | sort -n | tail -1 || true)
     echo "checkpoint $v  ${cp:-none yet}"
@@ -227,8 +248,14 @@ status() {
   if rpc "$zr" eth_call "[{\"to\":\"$va\",\"data\":\"0x690cb786\"},\"latest\"]" 2>/dev/null | grep -q "${me#0x}"; then
     echo "announced zetaphy  yes"; else echo "announced zetaphy  not yet (needs 0.1 ZTPHY on the validator address)"; fi
   echo "validator-zetaphy  ZETAPHY $(eth "$zr" "$(addr_of validator-zetaphy)") ZTPHY"
-  [ "${VALIDATE_BASE:-no}" = yes ] && echo "validator-base     Base $(eth "$br" "$(addr_of validator-base)") ETH"
-  echo "relayer            Base $(eth "$br" "$(addr_of relayer)") ETH   ZETAPHY $(eth "$zr" "$(addr_of relayer)") ZTPHY"
+  for v in $(validators | grep -vx zetaphy); do
+    local vr vs; vr=$(cfg ".chains.\"$v\".rpcUrls[0].http // empty"); vs=$(cfg ".chains.\"$v\".nativeToken.symbol // empty")
+    [ -n "$vr" ] && echo "validator-$v  $v $(eth "$vr" "$(addr_of "validator-$v")") $vs"
+  done
+  echo "relayer            ZETAPHY $(eth "$zr" "$(addr_of relayer)") ZTPHY"
+  for c in $(cfg '.chains | keys[]' | grep -vx zetaphy); do
+    echo "relayer            $c $(eth "$(cfg ".chains.\"$c\".rpcUrls[0].http")" "$(addr_of relayer)") $(cfg ".chains.\"$c\".nativeToken.symbol")"
+  done
   free -m | awk 'NR==2 {print "memory used " $3 " MB of " $2 " MB"} NR==3 {print "swap used   " $3 " MB of " $2 " MB"}'
 }
 
@@ -255,8 +282,11 @@ case "${1:-}" in
   config)
     [ -f "${AGENT_CONFIG:-}" ] || die "AGENT_CONFIG=<file from saphan-mainnet.js agent-config>"
     if [ -n "${CONFIG_SHA256:-}" ]; then echo "$CONFIG_SHA256  $AGENT_CONFIG" | sha256sum -c --quiet - || die "agent config hash mismatch: refused"; fi
-    jq -e '.chains.zetaphy.domainId == 3659 and .chains.base.domainId == 8453 and (.chains.zetaphy.mailbox | test("^0x[0-9a-fA-F]{40}$"))' "$AGENT_CONFIG" >/dev/null \
-      || die "not a ZETAPHY mainnet (3659) + Base (8453) agent config"
+    # ZETAPHY 3659 and Base 8453 (as before); every other chain: a route name, its domain, a Mailbox address
+    jq -e '.chains.zetaphy.domainId == 3659 and .chains.base.domainId == 8453 and (.chains.zetaphy.mailbox | test("^0x[0-9a-fA-F]{40}$"))
+      and ([.chains | to_entries[] | select((.key | test("^[a-z]{2,20}$")) and .value.name == .key and (.value.domainId | type) == "number"
+        and (.value.domainId != 3659 or .key == "zetaphy") and (.value.mailbox | test("^0x[0-9a-fA-F]{40}$")))] | length) == (.chains | length)' "$AGENT_CONFIG" >/dev/null \
+      || die "not a ZETAPHY mainnet (3659) + Base (8453) [+ other routes] agent config"
     if grep -Eiq '"(key|privateKey)"' "$AGENT_CONFIG"; then die "the agent config names a key: refused"; fi
     install -m 644 "$AGENT_CONFIG" "$ETC/agent-config.json"; echo "agent config installed (sha256 $(sha256sum "$ETC/agent-config.json" | cut -c1-16)…)" ;;
   start-validators)
@@ -268,6 +298,6 @@ case "${1:-}" in
   status) status ;;
   addresses) show_addresses ;;
   logs) journalctl -u "hyperlane-mainnet-${2:-validator-zetaphy}" -n 80 --no-pager ;;
-  stop) for a in validator-zetaphy validator-base relayer; do systemctl stop "hyperlane-mainnet-$a" 2>/dev/null || true; done; echo stopped ;;
-  *) sed -n '2,24p' "$0"; exit 1 ;;
+  stop) for a in validator-zetaphy validator-base $(validators | sed 's#^#validator-#') relayer; do systemctl stop "hyperlane-mainnet-$a" 2>/dev/null || true; done; echo stopped ;;
+  *) sed -n '2,31p' "$0"; exit 1 ;;
 esac
