@@ -132,6 +132,26 @@ image ของ agent รองรับหลายสถาปัตยกร�
 ธรรมดา) relayer จึงต้องอยู่เครื่องเดียวกับ validator `publish-checkpoints` เปิดสำเนาอ่านอย่างเดียวสาธารณะผ่าน HTTPS ด้วย
 Caddy ได้ (ฟรี ไว้ให้ตรวจสิ่งที่เราลงนาม)
 
+## Deploy บน mainnet แล้ว (2026-11-16)
+
+บันทึกไว้ใน `zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json` และ `registry/chains/zetaphy/addresses.yaml`
+(เครื่องมืออ่านทั้งสองไฟล์ ขั้นที่ทำแล้วจะถูกข้าม) ทุกอย่างข้างล่าง**ยังปิดอยู่** ยังข้ามเชนไม่ได้จนกว่าข้อเสนอ gov ของ BSC
+และ multisig ของ BSC จะเปิด
+
+| อะไร | เชน | ที่อยู่ |
+|---|---|---|
+| Hyperlane Mailbox (core ใช้ร่วมทุกเส้นทาง) | ZETAPHY | `0x9FC59F469454FD27813Da94DF5803D603340E91c` |
+| เจ้าของ core: mailbox, proxyAdmin, defaultIsm, requiredHook, ICA router | ZETAPHY | ทั้งหมดคือ timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA` (อ่านกลับแล้ว) |
+| multisig ของ BSC (2 ใน 3, เจ้าของชุดเดียวกับ guardian) | BSC | `0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519` |
+| timelock ของ BSC | BSC | `0x7841608c96da5D35cbedFa13139A9f9952fc7695` |
+| ISM ของเราบน BSC (1 ใน 1, `0xF134…F6Ea`) | BSC | `0xcAF6e250b5eAd400097004055628B5DC9D6197FF` |
+| ZTPHY บน BSC (synthetic) | BSC | `0x68aa0f0144605024eCe1aDccFCC1626352779569` |
+| vault ของ BSC | ZETAPHY | `0xFA8F7a89A1f870bDFC03740FbF687e931B0b384A` |
+
+multisig ของ BSC มีที่อยู่เดียวกับ multisig guardian บน ZETAPHY เพราะทั้งคู่เป็นสัญญาตัวแรกของ deployer (nonce 0)
+บนเชนของตัวเอง เจ้าของ 3 คนและเกณฑ์เดียวกัน `verify --route bsc`: อ่านกลับผ่านทุกข้อ
+Base และ Arbitrum One ยังไม่ได้ deploy ขั้นถัดไปของ BSC: agent (ขั้น 8), การเปิด (ขั้น 9), pool (ขั้น 10)
+
 ## คู่มือ
 
 รันคำสั่งของ repository จาก `zetaphy-network/` (`npm ci` ครั้งเดียว) `KEYFILE` คือไฟล์กุญแจของ deployer อ่านเฉพาะขั้น

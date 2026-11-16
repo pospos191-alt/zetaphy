@@ -1,0 +1,29 @@
+# Hyperlane core on ZETAPHY MAINNET (3659), written by `node scripts/saphan-mainnet.js core-config` from
+# zetaphy-chain/hyperlane/mainnet/saphan-mainnet.json. Every owner and the fee beneficiary is the ZETAPHY timelock
+# (48 h, the gov module proposes); no key keeps a role. No interchain gas paymaster (our relayer pays, whitelisted).
+# Default ISM for origin Base: Hyperlane's published Base validators (3 of 5).
+# The ZTPHY route does not use the default ISM: the vault has its own (the same validators, made by the factory).
+owner: "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA"
+proxyAdmin:
+  owner: "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA"
+defaultIsm:
+  type: domainRoutingIsm
+  owner: "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA"
+  domains:
+    base:
+      type: messageIdMultisigIsm
+      validators:
+        - "0x34a14934d7c18a21440b59dfe9bf132ce601457d"
+        - "0x5450447aee7b544c462c9352bef7cad049b0c2dc"
+        - "0xa5962efa3ec138bf7ca8f7fde86b7ee32e24bf03"
+        - "0xb8cf45d7bab79c965843206d5f4d83bb866d6e86"
+        - "0xe957310e17730f29862e896709cce62d24e4b773"
+      threshold: 3
+defaultHook:
+  type: merkleTreeHook
+requiredHook:
+  type: protocolFee
+  owner: "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA"
+  beneficiary: "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA"
+  protocolFee: "0"
+  maxProtocolFee: "1000000000"
