@@ -132,6 +132,26 @@ relayer on the same machine reads them; nothing to pay. Hyperlane's agents read 
 GCS (not plain HTTP), so the relayer must run on the validators' machine with local storage. `publish-checkpoints`
 optionally serves a read-only public copy over HTTPS with Caddy (free, for auditing what we signed).
 
+## Deployed on mainnet (2026-11-16)
+
+Recorded in `zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json` and `registry/chains/zetaphy/addresses.yaml`
+(the tool reads both; done steps are skipped). Everything below is **closed**: nothing crosses until the BSC gov proposal
+and the BSC multisig open it.
+
+| What | Chain | Address |
+|---|---|---|
+| Hyperlane Mailbox (core, shared by every route) | ZETAPHY | `0x9FC59F469454FD27813Da94DF5803D603340E91c` |
+| core owners: mailbox, proxyAdmin, defaultIsm, requiredHook, ICA router | ZETAPHY | all the timelock `0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA` (read back) |
+| BSC multisig (2 of 3, the guardian owners) | BSC | `0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519` |
+| BSC timelock | BSC | `0x7841608c96da5D35cbedFa13139A9f9952fc7695` |
+| our ISM on BSC (1 of 1, `0xF134…F6Ea`) | BSC | `0xcAF6e250b5eAd400097004055628B5DC9D6197FF` |
+| ZTPHY on BSC (synthetic) | BSC | `0x68aa0f0144605024eCe1aDccFCC1626352779569` |
+| the BSC vault | ZETAPHY | `0xFA8F7a89A1f870bDFC03740FbF687e931B0b384A` |
+
+The BSC multisig has the same address as the guardian multisig on ZETAPHY: both are the deployer's first contract
+(nonce 0) on their chain, with the same three owners and threshold. `verify --route bsc`: every read-back ok.
+Base and Arbitrum One are not deployed. Next for BSC: the agents (step 8), the opening (step 9), the pool (step 10).
+
 ## The runbook
 
 Run the repository commands from `zetaphy-network/` (`npm ci` once). `KEYFILE` is the deployer's key file, read only by

@@ -1,0 +1,67 @@
+{
+  "steps": {
+    "core-handover": {
+      "rows": [
+        {
+          "name": "mailbox",
+          "address": "0x9FC59F469454FD27813Da94DF5803D603340E91c",
+          "owner": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+          "timelock": true
+        },
+        {
+          "name": "proxyAdmin",
+          "address": "0x8d9158f06A2088FC17C909BdeD737E6Ac549cC4f",
+          "owner": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+          "timelock": true
+        },
+        {
+          "name": "defaultIsm",
+          "address": "0x6EF73Ea1891E3d498d80776eBB83F7caeB91415F",
+          "owner": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+          "timelock": true
+        },
+        {
+          "name": "requiredHook",
+          "address": "0xe2bEf542652Fe297D681263dE5bCE5559FBfBea3",
+          "owner": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+          "timelock": true
+        },
+        {
+          "name": "interchainAccountRouter",
+          "address": "0xE40a0198F71AEb37CA407c943EeCEc4352eDb54A",
+          "owner": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+          "timelock": true,
+          "action": "handed to the timelock"
+        }
+      ],
+      "at": "2026-11-16T14:10:11.607Z"
+    },
+    "bsc-roles": {
+      "multisig": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+      "timelock": "0x7841608c96da5D35cbedFa13139A9f9952fc7695",
+      "ism": "0xcAF6e250b5eAd400097004055628B5DC9D6197FF",
+      "deployer": "0x11391E190692BE087792c6e34FB699828b6BFC4e",
+      "nonce": 3,
+      "syntheticAt": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
+      "fromBlock": 133941492,
+      "at": "2026-11-16T14:12:54.078Z"
+    },
+    "zetaphy-vault-bsc": {
+      "vault": "0xFA8F7a89A1f870bDFC03740FbF687e931B0b384A",
+      "ism": "0xbb4838756Eb2AabC9823AF4fb678F3F880386280",
+      "governance": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+      "guardian": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+      "threats": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+      "tx": "0x55a4bc5dfc89913fda9f8b8b74226fc73752646a957576974bc6ad8ba7f1e061",
+      "block": 51500,
+      "at": "2026-11-16T14:13:02.039Z"
+    },
+    "bsc-synthetic": {
+      "synthetic": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
+      "symbol": "ZTPHY",
+      "tx": "0xdc5127efce5842b0e425ae15dfa4a963665fd77121b8eea6e21aea5b4139eb02",
+      "block": 133941547,
+      "at": "2026-11-16T14:13:08.334Z"
+    }
+  }
+}

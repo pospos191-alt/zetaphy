@@ -430,3 +430,29 @@ test('mainnet route on the contracts: a forged message (validly signed, wrong se
   await R.bMailbox.send('relayer', 'process', [messageIdMetadata(m, OURS), m]);
   assert.equal(await R.syn.call('received'), 1n);
 });
+
+test('the committed deploy record (2026-11-16): ZETAPHY core owned by the timelock, the BSC route deployed and consistent', () => {
+  const c = JSON.parse(readFileSync(M.MAINNET_FILE, 'utf8')), s = M.loadState(), core = M.loadCore();
+  const tl = getAddress(c.zetaphy.timelock);
+  assert.equal(core.mailbox, '0x9FC59F469454FD27813Da94DF5803D603340E91c');
+  assert.equal(core.interchainGasPaymaster, '0x' + '00'.repeat(20), 'no IGP on ZETAPHY');
+  // every core contract handed to the timelock, read back on chain at handover
+  const rows = s.steps['core-handover'].rows;
+  assert.deepEqual(rows.map((r) => r.name), ['mailbox', 'proxyAdmin', 'defaultIsm', 'requiredHook', 'interchainAccountRouter']);
+  for (const r of rows) { assert.equal(getAddress(r.owner), tl, r.name); assert.equal(r.timelock, true); }
+  assert.equal(rows.find((r) => r.name === 'mailbox').address, core.mailbox);
+  assert.equal(rows.find((r) => r.name === 'interchainAccountRouter').address, core.interchainAccountRouter);
+  // BSC: the synthetic sits exactly where roles fixed it; the vault is governed by the ZETAPHY timelock and guarded by the guardians
+  const roles = s.steps['bsc-roles'], vault = s.steps['zetaphy-vault-bsc'], syn = s.steps['bsc-synthetic'];
+  assert.equal(getAddress(roles.deployer), getAddress(c.deployer.address));
+  assert.equal(getAddress(syn.synthetic), getAddress(roles.syntheticAt));
+  assert.equal(getAddress(syn.synthetic), getCreateAddress({ from: roles.deployer, nonce: roles.nonce }), 'the synthetic at the deployer nonce fixed by roles');
+  assert.equal(getAddress(vault.governance), tl);
+  assert.equal(getAddress(vault.guardian), getAddress(c.zetaphy.guardian));
+  assert.equal(getAddress(vault.threats), getAddress(c.zetaphy.threats));
+  // the BSC multisig is the deployer's first contract on BSC (nonce 0), as the guardian multisig was on ZETAPHY: the same address, the same owners
+  assert.equal(getAddress(roles.multisig), getCreateAddress({ from: roles.deployer, nonce: 0 }));
+  assert.equal(getAddress(roles.multisig), getAddress(c.zetaphy.guardian));
+  // Base and Arbitrum are not deployed yet
+  for (const id of ['base-roles', 'zetaphy-vault', 'base-synthetic', 'arbitrum-roles', 'zetaphy-vault-arbitrum', 'arbitrum-synthetic']) assert.equal(s.steps[id], undefined, id);
+});
