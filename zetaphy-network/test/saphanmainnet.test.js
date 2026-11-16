@@ -51,7 +51,10 @@ test('the committed mainnet config is valid, conservative, and lists exactly the
   assert.deepEqual(launched.guardianMultisig.owners, c.zetaphy.guardianOwners);
   assert.equal(launched.contracts.ThreatRegistry, c.zetaphy.threats);
   assert.deepEqual(M.missingInputs(c).map((m) => m.field).sort(),
-    ['deployer.address', 'liquidity.baseRecipient', 'liquidity.pools[1].address', 'validators.baseOrigin.validators', 'validators.zetaphyOrigin.validators']);
+    ['deployer.address', 'liquidity.pools[1].address', 'validators.zetaphyOrigin.validators']);
+  // owner inputs given on 2026-11-16: the Safe on Base (1 of 1, activated on Base), Hyperlane's 3-of-5 for Base-origin
+  assert.equal(c.liquidity.baseRecipient, '0x08Da43D48f1f68587220768Faf5a00C28962Dc36');
+  assert.equal(c.validators.baseOrigin.mode, 'hyperlane');
   // the owner's pools: 2 x 1,000,000 ZTPHY + 100 stable, 0.0001 USD per ZTPHY; the caps let 2,000,000 cross in one day
   assert.deepEqual(c.liquidity.pools.map((p) => [p.stable, p.ztphyAmount, p.stableAmount]), [['USDC', '1000000', '100'], ['USDT', '1000000', '100']]);
   const L = c.token.limits;
@@ -131,7 +134,13 @@ test('the Hyperlane core config hands every owner to the ZETAPHY timelock and tr
   const vs = [...y.matchAll(/- "(0x[0-9a-f]{40})"/g)].map((m) => m[1]);
   assert.deepEqual(vs, [A(5), A(6), A(7)].map((a) => a.toLowerCase()).sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : 1)));
   assert.match(y, /protocolFee: "0"/);
-  assert.throws(() => M.coreConfigYaml(committed()), /no validators yet/);
+  // the committed config trusts Hyperlane's published 3-of-5 for messages from Base
+  const yc = M.coreConfigYaml(committed());
+  assert.match(yc, /type: domainRoutingIsm[\s\S]*base:[\s\S]*messageIdMultisigIsm[\s\S]*threshold: 3/);
+  assert.deepEqual([...yc.matchAll(/- "(0x[0-9a-f]{40})"/g)].map((m) => m[1]).sort(), committed().validators.hyperlaneBaseDefault.validators.map((a) => a.toLowerCase()).sort());
+  // and still refuses an "ours" Base-origin set with no validators
+  const ours = committed(); ours.validators.baseOrigin = { mode: 'ours', validators: [], threshold: 1 };
+  assert.throws(() => M.coreConfigYaml(ours), /no validators yet/);
 });
 
 test('the route table feeds the testnet deploy code unchanged: a valid token entry, our validators, the Base roles', () => {
@@ -281,7 +290,10 @@ test('the bridge for the pools: one Cosmos tx of two MsgEVMCall from the liquidi
   assert.deepEqual([...new Interface(['function lock(address,uint256)']).decodeFunctionData('lock', hex(msgs[1]))].map(String), [c.liquidity.baseRecipient, String(U('2000000'))]);
   assert.equal(b.unsigned.auth_info.fee.amount[0].denom, 'azetaphy');
   assert.equal(BigInt(b.unsigned.auth_info.fee.amount[0].amount), BigInt(b.unsigned.auth_info.fee.gas_limit) * 10n ** 9n);
-  assert.throws(() => P.bridgePlan(committed(), STATE), /baseRecipient/);
+  // the committed config locks for the owner's Safe on Base; without a Safe it refuses
+  assert.deepEqual([...new Interface(['function lock(address,uint256)']).decodeFunctionData('lock', hex(P.bridgePlan(committed(), STATE).unsigned.body.messages[1]))].map(String), ['0x08Da43D48f1f68587220768Faf5a00C28962Dc36', String(U('2000000'))]);
+  const noSafe = committed(); noSafe.liquidity.baseRecipient = null;
+  assert.throws(() => P.bridgePlan(noSafe, STATE), /baseRecipient/);
   assert.throws(() => P.bridgePlan(c, { steps: {} }), /no ZetaphyTokenVault/);
 });
 
