@@ -93,3 +93,20 @@ test('the usage text is the whole header: every command, active-blocks included'
   for (const c of ['push-list', 'active-blocks', 'links-from-issues', 'init-code', "prints the distributor's init code"]) assert.ok(e.message.includes(c), c);
   assert.ok(!/^import /m.test(e.message), 'comments only');
 });
+
+test('a resumed run does not re-read checked nonces, logs only after new requests, and still stops at want', async () => {
+  const d = mkdtempSync(join(tmpdir(), 'scan-'));
+  try {
+    const state = join(d, 's.json');
+    const base = { rpcUrl: 'http://a', days: 1, sample: 100, blockTime: 1, maxSeen: 50, minNonce: 22, maxNonce: 110, concurrency: 3, nonceBatch: 2, state, ...fast };
+    await scanActive({ ...base, want: 3, fetchImpl: chain().fetchImpl });
+    const logs = [];
+    const c = chain();
+    const r = await scanActive({ ...base, want: 12, fetchImpl: c.fetchImpl, log: (s) => logs.push(s) });
+    assert.equal(r.rows.length, 12);
+    const getCount = JSON.parse(readFileSync(state, 'utf8'));
+    assert.ok(Object.keys(getCount.nonces).length >= 12);
+    assert.ok(c.calls() > 0 && c.calls() < 20, `only new addresses asked (${c.calls()} calls)`);
+    assert.ok(logs.length < 5, 'no log line per skipped batch');
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});

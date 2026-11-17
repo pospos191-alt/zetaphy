@@ -94,20 +94,27 @@ export async function scanActive({ rpcUrl, want = 150_000, days = 7, sample = 30
   // 2. bots out; the most often seen first (people who came back on several days), then the address for a stable order
   const cands = Object.entries(st.seen).filter(([, s]) => s <= maxSeen).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([a]) => a);
   // 3. history, until `want` pass
-  const pass = () => cands.filter((a) => st.nonces[a] != null && st.nonces[a] >= minNonce && st.nonces[a] <= maxNonce).length;
-  let k = 0;
-  for (let i = 0; i < cands.length && pass() < want; i += nonceBatch) {
-    const part = cands.slice(i, i + nonceBatch).filter((a) => st.nonces[a] == null);
-    if (part.length) {
-      const res = await rpc(urls, part.map((a, j) => ({ jsonrpc: '2.0', id: j, method: 'eth_getTransactionCount', params: [a, 'latest'] })), { ...o, n: k++ });
+  // a running count (re-counting 650,000 candidates after every batch made a resumed run crawl), and `concurrency`
+  // batches in flight at once; already-checked addresses (a resumed run) cost nothing
+  const ok = (a) => st.nonces[a] != null && st.nonces[a] >= minNonce && st.nonces[a] <= maxNonce;
+  let passing = cands.filter(ok).length;
+  const todo = cands.filter((a) => st.nonces[a] == null);
+  let k = 0, last = 0;
+  for (let i = 0; i < todo.length && passing < want; i += nonceBatch * concurrency) {
+    const parts = [];
+    for (let p = 0; p < concurrency; p++) { const part = todo.slice(i + p * nonceBatch, i + (p + 1) * nonceBatch); if (part.length) parts.push(part); }
+    const answers = await Promise.all(parts.map((part) => rpc(urls, part.map((a, j) => ({ jsonrpc: '2.0', id: j, method: 'eth_getTransactionCount', params: [a, 'latest'] })), { ...o, n: k++ })));
+    parts.forEach((part, p) => {
+      const res = answers[p];
       const byId = new Map((Array.isArray(res) ? res : [res]).map((x) => [x.id, x]));
       part.forEach((a, j) => {
         const r = byId.get(j);
         if (!r || r.error || typeof r.result !== 'string') throw new Error(`eth_getTransactionCount ${a}: ${r?.error?.message ?? 'no answer'}`);
         st.nonces[a] = Number(BigInt(r.result));
+        if (ok(a)) passing++;
       });
-    }
-    if (k % 40 === 0) { save(); log(`  nonces checked ${Object.keys(st.nonces).length}, passing ${pass()}/${want}`); }
+    });
+    if (k - last >= 40) { last = k; save(); log(`  nonces checked ${Object.keys(st.nonces).length}, passing ${passing}/${want}`); }
   }
   save();
   const rows = cands.filter((a) => st.nonces[a] != null && st.nonces[a] >= minNonce && st.nonces[a] <= maxNonce)
