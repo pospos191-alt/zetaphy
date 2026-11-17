@@ -2,6 +2,8 @@
 
 # ZETAPHY outreach: ประกาศ push airdrop, โพสต์ 30 วัน, ช่องทาง
 
+รอบ BNB Chain, ZTPHY บน BSC, เว็บติดตามราคาและการลงรายชื่อ: [OUTREACH-BNB.th.md](OUTREACH-BNB.th.md)
+
 เอกสารนี้ต่อยอดจาก[ชุดข้อความประกาศ mainnet](ZETAPHY-MAINNET-ANNOUNCE.th.md) (โพสต์เปิดตัว 8 ภาษา โพสต์ airdrop รอบ 1
 และข้อความความปลอดภัยยังอยู่ที่นั่น) ที่นี่มี: โพสต์สำหรับ **push airdrop** (10 ZTPHY ให้ที่อยู่ Ethereum ที่ใช้งานอยู่ 100,000 ที่อยู่,
 [AIRDROP.th.md ส่วนที่ 7](AIRDROP.th.md)) แผนโพสต์วันละหนึ่งโพสต์ 30 วัน และกฎของแต่ละช่องทาง เจ้าของโพสต์เองด้วยมือ
