@@ -12,7 +12,7 @@
 //
 // Public RPCs drop connections and rate-limit: every request has a timeout and is retried with a growing wait, and
 // progress is saved to `state` (JSON) after every chunk, so a run that stops resumes where it was.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
 
 const RETRYABLE = /rate|limit|too many|capacity|busy|timeout|temporar|try again|abort|fetch failed|socket|ECONN|ETIMEDOUT|EAI_AGAIN/i;
 
@@ -76,13 +76,17 @@ export async function scanActive({ rpcUrl, want = 150_000, days = 7, sample = 30
   const urls = String(rpcUrl ?? '').split(',').map((u) => u.trim()).filter(Boolean);
   if (!urls.length) throw new Error('--rpc: the chain\'s RPC URL (comma-separated for several)');
   const o = { fetchImpl, sleep, retryMs, timeoutMs, onRetry: ({ why, url, wait }) => log(`  ${new URL(url).host}: ${why}; retry in ${wait / 1000} s`) };
-  let st = state && existsSync(state) ? JSON.parse(readFileSync(state, 'utf8')) : null;
+  let st = null;
+  if (state && existsSync(state)) {
+    try { st = JSON.parse(readFileSync(state, 'utf8')); } catch { throw new Error(`${state} is not readable JSON (a run stopped while writing it, before atomic saves): delete it and run again`); }
+  }
   if (!st) {
     const latest = Number(BigInt((await rpc(urls, { jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] }, o)).result));
     const span = Math.round((days * 86_400) / blockTime);
     st = { latest, blocks: sampleBlocks(latest, span, sample), done: 0, seen: {}, nonces: {} };
   }
-  const save = () => { if (state) writeFileSync(state, JSON.stringify(st)); };
+  // written to a side file, then renamed over the state: a run stopped mid-write (Ctrl+C, a dropped shell) keeps the last good state
+  const save = () => { if (state) { writeFileSync(`${state}.tmp`, JSON.stringify(st)); renameSync(`${state}.tmp`, state); } };
   // 1. the sample
   for (let i = st.done; i < st.blocks.length; i += concurrency) {
     const part = st.blocks.slice(i, i + concurrency);

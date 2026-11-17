@@ -110,3 +110,16 @@ test('a resumed run does not re-read checked nonces, logs only after new request
     assert.ok(logs.length < 5, 'no log line per skipped batch');
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
+
+test('the state is saved atomically (no .tmp left); a corrupt state file is refused with what to do', async () => {
+  const d = mkdtempSync(join(tmpdir(), 'scan-'));
+  try {
+    const state = join(d, 's.json');
+    await scanActive({ rpcUrl: 'http://a', want: 3, days: 1, sample: 50, blockTime: 1, maxSeen: 50, minNonce: 22, maxNonce: 110, state, fetchImpl: chain().fetchImpl, ...fast });
+    assert.ok(existsSync(state) && !existsSync(`${state}.tmp`));
+    JSON.parse(readFileSync(state, 'utf8'));
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(state, '{"latest":1,"blocks":[1,2');
+    await assert.rejects(scanActive({ rpcUrl: 'http://a', want: 3, state, fetchImpl: chain().fetchImpl, ...fast }), /not readable JSON.*delete it and run again/);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});
