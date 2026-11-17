@@ -72,7 +72,7 @@ export function senders(block) {
  * `blockTime`: seconds per block (BNB Smart Chain: 0.75 s since the Maxwell upgrade; pass what the chain uses).
  */
 export async function scanActive({ rpcUrl, want = 150_000, days = 7, sample = 30_000, blockTime = 0.75, maxSeen = 20, minNonce = 10, maxNonce = 5_000,
-  concurrency = 8, nonceBatch = 50, state = null, fetchImpl = globalThis.fetch, log = () => {}, sleep, retryMs, timeoutMs } = {}) {
+  concurrency = 8, nonceBatch = 50, pauseMs = 0, state = null, fetchImpl = globalThis.fetch, log = () => {}, sleep, retryMs, timeoutMs } = {}) {
   const urls = String(rpcUrl ?? '').split(',').map((u) => u.trim()).filter(Boolean);
   if (!urls.length) throw new Error('--rpc: the chain\'s RPC URL (comma-separated for several)');
   const o = { fetchImpl, sleep, retryMs, timeoutMs, onRetry: ({ why, url, wait }) => log(`  ${new URL(url).host}: ${why}; retry in ${wait / 1000} s`) };
@@ -118,6 +118,7 @@ export async function scanActive({ rpcUrl, want = 150_000, days = 7, sample = 30
         if (ok(a)) passing++;
       });
     });
+    if (pauseMs) await (sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))))(pauseMs);
     if (k - last >= 40) { last = k; save(); log(`  nonces checked ${Object.keys(st.nonces).length}, passing ${passing}/${want}`); }
   }
   save();
