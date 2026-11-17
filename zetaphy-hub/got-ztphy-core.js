@@ -90,3 +90,20 @@ export function buildPushFiles(text, { sha256, each = '10', prefix = 2, list = '
   const manifest = { chainId: CHAIN_ID, each: String(each), count: seen.size, sha256, shardPrefixLength: prefix, ...(list ? { list } : {}) };
   return { manifest, shards };
 }
+
+// ------------------------------------------------------------------ ZTPHY on BNB Smart Chain (the Saphan route)
+// The synthetic ZTPHY the bridge mints on BSC (zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json, step
+// bsc-synthetic; test/got-ztphy.test.mjs checks it is that address). The logo: the IPFS-pinned zetaphy-256.png
+// (zetaphy-chain/listings/README.md), through a public gateway, since wallets fetch an https URL.
+export const LOGO_CID = 'bafkreiazxgczetev7j2mxdv4i5htnbhyx4fhtmngspqao4mit22o667giq';
+export const BSC_ZTPHY = Object.freeze({
+  chainId: 56, address: '0x68aa0f0144605024eCe1aDccFCC1626352779569', symbol: 'ZTPHY', decimals: 18,
+  image: `https://ipfs.io/ipfs/${LOGO_CID}`, scan: 'https://bscscan.com/token/0x68aa0f0144605024eCe1aDccFCC1626352779569',
+});
+/** wallet_addEthereumChain for BNB Smart Chain, used only when the wallet does not know chain 56 yet (error 4902). */
+export const BSC_CHAIN = Object.freeze({
+  chainId: '0x38', chainName: 'BNB Smart Chain', nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+  rpcUrls: ['https://bsc-dataseed.bnbchain.org'], blockExplorerUrls: ['https://bscscan.com'],
+});
+/** wallet_watchAsset (EIP-747) for ZTPHY on BSC: the token, its symbol, decimals and picture. */
+export const bscWatchParams = () => ({ type: 'ERC20', options: { address: BSC_ZTPHY.address, symbol: BSC_ZTPHY.symbol, decimals: BSC_ZTPHY.decimals, image: BSC_ZTPHY.image } });

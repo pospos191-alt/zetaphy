@@ -152,6 +152,23 @@ multisig ของ BSC มีที่อยู่เดียวกับ multi
 บนเชนของตัวเอง เจ้าของ 3 คนและเกณฑ์เดียวกัน `verify --route bsc`: อ่านกลับผ่านทุกข้อ
 Base และ Arbitrum One ยังไม่ได้ deploy ขั้นถัดไปของ BSC: agent (ขั้น 8), การเปิด (ขั้น 9), pool (ขั้น 10)
 
+## ZTPHY บน BSC: โลโก้ ชื่อ และสัญญาตัวจริง (ฟรี)
+
+ZTPHY บน BSC คือ `0x68aa0f0144605024eCe1aDccFCC1626352779569` กระเป๋าและ explorer จะยังไม่แสดงโลโก้จนกว่าจะทำขั้นเหล่านี้:
+
+1. **[อ่าน]** `node scripts/saphan-verify-input.js --route bsc --out ~/verify --sourcify yes` (บน Oracle Cloud Shell)
+   สคริปต์เทียบธุรกรรมที่สร้างสัญญากับ bytecode ที่ commit ไว้ เขียนไฟล์ standard-JSON และ constructor arguments
+   พิมพ์ค่าที่ต้องกรอกในฟอร์ม แล้วส่งให้ Sourcify (ฟรี)
+2. **[เปลี่ยนการตั้งค่า]** BscScan → หน้าเหรียญ → Contract → **Verify and Publish** (ฟอร์มบนเว็บ ฟรี เพราะ API ฟรีของ
+   Etherscan ไม่รองรับ BNB Chain): compiler type เลือก Solidity (Standard-Json-Input), compiler version ตามที่สคริปต์พิมพ์,
+   license เลือก MIT, อัปโหลดไฟล์ `.standard-input.json`, contract name `contracts/SaphanTokens.sol:SaphanSyntheticToken`
+   แล้ววาง constructor arguments
+3. **[เปลี่ยนการตั้งค่า]** เมื่อ verify ผ่านแล้ว: BscScan → Token Info Update (ฟรี ต้องมีบัญชี BscScan, อีเมลโดเมน
+   sawasdeecoin.com, โลโก้ขนาด 32x32 และ 256x256 จาก `zetaphy-hub/zetaphy-256.png`, เว็บไซต์ https://app.sawasdeecoin.com
+   และประโยคเรื่องความเสี่ยง)
+4. หน้า "ได้รับ ZTPHY ไหม?" ใน hub มีปุ่ม "เพิ่ม ZTPHY (BNB Chain) ใน <กระเป๋า>" ปุ่มนี้สลับกระเป๋าไปที่ chain 56 แล้วเพิ่มเหรียญ
+   พร้อมโลโก้จาก IPFS (`wallet_watchAsset`) และแสดงที่อยู่สัญญาพร้อมลิงก์ BscScan
+
 ## คู่มือ
 
 รันคำสั่งของ repository จาก `zetaphy-network/` (`npm ci` ครั้งเดียว) `KEYFILE` คือไฟล์กุญแจของ deployer อ่านเฉพาะขั้น

@@ -179,3 +179,22 @@ test('the page: shipped, in the sitemap, share tags that unfurl, strict-CSP frie
   const hub = readFileSync(join(HERE, 'hub.js'), 'utf8');
   assert.match(hub, /href: 'got-ztphy\.html', id: 'nav-got'/, 'linked from the hub menu');
 });
+
+test('ZTPHY on BNB Smart Chain: the contract the Saphan deploy recorded, the IPFS logo, only switch/add/watch requests', () => {
+  const state = JSON.parse(readFileSync(join(HERE, '..', 'zetaphy-chain', 'hyperlane', 'mainnet', 'saphan-mainnet-state.json'), 'utf8'));
+  const syn = state.steps['bsc-synthetic'];
+  assert.equal(core.BSC_ZTPHY.address, getAddress(syn.synthetic), 'the address bsc-synthetic deployed');
+  assert.equal(core.BSC_ZTPHY.symbol, syn.symbol);
+  assert.equal(core.BSC_ZTPHY.chainId, 56);
+  assert.equal(core.BSC_CHAIN.chainId, '0x38');
+  const listings = readFileSync(join(HERE, '..', 'zetaphy-chain', 'listings', 'README.md'), 'utf8');
+  assert.ok(listings.includes(`ipfs://${core.LOGO_CID}`), 'the pinned logo of the listings');
+  assert.equal(core.BSC_ZTPHY.image, `https://ipfs.io/ipfs/${core.LOGO_CID}`);
+  assert.deepEqual(core.bscWatchParams(), { type: 'ERC20', options: { address: core.BSC_ZTPHY.address, symbol: 'ZTPHY', decimals: 18, image: core.BSC_ZTPHY.image } });
+  assert.equal(core.BSC_ZTPHY.scan, `https://bscscan.com/token/${core.BSC_ZTPHY.address}`);
+  const src = readFileSync(join(HERE, 'got-ztphy.js'), 'utf8');
+  const methods = [...new Set([...src.matchAll(/method: '([a-zA-Z_]+)'/g)].map((m) => m[1]))].sort();
+  assert.deepEqual(methods, ['eth_requestAccounts', 'wallet_addEthereumChain', 'wallet_switchEthereumChain', 'wallet_watchAsset'], 'the only wallet requests');
+  const html = readFileSync(join(HERE, 'got-ztphy.html'), 'utf8');
+  for (const id of ['h-bsc', 'bscAddr', 'bscScan', 'bscWallets', 'bscState']) assert.match(html, new RegExp(`id="${id}"`));
+});
