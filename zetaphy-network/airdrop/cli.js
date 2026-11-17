@@ -201,7 +201,7 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     log(`init-code: root ${s.root}, ${s.count} leaves, ${z(s.total)}, claims ${new Date(start * 1000).toISOString()} .. ${new Date(deadline * 1000).toISOString()}, returnTo ${returnTo}, guardian ${guardian === ZeroAddress ? 'none' : guardian}`);
     return { contract: 'ZtphyMerkleDistributor', args: { root: s.root, totalAllocated: s.total, leafCount: s.count, claimStart: start, claimDeadline: deadline, returnTo, guardian }, initCode };
   }
-  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 20).join('\n')), { usage: true });
+  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1).filter((l, i, a) => a.slice(0, i + 1).every((x) => x.startsWith('//'))).join('\n')), { usage: true });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

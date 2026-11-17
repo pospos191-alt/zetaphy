@@ -86,3 +86,10 @@ test('cli active-blocks writes the CSV and refuses without --out', async () => {
     await assert.rejects(run(['active-blocks', '--rpc', 'http://rpc'], { log: () => {} }), /--out/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
+
+test('the usage text is the whole header: every command, active-blocks included', async () => {
+  const e = await run(['nope'], { log: () => {} }).catch((x) => x);
+  assert.equal(e.usage, true);
+  for (const c of ['push-list', 'active-blocks', 'links-from-issues', 'init-code', "prints the distributor's init code"]) assert.ok(e.message.includes(c), c);
+  assert.ok(!/^import /m.test(e.message), 'comments only');
+});
