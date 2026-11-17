@@ -90,3 +90,29 @@ test('every home page: description, canonical on its own domain, share card with
     assert.ok(existsSync(join(ROOT, dir, img)), `${k}: ${img}`);
   }
 });
+
+test('logo and ZTPHY for search engines: the Organization logo on the home and about pages, llms.txt, the token contracts', async () => {
+  const { homeLdTag, orgLd, llmsTxt, ZTPHY_CONTRACTS } = await import('../seo.mjs');
+  const home = readFileSync(join(HERE, 'index.html'), 'utf8');
+  assert.ok(home.includes(homeLdTag()), 'index.html carries seo.mjs homeLdTag() as it is (re-paste it when seo.mjs changes)');
+  assert.match(home, /<link rel="icon" href="\.\/zetaphy-256\.png" type="image\/png" sizes="256x256">/);
+  const org = orgLd();
+  assert.equal(org.logo.url, `${ORIGIN.hub}/zetaphy-256.png`);
+  assert.ok(existsSync(join(HERE, 'zetaphy-256.png')));
+  const png = readFileSync(join(HERE, 'zetaphy-256.png'));
+  assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [256, 256], 'a 256x256 logo (Google wants at least 112x112)');
+  for (const l of LANG_CODES) {
+    const html = aboutPage(l);
+    const data = JSON.parse(html.split('<script type="application/ld+json">')[1].split('</script>')[0]);
+    assert.ok(data['@graph'].some((n) => n['@type'] === 'Organization' && n.logo.url === org.logo.url), `${l}: Organization logo`);
+    for (const t of ZTPHY_CONTRACTS) assert.ok(html.includes(t.address), `${l}: ZTPHY on ${t.chain}`);
+  }
+  const state = JSON.parse(readFileSync(join(ROOT, 'zetaphy-chain', 'hyperlane', 'mainnet', 'saphan-mainnet-state.json'), 'utf8'));
+  assert.deepEqual(ZTPHY_CONTRACTS.map((t) => t.address), [state.steps['bsc-synthetic'].synthetic]);
+  const { BSC_ZTPHY } = await import('../got-ztphy-core.js');
+  assert.equal(ZTPHY_CONTRACTS[0].address, BSC_ZTPHY.address);
+  const txt = llmsTxt();
+  assert.match(txt, /^# ZETAPHY \(ZTPHY\)\n\n> /);
+  for (const s of ['3659', 'ML-DSA-44', 'Neuro', ZTPHY_CONTRACTS[0].address, ABOUT.en.notice]) assert.ok(txt.includes(s), s);
+  assert.equal(readFileSync(join(build(), 'llms.txt'), 'utf8'), txt);
+});

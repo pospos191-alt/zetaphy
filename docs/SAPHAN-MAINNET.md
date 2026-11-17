@@ -152,6 +152,21 @@ The BSC multisig has the same address as the guardian multisig on ZETAPHY: both 
 (nonce 0) on their chain, with the same three owners and threshold. `verify --route bsc`: every read-back ok.
 Base and Arbitrum One are not deployed. Next for BSC: the agents (step 8), the opening (step 9), the pool (step 10).
 
+## ZTPHY on BSC: logo, name and the real contract (free)
+
+The BSC synthetic is `0x68aa0f0144605024eCe1aDccFCC1626352779569`. Wallets and explorers show no logo until:
+
+1. **[อ่าน]** `node scripts/saphan-verify-input.js --route bsc --out ~/verify --sourcify yes` (Oracle Cloud Shell): it checks
+   the creation transaction against the committed bytecode, writes the standard-JSON file and the constructor arguments,
+   prints the form's values, and submits to Sourcify (free).
+2. **[เปลี่ยนการตั้งค่า]** BscScan → the token's page → Contract → **Verify and Publish** (free web form; the free Etherscan
+   API leaves BNB Chain out): compiler type Solidity (Standard-Json-Input), the printed compiler version, MIT; upload the
+   `.standard-input.json`, contract name `contracts/SaphanTokens.sol:SaphanSyntheticToken`, paste the constructor arguments.
+3. **[เปลี่ยนการตั้งค่า]** Once verified: BscScan → Token Info Update (free; a BscScan account, an e-mail on sawasdeecoin.com,
+   the 32x32 and 256x256 logo `zetaphy-hub/zetaphy-256.png`, website https://app.sawasdeecoin.com, the risk sentence).
+4. The hub's "Did you get ZTPHY?" page has "Add ZTPHY (BNB Chain) to <wallet>": it switches to chain 56 and adds the
+   token with the IPFS logo (`wallet_watchAsset`), and shows the contract and its BscScan link.
+
 ## The runbook
 
 Run the repository commands from `zetaphy-network/` (`npm ci` once). `KEYFILE` is the deployer's key file, read only by

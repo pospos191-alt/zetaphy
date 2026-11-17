@@ -18,7 +18,7 @@ import { serve } from './serve.mjs';
 import { build } from '../build.mjs';
 import { NETWORKS, addChainParams, NET_TEXT } from '../network.js';
 import { toBech32 } from '../chainlib.js';
-import { buildPushFiles } from '../got-ztphy-core.js';
+import { buildPushFiles, BSC_ZTPHY, bscWatchParams } from '../got-ztphy-core.js';
 import { GOT } from '../got-ztphy-i18n.js';
 
 const HERE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,6 +44,8 @@ const stub = ({ account, wallet, share }) => {
     window.__calls.push({ method, params });
     if (method === 'eth_requestAccounts') return [account.toLowerCase()];
     if (method === 'wallet_addEthereumChain') return null;
+    if (method === 'wallet_switchEthereumChain') return null;
+    if (method === 'wallet_watchAsset') return true;
     throw new Error(`${method} must never be called`);
   } };
 };
@@ -142,6 +144,17 @@ test('got-ztphy.html: balance of any address, the airdrop list, add the network,
     assert.deepEqual(calls.map((c) => c.method), ['wallet_addEthereumChain', 'eth_requestAccounts'], 'never a signature, a transaction or an approval');
     assert.deepEqual(calls[0].params, [addChainParams(NETWORKS.mainnet)]);
     assert.deepEqual([...new Set(rpc)], ['eth_getBalance']);
+
+    // ZTPHY on BNB Smart Chain: the contract shown, BscScan linked; the button switches to chain 56 and adds the token with its logo
+    assert.equal(await page.textContent('#bscAddr'), BSC_ZTPHY.address);
+    assert.equal(await page.getAttribute('#bscScan', 'href'), `https://bscscan.com/token/${BSC_ZTPHY.address}`);
+    assert.equal(await page.textContent('#bscWallets button'), 'Add ZTPHY (BNB Chain) to MetaMask');
+    await page.click('#bscWallets button');
+    await page.waitForFunction(() => /with its logo/.test(document.getElementById('bscState').textContent));
+    const bsc = (await page.evaluate(() => window.__calls)).slice(2);
+    assert.deepEqual(bsc.map((c) => c.method), ['wallet_switchEthereumChain', 'wallet_watchAsset'], 'still never a signature, a transaction or an approval');
+    assert.deepEqual(bsc[0].params, [{ chainId: '0x38' }]);
+    assert.deepEqual(bsc[1].params, bscWatchParams());
 
     await page.screenshot({ path: join(HERE, 'dist', 'got-ztphy-en.png'), fullPage: true });
     // share without the Web Share API: the clipboard gets the text and the official page URL

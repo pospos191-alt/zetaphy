@@ -35,6 +35,20 @@ export const SITES = {
   explorer: { dir: 'zetaphy-explorer', pages: ['/'] },
 };
 
+/** The ZTPHY token contracts on other chains (the Saphan routes deployed; test/seo.test.mjs checks them against
+ *  zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json). */
+export const ZTPHY_CONTRACTS = [{ chain: 'BNB Smart Chain', chainId: 56, address: '0x68aa0f0144605024eCe1aDccFCC1626352779569', explorer: 'https://bscscan.com/token/0x68aa0f0144605024eCe1aDccFCC1626352779569' }];
+
+/** Who publishes every ZETAPHY site, with the logo search engines show next to results (Organization, schema.org). */
+export const orgLd = () => ({
+  '@type': 'Organization', '@id': `${ORIGIN.hub}/#org`, name: 'ZETAPHY', alternateName: ['ZTPHY', 'SawasdeeCoin'], url: `${ORIGIN.hub}/`,
+  logo: { '@type': 'ImageObject', url: `${ORIGIN.hub}/zetaphy-256.png`, width: 256, height: 256 },
+  sameAs: [REPO_URL, `${ORIGIN.explorer}/`, `${ORIGIN.neuro}/web/`],
+});
+/** The home page's structured data: the organisation (logo) and the site it publishes. */
+export const homeLd = () => ({ '@context': 'https://schema.org', '@graph': [orgLd(), { '@type': 'WebSite', '@id': `${ORIGIN.hub}/#site`, name: 'ZETAPHY', alternateName: 'ZTPHY', url: `${ORIGIN.hub}/`, publisher: { '@id': `${ORIGIN.hub}/#org` } }] });
+export const homeLdTag = () => `<script type="application/ld+json">${ld(homeLd())}</script>`;
+
 /** about/ path of a language: English at about/, the others at about/<lang>.html. */
 export const aboutPath = (lang) => (lang === 'en' ? '/about/' : `/about/${lang}.html`);
 export const HUB_PAGES = ['/', ...LANG_CODES.map(aboutPath), '/validators.html', '/forecasts.html', '/audit.html', '/audits.html', '/got-ztphy.html'];
@@ -67,7 +81,7 @@ const ICON = {
 };
 const icon = (k, cls = 'ic') => `<svg class="${cls}" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
 // per section, per item (same order in every language; a test checks the counts)
-export const ITEM_ICONS = [['coin', 'flame', 'clock', 'flask'], ['grid', 'key', 'swap', 'image', 'search', 'server'], ['globe', 'chat', 'play', 'graph', 'chart', 'spark', 'shield', 'eye']];
+export const ITEM_ICONS = [['coin', 'flame', 'clock', 'flask'], ['grid', 'key', 'swap', 'image', 'search', 'server'], ['globe', 'chat', 'play', 'graph', 'chart', 'spark', 'shield', 'eye'], ['coin', 'key', 'clock', 'shield']];
 const FLOW_ICONS = ['paste', 'search', 'play', 'shield'];
 
 /** Three blocks in a row, each with its transactions and its post-quantum certificate. */
@@ -116,7 +130,8 @@ export function aboutPage(lang) {
   const data = {
     '@context': 'https://schema.org',
     '@graph': [
-      { '@type': 'WebSite', '@id': `${ORIGIN.hub}/#site`, name: 'ZETAPHY', url: `${ORIGIN.hub}/` },
+      orgLd(),
+      { '@type': 'WebSite', '@id': `${ORIGIN.hub}/#site`, name: 'ZETAPHY', alternateName: 'ZTPHY', url: `${ORIGIN.hub}/`, publisher: { '@id': `${ORIGIN.hub}/#org` } },
       { '@type': 'WebPage', name: c.title, description: c.description, url: self, inLanguage: lang, isPartOf: { '@id': `${ORIGIN.hub}/#site` } },
       { '@type': 'SoftwareApplication', name: 'Neuro ZETAPHY', applicationCategory: 'SecurityApplication', operatingSystem: 'Web',
         url: `${ORIGIN.neuro}/web/`, offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' } },
@@ -145,6 +160,8 @@ ${aboutAlternates().map(([l, p]) => `<link rel="alternate" hreflang="${l}" href=
 <meta property="og:image" content="${ORIGIN.hub}/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../zetaphy-256.png" type="image/png" sizes="256x256">
+<link rel="apple-touch-icon" href="../zetaphy-256.png">
 <link rel="stylesheet" href="./about.css">
 <script type="application/ld+json">${ld(data)}</script>
 </head>
@@ -165,11 +182,19 @@ ${sections}
 `;
 }
 
+/** llms.txt (llmstxt.org): the "What is ZETAPHY?" facts in plain Markdown for AI assistants and answer engines. */
+export function llmsTxt() {
+  const c = ABOUT.en;
+  const sec = c.sections.map((s) => [`## ${s.h}`, s.p ?? '', ...(s.items ?? []).map((i) => `- ${i}`), s.note ?? ''].filter(Boolean).join('\n')).join('\n\n');
+  return `# ZETAPHY (ZTPHY)\n\n> ${c.description}\n\n${c.lead}\n\n${sec}\n\n## Links\n\n- [What is ZETAPHY? (8 languages)](${ORIGIN.hub}/about/)\n- [App: wallet, swap, staking, NFT](${ORIGIN.hub}/)\n- [Did you get ZTPHY? Check an address](${ORIGIN.hub}/got-ztphy.html)\n- [Neuro token checker](${ORIGIN.neuro}/web/)\n- [Explorer](${ORIGIN.explorer}/)\n- [Source code](${REPO_URL})\n${ZTPHY_CONTRACTS.map((t) => `- ZTPHY on ${t.chain} (chain ${t.chainId}): ${t.address} ([explorer](${t.explorer}))`).join('\n')}\n- Logo: ${ORIGIN.hub}/zetaphy-256.png\n\n${c.notice}\n`;
+}
+
 /** {relative path: content} of the hub's search files, written into dist/ by build.mjs. */
 export function hubSeoFiles() {
   return {
     ...Object.fromEntries(LANG_CODES.map((l) => [aboutPath(l).slice(1).replace(/\/$/, '/index.html'), aboutPage(l)])),
     'robots.txt': robotsTxt(ORIGIN.hub),
+    'llms.txt': llmsTxt(),
     'sitemap.xml': hubSitemap(),
     [`${INDEXNOW_KEY}.txt`]: INDEXNOW_KEY,
   };

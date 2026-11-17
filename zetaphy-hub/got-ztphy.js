@@ -11,7 +11,7 @@ import { formatZeta } from './chainlib.js';
 import { NETWORKS, addChainParams, netText, noticeUrl } from './network.js';
 import { getJson, rpcCall } from './rpc.js';
 import { discoverWallets, openInAppLinks } from './wallet/wallets.js';
-import { MANIFEST, readAddress, balanceOf, cleanManifest, shardFile, inShard } from './got-ztphy-core.js';
+import { MANIFEST, readAddress, balanceOf, cleanManifest, shardFile, inShard, BSC_ZTPHY, BSC_CHAIN, bscWatchParams } from './got-ztphy-core.js';
 import { GOT } from './got-ztphy-i18n.js';
 
 const NET = NETWORKS.mainnet; // the only network
@@ -129,6 +129,13 @@ function renderWallets() {
     a.textContent = name;
     return a;
   }));
+  $('bscWallets').replaceChildren(...list.map((w) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = t('bscBtn', { w: w.name });
+    b.addEventListener('click', () => addBsc(w.provider));
+    return b;
+  }));
   if (!list.length && !$('addState').textContent) say($('addState'), t('noWallet'));
   else if (list.length && $('addState').textContent === t('noWallet')) say($('addState'), '');
 }
@@ -140,6 +147,24 @@ async function addChain(provider) {
     say($('addState'), t('added'), 'ok');
   } catch {
     say($('addState'), t('refused'), 'bad');
+  }
+}
+
+/** ZTPHY on BNB Smart Chain into the wallet's token list: switch to chain 56 (add it if the wallet lacks it), then
+ *  wallet_watchAsset with the logo. Wallets add a token to the chain they are on, hence the switch first. */
+async function addBsc(provider) {
+  try {
+    try {
+      await provider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: BSC_CHAIN.chainId }] });
+    } catch (e) {
+      if (e?.code !== 4902 && e?.data?.originalError?.code !== 4902) throw e;
+      await provider.request({ method: 'wallet_addEthereumChain', params: [BSC_CHAIN] });
+    }
+    const ok = await provider.request({ method: 'wallet_watchAsset', params: bscWatchParams() });
+    if (ok === false) throw new Error('declined');
+    say($('bscState'), t('bscAdded'), 'ok');
+  } catch {
+    say($('bscState'), t('refused'), 'bad');
   }
 }
 
@@ -192,6 +217,8 @@ function render() {
   $('notice').textContent = nt.notice;
   $('notice').href = noticeUrl(NET, L);
   $('lang').value = L;
+  $('bscAddr').textContent = BSC_ZTPHY.address;
+  $('bscScan').href = BSC_ZTPHY.scan;
   $('check').disabled = st.busy;
   renderResult();
   renderWallets();
@@ -203,6 +230,7 @@ $('lang').addEventListener('change', (e) => {
   store.set(LANG_KEY, L);
   say($('addState'), ''); // a wallet answer in the old language is cleared rather than left untranslated
   say($('shareState'), '');
+  say($('bscState'), '');
   $('shareBox').hidden = true;
   render();
 });
