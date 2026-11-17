@@ -155,6 +155,24 @@ node airdrop/cli.js from-csv active.csv --equal --pool 100000000 --rpc https://<
 ยังไม่ได้ทำ) ถ้าต้องการหนึ่งคนหนึ่งสิทธิ์อย่างเคร่งครัด ใช้แอร์ดรอปตัวตน zero-knowledge (`contracts/PrivateAirdrop.sol`,
 [docs/future/zk-identity.md](future/zk-identity.md)) แทนรายชื่อที่อยู่
 
+### 2d. ผู้รับจาก BNB Smart Chain (ไม่มีชุดข้อมูล BigQuery: `active-blocks`)
+
+Google ไม่มีชุดข้อมูล BigQuery ฟรีของ BNB Smart Chain คำสั่ง `active-blocks` จึงอ่านจาก RPC สาธารณะของเชนนั้นโดยตรง
+(อ่านอย่างเดียว หยุดแล้วรันต่อได้) โดย:
+- สุ่มบล็อกกระจายตลอดหลายวันที่ผ่านมา
+- ตัดผู้ส่งที่โผล่ในบล็อกที่สุ่มมากเกินไปออก (บอท, market maker, กระเป๋าร้อนของ exchange)
+- เก็บบัญชีที่ nonce (จำนวนธุรกรรมทั้งหมดที่เคยส่ง) อยู่ระหว่าง `--min-nonce` (ค่าเริ่ม 10) กับ `--max-nonce` (ค่าเริ่ม 5,000)
+- เขียนไฟล์ CSV `address,score` ที่ `push-list` อ่านได้
+
+```bash
+node airdrop/cli.js active-blocks --rpc https://bsc-rpc.publicnode.com,https://bsc-dataseed.bnbchain.org \
+  --want 180000 --days 7 --sample 30000 --state ~/bsc-scan.json --out ~/bsc-active.csv          # [อ่าน] รันต่อได้
+node airdrop/cli.js push-list ~/bsc-active.csv --rpc https://bsc-rpc.publicnode.com \
+  --exclude <ไฟล์รายชื่อที่จ่ายแล้ว> --max 150000 --out ~/bsc-push.txt                           # [อ่าน] ตัดสัญญาออก
+```
+
+ขอจำนวนให้เกินที่ต้องใช้ไว้ (`--want`) เพราะ `push-list` จะตัดสัญญาและรายชื่อที่ถูกยกเว้นออกอีกรอบ จากนั้นส่งตามหัวข้อ 7
+
 ## 3. สร้าง ตรวจ และเผยแพร่รายชื่อ
 
 ```bash

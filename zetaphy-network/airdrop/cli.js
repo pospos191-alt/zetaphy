@@ -10,6 +10,9 @@
 //   Push airdrop on mainnet (owner decision 2026-11-14): the list for `gov.sh airdrop` (one 0x… per line):
 //   node airdrop/cli.js push-list <file.csv> --rpc <Ethereum RPC[,another]> [--batch 100] [--pause ms] [--max 100000] [--exclude list.txt] [--min-score N]
 //        [--out list.txt] [--batch 100]
+//   Active wallets of a chain with no free BigQuery dataset (BNB Smart Chain), read from its RPC (resumable with --state):
+//   node airdrop/cli.js active-blocks --rpc <URL[,URL]> [--want 150000] [--days 7] [--sample 30000] [--block-time 0.75]
+//        [--max-seen 20] [--min-nonce 10] [--max-nonce 5000] [--concurrency 8] [--state scan.json] --out active.csv
 //   node airdrop/cli.js link-message <solanaOwner> <0xEVM> --chain-id N
 //   node airdrop/cli.js link-solana allocations.json links.json --chain-id N > linked.json
 //   node airdrop/cli.js links-from-issues issues.json [--chain-id 3659] [--deadline ISO] > links.json   (GitHub issue form)
@@ -30,6 +33,7 @@ import { parseRecipients, dropContracts, assignAmounts, reasons, SYSTEM_ADDRESSE
 import { linkMessage, linkSolana } from './link.js';
 import { issuesOf, linksFromIssues } from './issues.js';
 import { buildRound, writeRound, verifyRound } from './distributor.js';
+import { scanActive, toCsv } from './blockscan.js';
 
 const FLAGS = new Set(['equal']); // options without a value
 export function parseArgs(argv) {
@@ -112,6 +116,15 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     writeFileSync(opt.out, text);
     return { out: opt.out, count: rows.length, sha256: sha, droppedCount: dropped.length, droppedByReason: why, dropped };
   }
+  if (cmd === 'active-blocks') {
+    if (!opt.out) throw new Error('active-blocks --rpc <URL> --out active.csv [--want 150000] [--days 7] [--sample 30000] [--state scan.json]');
+    const num = (k, d) => { if (opt[k] == null) return d; const v = Number(opt[k]); if (!Number.isFinite(v) || v <= 0) throw new Error(`--${k}: a positive number`); return v; };
+    const r = await scanActive({ rpcUrl: opt.rpc, want: num('want', 150_000), days: num('days', 7), sample: num('sample', 30_000), blockTime: num('block-time', 0.75),
+      maxSeen: num('max-seen', 20), minNonce: num('min-nonce', 10), maxNonce: num('max-nonce', 5000), concurrency: num('concurrency', 8), state: opt.state ?? null, fetchImpl, log });
+    writeFileSync(opt.out, toCsv(r.rows));
+    log(`active-blocks: ${r.rows.length} addresses -> ${opt.out}; ${JSON.stringify(r.stats)}. Next: push-list ${opt.out} --rpc <the same chain's RPC> --exclude <paid ledger> --out push.txt`);
+    return { out: opt.out, ...r.stats };
+  }
   if (cmd === 'link-message') {
     return { message: linkMessage(pos[0], pos[1], opt['chain-id']) };
   }
@@ -188,7 +201,7 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     log(`init-code: root ${s.root}, ${s.count} leaves, ${z(s.total)}, claims ${new Date(start * 1000).toISOString()} .. ${new Date(deadline * 1000).toISOString()}, returnTo ${returnTo}, guardian ${guardian === ZeroAddress ? 'none' : guardian}`);
     return { contract: 'ZtphyMerkleDistributor', args: { root: s.root, totalAllocated: s.total, leafCount: s.count, claimStart: start, claimDeadline: deadline, returnTo, guardian }, initCode };
   }
-  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 20).join('\n')), { usage: true });
+  throw Object.assign(new Error(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1).filter((l, i, a) => a.slice(0, i + 1).every((x) => x.startsWith('//'))).join('\n')), { usage: true });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

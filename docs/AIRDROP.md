@@ -167,6 +167,22 @@ stronger filter and is a **future step** (it needs `traces` / funding graphs; no
 person = one claim, use the zero-knowledge identity airdrop (`contracts/PrivateAirdrop.sol`,
 [docs/future/zk-identity.md](future/zk-identity.md)) instead of an address list.
 
+### 2d. Recipients from BNB Smart Chain (no BigQuery dataset: `active-blocks`)
+
+Google publishes no free BigQuery dataset for BNB Smart Chain, so `active-blocks` reads the chain's public RPC
+(read only, resumable): it samples blocks spread over the last days, drops senders seen in too many sampled blocks
+(bots, market makers, exchange hot wallets), keeps accounts whose nonce (every transaction they ever sent) is between
+`--min-nonce` (default 10) and `--max-nonce` (default 5,000), and writes the `address,score` CSV that `push-list` reads.
+
+```bash
+node airdrop/cli.js active-blocks --rpc https://bsc-rpc.publicnode.com,https://bsc-dataseed.bnbchain.org \
+  --want 180000 --days 7 --sample 30000 --state ~/bsc-scan.json --out ~/bsc-active.csv          # [อ่าน] resumable
+node airdrop/cli.js push-list ~/bsc-active.csv --rpc https://bsc-rpc.publicnode.com \
+  --exclude <the paid ledger> --max 150000 --out ~/bsc-push.txt                                   # [อ่าน] contracts out
+```
+
+Ask for more than you need (`--want`): `push-list` still drops contracts and the excluded. Then section 7 sends it.
+
 ## 3. Build, verify and publish the list
 
 ```bash
