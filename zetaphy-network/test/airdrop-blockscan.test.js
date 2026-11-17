@@ -123,3 +123,15 @@ test('the state is saved atomically (no .tmp left); a corrupt state file is refu
     await assert.rejects(scanActive({ rpcUrl: 'http://a', want: 3, state, fetchImpl: chain().fetchImpl, ...fast }), /not readable JSON.*delete it and run again/);
   } finally { rmSync(d, { recursive: true, force: true }); }
 });
+
+test('cli: --nonce-batch sets the batch size of the nonce requests, --pause waits between rounds', async () => {
+  const d = mkdtempSync(join(tmpdir(), 'scan-'));
+  try {
+    const sizes = [];
+    const c = chain();
+    const fetchImpl = async (url, init) => { const b = JSON.parse(init.body); if (Array.isArray(b)) sizes.push(b.length); return c.fetchImpl(url, init); };
+    await run(['active-blocks', '--rpc', 'http://rpc', '--want', '6', '--days', '1', '--sample', '50', '--block-time', '1', '--min-nonce', '22', '--max-nonce', '110',
+      '--nonce-batch', '3', '--pause', '1', '--out', join(d, 'a.csv')], { log: () => {}, fetchImpl });
+    assert.ok(sizes.length > 0 && sizes.every((n) => n <= 3), `batches of at most 3 (${sizes})`);
+  } finally { rmSync(d, { recursive: true, force: true }); }
+});

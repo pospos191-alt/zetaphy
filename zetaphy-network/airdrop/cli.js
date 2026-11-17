@@ -12,7 +12,8 @@
 //        [--out list.txt] [--batch 100]
 //   Active wallets of a chain with no free BigQuery dataset (BNB Smart Chain), read from its RPC (resumable with --state):
 //   node airdrop/cli.js active-blocks --rpc <URL[,URL]> [--want 150000] [--days 7] [--sample 30000] [--block-time 0.75]
-//        [--max-seen 20] [--min-nonce 10] [--max-nonce 5000] [--concurrency 8] [--state scan.json] --out active.csv
+//        [--max-seen 20] [--min-nonce 10] [--max-nonce 5000] [--concurrency 8] [--nonce-batch 50] [--pause ms] [--state scan.json] --out active.csv
+//        (public BNB Chain RPCs rate-limit batches: --nonce-batch 10 --pause 200 and many --rpc URLs go faster than retries)
 //   node airdrop/cli.js link-message <solanaOwner> <0xEVM> --chain-id N
 //   node airdrop/cli.js link-solana allocations.json links.json --chain-id N > linked.json
 //   node airdrop/cli.js links-from-issues issues.json [--chain-id 3659] [--deadline ISO] > links.json   (GitHub issue form)
@@ -120,7 +121,7 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
     if (!opt.out) throw new Error('active-blocks --rpc <URL> --out active.csv [--want 150000] [--days 7] [--sample 30000] [--state scan.json]');
     const num = (k, d) => { if (opt[k] == null) return d; const v = Number(opt[k]); if (!Number.isFinite(v) || v <= 0) throw new Error(`--${k}: a positive number`); return v; };
     const r = await scanActive({ rpcUrl: opt.rpc, want: num('want', 150_000), days: num('days', 7), sample: num('sample', 30_000), blockTime: num('block-time', 0.75),
-      maxSeen: num('max-seen', 20), minNonce: num('min-nonce', 10), maxNonce: num('max-nonce', 5000), concurrency: num('concurrency', 8), state: opt.state ?? null, fetchImpl, log });
+      maxSeen: num('max-seen', 20), minNonce: num('min-nonce', 10), maxNonce: num('max-nonce', 5000), concurrency: num('concurrency', 8), nonceBatch: num('nonce-batch', 50), pauseMs: opt.pause != null ? Number(opt.pause) : 0, state: opt.state ?? null, fetchImpl, log });
     writeFileSync(opt.out, toCsv(r.rows));
     log(`active-blocks: ${r.rows.length} addresses -> ${opt.out}; ${JSON.stringify(r.stats)}. Next: push-list ${opt.out} --rpc <the same chain's RPC> --exclude <paid ledger> --out push.txt`);
     return { out: opt.out, ...r.stats };
