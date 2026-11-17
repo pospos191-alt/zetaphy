@@ -2,6 +2,8 @@
 
 # ZETAPHY outreach: the push airdrop announcement, 30 days of posts, channels
 
+BNB Chain round, ZTPHY on BSC, trackers and listings: [OUTREACH-BNB.md](OUTREACH-BNB.md).
+
 This extends the [mainnet announcement kit](ZETAPHY-MAINNET-ANNOUNCE.md) (its 8-language launch posts, the round-1
 post and the safety line stay there). Here: the post for the **push airdrop** (10 ZTPHY to each of 100,000 active
 Ethereum addresses, [AIRDROP.md section 7](AIRDROP.md#7-push-airdrop-on-mainnet-owner-decision-2026-11-14)), a
