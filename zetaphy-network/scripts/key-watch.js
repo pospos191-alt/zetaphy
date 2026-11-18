@@ -24,6 +24,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Interface, JsonRpcProvider, FetchRequest, Network, getAddress, formatEther, parseEther, id as keccakId, ZeroHash } from 'ethers';
+import { saphanRoutes, checkSaphan } from '../src/saphanwatch.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CONFIG = resolve(HERE, '../key-watch.json');
@@ -144,7 +145,7 @@ export function loadConfig(path = DEFAULT_CONFIG, { readJson = (p) => JSON.parse
   const base = dirname(path);
   const table = raw.chainsFile ? readJson(resolve(base, raw.chainsFile)) : {};
   const routes = raw.routesFile && existsSync(resolve(base, raw.routesFile)) ? readJson(resolve(base, raw.routesFile)) : {};
-  return buildConfig(raw, table, routes);
+  return { ...buildConfig(raw, table, routes), base };
 }
 
 export function buildConfig(raw, table = {}, routes = {}) {
@@ -182,7 +183,8 @@ export function buildConfig(raw, table = {}, routes = {}) {
       addFrom(chain, r.destination, ['synthetic', 'multisig', 'timelock'], `Saphan ${token}:`);
     }
   }
-  return { defaults, chains };
+  // key-watch-mainnet.json `saphan`: the bridge checks of src/saphanwatch.js (backing, forged queued messages, limits, relayer gas)
+  return { defaults, chains, saphan: raw.saphan ?? null };
 }
 
 function pick(o, keys) { return Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, o[k]])); }
@@ -217,6 +219,7 @@ export function makeRpc(urls, chainId, { timeoutMs = 15000 } = {}) {
   return {
     getBlockNumber: () => call((p) => p.getBlockNumber()),
     getBalance: (a) => call((p) => p.getBalance(a)),
+    call: (tx) => call((p) => p.call(tx)),
     getTransactionCount: (a) => call((p) => p.getTransactionCount(a, 'latest')),
     getLogs: (f) => call((p) => p.getLogs(f)),
     getBlock: (n) => call((p) => p.getBlock(n)),
@@ -496,6 +499,19 @@ async function main() {
     config, state, lookback, log: (m) => console.log(m),
     rpcFor: (c) => makeRpc(c.rpc, c.chainId, { timeoutMs: config.defaults.rpcTimeoutMs }),
   });
+  // the Saphan bridge checks (key-watch-mainnet.json `saphan`): their alerts go out with the others, deduped the same way
+  if (config.saphan) {
+    try {
+      const sp = await checkSaphan({ watch: config, routes: saphanRoutes(config, config.base), state: res.state.saphan, log: (m) => console.log(m),
+        rpcFor: (c) => makeRpc(c.rpc, c.chainId, { timeoutMs: config.defaults.rpcTimeoutMs }) });
+      res.state.saphan = sp.state;
+      const seen = new Set(res.state.seen);
+      const fresh = sp.alerts.filter((a) => !seen.has(a.key));
+      for (const a of fresh) { res.state.seen.push(a.key); if (res.stats[a.chain]) res.stats[a.chain].alerts++; }
+      res.alerts = [...res.alerts, ...fresh].sort((x, y) => SEV_ORDER[x.severity] - SEV_ORDER[y.severity]);
+      console.log(`saphan: ${saphanRoutes(config, config.base).length} route(s) checked, ${fresh.length} new alert(s)`);
+    } catch (e) { console.log(`::warning title=key-watch::the Saphan checks failed: ${short(e)}`); }
+  }
   for (const [k, s] of Object.entries(res.stats)) console.log(`${k}: ${s.reachable ? `reachable, ${s.scanned} block(s) scanned, ${s.alerts} new alert(s)` : 'unreachable'}`);
   const runUrl = process.env.GITHUB_SERVER_URL && process.env.GITHUB_RUN_ID ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}` : undefined;
   let failed = false;

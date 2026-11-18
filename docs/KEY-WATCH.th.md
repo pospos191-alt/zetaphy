@@ -16,6 +16,53 @@
 ฟรี: ใช้ RPC สาธารณะเท่านั้น ไม่มี secret ไม่มีบริการเสียเงิน โทเคนเดียวคือ `GITHUB_TOKEN` ในตัวของ workflow ที่มีสิทธิ์
 `issues: write` เท่านั้น ใช้กับ testnet เท่านั้น
 
+## Mainnet (ตั้งแต่ 2026-11-19)
+
+workflow รัน `key-watch.js --config zetaphy-network/key-watch-mainnet.json` ([`key-watch-mainnet.json`](../zetaphy-network/key-watch-mainnet.json)) เฝ้าดู:
+
+| เชน | สิ่งที่เฝ้าดู |
+|---|---|
+| ZETAPHY mainnet | ZetaphyTimelock, guardian multisig, vault ของ Saphan ทั้งสองเส้นทาง (BSC, Base), Hyperlane Mailbox, กุญแจ validator ของสะพาน, ทุกสัญญาใน `zetaphy-launch/state/3659.contracts.json` และข้อเสนอ gov ใหม่ (Cosmos REST) |
+| BNB Smart Chain, Base | ZTPHY (synthetic), multisig และ timelock ของเส้นทาง, ISM ของเรา, Safe ของสภาพคล่อง |
+| ทุกเชน | deployer, guardian A, B, C และเจ้าของ Safe: ทุกธุรกรรมที่กุญแจเหล่านี้เซ็น |
+
+นอกจาก event แล้ว ทุกรอบยังตรวจสะพาน Saphan ทุกเส้นทาง (`saphan` ใน config, [`src/saphanwatch.js`](../zetaphy-network/src/saphanwatch.js)):
+
+| การตรวจ | ระดับ | ความหมาย |
+|---|---|---|
+| backing | CRITICAL | ZTPHY บน BSC/Base มีมากกว่าที่ล็อกไว้ใน vault บน ZETAPHY: มีเหรียญที่ไม่มีอะไรหนุน |
+| forged mint / forged release | CRITICAL | มีรายการรอจ่ายที่ไม่มี `Sent` ตรงกันบนอีกเชน: ข้อความปลอมกำลังรอครบเวลา (mint 1 ชม., release 6 ชม.) |
+| stalled | CRITICAL | บล็อกล่าสุดของ ZETAPHY เก่ากว่า 15 นาที |
+| large | warning | รายการเดียวขนาด 25 % ของเพดานต่อวันขึ้นไป (ตรงกับต้นทาง) |
+| near limit | warning | ใช้เพดานต่อวันของฝั่งหนึ่งไปแล้ว 80 % |
+| relayer gas | warning | relayer มีค่าแก๊สต่ำกว่าเกณฑ์บนเชนหนึ่ง: ข้อความจะหยุดส่ง |
+
+`test/keywatch-mainnet.test.js` จะล้มถ้าที่อยู่ที่ commit ไว้ (ไฟล์ launch, state ของ Saphan) ไม่อยู่ในรายการเฝ้าดู
+
+## Saphan: เหรียญไม่มีหนุน หรือข้อความปลอม
+
+การแจ้งเตือนบอกเส้นทาง (`bsc` หรือ `base`), เชน และ id ของข้อความปลอม guardian สองคน (กระดาษ A, B, C คู่ใดก็ได้) ลงมือทันที
+การหยุดและ veto ไม่ต้องรอ timelock บน Oracle Cloud Shell ใน `~/zetaphy/zetaphy-network` (`git pull` ก่อน) guardian
+แต่ละคนพิมพ์คำ 24 คำลงใน `read -rs` (ห้ามพิมพ์ในบรรทัดคำสั่ง):
+
+```bash
+# 1. veto รายการปลอมก่อนเวลา "ready at" (คนแรกเสนอ คนที่สองยืนยันแล้วคำสั่งจะทำงาน)  [เปลี่ยนเชน]
+read -rs M; export M; node scripts/saphan-guard.js veto <id> --route bsc --chain dest; unset M      # mint ปลอม (บน BSC/Base)
+read -rs M; export M; node scripts/saphan-guard.js confirm <n> --route bsc --chain dest; unset M
+#    (release ปลอม: เหมือนกันแต่ใช้ --chain zetaphy)
+# 2. หยุดสะพานทั้งสองฝั่ง  [เปลี่ยนเชน]
+read -rs M; export M; node scripts/saphan-guard.js pause --route bsc --chain dest; unset M
+read -rs M; export M; node scripts/saphan-guard.js confirm <n> --route bsc --chain dest; unset M
+read -rs M; export M; node scripts/saphan-guard.js pause --route bsc --chain zetaphy; unset M
+read -rs M; export M; node scripts/saphan-guard.js confirm <n> --route bsc --chain zetaphy; unset M
+node scripts/saphan-guard.js status --route bsc                                                      # [อ่าน] ทั้งสองฝั่ง paused=true
+```
+
+guardian แต่ละคนต้องมีค่าแก๊สเล็กน้อยบนเชนนั้น (BNB บน BSC, ETH บน Base, ZTPHY บน ZETAPHY) เครื่องมือนี้ไม่ยอมรับคำที่ไม่ใช่ของ
+guardian และไม่ยอมยืนยันอะไรที่ไม่ใช่การหยุดหรือ veto สัญญาของเส้นทางนั้นตรงๆ จากนั้นหยุด relayer
+(`sudo bash setup-agents-mainnet.sh stop` บน sentry) เปลี่ยนกุญแจ validator ของสะพาน แล้วตามหาข้อความนั้น การเปิดใหม่ต้องผ่าน
+timelock 48 ชม. ทั้งสองฝั่ง เหมือนตอนเปิดครั้งแรก
+
 ## เฝ้าดูอะไรบ้าง
 
 เชน: **ZETAPHY testnet** (77390, `https://rpc.sawasdeecoin.com`), **Sepolia**, **Base Sepolia**, **Arbitrum Sepolia**
