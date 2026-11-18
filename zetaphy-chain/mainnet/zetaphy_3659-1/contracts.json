@@ -78,5 +78,28 @@
       "neuroOracleSender": "no Hyperlane Mailbox on this chain (deploy config ai.mailbox)"
     },
     "pendingTimelockBatch": "governance proposal 1 (DLMM presets, ThreatRegistry and feeTo; NFT code keys), then 48 h"
+  },
+  "appsAddedOnResume": {
+    "date": "2026-11-18",
+    "note": "launch.js --network mainnet --resume, steps offline, auditnet, qrescue, immune (docs/ZETAPHY-MAINNET-PROCEDURE.md 16.11): the contracts of the hub's Offline, Audit, Quantum and Immunity tabs. Governance is the timelock in every constructor; the offline contracts and AuditRunners have no owner; nothing mints; nothing has a guardian or a pause. Full list with hub keys: zetaphy-launch/state/3659.contracts.json",
+    "contracts": {
+      "zetaphyCheques": "0xB087CD34feD2ed9Da332805FF3E0255B6c2379Cc",
+      "offlineOrders": "0x5382299A4C0E9B57fe11A74078bde3B53a564d88",
+      "offlineCash": "0x3814C5D8FBC1bd3F1eBcfb37dE4d949C53d03Eee",
+      "auditNetwork": "0x211d88F5B06773854A47d13569cdF9997FBF1A92",
+      "auditRunners": "0xe9dF4062b12a2a50B6318Ba2C891AA40B3198A55",
+      "auditJudges": "0x1dAD7EB32C83A2E8383C3cE80654E88d8B15212D",
+      "auditCertificate": "0xfCD4fcD0d460AAA68Ba10C516Df5212409dB9092",
+      "quantumRescue": "0xf6b7704017e56aC998454382422A4671DDB62bDB",
+      "immuneRegistry": "0x6E8ff23fF4ff95994A3410F5C45Cf35B669B77CB"
+    },
+    "pendingVote": "WorkerReputation.setReporter(AuditNetwork, true) and setReporter(AuditRunners, true): until a vote calls them, the audit network's reputation reports are skipped",
+    "skipped": {
+      "immuneVaccines": "ImmuneVaccines says TESTNET ONLY in its own source, and one of its three confirmations is HackInsurance, which is not on mainnet",
+      "immuneMirror": "ImmuneMirror lives on each other chain (that chain's Mailbox and our ISM), not on ZETAPHY",
+      "pqSettlement": "not a contract the hub calls (the Quantum tab uses QuantumRescue only); the testnet record keeps it for the settlement prototype",
+      "circuitBreaker": "self-healing (docs/future/self-healing.md), not part of the immune tab: guardian bonds from runners, left for its own step",
+      "immuneBroadcaster": "no Hyperlane Mailbox on this chain (deploy config ai.mailbox)"
+    }
   }
 }

@@ -34,6 +34,15 @@
     "webauthn": "0xBDB4033409B839Bf1D325216505737f68Bf36553",
     "cosignCommittee": "0x42fF91AB63d5Cd33c6B9A9C340618BA3453025F8",
     "federatedRounds": "0x231b7Dd4E08235dB8Bd950AE662973fb872e3260",
+    "zetaphyCheques": "0xB087CD34feD2ed9Da332805FF3E0255B6c2379Cc",
+    "offlineOrders": "0x5382299A4C0E9B57fe11A74078bde3B53a564d88",
+    "offlineCash": "0x3814C5D8FBC1bd3F1eBcfb37dE4d949C53d03Eee",
+    "auditNetwork": "0x211d88F5B06773854A47d13569cdF9997FBF1A92",
+    "auditRunners": "0xe9dF4062b12a2a50B6318Ba2C891AA40B3198A55",
+    "auditJudges": "0x1dAD7EB32C83A2E8383C3cE80654E88d8B15212D",
+    "auditCertificate": "0xfCD4fcD0d460AAA68Ba10C516Df5212409dB9092",
+    "quantumRescue": "0xf6b7704017e56aC998454382422A4671DDB62bDB",
+    "immuneRegistry": "0x6E8ff23fF4ff95994A3410F5C45Cf35B669B77CB",
     "zetaphyBounty": "0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE",
     "guardianMultisig": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
     "timelockBlock": 3104
@@ -52,6 +61,11 @@
   "aiItemsWithContracts": [1, 2, 3, 5, 6, 7, 9, 10, 14, 15, 16, 17, 19, 23, 24, 25, 26, 27, 29, 30, 34, 35],
   "skipped": {
     "hackInsurance": "HackInsurance is testnet only by its own terms: an unaudited parametric insurance pool into which \"no real money may ever be put\" (AI map item 32 stays \"not deployed\")",
+    "immuneVaccines": "ImmuneVaccines says TESTNET ONLY in its own source, and one of its three confirmations is HackInsurance, which is not on mainnet",
+    "immuneMirror": "ImmuneMirror lives on each other chain (that chain's Mailbox and our ISM), not on ZETAPHY",
+    "pqSettlement": "not a contract the hub calls (the Quantum tab uses QuantumRescue only); the testnet record keeps it for the settlement prototype",
+    "circuitBreaker": "self-healing (docs/future/self-healing.md), not part of the immune tab: guardian bonds from runners, left for its own step",
+    "immuneBroadcaster": "no Hyperlane Mailbox on this chain (deploy config ai.mailbox)",
     "neuroOracleSender": "no Hyperlane Mailbox on this chain (deploy config ai.mailbox)"
   }
 }
