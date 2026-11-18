@@ -25,6 +25,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Interface, JsonRpcProvider, FetchRequest, Network, getAddress, formatEther, parseEther, id as keccakId, ZeroHash } from 'ethers';
 import { saphanRoutes, checkSaphan } from '../src/saphanwatch.js';
+import { loadSelectors, explainProposal } from '../src/govexplain.js';
+
+let SELECTORS = null; // every contract function in this repository, by selector (src/govexplain.js), loaded on the first proposal
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CONFIG = resolve(HERE, '../key-watch.json');
@@ -376,12 +379,21 @@ export async function runWatch({ config, state = newState(), rpcFor, fetchJson =
       }
       try {
         const j = await fetchJson(`${rest}/cosmos/gov/v1/proposals?pagination.reverse=true&pagination.limit=20`);
-        const props = (j.proposals ?? []).map((p) => ({ id: Number(p.id), title: p.title ?? p.metadata ?? '', status: p.status, msgs: (p.messages ?? []).map((m) => m['@type']).join(', ') }));
+        const props = (j.proposals ?? []).map((p) => ({ id: Number(p.id), title: p.title ?? p.metadata ?? '', status: p.status, msgs: (p.messages ?? []).map((m) => m['@type']).join(', '), raw: p }));
         const maxId = Math.max(0, ...props.map((p) => p.id));
         if (cos.lastProposal != null) {
           for (const p of props.filter((x) => x.id > cos.lastProposal).sort((x, y) => x.id - y.id)) {
-            alerts.push({ key: `gov:${chain.key}:${p.id}`, severity: 'high', chain: chain.key, chainName: chain.name, title: `new gov proposal #${p.id}`,
-              lines: [`#${p.id} ${p.title} — ${p.status}`, `messages: ${p.msgs || '?'}`, 'A gov proposal can schedule in the timelock without an EVM log: read it before it passes.'] });
+            // what it would do, in words: every timelock call it schedules, by function and contract, with its risk
+            let ex = null;
+            try {
+              SELECTORS ??= loadSelectors();
+              ex = explainProposal(p.raw, { selectors: SELECTORS, labels: Object.fromEntries(chain.watch.map((w) => [lc(w.address), w.label])),
+                timelock: chain.watch.find((w) => w.kind === 'timelock')?.address ?? null });
+            } catch (e) { log(`${chain.key}: proposal ${p.id}: could not explain it (${short(e)})`); }
+            alerts.push({ key: `gov:${chain.key}:${p.id}`, severity: ex?.severity === 'critical' ? 'critical' : 'high', chain: chain.key, chainName: chain.name,
+              title: `new gov proposal #${p.id}${ex?.severity === 'critical' ? ' — CHANGES WHO CONTROLS FUNDS OR RULES' : ''}`,
+              lines: [`#${p.id} ${p.title} — ${p.status}`, ...(ex ? ['**What it does:**', ...ex.lines] : [`messages: ${p.msgs || '?'}`]),
+                'A gov proposal can schedule in the timelock without an EVM log: read it before it passes; vote no (or veto) if you did not expect it.'] });
           }
         }
         cos.lastProposal = Math.max(cos.lastProposal ?? 0, maxId);

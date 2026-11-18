@@ -38,6 +38,17 @@ On top of the events, every run checks each Saphan route (`saphan` in the config
 | large | warning | one queued transfer of 25 % of the daily limit or more (it does match its source) |
 | near limit | warning | 80 % of a side's daily limit is used today |
 | relayer gas | warning | the relayer is under its floor on a chain: messages stop being delivered |
+| unusual size | warning | **learned**: a transfer 10 x the median of the last 20+ on that side (and at least 1 % of the daily limit) |
+| unusual rate | warning | **learned**: a run with far more transfers than usual (mean + 4 σ over 20+ runs, at least 5) |
+
+Every CRITICAL Saphan alert ends with the exact guardian commands to paste (veto on the right chain, then pause both
+ends): no one has to compose a command during an incident.
+
+**New gov proposals are explained** (`src/govexplain.js`): the alert lists every call the proposal schedules in the
+timelock, by function name, arguments and contract (its watch-list label), with why it matters (a new ISM, a role, an
+owner or a guardian = CRITICAL; an unpause, a limit, a coin transfer, a reporter = HIGH; a function no contract in this
+repository has = HIGH). A CRITICAL one makes the whole alert critical, titled "CHANGES WHO CONTROLS FUNDS OR RULES",
+while the vote is still open.
 
 `test/keywatch-mainnet.test.js` fails if a committed address (launch file, Saphan state) is missing from the watch list.
 

@@ -195,3 +195,62 @@ test('saphan-guard: only a pause or a veto of the route\'s own contract, on each
     assert.equal(isGuardCall(cfg, st, { route, chain: 'zetaphy' }, d.synthetic, zet.allowed[0].data), null);
   }
 });
+
+// ---------------------------------------------------------------- guardian steps and the learned checks
+
+test('every CRITICAL Saphan alert carries the guardian commands: veto (on the right chain), then pause both ends', async () => {
+  const { guardSteps } = await import('../src/saphanwatch.js');
+  const id = keccakId('forged');
+  const t = guardSteps('bsc', { vetoId: id, vetoChain: 'zetaphy' }).join('\n');
+  assert.match(t, new RegExp(`saphan-guard\\.js veto ${id} --route bsc --chain zetaphy; unset M`));
+  assert.match(t, /saphan-guard\.js pause --route bsc --chain dest; unset M[\s\S]*saphan-guard\.js pause --route bsc --chain zetaphy; unset M/);
+  assert.match(t, /read -rs M; export M;/);
+  assert.doesNotMatch(guardSteps('base').join('\n'), /veto/);
+  // in the alerts themselves
+  const { z, d, run } = setup({ locked: E(1), supply: E(2) });
+  let r = await run({});
+  assert.match(r.alerts.find((a) => a.key.startsWith('saphan:backing')).lines.join('\n'), /pause --route bsc --chain dest/);
+  d.logs.push(queued(SYN, 5010, keccakId('ff'), 0n, EVE, EVE, E(1)));
+  d.head = 5050;
+  r = await run(r.state);
+  const f = r.alerts.find((a) => a.key.startsWith('saphan:forged'));
+  assert.match(f.lines.join('\n'), new RegExp(`veto ${keccakId('ff')} --route bsc --chain dest`));
+  void z;
+});
+
+test('learned checks: after 20 ordinary transfers a much bigger one is "unusual"; after 20 quiet runs a burst is too', async () => {
+  const { z, d, run } = setup();
+  let r = await run({});
+  let n = 0;
+  // 20 runs of one ordinary mint each (100 ZTPHY), all with their source Sent
+  for (let i = 0; i < 20; i++) {
+    z.logs.push(sent(VAULT, 990, BigInt(n), ALICE, BOB, E(100)));
+    d.logs.push(queued(SYN, 5001 + i * 10, keccakId(`m${n}`), BigInt(n), ALICE, BOB, E(100)));
+    n++;
+    d.head = 5001 + i * 10 + 5;
+    r = await run(r.state);
+    assert.deepEqual(r.alerts, [], `run ${i}: ordinary`);
+  }
+  assert.equal(r.state.learn['bsc:mint'].amounts.length, 20);
+  assert.equal(r.state.learn['bsc:mint'].runs, 20);
+  // one mint 50x the median (5,000 ZTPHY: under the 25 % "large" rule, over 1 % of the limit)
+  z.logs.push(sent(VAULT, 990, BigInt(n), ALICE, BOB, E(15000)));
+  d.logs.push(queued(SYN, 5300, keccakId(`m${n}`), BigInt(n), ALICE, BOB, E(15000)));
+  n++;
+  d.head = 5305;
+  r = await run(r.state);
+  const u = r.alerts.find((a) => a.key.startsWith('saphan:unusual-size'));
+  assert.ok(u, 'unusual size');
+  assert.match(u.lines.join('\n'), /150 x the median of the last 20 mints \(100\.0 ZTPHY\)/);
+  // a burst: 8 ordinary mints in one run, after 21 runs of about one
+  for (let i = 0; i < 8; i++) {
+    z.logs.push(sent(VAULT, 990, BigInt(n), ALICE, BOB, E(100)));
+    d.logs.push(queued(SYN, 5310 + i, keccakId(`m${n}`), BigInt(n), ALICE, BOB, E(100)));
+    n++;
+  }
+  d.head = 5330;
+  r = await run(r.state);
+  const b = r.alerts.find((a) => a.key.startsWith('saphan:unusual-rate'));
+  assert.ok(b, 'burst');
+  assert.match(b.lines[0], /^8 mints queued since the last run; usually 1\.0/);
+});
