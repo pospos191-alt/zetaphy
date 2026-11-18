@@ -41,7 +41,7 @@ jobs:
     env:
       REF: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Install with the one command (code pinned to this commit)
@@ -82,7 +82,7 @@ jobs:
     env:
       REF: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Which signed release to test (this setup-node.sh's, or the base branch's before it is built)
@@ -158,7 +158,7 @@ jobs:
     env:
       REF: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Which signed release to test (this setup-node.sh's, or the base branch's before it is built)

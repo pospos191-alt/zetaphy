@@ -62,10 +62,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '20'
       - run: npm ci --no-audit --no-fund
@@ -108,10 +108,10 @@ jobs:
       GOV: ${{ vars.GOV_BECH32 }}
       ACTIVATION: ${{ vars.FL_ACTIVATION }}
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '20'
       - run: npm ci --no-audit --no-fund
@@ -130,7 +130,7 @@ jobs:
           echo "better=$(node -p "require('./out.json').better")" >> "$GITHUB_OUTPUT"
           echo "head=$(node -p "require('./out.json').candidate ?? ''")" >> "$GITHUB_OUTPUT"
           [ -f out/fl/body.md ] && cat out/fl/body.md >> "$GITHUB_STEP_SUMMARY" || cat out/fl/decision.json >> "$GITHUB_STEP_SUMMARY" || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: neuro-fl-${{ github.run_id }}
@@ -148,8 +148,8 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: neuro-fl-${{ github.run_id }}
           path: artifact
@@ -190,8 +190,8 @@ jobs:
       DEPLOYER: "0x6af57fC3633dD0F7907f7900dbd4A2822F43a245"
       TIMELOCK: "0x731db92410B3b15Ae4b6b41E47fc3c9a66390340"
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '20'
       - run: npm ci --no-audit --no-fund
