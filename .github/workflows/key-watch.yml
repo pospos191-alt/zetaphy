@@ -1,10 +1,12 @@
-# Key watch: every 15 minutes, read (only) the public RPCs of ZETAPHY, Sepolia, Base Sepolia and Arbitrum
-# Sepolia and raise a GitHub issue (label security-alert) when a watched key signs a transaction, a balance
-# drops, or a watched contract emits a timelock / role / ownership / pause / veto / guardian event.
+# Key watch: every 15 minutes, read (only) the public RPCs of ZETAPHY mainnet, BNB Smart Chain and Base and
+# raise a GitHub issue (label security-alert) when a watched key signs a transaction, a balance drops, a watched
+# contract emits a timelock / role / ownership / pause / veto / guardian event, or a Saphan bridge check fails
+# (unbacked supply, a forged queued mint or release, a daily limit nearly used, ZETAPHY stalled, relayer low on gas).
 # GitHub emails / app-notifies the repository owner about new issues and comments: that is the alert.
 # Free: no secrets, no paid service; public repository minutes are free (a private one: ~2,900 min/month
 # at */15, over GitHub Free's 2,000 — use '7,37 * * * *' there, or run it public).
-# What is watched: zetaphy-network/key-watch.json (+ deployed routes in saphan-routes.json).
+# What is watched: zetaphy-network/key-watch-mainnet.json (its `saphan` part: src/saphanwatch.js, the routes in
+# zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json). key-watch.json is the retired testnet's list.
 # What to do when it fires: docs/KEY-WATCH.md (docs/KEY-WATCH.th.md).
 #
 # The data is public chain data about public addresses (the same ones committed in this repository),
@@ -63,8 +65,8 @@ jobs:
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: .key-watch
-          key: key-watch-state-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: key-watch-state-
+          key: key-watch-mainnet-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: key-watch-mainnet-state-
 
       - name: Watch
         env:
@@ -72,7 +74,7 @@ jobs:
           KEY_WATCH_LOOKBACK: ${{ inputs.lookback }}
         run: |
           [[ -z "$KEY_WATCH_LOOKBACK" || "$KEY_WATCH_LOOKBACK" =~ ^[0-9]+$ ]] || { echo "::error::lookback must be a number of blocks"; exit 1; }
-          node zetaphy-network/scripts/key-watch.js --state .key-watch/state.json
+          node zetaphy-network/scripts/key-watch.js --config zetaphy-network/key-watch-mainnet.json --state .key-watch/state.json
 
       # Only after a successful run: alerts that could not be posted are found again next run.
       - name: Save the watcher state
@@ -80,4 +82,4 @@ jobs:
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: .key-watch
-          key: key-watch-state-${{ github.run_id }}-${{ github.run_attempt }}
+          key: key-watch-mainnet-state-${{ github.run_id }}-${{ github.run_attempt }}

@@ -10,11 +10,36 @@ stolen key into a GitHub issue, so GitHub emails and app-notifies the owner with
 
 - Workflow: [`.github/workflows/key-watch.yml`](../.github/workflows/key-watch.yml), every 15 minutes (and by hand: Actions → key-watch → Run workflow)
 - Script: [`zetaphy-network/scripts/key-watch.js`](../zetaphy-network/scripts/key-watch.js)
-- Watch list: [`zetaphy-network/key-watch.json`](../zetaphy-network/key-watch.json)
-- Tests: `cd zetaphy-network && node --test test/keywatch.test.js`
+- Watch list (mainnet): [`zetaphy-network/key-watch-mainnet.json`](../zetaphy-network/key-watch-mainnet.json): ZETAPHY mainnet, BNB Smart Chain and Base
+- Saphan bridge checks: [`zetaphy-network/src/saphanwatch.js`](../zetaphy-network/src/saphanwatch.js); the guardians' emergency tool: [`zetaphy-network/scripts/saphan-guard.js`](../zetaphy-network/scripts/saphan-guard.js)
+- The retired testnet's list: [`zetaphy-network/key-watch.json`](../zetaphy-network/key-watch.json) (no longer run)
+- Tests: `cd zetaphy-network && node --test test/keywatch.test.js test/keywatch-mainnet.test.js`
 
 Free: public RPCs only, no secrets, no paid service. The only token is the workflow's built-in `GITHUB_TOKEN` with
-`issues: write`. Testnets only.
+`issues: write`.
+
+## Mainnet (since 2026-11-19)
+
+The workflow runs `key-watch.js --config zetaphy-network/key-watch-mainnet.json`. It watches:
+
+| chain | watched |
+|---|---|
+| ZETAPHY mainnet | the ZetaphyTimelock, the guardian multisig, both Saphan vaults (BSC, Base), the Hyperlane Mailbox, the bridge validator key, every contract in `zetaphy-launch/state/3659.contracts.json`; new gov proposals (Cosmos REST) |
+| BNB Smart Chain, Base | ZTPHY (the synthetic), the route's multisig and timelock, our ISM, the liquidity Safe |
+| every chain | the deployer, guardians A, B and C, the Safe owner: any transaction they sign |
+
+On top of the events, every run checks each Saphan route (`saphan` in the config, `src/saphanwatch.js`):
+
+| check | severity | what it means |
+|---|---|---|
+| backing | CRITICAL | ZTPHY's supply on BSC/Base is above what its vault on ZETAPHY holds locked: unbacked coins exist |
+| forged mint / forged release | CRITICAL | a payout is queued with no matching `Sent` on the other chain: a forged message is waiting out its delay (1 h for mints, 6 h for releases) |
+| stalled | CRITICAL | ZETAPHY's newest block is older than 15 minutes |
+| large | warning | one queued transfer of 25 % of the daily limit or more (it does match its source) |
+| near limit | warning | 80 % of a side's daily limit is used today |
+| relayer gas | warning | the relayer is under its floor on a chain: messages stop being delivered |
+
+`test/keywatch-mainnet.test.js` fails if a committed address (launch file, Saphan state) is missing from the watch list.
 
 ## What is watched
 
@@ -87,6 +112,30 @@ Edit [`zetaphy-network/key-watch.json`](../zetaphy-network/key-watch.json) in a 
 - Thresholds in `defaults`: `balanceDropPct` (10), `balanceDropMin` (0.05 native coin), `confirmations`, `logChunk`,
   `maxBlocksPerRun`, `rpcDownNoticeHours` (24), `rpcDownGraceMinutes` (60).
 - Check locally (read-only, prints instead of posting): `cd zetaphy-network && node scripts/key-watch.js --dry-run`.
+
+## Saphan: unbacked or forged
+
+The alert names the route (`bsc` or `base`), the chain and, for a forged message, its id. Two guardians (papers A, B, C,
+any two) act at once; no timelock applies to a pause or a veto. On Oracle Cloud Shell, in `~/zetaphy/zetaphy-network`
+(`git pull` first), each guardian types their 24 words into `read -rs` (never on the command line):
+
+```bash
+# 1. veto the forged payout before its "ready at" (first guardian proposes, second confirms and it runs)
+read -rs M; export M; node scripts/saphan-guard.js veto <id> --route bsc --chain dest; unset M      # forged mint (on BSC/Base)
+read -rs M; export M; node scripts/saphan-guard.js confirm <n> --route bsc --chain dest; unset M
+#    (a forged release: the same with --chain zetaphy)
+# 2. pause both ends
+read -rs M; export M; node scripts/saphan-guard.js pause --route bsc --chain dest; unset M
+read -rs M; export M; node scripts/saphan-guard.js confirm <n> --route bsc --chain dest; unset M
+read -rs M; export M; node scripts/saphan-guard.js pause --route bsc --chain zetaphy; unset M
+read -rs M; export M; node scripts/saphan-guard.js confirm <n> --route bsc --chain zetaphy; unset M
+node scripts/saphan-guard.js status --route bsc                                                      # both paused=true
+```
+
+Each guardian needs a little gas on that chain (BNB on BSC, ETH on Base, ZTPHY on ZETAPHY). The tool refuses words that
+are not a guardian's, and refuses to confirm anything that is not exactly a pause or veto of that route's own contract.
+Then stop the relayer (`sudo bash setup-agents-mainnet.sh stop` on the sentry), rotate the bridge validator key, and
+find the message. Reopening is a 48 h timelock call on both ends, as at the opening.
 
 ## When an alert fires
 

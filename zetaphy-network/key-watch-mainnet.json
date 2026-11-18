@@ -1,0 +1,409 @@
+{
+  "_comment": "Key watch on MAINNET (.github/workflows/key-watch.yml, scripts/key-watch.js, docs/KEY-WATCH.md): ZETAPHY mainnet, BNB Smart Chain and Base. Public addresses only (all committed elsewhere: zetaphy-launch/state/3659.contracts.json, zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json; test/keywatch-mainnet.test.js checks they agree). Every event of a watched contract that changes who controls it, pauses it or schedules a timelock call raises an alert; an EOA's new transaction too (your own planned ones as well: they confirm it was you). `saphan`: the bridge checks of src/saphanwatch.js (unbacked supply, forged queued mints/releases, limits, chain stalled, relayer gas).",
+  "defaults": {
+    "balanceDropPct": 10,
+    "balanceDropMin": "0.05",
+    "confirmations": 2,
+    "logChunk": 1999,
+    "maxBlocksPerRun": 20000,
+    "maxLagBlocks": 200000,
+    "rpcDownNoticeHours": 24,
+    "rpcDownGraceMinutes": 60,
+    "rpcTimeoutMs": 15000
+  },
+  "everyChain": [
+    {
+      "address": "0x11391E190692BE087792c6e34FB699828b6BFC4e",
+      "label": "Saphan deployer (also executes the timelocks)",
+      "kind": "eoa"
+    },
+    {
+      "address": "0xE68116AB3C60cdA2012EF87787A591C38BBF4d9b",
+      "label": "guardian A",
+      "kind": "eoa"
+    },
+    {
+      "address": "0x0FC3cb4B939a61be39BD93Ef41ED45f482c533E6",
+      "label": "guardian B",
+      "kind": "eoa"
+    },
+    {
+      "address": "0x53256381b51232AF2B22e68883Ea9Cd84294fCbD",
+      "label": "guardian C",
+      "kind": "eoa"
+    },
+    {
+      "address": "0xF9526e78d3f107c4147f83325Bc2bb42c3328B32",
+      "label": "liquidity Safe owner",
+      "kind": "eoa"
+    }
+  ],
+  "chains": {
+    "zetaphy": {
+      "displayName": "ZETAPHY mainnet",
+      "chainId": 3659,
+      "rpc": [
+        "https://129-221-199-191.sslip.io"
+      ],
+      "explorer": "",
+      "rest": "https://129-221-199-191.sslip.io/rest",
+      "validators": [],
+      "watch": [
+        {
+          "address": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+          "label": "ZetaphyTimelock (governance of every contract)",
+          "kind": "timelock"
+        },
+        {
+          "address": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+          "label": "guardian multisig (2 of 3: A, B, C)",
+          "kind": "multisig"
+        },
+        {
+          "address": "0xFA8F7a89A1f870bDFC03740FbF687e931B0b384A",
+          "label": "Saphan vault ZTPHY -> BSC",
+          "kind": "bridge"
+        },
+        {
+          "address": "0x022Ea911906e325caDe7cAA53DCFd5402738410d",
+          "label": "Saphan vault ZTPHY -> Base",
+          "kind": "bridge"
+        },
+        {
+          "address": "0x9FC59F469454FD27813Da94DF5803D603340E91c",
+          "label": "Hyperlane Mailbox",
+          "kind": "contract"
+        },
+        {
+          "address": "0xF134CCb10c1DAca611096AD8Bd0aBd43c3b4F6Ea",
+          "label": "Saphan bridge validator key (sentry)",
+          "kind": "eoa"
+        },
+        {
+          "address": "0x5044309622064d21c5D7Ac681f7a4489ca4Ce4fB",
+          "label": "neuroJobs",
+          "kind": "contract"
+        },
+        {
+          "address": "0x97F5D7FBc6228aA7A145505AABdbdC7825e161AE",
+          "label": "neuroControl",
+          "kind": "contract"
+        },
+        {
+          "address": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+          "label": "threatRegistry",
+          "kind": "contract"
+        },
+        {
+          "address": "0x11411E0c35dA30b4a5009827770798ad79881c31",
+          "label": "threatReports",
+          "kind": "contract"
+        },
+        {
+          "address": "0xC6688B17AE63FbE79ED269A7c0A8f84E9ec2E55d",
+          "label": "rewardVault",
+          "kind": "contract"
+        },
+        {
+          "address": "0x47Fc248DbEa74954C1E06a4670B7721BD5161C06",
+          "label": "computeMarket",
+          "kind": "contract"
+        },
+        {
+          "address": "0xB308b5E42825A48c3922fBaeAca179716E99e659",
+          "label": "oracle",
+          "kind": "contract"
+        },
+        {
+          "address": "0x2ffb93AB4738A8Ae2587de92489F4Df3a24349e8",
+          "label": "neuroIdentity",
+          "kind": "contract"
+        },
+        {
+          "address": "0x45AB974bcd11e26CB60cdAd9321dB46f00f85fa2",
+          "label": "usefulWork",
+          "kind": "contract"
+        },
+        {
+          "address": "0x060dB52E948ce375a17c8eD458Ba0Bb0AdFef72E",
+          "label": "bugBounty",
+          "kind": "contract"
+        },
+        {
+          "address": "0x3B7E5AA0417d445dd0c584CBA6A0Fb5D62b1dbe2",
+          "label": "workerReputation",
+          "kind": "contract"
+        },
+        {
+          "address": "0xca1345D472051a3503089f9b314BFE9C07530225",
+          "label": "usefulIssuance",
+          "kind": "contract"
+        },
+        {
+          "address": "0xb5C5c878Fe2dF88ec9F1002DC96a34Cc411623Ae",
+          "label": "riskForecasts",
+          "kind": "contract"
+        },
+        {
+          "address": "0x7Eb80da7F38bE567e8c2943E8DC80082a655CB68",
+          "label": "foresight",
+          "kind": "contract"
+        },
+        {
+          "address": "0xe3324c4dC8Eaf01820eD91d7aCb0a5fB176485A8",
+          "label": "detectorPool",
+          "kind": "contract"
+        },
+        {
+          "address": "0x4387c4C140CdaC0a128ee3A64Ac3719Da5aB531F",
+          "label": "dataDao",
+          "kind": "contract"
+        },
+        {
+          "address": "0xAcAB13F2A200A8937497cDcf28ac2F0DE2d91F7c",
+          "label": "arena",
+          "kind": "contract"
+        },
+        {
+          "address": "0x4Efb8364dE552b6D9b778c9FcEbbd59242487a63",
+          "label": "intentExecutor",
+          "kind": "contract"
+        },
+        {
+          "address": "0x05193D10eCfF72339967a06d0c1e196b19475372",
+          "label": "labelRegistry",
+          "kind": "contract"
+        },
+        {
+          "address": "0xc1164a4511692f5Dd5F2422cDD64F66856e1e45c",
+          "label": "vouchRegistry",
+          "kind": "contract"
+        },
+        {
+          "address": "0x94Cc66d97449b8909ea42b668E3D14FF1DB69D09",
+          "label": "agentRegistry",
+          "kind": "contract"
+        },
+        {
+          "address": "0x16706E3Fdbb7d472ABf801fFfbDb139e405a6d9A",
+          "label": "neuroAttest",
+          "kind": "contract"
+        },
+        {
+          "address": "0x160E9275A2d1782b7Ea4F66029e909Dbb263BBF2",
+          "label": "neuroAnchor",
+          "kind": "contract"
+        },
+        {
+          "address": "0x8d759449027fbcB080fa2dEb246c9842F5417f2c",
+          "label": "modelRegistry",
+          "kind": "contract"
+        },
+        {
+          "address": "0xec0a0baCB2674CEB659096EE1F8870044BCf087e",
+          "label": "neuroScore",
+          "kind": "contract"
+        },
+        {
+          "address": "0x76D40c327d6F13387feF29bf5fF754Ba9110079C",
+          "label": "modelEpochs",
+          "kind": "contract"
+        },
+        {
+          "address": "0xdc59a495AAb49CEc33b1eFA29291Cc702eC25b62",
+          "label": "signalBoard",
+          "kind": "contract"
+        },
+        {
+          "address": "0xBDB4033409B839Bf1D325216505737f68Bf36553",
+          "label": "webauthn",
+          "kind": "contract"
+        },
+        {
+          "address": "0x42fF91AB63d5Cd33c6B9A9C340618BA3453025F8",
+          "label": "cosignCommittee",
+          "kind": "contract"
+        },
+        {
+          "address": "0x231b7Dd4E08235dB8Bd950AE662973fb872e3260",
+          "label": "federatedRounds",
+          "kind": "contract"
+        },
+        {
+          "address": "0xB087CD34feD2ed9Da332805FF3E0255B6c2379Cc",
+          "label": "zetaphyCheques",
+          "kind": "contract"
+        },
+        {
+          "address": "0x5382299A4C0E9B57fe11A74078bde3B53a564d88",
+          "label": "offlineOrders",
+          "kind": "contract"
+        },
+        {
+          "address": "0x3814C5D8FBC1bd3F1eBcfb37dE4d949C53d03Eee",
+          "label": "offlineCash",
+          "kind": "contract"
+        },
+        {
+          "address": "0x211d88F5B06773854A47d13569cdF9997FBF1A92",
+          "label": "auditNetwork",
+          "kind": "contract"
+        },
+        {
+          "address": "0xe9dF4062b12a2a50B6318Ba2C891AA40B3198A55",
+          "label": "auditRunners",
+          "kind": "contract"
+        },
+        {
+          "address": "0x1dAD7EB32C83A2E8383C3cE80654E88d8B15212D",
+          "label": "auditJudges",
+          "kind": "contract"
+        },
+        {
+          "address": "0xfCD4fcD0d460AAA68Ba10C516Df5212409dB9092",
+          "label": "auditCertificate",
+          "kind": "contract"
+        },
+        {
+          "address": "0xf6b7704017e56aC998454382422A4671DDB62bDB",
+          "label": "quantumRescue",
+          "kind": "contract"
+        },
+        {
+          "address": "0x6E8ff23fF4ff95994A3410F5C45Cf35B669B77CB",
+          "label": "immuneRegistry",
+          "kind": "contract"
+        },
+        {
+          "address": "0xb73856D25a3547581D36E8F2D9F3601a5DF39eBE",
+          "label": "zetaphyBounty",
+          "kind": "contract"
+        },
+        {
+          "address": "0x93463B001483970f8CAE63cd8B60D28F17a1C1AA",
+          "label": "DEX factory",
+          "kind": "contract"
+        },
+        {
+          "address": "0xa5221A7F25cf10d99446Fde3e95c15b1f696e783",
+          "label": "DEX router",
+          "kind": "contract"
+        },
+        {
+          "address": "0x65fe29Eb6deaBf1ae8929De7E0A793aB394c887a",
+          "label": "DEX dlmmFactory",
+          "kind": "contract"
+        },
+        {
+          "address": "0xf6CdF4aD5316aDF8F73E768faB997C1E7C4df43B",
+          "label": "DEX dlmmRouter",
+          "kind": "contract"
+        },
+        {
+          "address": "0xc0800dBEbFFC80120f5DC0E6f2a603C00F6AF391",
+          "label": "NFT factory",
+          "kind": "contract"
+        },
+        {
+          "address": "0x0402d6E7af2912D002EfCa7543eb44A3EB3Bbc14",
+          "label": "NFT marketplace",
+          "kind": "contract"
+        }
+      ]
+    },
+    "bsc": {
+      "displayName": "BNB Smart Chain",
+      "chainId": 56,
+      "rpc": [
+        "https://bsc-rpc.publicnode.com",
+        "https://bsc-dataseed.bnbchain.org",
+        "https://bsc.drpc.org"
+      ],
+      "explorer": "https://bscscan.com",
+      "confirmations": 5,
+      "maxLagBlocks": 400000,
+      "maxBlocksPerRun": 40000,
+      "watch": [
+        {
+          "address": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
+          "label": "Saphan ZTPHY (synthetic)",
+          "kind": "bridge"
+        },
+        {
+          "address": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+          "label": "Saphan multisig (2 of 3: A, B, C)",
+          "kind": "multisig"
+        },
+        {
+          "address": "0x7841608c96da5D35cbedFa13139A9f9952fc7695",
+          "label": "Saphan timelock (48 h)",
+          "kind": "timelock"
+        },
+        {
+          "address": "0xcAF6e250b5eAd400097004055628B5DC9D6197FF",
+          "label": "our ISM (who may sign messages)",
+          "kind": "contract"
+        },
+        {
+          "address": "0x08Da43D48f1f68587220768Faf5a00C28962Dc36",
+          "label": "liquidity Safe",
+          "kind": "contract"
+        }
+      ]
+    },
+    "base": {
+      "displayName": "Base",
+      "chainId": 8453,
+      "rpc": [
+        "https://mainnet.base.org",
+        "https://base-rpc.publicnode.com",
+        "https://base.drpc.org",
+        "https://1rpc.io/base"
+      ],
+      "explorer": "https://basescan.org",
+      "confirmations": 3,
+      "watch": [
+        {
+          "address": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
+          "label": "Saphan ZTPHY (synthetic)",
+          "kind": "bridge"
+        },
+        {
+          "address": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+          "label": "Saphan multisig (2 of 3: A, B, C)",
+          "kind": "multisig"
+        },
+        {
+          "address": "0x7841608c96da5D35cbedFa13139A9f9952fc7695",
+          "label": "Saphan timelock (48 h)",
+          "kind": "timelock"
+        },
+        {
+          "address": "0xD1044D43a7df117094A46e0AD01B000965Fe35fB",
+          "label": "our ISM (who may sign messages)",
+          "kind": "contract"
+        },
+        {
+          "address": "0x08Da43D48f1f68587220768Faf5a00C28962Dc36",
+          "label": "liquidity Safe",
+          "kind": "contract"
+        }
+      ]
+    }
+  },
+  "saphan": {
+    "configFile": "../zetaphy-chain/hyperlane/mainnet/saphan-mainnet.json",
+    "stateFile": "../zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json",
+    "relayer": "0x3020ccE85085b3bf0c6bBB5741cdCa6c430aE43D",
+    "relayerFloor": {
+      "zetaphy": "0.5",
+      "bsc": "0.005",
+      "base": "0.002"
+    },
+    "headMaxAgeMinutes": 15,
+    "largePct": 25,
+    "nearLimitPct": 80,
+    "sourceSearchBlocks": 40000,
+    "maxQueuedBlocksPerRun": 40000
+  }
+}
