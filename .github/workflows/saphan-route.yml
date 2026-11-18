@@ -107,10 +107,10 @@ jobs:
       # anvil's well-known dev key #0 (public, dry run only)
       DEV_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
@@ -201,10 +201,10 @@ jobs:
         shell: bash
         working-directory: zetaphy-network
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
@@ -243,8 +243,8 @@ jobs:
       HYP_CLI: "@hyperlane-xyz/cli@45.0.1"
       DEPLOYER: "0x6af57fC3633dD0F7907f7900dbd4A2822F43a245"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
@@ -409,8 +409,8 @@ jobs:
       MODE: ${{ inputs.mode }}
       DEPLOYER: "0x6af57fC3633dD0F7907f7900dbd4A2822F43a245"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
