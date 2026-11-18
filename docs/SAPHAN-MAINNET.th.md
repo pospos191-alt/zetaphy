@@ -147,10 +147,13 @@ Caddy ได้ (ฟรี ไว้ให้ตรวจสิ่งที่�
 | ISM ของเราบน BSC (1 ใน 1, `0xF134…F6Ea`) | BSC | `0xcAF6e250b5eAd400097004055628B5DC9D6197FF` |
 | ZTPHY บน BSC (synthetic) | BSC | `0x68aa0f0144605024eCe1aDccFCC1626352779569` |
 | vault ของ BSC | ZETAPHY | `0xFA8F7a89A1f870bDFC03740FbF687e931B0b384A` |
+| Base (2026-11-18): multisig, timelock, ZTPHY | Base | ที่อยู่เดียวกับบน BSC (nonce ของ deployer ตรงกัน): `0x54EF…4519`, `0x7841…7695`, **`0x68aa0f0144605024eCe1aDccFCC1626352779569`** |
+| ISM ของเราบน Base | Base | `0xD1044D43a7df117094A46e0AD01B000965Fe35fB` |
+| vault ของ Base | ZETAPHY | `0x022Ea911906e325caDe7cAA53DCFd5402738410d` |
 
 multisig ของ BSC มีที่อยู่เดียวกับ multisig guardian บน ZETAPHY เพราะทั้งคู่เป็นสัญญาตัวแรกของ deployer (nonce 0)
 บนเชนของตัวเอง เจ้าของ 3 คนและเกณฑ์เดียวกัน `verify --route bsc`: อ่านกลับผ่านทุกข้อ
-Base และ Arbitrum One ยังไม่ได้ deploy ขั้นถัดไปของ BSC: agent (ขั้น 8), การเปิด (ขั้น 9), pool (ขั้น 10)
+Arbitrum One ยังไม่ได้ deploy ZTPHY บน Base กับบน BSC ใช้ที่อยู่เดียวกันแต่เป็นคนละเหรียญ แต่ละตัวมี vault ของตัวเอง ขั้นถัดไปของ BSC: agent (ขั้น 8), การเปิด (ขั้น 9), pool (ขั้น 10)
 
 ## ZTPHY บน BSC: โลโก้ ชื่อ และสัญญาตัวจริง (ฟรี)
 

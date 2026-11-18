@@ -62,6 +62,33 @@
       "tx": "0xdc5127efce5842b0e425ae15dfa4a963665fd77121b8eea6e21aea5b4139eb02",
       "block": 133941547,
       "at": "2026-11-16T14:13:08.334Z"
+    },
+    "base-roles": {
+      "multisig": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+      "timelock": "0x7841608c96da5D35cbedFa13139A9f9952fc7695",
+      "ism": "0xD1044D43a7df117094A46e0AD01B000965Fe35fB",
+      "deployer": "0x11391E190692BE087792c6e34FB699828b6BFC4e",
+      "nonce": 3,
+      "syntheticAt": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
+      "fromBlock": 59023730,
+      "at": "2026-11-18T09:45:27.283Z"
+    },
+    "zetaphy-vault": {
+      "vault": "0x022Ea911906e325caDe7cAA53DCFd5402738410d",
+      "ism": "0x01cF256F4a499fA6172a14e6697c9c91C5d30167",
+      "governance": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
+      "guardian": "0x54EF410b2C7cbec6238fA6d6D9DbAaEABa0F4519",
+      "threats": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
+      "tx": "0x6e5328429f2dd2a10f38517e7e2b97bd7b7803b7f3d2e6e156bf72439e151506",
+      "block": 82658,
+      "at": "2026-11-18T09:45:34.266Z"
+    },
+    "base-synthetic": {
+      "synthetic": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
+      "symbol": "ZTPHY",
+      "tx": "0x4f12fca52b30b3608ddb90facbd5e9657991ff335b1e3442bdf8f6ffdcfeb84d",
+      "block": 59023808,
+      "at": "2026-11-18T09:45:43.953Z"
     }
   }
 }
