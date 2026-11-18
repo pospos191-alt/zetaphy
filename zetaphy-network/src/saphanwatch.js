@@ -15,6 +15,11 @@
 //   near-limit       a side has paid out `nearLimitPct` % of its daily limit today                         WARNING
 //   stalled          ZETAPHY's newest block is older than `headMaxAgeMinutes` (the single validator stopped) CRITICAL
 //   relayer-gas      the relayer's balance on a chain is under its floor: messages stop being delivered       WARNING
+//   unusual-size     learned, not a fixed rule: a transfer `unusualFactor` x the median of the last transfers on that
+//                    side (at least `minSamples` of them) and at least 1 % of the daily limit                  WARNING
+//   unusual-rate     learned: this run saw many more transfers than the runs before (mean + `rateSigmas` sigma,
+//                    at least `minBurst`, after `minSamples` runs)                                               WARNING
+// Every CRITICAL alert carries the exact guardian commands (scripts/saphan-guard.js) to paste: veto, then pause.
 // Alerts have key-watch's shape ({ key, severity, chain, chainName, title, lines }); its markers keep them from
 // being posted twice. The Queued scan has its own cursor per side in state.saphan (the first run takes a baseline).
 import { resolve } from 'node:path';
@@ -33,7 +38,25 @@ export const EP = new Interface([
   'function pending(bytes32) view returns (address to, uint64 readyAt, bool done, bool vetoed, uint256 amount)',
 ]);
 const SENT = EP.getEvent('Sent').topicHash, QUEUED = EP.getEvent('Queued').topicHash;
-const DEFAULTS = { headMaxAgeMinutes: 15, largePct: 25, nearLimitPct: 80, sourceSearchBlocks: 40_000, maxQueuedBlocksPerRun: 20_000 };
+const DEFAULTS = { headMaxAgeMinutes: 15, largePct: 25, nearLimitPct: 80, sourceSearchBlocks: 40_000, maxQueuedBlocksPerRun: 20_000,
+  unusualFactor: 10, minSamples: 20, keepSamples: 200, rateSigmas: 4, minBurst: 5 };
+
+/** The guardian commands to paste (docs/KEY-WATCH.md "Saphan: unbacked or forged"): veto `id` (if any), then pause both ends. */
+export function guardSteps(route, { vetoId = null, vetoChain = 'dest' } = {}) {
+  const run = (c) => `read -rs M; export M; node scripts/saphan-guard.js ${c}; unset M`;
+  const out = ['**Guardian steps** (Oracle Cloud Shell, `cd ~/zetaphy/zetaphy-network && git pull`; two guardians, any two of the papers A, B, C):', '```bash'];
+  if (vetoId) out.push(`# 1. veto it (first guardian proposes, the second confirms with the number printed)`, run(`veto ${vetoId} --route ${route} --chain ${vetoChain}`), run(`confirm <n> --route ${route} --chain ${vetoChain}`));
+  out.push(`# ${vetoId ? 2 : 1}. pause both ends`, run(`pause --route ${route} --chain dest`), run(`confirm <n> --route ${route} --chain dest`),
+    run(`pause --route ${route} --chain zetaphy`), run(`confirm <n> --route ${route} --chain zetaphy`), `node scripts/saphan-guard.js status --route ${route}`, '```');
+  return out;
+}
+
+/** The median of a list of bigints (as decimal strings). */
+export function median(xs) {
+  const v = xs.map((x) => BigInt(x)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  if (!v.length) return 0n;
+  return v.length % 2 ? v[(v.length - 1) / 2] : (v[v.length / 2 - 1] + v[v.length / 2]) / 2n;
+}
 const day = (now) => new Date(now).toISOString().slice(0, 10);
 const z = (n) => formatEther(n);
 
@@ -114,7 +137,7 @@ export async function checkSaphan({ watch, routes, rpcFor, state = {}, now = Dat
       if (supply > locked) {
         push({ key: `saphan:backing:${r.name}:${supply}`, severity: 'critical', chain: r.chain, chainName: dc.name, title: `UNBACKED ZTPHY on ${dc.name}`,
           lines: [`${L(dc).addr(r.synthetic)} totalSupply **${z(supply)}** ZTPHY > ${z(locked)} locked in its vault ${L(zc).addr(r.vault)} on ZETAPHY (+${z(supply - locked)}).`,
-            'A forged message was paid out. PAUSE BOTH ENDS NOW with the guardians (docs/KEY-WATCH.md → "Saphan: unbacked or forged"), then find the message.'] });
+            'A forged message was paid out. PAUSE BOTH ENDS NOW with the guardians (docs/KEY-WATCH.md → "Saphan: unbacked or forged"), then find the message.', ...guardSteps(r.name)] });
       }
       for (const [side, limit, paid, c] of [['the vault (releases on ZETAPHY)', vLimit, vPaid, zc], [`the synthetic (mints on ${dc.name})`, sLimit, sPaid, dc]]) {
         if (limit > 0n && paid * 100n >= limit * BigInt(o.nearLimitPct)) {
@@ -137,6 +160,9 @@ export async function checkSaphan({ watch, routes, rpcFor, state = {}, now = Dat
           from = safe - o.maxQueuedBlocksPerRun + 1;
         }
         const chunk = c.logChunk ?? watch.defaults?.logChunk ?? 1999;
+        sv.learn ??= {};
+        const learn = (sv.learn[ck] ??= { amounts: [], runs: 0, mean: 0, m2: 0 });
+        let runCount = 0;
         let ok = true;
         for (let a = from; a <= safe && ok; a += chunk) {
           const b = Math.min(safe, a + chunk - 1);
@@ -161,13 +187,40 @@ export async function checkSaphan({ watch, routes, rpcFor, state = {}, now = Dat
               push({ key: `saphan:forged:${ck}:${q.id}`, severity: 'critical', chain: isMint ? r.chain : 'zetaphy', chainName: c.name,
                 title: `FORGED ${side.toUpperCase()} queued on ${c.name} (${r.name} route)`,
                 lines: [`${what} (${where}).`, src ? `The source Sent with that nonce says otherwise: ${z(src.args.amount)} ZTPHY from ${src.args.sender} to ${src.args.to}.` : `No Sent with nonce ${q.srcNonce} on the other end${back}.`,
-                  `VETO IT before it is ready: guardian multisig → \`veto(${q.id})\` on ${at}, then pause both ends (docs/KEY-WATCH.md → "Saphan: unbacked or forged").`] });
-            } else if (limit > 0n && amount * 100n >= limit * BigInt(o.largePct)) {
-              push({ key: `saphan:large:${ck}:${q.id}`, severity: 'warning', chain: isMint ? r.chain : 'zetaphy', chainName: c.name, title: `${r.name} route: large ${side} queued`,
-                lines: [`${what} (${where}).`, `${Number((amount * 1000n) / limit) / 10} % of the daily limit; it matches its source Sent. Nothing to do if you expected it.`] });
+                  `VETO IT before it is ready: guardian multisig → \`veto(${q.id})\` on ${at}, then pause both ends (docs/KEY-WATCH.md → "Saphan: unbacked or forged").`,
+                  ...guardSteps(r.name, { vetoId: q.id, vetoChain: isMint ? 'dest' : 'zetaphy' })] });
+            } else {
+              const ls = learn.amounts;
+              if (limit > 0n && amount * 100n >= limit * BigInt(o.largePct)) {
+                push({ key: `saphan:large:${ck}:${q.id}`, severity: 'warning', chain: isMint ? r.chain : 'zetaphy', chainName: c.name, title: `${r.name} route: large ${side} queued`,
+                  lines: [`${what} (${where}).`, `${Number((amount * 1000n) / limit) / 10} % of the daily limit; it matches its source Sent. Nothing to do if you expected it.`] });
+              } else if (ls.length >= o.minSamples) {
+                const med = median(ls);
+                if (med > 0n && amount >= med * BigInt(o.unusualFactor) && (limit === 0n || amount * 100n >= limit)) {
+                  push({ key: `saphan:unusual-size:${ck}:${q.id}`, severity: 'warning', chain: isMint ? r.chain : 'zetaphy', chainName: c.name, title: `${r.name} route: unusually big ${side}`,
+                    lines: [`${what} (${where}).`, `${Number((amount * 10n) / med) / 10} x the median of the last ${ls.length} ${side}s (${z(med)} ZTPHY). It matches its source Sent; a sudden change in how the bridge is used is worth a look.`] });
+                }
+              }
+              ls.push(amount.toString());
+              if (ls.length > o.keepSamples) ls.splice(0, ls.length - o.keepSamples);
+              runCount++;
             }
           }
           sv.cursors[ck] = b;
+        }
+        // the rate: transfers per run against the runs before (Welford mean and variance), learned only on full runs
+        if (ok) {
+          if (learn.runs >= o.minSamples && runCount >= o.minBurst) {
+            const sd = Math.sqrt(learn.m2 / Math.max(1, learn.runs - 1));
+            if (runCount > learn.mean + o.rateSigmas * sd + 1) {
+              push({ key: `saphan:unusual-rate:${ck}:${sv.cursors[ck]}`, severity: 'warning', chain: isMint ? r.chain : 'zetaphy', chainName: c.name, title: `${r.name} route: a burst of ${side}s`,
+                lines: [`${runCount} ${side}s queued since the last run; usually ${learn.mean.toFixed(1)} (σ ${sd.toFixed(1)}) over ${learn.runs} runs. All match their source Sent. A burst can be a campaign — or someone draining before a pause: check who is sending.`] });
+            }
+          }
+          learn.runs++;
+          const d1 = runCount - learn.mean;
+          learn.mean += d1 / learn.runs;
+          learn.m2 += d1 * (runCount - learn.mean);
         }
       }
     }
