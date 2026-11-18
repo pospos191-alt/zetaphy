@@ -2064,3 +2064,9 @@ findings:
     reason: "ZtphyMerkleDistributor.sweep pays only the immutable returnTo (fixed at construction, checked non-zero), and only after the deadline or an abort; anyone may trigger it but cannot choose the recipient; a failed send reverts."
     decided_by: pospos191 (owner, confirmed 2026-11-13 "ยืนยัน triage"; proposed by claude-agent, PR #167 triage by reading the code)
     date: 2026-11-13
+  - id: osv-scanner:GHSA-fc5q-39xc-vjpf:yarn.lock:cd7a922e251a
+    status: accepted-risk
+    reason: "picomatch@2.3.2 (ReDoS through single-branch repeated extglobs) has no patched release: the advisory covers every version. In the root yarn.lock it is reached only through mocha's file watcher (chokidar -> anymatch / readdirp) in the Anchor test tooling, never shipped; its glob patterns come from our own test config, not from untrusted input. Revisit when a fixed picomatch is released."
+    decided_by: pospos191 (owner, confirmed 2026-11-18 "เพิ่มได้"; proposed by claude-agent, PR #198)
+    date: 2026-11-18
+    # yarn.lock (picomatch@2.3.2 via anymatch, readdirp)
