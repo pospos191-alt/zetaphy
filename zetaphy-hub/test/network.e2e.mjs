@@ -88,16 +88,16 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     assert.match(await page.textContent('#faucet-msg'), /^ZTPHY sent/);
     assert.equal(faucetGrants, 1);
     // tabs whose contracts are not on mainnet yet: marked, and opened they show the plain box (nothing to click),
-    // never their page or app. Exactly these, as the build found 3659.contracts.json (no bridge, NFT app, offline
-    // trading, audit network, quantum rescue or immune network contracts there).
+    // never their page or app. Exactly these, as the build found 3659.contracts.json (no bridge yet; the NFT app waits
+    // for its code keys to be protected). Offline trading, the audit network, quantum rescue and the immune network
+    // were deployed on 2026-11-18 (launch steps offline, auditnet, qrescue, immune), so their tabs are open.
     const gatedTabs = await page.$$eval('.tab[data-gated]', (as) => as.map((a) => a.dataset.tab).sort());
-    assert.deepEqual(gatedTabs, ['audit', 'immune', 'nft', 'offline', 'quantum', 'saphan']);
+    assert.deepEqual(gatedTabs, ['nft', 'saphan']);
     assert.equal(await page.textContent('.tab[data-tab="nft"] .new'), 'soon');
     assert.doesNotMatch(await page.textContent('#tabs'), /testnet/i);
-    for (const tab of ['earn', 'mine', 'agents', 'ai', 'aichain']) assert.equal(await page.locator(`.tab[data-tab="${tab}"][data-gated]`).count(), 0, `${tab}: open on mainnet`);
+    for (const tab of ['earn', 'mine', 'agents', 'ai', 'aichain', 'offline', 'audit', 'quantum', 'immune']) assert.equal(await page.locator(`.tab[data-tab="${tab}"][data-gated]`).count(), 0, `${tab}: open on mainnet`);
     for (const [tab, words] of [['nft', /^Not on mainnet yetThe NFT marketplace is not on ZETAPHY mainnet yet\. It appears here once its contracts are deployed on mainnet\. \(The testnet was shut down on 2026-11-14\.\)$/],
-      ['saphan', /^Not on mainnet yetZETAPHY Saphan \(the bridge\) is not on ZETAPHY mainnet yet\./], ['offline', /^Not on mainnet yetOffline trading is not on ZETAPHY mainnet yet\./],
-      ['immune', /^Not on mainnet yetThe immune network is not on ZETAPHY mainnet yet\./]]) {
+      ['saphan', /^Not on mainnet yetZETAPHY Saphan \(the bridge\) is not on ZETAPHY mainnet yet\./]]) {
       await page.click(`.tab[data-tab="${tab}"]`);
       await page.waitForSelector('#panel-gate:not([hidden])');
       assert.match(await page.textContent('#panel-gate'), words, tab);
@@ -185,14 +185,16 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     assert.match(await page.textContent('#net-gate'), /ZETAPHY mainnet.*Not on mainnet yet.*Risk forecasts is not on ZETAPHY mainnet yet/s);
     assert.equal(await page.locator('#net-gate button, #net-gate select').count(), 0, 'no switch on the forecasts page');
     assert.ok(await page.isHidden('#ftabs'));
-    // the certificate check and the Audit Directory: the audit network has no mainnet contracts yet
+    // the certificate check and the Audit Directory: the audit network is on mainnet (deployed 2026-11-18), so both
+    // pages are open there, with the mainnet badge and nothing gated
     asked.length = 0;
     for (const f of ['audit.html', 'audits.html']) {
       await page.goto(`${site.url}${f}`);
-      await page.waitForSelector('#net .zn-gate');
-      assert.match(await page.textContent('#net'), /ZETAPHY mainnet.*Not on mainnet yet.*The audit network is not on ZETAPHY mainnet yet/s, f);
+      await page.waitForSelector('#net .zn-net-mainnet');
+      assert.equal(await page.locator('#net .zn-gate').count(), 0, `${f}: open on mainnet`);
+      assert.doesNotMatch(await page.textContent('#net'), /Not on mainnet yet/, f);
       assert.equal(await page.locator('#net button, #net select').count(), 0, `${f}: no switch`);
-      assert.ok(await page.isHidden(f === 'audit.html' ? '#form' : '.filters'), `${f}: nothing to look up`);
+      assert.ok(await page.isVisible(f === 'audit.html' ? '#form' : '.filters'), `${f}: the look-up is there`);
       assert.ok(await page.isHidden('[data-t="testnet"]'), `${f}: no testnet note under the mainnet badge`);
     }
     assert.ok(!asked.some((h) => TESTNET_HOSTS.includes(h)), `the audit pages asked nothing of the testnet: ${[...new Set(asked)]}`);
@@ -274,7 +276,7 @@ test('the Overview and every open tab on mainnet: no overlap (1900x900, short de
     assert.ok(await page.isVisible('#faucet-form'));
     assert.ok(await page.isHidden('#faucet-gate'));
 
-    const GATED = ['audit', 'immune', 'nft', 'offline', 'quantum', 'saphan'];
+    const GATED = ['nft', 'saphan'];
     const OPEN = ['home', 'stake', 'earn', 'mine', 'agents', 'ai', 'analytics', 'defi', 'leaderboard', 'gov', 'aichain', 'dev'];
     const TESTNET_WORDS = /testnet|77390|test ZETAPHY|test coins|ZETAPHY ทดลอง|เหรียญทดลอง|เทสต์เน็ต|测试网|测试币|테스트넷|테스트 코인|テストネット|テスト用コイン|тестнет|тестовые монеты|тестовых ZETAPHY|coin thử nghiệm|monedas de prueba/i;
     for (const l of LANG_CODES) {

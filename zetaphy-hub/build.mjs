@@ -333,6 +333,7 @@ export function build() {
   // the push airdrop's recipient list (docs/AIRDROP.md section 7; tools/push-manifest.mjs: manifest.json, shards/,
   // list.txt) for got-ztphy.html, once the owner published it here; without it the page shows balances only
   if (existsSync(join(HERE, 'airdrop-push', 'manifest.json'))) cpSync(join(HERE, 'airdrop-push'), join(dir, 'airdrop-push'), { recursive: true });
+  if (existsSync(join(HERE, 'airdrop-push-bnb', 'manifest.json'))) cpSync(join(HERE, 'airdrop-push-bnb'), join(dir, 'airdrop-push-bnb'), { recursive: true });
   writeServiceWorker(dir);
   for (let i = 0; ; i++) {
     const old = `${OUT}.old-${process.pid}-${Date.now()}-${i}`;

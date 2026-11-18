@@ -14,6 +14,15 @@ import { checksum } from './airdrop-link-core.js';
 
 export const CHAIN_ID = 3659;
 export const MANIFEST = 'airdrop-push/manifest.json';
+/**
+ * The published rounds, each in its own folder with the same files (manifest.json, shards/, list.txt): the Ethereum
+ * round (airdrop-push/) and the BNB Chain round (airdrop-push-bnb/, tools/push-manifest.mjs --out airdrop-push-bnb).
+ * `on` and `info`: the page's text keys for "on this list" and "list published".
+ */
+export const ROUNDS = Object.freeze([
+  Object.freeze({ id: 'eth', dir: 'airdrop-push/', on: 'onList', info: 'listInfo' }),
+  Object.freeze({ id: 'bnb', dir: 'airdrop-push-bnb/', on: 'onListBnb', info: 'listInfoBnb' }),
+]);
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 const LOWER = /^0x[0-9a-f]{40}$/;
 

@@ -128,7 +128,11 @@
 
 ## 5. หลังส่งรอบนี้: หน้าตรวจและรายชื่อ
 
-ตอนนี้หน้าตรวจอ่านรายชื่อที่เผยแพร่ได้ชุดเดียว (`zetaphy-hub/airdrop-push/` ของรอบ Ethereum) ก่อนโพสต์หัวข้อ 1
-หน้าตรวจต้องรองรับรอบ BNB Chain เป็นรายชื่อชุดที่สอง (แก้เล็กน้อยใน `got-ztphy-core.js` และ `tools/push-manifest.mjs`
-ให้ตอบว่า "อยู่ในรายชื่อ BNB Chain" ได้ด้วย) และบรรทัดแรกของหน้าต้องพูดถึงทั้งสองรอบ เผยแพร่รายชื่อ BNB Chain
-แบบเดียวกัน (AIRDROP.th.md หัวข้อ 7 ขั้นที่ 9) หลังส่งรอบนี้เสร็จ
+หน้าตรวจอ่านรายชื่อแยกตามรอบ: `zetaphy-hub/airdrop-push/` (รอบ Ethereum) และ `zetaphy-hub/airdrop-push-bnb/`
+(รอบ BNB Chain) หน้าจะบอกว่าที่อยู่นั้นอยู่ในรอบไหน และบรรทัดแรกของหน้าพูดถึงทั้งสองรอบ เมื่อส่งรอบนี้และตรวจแล้ว
+(หัวข้อ 0 ขั้นที่ 1) ให้เผยแพร่รายชื่อ BNB Chain แบบเดียวกับ AIRDROP.th.md หัวข้อ 7 ขั้นที่ 9 ลงโฟลเดอร์ของมันเอง:
+
+```bash
+cd zetaphy-hub && node tools/push-manifest.mjs ~/bsc-push.txt --out airdrop-push-bnb   # [เปลี่ยนไฟล์]
+#   push-manifest: 150000 addresses, 10 ZTPHY each, sha256 <S>   (S ต้องตรงกับ sha256sum bsc-push.txt)
+```

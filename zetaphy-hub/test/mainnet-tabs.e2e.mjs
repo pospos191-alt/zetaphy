@@ -6,7 +6,7 @@
 //     tab looks up chain 3659, the Immunity tab reads mainnet's ImmuneRegistry; nothing is asked of the testnet;
 //   - no testnet words in any of the four tabs, in all 8 languages (the mainnet risk sentence instead);
 //   - with one offline contract missing the Offline tab stays "not on mainnet yet" (test/network.e2e.mjs checks the
-//     repo's own 3659.contracts.json, which has none of them yet).
+//     repo's own 3659.contracts.json, which has all of them since 2026-11-18).
 //   npm run build && node --test test/mainnet-tabs.e2e.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,9 +35,11 @@ const TABS = { zetaphyCheques: A('5c'), offlineOrders: A('0d'), offlineCash: A('
 const PAYER = A('0a'), PAYEE = A('0b');
 const ACC = '0x6af57fC3633dD0F7907f7900dbd4A2822F43a245';
 
+/** The built hub-config.json with exactly `contracts` for the four tabs: the repo's own mainnet addresses for them are dropped first. */
 function mainnetConfig(contracts) {
   const cfg = JSON.parse(readFileSync(join(DIST, 'hub-config.json'), 'utf8'));
-  cfg.mainnet = { ...cfg.mainnet, contracts: { ...cfg.mainnet.contracts, ...contracts },
+  const base = Object.fromEntries(Object.entries(cfg.mainnet.contracts).filter(([k]) => !(k in TABS)));
+  cfg.mainnet = { ...cfg.mainnet, contracts: { ...base, ...contracts },
     immuneNet: contracts.immuneRegistry ? { registry: contracts.immuneRegistry, mirrors: [], feedUrl: null, chains: 12, simMedian: 40 } : null };
   return JSON.stringify(cfg);
 }

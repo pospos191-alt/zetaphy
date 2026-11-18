@@ -1,7 +1,8 @@
 // got-ztphy.html, "Did you get ZTPHY?": the page the push airdrop's announcement links to (docs/AIRDROP.md section 7,
 // docs/OUTREACH.md). Anyone types a 0x… or zetaphy1… address, with no wallet: the page reads its balance on ZETAPHY
 // mainnet (eth_getBalance on the public RPC, rpc.js) and, once the owner has published the recipient list
-// (airdrop-push/manifest.json + shards, tools/push-manifest.mjs), whether the address is on it. It shows the safety
+// (airdrop-push/ for the Ethereum round, airdrop-push-bnb/ for the BNB Chain round: manifest.json + shards,
+// tools/push-manifest.mjs), whether the address is on each. It shows the safety
 // rules in large text, offers "Add ZETAPHY to your wallet" (wallet_addEthereumChain with network.js addChainParams,
 // wallets found as the hub finds them: wallet/wallets.js discoverWallets) and a share button (Web Share API, else the
 // clipboard). It never asks a wallet to sign anything or send anything; everything shown is set with textContent.
@@ -11,7 +12,7 @@ import { formatZeta } from './chainlib.js';
 import { NETWORKS, addChainParams, netText, noticeUrl } from './network.js';
 import { getJson, rpcCall } from './rpc.js';
 import { discoverWallets, openInAppLinks } from './wallet/wallets.js';
-import { MANIFEST, readAddress, balanceOf, cleanManifest, shardFile, inShard, BSC_ZTPHY, BSC_CHAIN, bscWatchParams } from './got-ztphy-core.js';
+import { ROUNDS, readAddress, balanceOf, cleanManifest, shardFile, inShard, BSC_ZTPHY, BSC_CHAIN, bscWatchParams } from './got-ztphy-core.js';
 import { GOT } from './got-ztphy-i18n.js';
 
 const NET = NETWORKS.mainnet; // the only network
@@ -36,17 +37,23 @@ let L = startLang();
 const t = (k, vars = {}) => (GOT[L][k] ?? GOT.en[k]).replace(/\{(\w+)\}/g, (_, v) => vars[v] ?? '');
 const say = (el, text, cls = '') => { el.textContent = text; el.className = `state ${cls}`.trim(); };
 
-// ------------------------------------------------------------------ the published list (optional)
-const listBase = new URL('airdrop-push/', location.href).href;
+// ------------------------------------------------------------------ the published lists (optional, one per round)
 const shards = new Map();
 const missing = (e) => /^HTTP 404$/.test(String(e?.message));
-/** manifest.json, clean, or null when there is none yet (or it is malformed: the page then shows balances only). */
-const manifest = getJson(new URL(MANIFEST, location.href).href).then(cleanManifest, () => null);
+/**
+ * Each round with its manifest.json, clean, or null when there is none yet (or it is malformed): only the rounds
+ * published are checked; with none, the page shows balances only.
+ */
+const rounds = Promise.all(ROUNDS.map(async (r) => {
+  const base = new URL(r.dir, location.href).href;
+  const m = await getJson(`${base}manifest.json`).then(cleanManifest, () => null);
+  return { ...r, base, m };
+})).then((all) => all.filter((r) => r.m));
 /** true / false, or throws when the list cannot be read. A shard that does not exist holds no address. */
-async function onList(evm, m) {
-  const f = shardFile(evm, m);
-  if (!shards.has(f)) shards.set(f, getJson(listBase + f).catch((e) => { if (missing(e)) return { addresses: [] }; shards.delete(f); throw e; }));
-  return inShard(await shards.get(f), evm);
+async function onList(evm, r) {
+  const url = r.base + shardFile(evm, r.m);
+  if (!shards.has(url)) shards.set(url, getJson(url).catch((e) => { if (missing(e)) return { addresses: [] }; shards.delete(url); throw e; }));
+  return inShard(await shards.get(url), evm);
 }
 
 // ------------------------------------------------------------------ check an address
@@ -65,12 +72,13 @@ async function check() {
   try { bal = balanceOf(await rpcCall(NET.rpc, 'eth_getBalance', [r.evm, 'latest'])); } catch { /* shown below */ }
   if (my !== seq) return;
   if (bal == null) { st.busy = false; st.error = 'rpcErr'; render(); return; }
-  const m = await manifest;
-  let on = null, listBad = false;
-  if (m) { try { on = await onList(r.evm, m); } catch { listBad = true; } }
+  const rs = await rounds;
+  // on: null (no list published), else the rounds whose list holds the address ([] = on none)
+  let on = rs.length ? [] : null, listBad = false;
+  try { for (const x of rs) if (await onList(r.evm, x)) on.push(x); } catch { listBad = true; }
   if (my !== seq) return;
   st.busy = false;
-  st.last = { ...r, bal, on, listBad, each: m?.each ?? '10' };
+  st.last = { ...r, bal, on, listBad };
   render();
 }
 
@@ -88,22 +96,28 @@ function renderResult() {
   $('same').textContent = t('same', { b32: x.bech32 });
   const list = $('list');
   if (x.listBad) say(list, t('listErr'), 'bad');
-  else if (x.on === true) say(list, x.bal === 0n ? `${t('onList', { each: x.each })} ${t('zeroOnList')}` : t('onList', { each: x.each }), 'ok');
-  else if (x.on === false) say(list, t('notOnList'));
+  else if (x.on?.length) {
+    const on = x.on.map((r) => t(r.on, { each: r.m.each })).join(' ');
+    say(list, x.bal === 0n ? `${on} ${t('zeroOnList')}` : on, 'ok');
+  } else if (x.on) say(list, t('notOnList'));
   else say(list, '');
 }
 
 async function renderListInfo() {
-  const m = await manifest;
+  const rs = await rounds;
   const box = $('listInfo');
-  if (!m) { box.hidden = true; return; }
-  const kids = [document.createTextNode(`${t('listInfo', { count: m.count.toLocaleString('en-US'), sha: m.sha256 })} `)];
-  if (m.list) {
-    const a = document.createElement('a');
-    a.href = listBase + m.list;
-    a.textContent = t('listFile');
-    kids.push(a);
-  }
+  if (!rs.length) { box.hidden = true; return; }
+  const kids = [];
+  rs.forEach(({ m, base, info }, i) => {
+    if (i) kids.push(document.createElement('br'));
+    kids.push(document.createTextNode(`${t(info, { count: m.count.toLocaleString('en-US'), sha: m.sha256 })} `));
+    if (m.list) {
+      const a = document.createElement('a');
+      a.href = base + m.list;
+      a.textContent = t('listFile');
+      kids.push(a);
+    }
+  });
   box.replaceChildren(...kids);
   box.hidden = false;
 }
