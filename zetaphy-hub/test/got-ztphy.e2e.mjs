@@ -53,13 +53,20 @@ const stub = ({ account, wallet, share }) => {
 test('got-ztphy.html: balance of any address, the airdrop list, add the network, share (8 languages, phone width)', { timeout: 120_000 }, async () => {
   // the build ships the published list (airdrop-push/); this test serves its own small list, or none, over a copy without it
   const dist = mkdtempSync(join(tmpdir(), 'got-ztphy-'));
-  cpSync(build(), dist, { recursive: true, filter: (src) => !/[\\/]airdrop-push([\\/]|$)/.test(src) });
+  cpSync(build(), dist, { recursive: true, filter: (src) => !/[\\/]airdrop-push(-bnb)?([\\/]|$)/.test(src) });
   const on10 = withPrefix('ab'), on0 = withPrefix('ab'), off = withPrefix('ab'), noShard = withPrefix('cd'), mine = withPrefix('ef');
   const listText = `${[on10, on0, mine, withPrefix('12')].join('\n')}\n`;
   const sha256 = createHash('sha256').update(listText).digest('hex');
   const { manifest, shards } = buildPushFiles(listText, { sha256 });
   const files = { '/airdrop-push/manifest.json': JSON.stringify(manifest), '/airdrop-push/list.txt': listText };
   for (const [p, addresses] of Object.entries(shards)) files[`/airdrop-push/shards/${p}.json`] = JSON.stringify({ addresses });
+  // the BNB Chain round, its own folder: `off` is on it only, `on10` is on both rounds
+  const bnbText = `${[on10, off].join('\n')}\n`;
+  const bnbSha = createHash('sha256').update(bnbText).digest('hex');
+  const bnb = buildPushFiles(bnbText, { sha256: bnbSha });
+  files['/airdrop-push-bnb/manifest.json'] = JSON.stringify(bnb.manifest);
+  files['/airdrop-push-bnb/list.txt'] = bnbText;
+  for (const [p, addresses] of Object.entries(bnb.shards)) files[`/airdrop-push-bnb/shards/${p}.json`] = JSON.stringify({ addresses });
   const withList = await serve(dist, { headers: { 'Content-Security-Policy': CSP }, files });
   const noList = await serve(dist, { headers: { 'Content-Security-Policy': CSP } });
   const balances = { [on10.toLowerCase()]: TEN, [on0.toLowerCase()]: 0n, [off.toLowerCase()]: 1234567n * 10n ** 12n, [noShard.toLowerCase()]: 0n, [mine.toLowerCase()]: TEN + 5n * 10n ** 17n };
@@ -106,18 +113,20 @@ test('got-ztphy.html: balance of any address, the airdrop list, add the network,
     await page.waitForFunction(() => !document.getElementById('listInfo').hidden);
     assert.match(await page.textContent('#listInfo'), new RegExp(`4 addresses, sha256 ${sha256}`));
     assert.equal(await page.getAttribute('#listInfo a', 'href'), `${withList.url}airdrop-push/list.txt`);
+    assert.match(await page.textContent('#listInfo'), new RegExp(`BNB Chain airdrop list published: 2 addresses, sha256 ${bnbSha}`));
+    assert.deepEqual(await page.$$eval('#listInfo a', (as) => as.map((a) => a.getAttribute('href'))), [`${withList.url}airdrop-push/list.txt`, `${withList.url}airdrop-push-bnb/list.txt`]);
 
     await checkAddr(page, on10.toLowerCase());
     assert.equal(await page.textContent('#balance'), '10 ZTPHY');
     assert.match(await page.textContent('#balanceOf'), new RegExp(on10)); // shown in its EIP-55 form
     assert.match(await page.textContent('#same'), new RegExp(toBech32(on10)));
-    assert.equal(await page.textContent('#list'), 'On the airdrop list: 10 ZTPHY was sent to this address.');
+    assert.equal(await page.textContent('#list'), 'On the Ethereum airdrop list: 10 ZTPHY was sent to this address. On the BNB Chain airdrop list: 10 ZTPHY was sent to this address.');
     await checkAddr(page, toBech32(on0), 'enter');
     assert.equal(await page.textContent('#balance'), '0 ZTPHY');
-    assert.match(await page.textContent('#list'), /On the airdrop list.*may still be on their way/);
+    assert.match(await page.textContent('#list'), /^On the Ethereum airdrop list.*may still be on their way/);
     await checkAddr(page, off);
     assert.equal(await page.textContent('#balance'), '1.234567 ZTPHY');
-    assert.equal(await page.textContent('#list'), 'This address is not on the airdrop list.');
+    assert.equal(await page.textContent('#list'), 'On the BNB Chain airdrop list: 10 ZTPHY was sent to this address.', 'on the BNB Chain round only');
     await checkAddr(page, noShard);
     assert.equal(await page.textContent('#list'), 'This address is not on the airdrop list.', 'no shard file: not on the list');
     // a typo in the checksum, garbage: refused, the chain is not asked
@@ -139,7 +148,7 @@ test('got-ztphy.html: balance of any address, the airdrop list, add the network,
     await page.click('#mine');
     await page.waitForFunction((a) => document.getElementById('balanceOf').textContent.includes(a), mine);
     assert.equal(await page.textContent('#balance'), '10.5 ZTPHY');
-    assert.match(await page.textContent('#list'), /On the airdrop list/);
+    assert.match(await page.textContent('#list'), /On the Ethereum airdrop list/);
     const calls = await page.evaluate(() => window.__calls);
     assert.deepEqual(calls.map((c) => c.method), ['wallet_addEthereumChain', 'eth_requestAccounts'], 'never a signature, a transaction or an approval');
     assert.deepEqual(calls[0].params, [addChainParams(NETWORKS.mainnet)]);

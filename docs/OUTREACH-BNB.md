@@ -129,7 +129,12 @@ Never pay anyone who offers a "listing", a "trending" spot or a "CMC/CG fast tra
 
 ## 5. After the round: the check page and the list
 
-The check page reads one published list today (`zetaphy-hub/airdrop-push/`, the Ethereum round). Before section 1,
-the page needs the BNB Chain round as a second list (a small change to `got-ztphy-core.js` and `tools/push-manifest.mjs`
-so it answers "on the BNB Chain list" too) and its first line must name both rounds. Publish the BNB Chain list the same
-way (AIRDROP.md section 7 step 9) once the round is sent.
+The check page reads one list per round: `zetaphy-hub/airdrop-push/` (the Ethereum round) and
+`zetaphy-hub/airdrop-push-bnb/` (the BNB Chain round). It says which round(s) an address is on, and its first line names
+both rounds. Once the round is sent and checked (section 0 step 1), publish the BNB Chain list the same way as
+AIRDROP.md section 7 step 9, into its own folder:
+
+```bash
+cd zetaphy-hub && node tools/push-manifest.mjs ~/bsc-push.txt --out airdrop-push-bnb   # [เปลี่ยนไฟล์]
+#   push-manifest: 150000 addresses, 10 ZTPHY each, sha256 <S>   (the same S as sha256sum bsc-push.txt)
+```
