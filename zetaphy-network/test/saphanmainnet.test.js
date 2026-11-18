@@ -431,7 +431,7 @@ test('mainnet route on the contracts: a forged message (validly signed, wrong se
   assert.equal(await R.syn.call('received'), 1n);
 });
 
-test('the committed deploy record (2026-11-16): ZETAPHY core owned by the timelock, the BSC route deployed and consistent', () => {
+test('the committed deploy record: ZETAPHY core owned by the timelock, the BSC (2026-11-16) and Base (2026-11-18) routes deployed and consistent', () => {
   const c = JSON.parse(readFileSync(M.MAINNET_FILE, 'utf8')), s = M.loadState(), core = M.loadCore();
   const tl = getAddress(c.zetaphy.timelock);
   assert.equal(core.mailbox, '0x9FC59F469454FD27813Da94DF5803D603340E91c');
@@ -453,6 +453,15 @@ test('the committed deploy record (2026-11-16): ZETAPHY core owned by the timelo
   // the BSC multisig is the deployer's first contract on BSC (nonce 0), as the guardian multisig was on ZETAPHY: the same address, the same owners
   assert.equal(getAddress(roles.multisig), getCreateAddress({ from: roles.deployer, nonce: 0 }));
   assert.equal(getAddress(roles.multisig), getAddress(c.zetaphy.guardian));
-  // Base and Arbitrum are not deployed yet
-  for (const id of ['base-roles', 'zetaphy-vault', 'base-synthetic', 'arbitrum-roles', 'zetaphy-vault-arbitrum', 'arbitrum-synthetic']) assert.equal(s.steps[id], undefined, id);
+  // Base (deployed 2026-11-18): the same deployer nonces on Base as on BSC, so the same multisig, timelock and synthetic
+  // addresses; its own ISM (Base chain) and its own vault on ZETAPHY
+  const broles = s.steps['base-roles'], bvault = s.steps['zetaphy-vault'], bsyn = s.steps['base-synthetic'];
+  assert.equal(getAddress(bsyn.synthetic), getAddress(broles.syntheticAt));
+  assert.equal(getAddress(bsyn.synthetic), getCreateAddress({ from: broles.deployer, nonce: broles.nonce }));
+  assert.equal(getAddress(broles.multisig), getAddress(c.zetaphy.guardian), 'nonce 0 on Base too');
+  assert.equal(getAddress(bvault.governance), tl);
+  assert.equal(getAddress(bvault.guardian), getAddress(c.zetaphy.guardian));
+  assert.notEqual(getAddress(bvault.vault), getAddress(vault.vault), 'one vault per destination');
+  // Arbitrum is not deployed yet
+  for (const id of ['arbitrum-roles', 'zetaphy-vault-arbitrum', 'arbitrum-synthetic']) assert.equal(s.steps[id], undefined, id);
 });
