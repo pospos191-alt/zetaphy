@@ -23,6 +23,8 @@ export const ORIGIN = {
   explorer: 'https://explorer.sawasdeecoin.com',
 };
 export const REPO_URL = 'https://github.com/pospos191-alt/zetaphy';
+/** The project's official e-mail (Cloudflare Email Routing; explorers' token-info forms want it listed on the site). */
+export const CONTACT_EMAIL = 'zetaphy.chain@sawasdeecoin.com';
 // IndexNow (indexnow.org): a public key; the file <key>.txt on each site proves the site is ours. Not a secret.
 export const INDEXNOW_KEY = '064679038019a2fde97fc74c5983f6aa';
 
@@ -43,6 +45,7 @@ export const ZTPHY_CONTRACTS = [{ chain: 'BNB Smart Chain', chainId: 56, address
 export const orgLd = () => ({
   '@type': 'Organization', '@id': `${ORIGIN.hub}/#org`, name: 'ZETAPHY', alternateName: ['ZTPHY', 'SawasdeeCoin'], url: `${ORIGIN.hub}/`,
   logo: { '@type': 'ImageObject', url: `${ORIGIN.hub}/zetaphy-256.png`, width: 256, height: 256 },
+  email: CONTACT_EMAIL,
   sameAs: [REPO_URL, `${ORIGIN.explorer}/`, `${ORIGIN.neuro}/web/`],
 });
 /** The home page's structured data: the organisation (logo) and the site it publishes. */
@@ -141,7 +144,7 @@ export function aboutPage(lang) {
   const figure = [blockFigure(c.block), null, flowFigure(c.flow)];
   const sections = c.sections.map((s, n) => `<section>
 <h2>${esc(s.h)}</h2>
-${s.p ? `<p>${esc(s.p)}</p>\n` : ''}${figure[n] ? `${figure[n]}\n` : ''}${s.items ? `<ul class="cards">\n${s.items.map((t, k) => card(t, ITEM_ICONS[n][k])).join('\n')}\n</ul>\n` : ''}${s.note ? `<p class="note">${esc(s.note)}</p>\n` : ''}${s === c.sections.at(-1) ? `<p><a href="${REPO_URL}">github.com/pospos191-alt/zetaphy</a></p>\n` : ''}</section>`).join('\n');
+${s.p ? `<p>${esc(s.p)}</p>\n` : ''}${figure[n] ? `${figure[n]}\n` : ''}${s.items ? `<ul class="cards">\n${s.items.map((t, k) => card(t, ITEM_ICONS[n][k])).join('\n')}\n</ul>\n` : ''}${s.note ? `<p class="note">${esc(s.note)}</p>\n` : ''}${s === c.sections.at(-1) ? `<p><a href="${REPO_URL}">github.com/pospos191-alt/zetaphy</a> · <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>\n` : ''}</section>`).join('\n');
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -186,7 +189,7 @@ ${sections}
 export function llmsTxt() {
   const c = ABOUT.en;
   const sec = c.sections.map((s) => [`## ${s.h}`, s.p ?? '', ...(s.items ?? []).map((i) => `- ${i}`), s.note ?? ''].filter(Boolean).join('\n')).join('\n\n');
-  return `# ZETAPHY (ZTPHY)\n\n> ${c.description}\n\n${c.lead}\n\n${sec}\n\n## Links\n\n- [What is ZETAPHY? (8 languages)](${ORIGIN.hub}/about/)\n- [App: wallet, swap, staking, NFT](${ORIGIN.hub}/)\n- [Did you get ZTPHY? Check an address](${ORIGIN.hub}/got-ztphy.html)\n- [Neuro token checker](${ORIGIN.neuro}/web/)\n- [Explorer](${ORIGIN.explorer}/)\n- [Source code](${REPO_URL})\n${ZTPHY_CONTRACTS.map((t) => `- ZTPHY on ${t.chain} (chain ${t.chainId}): ${t.address} ([explorer](${t.explorer}))`).join('\n')}\n- Logo: ${ORIGIN.hub}/zetaphy-256.png\n\n${c.notice}\n`;
+  return `# ZETAPHY (ZTPHY)\n\n> ${c.description}\n\n${c.lead}\n\n${sec}\n\n## Links\n\n- [What is ZETAPHY? (8 languages)](${ORIGIN.hub}/about/)\n- [App: wallet, swap, staking, NFT](${ORIGIN.hub}/)\n- [Did you get ZTPHY? Check an address](${ORIGIN.hub}/got-ztphy.html)\n- [Neuro token checker](${ORIGIN.neuro}/web/)\n- [Explorer](${ORIGIN.explorer}/)\n- [Source code](${REPO_URL})\n- Contact: ${CONTACT_EMAIL}\n${ZTPHY_CONTRACTS.map((t) => `- ZTPHY on ${t.chain} (chain ${t.chainId}): ${t.address} ([explorer](${t.explorer}))`).join('\n')}\n- Logo: ${ORIGIN.hub}/zetaphy-256.png\n\n${c.notice}\n`;
 }
 
 /** {relative path: content} of the hub's search files, written into dist/ by build.mjs. */

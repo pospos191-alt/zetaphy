@@ -1,0 +1,20 @@
+{
+  "_comment": "What explorers' token-info forms ask (BscScan / BaseScan 'Token Update', GeckoTerminal), for scripts/token-listing.js and docs/TOKEN-LISTING.md. Public values only. Per route: the PancakeSwap / Uniswap pool once it exists (null before).",
+  "projectName": "ZETAPHY (ZTPHY)",
+  "website": "https://app.sawasdeecoin.com",
+  "email": "zetaphy.chain@sawasdeecoin.com",
+  "emailListedAt": "https://app.sawasdeecoin.com/about/",
+  "logo32Svg": "https://app.sawasdeecoin.com/zetaphy-32.svg",
+  "logo32Png": "https://app.sawasdeecoin.com/zetaphy-32.png",
+  "logo256Png": "https://app.sawasdeecoin.com/zetaphy-256.png",
+  "sector": "Infrastructure / Bridge",
+  "whitepaper": "https://github.com/pospos191-alt/zetaphy/blob/main/docs/ZETAPHY-MAINNET-NOTICE.md",
+  "github": "https://github.com/pospos191-alt/zetaphy",
+  "x": "https://x.com/SWD_SAWASDEE",
+  "addToWallet": "https://app.sawasdeecoin.com/got-ztphy.html",
+  "description": "ZTPHY is the coin of ZETAPHY, a post-quantum EVM chain (chain 3659). This token is ZTPHY bridged to {chain} by Saphan: each token is backed one to one by ZTPHY locked in its own vault on ZETAPHY, with daily caps, delays and a 48-hour timelock. ZETAPHY mainnet runs on a single validator and the bridge contracts have no external audit yet.",
+  "pools": {
+    "bsc": { "dex": "PancakeSwap v3", "address": "0xB4D4eE5f2C173B483D494EE481496754cE230f88", "pair": "ZTPHY/USDT", "seed": "500,000 ZTPHY + 50 USDT" },
+    "base": null
+  }
+}

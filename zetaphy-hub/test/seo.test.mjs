@@ -104,11 +104,18 @@ test('logo and ZTPHY for search engines: the Organization logo on the home and a
   // the 32x32 copy explorers' token-info forms ask a download link for (BscScan: /zetaphy-32.png), shipped by the build
   const small = readFileSync(join(HERE, 'zetaphy-32.png'));
   assert.deepEqual([small.readUInt32BE(16), small.readUInt32BE(20)], [32, 32], 'a 32x32 logo');
+  // and the same logo as a static 32x32 SVG (BscScan asks for SVG): no animation, no scripts, no embedded raster
+  const svg = readFileSync(join(HERE, 'zetaphy-32.svg'), 'utf8');
+  assert.match(svg, /^<svg [^>]*viewBox="0 0 512 512" width="32" height="32"/);
+  assert.doesNotMatch(svg, /<animate|<script|<image|<foreignObject|href="(?!#)/);
+  // the official e-mail is on the site (the about page in every language, its Organization data, llms.txt)
+  assert.equal(org.email, 'zetaphy.chain@sawasdeecoin.com');
   for (const l of LANG_CODES) {
     const html = aboutPage(l);
     const data = JSON.parse(html.split('<script type="application/ld+json">')[1].split('</script>')[0]);
     assert.ok(data['@graph'].some((n) => n['@type'] === 'Organization' && n.logo.url === org.logo.url), `${l}: Organization logo`);
     for (const t of ZTPHY_CONTRACTS) assert.ok(html.includes(t.address), `${l}: ZTPHY on ${t.chain}`);
+    assert.ok(html.includes('<a href="mailto:zetaphy.chain@sawasdeecoin.com">zetaphy.chain@sawasdeecoin.com</a>'), `${l}: the contact e-mail`);
   }
   const state = JSON.parse(readFileSync(join(ROOT, 'zetaphy-chain', 'hyperlane', 'mainnet', 'saphan-mainnet-state.json'), 'utf8'));
   assert.deepEqual(ZTPHY_CONTRACTS.map((t) => t.address), [state.steps['bsc-synthetic'].synthetic]);

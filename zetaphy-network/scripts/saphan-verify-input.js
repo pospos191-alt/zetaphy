@@ -16,7 +16,7 @@ import * as M from '../src/saphanmainnet.js';
 import { providerFor } from './saphan.js';
 
 const ART = JSON.parse(readFileSync(new URL('../artifacts/SaphanSyntheticToken.json', import.meta.url), 'utf8'));
-const EXPLORER = { 56: 'https://bscscan.com', 8453: 'https://basescan.org', 42161: 'https://arbiscan.io', 137: 'https://polygonscan.com' };
+export const EXPLORER = { 56: 'https://bscscan.com', 8453: 'https://basescan.org', 42161: 'https://arbiscan.io', 137: 'https://polygonscan.com' };
 
 /** The creation transaction's input -> the constructor arguments (hex, no 0x), or throws when the bytecode differs. */
 export function constructorArgs(txInput, art = ART) {
@@ -51,7 +51,12 @@ export function standardInput(art = ART) {
 async function main(argv) {
   const o = {};
   for (let i = 0; i < argv.length; i += 2) o[argv[i].replace(/^--/, '')] = argv[i + 1];
-  const name = o.route ?? 'bsc';
+  return prepareVerify(o.route ?? 'bsc', o);
+}
+
+/** Checks the creation tx against the artifact, writes the form files, prints the form; with o.sourcify 'yes' submits to Sourcify (an
+ *  "already verified" answer counts as done). Returns { token, tx, chainId, explorer, sourcify }. */
+export async function prepareVerify(name, o = {}) {
   const cfg = M.loadMainnet(), state = M.loadState(), r = M.route(cfg, name);
   const rec = state.steps?.[r.steps.synthetic];
   if (!rec?.synthetic || !rec.tx) throw new Error(`no ${r.steps.synthetic} with a tx in the state file: deploy the route first`);
@@ -73,12 +78,15 @@ async function main(argv) {
   console.log(`\nthe form (${url}):\n  contract address  ${rec.synthetic}\n  compiler type     ${f.compilerType}\n  compiler version  ${f.compilerVersion}\n  license           ${f.license}`);
   console.log(`  then: upload ${base}.standard-input.json; contract name ${f.contractName}; constructor arguments (ABI-encoded): the line in ${base}.constructor-args.txt`);
   console.log(`  (inside the file: optimizer ${f.optimizer}, evmVersion ${f.evmVersion})`);
+  let sourcify = null;
   if (o.sourcify === 'yes') {
     const res = await fetch(`https://sourcify.dev/server/v2/verify/${r.chainId}/${rec.synthetic}`, { method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ stdJsonInput: input, compilerVersion: ART.solcLongVersion, contractIdentifier: f.contractName, creationTransactionHash: rec.tx }) });
     const body = await res.json().catch(() => ({}));
+    sourcify = res.ok ? 'submitted' : body.customCode === 'already_verified' ? 'verified' : `HTTP ${res.status}`;
     console.log(`\nsourcify: HTTP ${res.status} ${body.verificationId ? `job ${body.verificationId} (https://sourcify.dev/server/v2/verify/${body.verificationId})` : JSON.stringify(body).slice(0, 200)}`);
   }
+  return { token: getAddress(rec.synthetic), tx: rec.tx, chainId: r.chainId, explorer: EXPLORER[r.chainId] ?? null, sourcify };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main(process.argv.slice(2)).catch((e) => { console.error(`error: ${e.message}`); process.exit(1); });
