@@ -49,6 +49,20 @@ workflow รัน `key-watch.js --config zetaphy-network/key-watch-mainnet.json
 
 `test/keywatch-mainnet.test.js` จะล้มถ้าที่อยู่ที่ commit ไว้ (ไฟล์ launch, state ของ Saphan) ไม่อยู่ในรายการเฝ้าดู
 
+## บนเครื่อง sentry (ทุก 5 นาที)
+
+GitHub รัน workflow ตามเวลาแค่ทุกไม่กี่ชั่วโมง (บน mainnet เห็นห่าง 6–8 ชม.) ช้าเกินไปสำหรับเวลารอ mint 1 ชม. ของสะพาน
+[`zetaphy-network/scripts/key-watch-host.sh`](../zetaphy-network/scripts/key-watch-host.sh) รันตัวเฝ้าระวังเดียวกันบน
+sentry ทุก 5 นาทีใน Docker (`node:20-bookworm-slim`) มีสถานะของตัวเอง workflow บน GitHub ยังเป็นตัวสำรอง และเครื่องหมายใน
+issue ทำให้ทั้งสองไม่โพสต์ซ้ำกัน ความลับเดียวคือ GitHub token แบบ fine-grained ที่ทำได้แค่ **Issues: Read and write** ใน
+repo นี้ พิมพ์ลงช่องที่ซ่อนตัวอักษร และเก็บไว้ที่ `/etc/zetaphy-watch/env` ซึ่งอ่านได้เฉพาะ root
+
+```bash
+sudo bash key-watch-host.sh install     # [เปลี่ยนการตั้งค่า] ถาม token, เก็บค่าตั้งต้น, เริ่ม timer ทุก 5 นาที
+sudo bash key-watch-host.sh status      # [อ่าน] timer และรอบล่าสุด
+sudo bash key-watch-host.sh uninstall   # [เปลี่ยนการตั้งค่า] ลบทั้งหมด (แล้วลบ token บน GitHub)
+```
+
 ## Saphan: เหรียญไม่มีหนุน หรือข้อความปลอม
 
 การแจ้งเตือนบอกเส้นทาง (`bsc` หรือ `base`), เชน และ id ของข้อความปลอม guardian สองคน (กระดาษ A, B, C คู่ใดก็ได้) ลงมือทันที

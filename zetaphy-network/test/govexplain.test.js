@@ -90,3 +90,58 @@ test('key-watch: a new gov proposal alert says what it does, and is CRITICAL whe
   assert.match(a.title, /new gov proposal #5 — CHANGES WHO CONTROLS FUNDS OR RULES/);
   assert.match(a.lines.join('\n'), /\*\*What it does:\*\*[\s\S]*setInterchainSecurityModule[\s\S]*on Saphan vault/);
 });
+
+test('a MsgEVMCall whose REST form is an Any with protobuf bytes (dynamicpb: 1 sender, 2 to, 3 value, 4 data) is read too', async () => {
+  const { evmCallFields } = await import('../src/govexplain.js');
+  const data = T.encodeFunctionData('scheduleBatch', [[REP], [0n], [X.encodeFunctionData('setReporter', [A1, true])], ZeroHash, keccakId('p'), 172800n]);
+  const s = (n, str) => Buffer.concat([Buffer.from([(n << 3) | 2, Buffer.byteLength(str)]), Buffer.from(str)]);
+  const d = Buffer.from(data.slice(2), 'hex');
+  const len = []; let l = d.length; while (l > 127) { len.push((l & 0x7f) | 0x80); l >>= 7; } len.push(l);
+  const proto = Buffer.concat([s(1, 'zetaphy10d07y265gmmuvt4z0w9aw880jnsr700jvr86lj'), s(2, TL), s(3, '0'), Buffer.from([(4 << 3) | 2, ...len]), d, Buffer.from([5 << 3, 0xc0, 0x84, 0x3d])]);
+  const m = { '@type': '/zetaphy.pq.v1.MsgEVMCall', value: proto.toString('base64') };
+  const f = evmCallFields(m);
+  assert.equal(f.to, TL);
+  assert.equal(f.data, data.toLowerCase());
+  const r = ex({ messages: [m] });
+  assert.match(r.lines.join('\n'), /setReporter.*on workerReputation/);
+  // a shape it cannot read says so, with the field names, at HIGH
+  const bad = ex({ messages: [{ '@type': '/zetaphy.pq.v1.MsgEVMCall', foo: 1 }] });
+  assert.equal(bad.severity, 'high');
+  assert.match(bad.lines[0], /could not read \(fields: @type, foo\)/);
+});
+
+// protobuf helpers for the transaction test: a length-delimited field and a varint field
+const vint = (n) => { const o = []; let v = BigInt(n); while (v > 127n) { o.push(Number(v & 0x7fn) | 0x80); v >>= 7n; } o.push(Number(v)); return Buffer.from(o); };
+const ld = (f, b) => Buffer.concat([vint((f << 3) | 2), vint(b.length), Buffer.from(b)]);
+const vf = (f, n) => Buffer.concat([vint(f << 3), vint(n)]);
+
+test('key-watch reads a MsgEVMCall the REST API shows as @type only from the submitting transaction (CometBFT tx_search)', async () => {
+  const { messagesFromTx } = await import('../src/govexplain.js');
+  const sched = T.encodeFunctionData('schedule', [VAULT, 0n, X.encodeFunctionData('setInterchainSecurityModule', [EVIL]), ZeroHash, keccakId('z'), 172800n]);
+  const evm = Buffer.concat([ld(1, 'zetaphy10d07y265gmmuvt4z0w9aw880jnsr700jvr86lj'), ld(2, TL), ld(3, '0'), ld(4, Buffer.from(sched.slice(2), 'hex')), vf(5, 1200000)]);
+  const any = (t, v) => Buffer.concat([ld(1, t), ld(2, v)]);
+  const submit = Buffer.concat([ld(1, any('/zetaphy.pq.v1.MsgEVMCall', evm)), ld(3, 'zetaphy1proposer'), ld(5, 'title')]);
+  const body = Buffer.concat([ld(1, any('/cosmos.gov.v1.MsgSubmitProposal', submit)), ld(2, 'memo')]);
+  const tx = Buffer.concat([ld(1, body), ld(2, Buffer.from([1, 2])), ld(3, Buffer.from([9]))]).toString('base64');
+  const msgs = messagesFromTx(tx);
+  assert.equal(msgs.length, 1);
+  assert.equal(msgs[0]['@type'], '/zetaphy.pq.v1.MsgEVMCall');
+  assert.equal(messagesFromTx(Buffer.from('nope').toString('base64')), null);
+
+  const cfg = buildConfig({ defaults: { confirmations: 0 }, chains: { zetaphy: { chainId: 3659, rpc: ['http://mock'], rest: 'http://rest', comet: 'http://comet', displayName: 'ZETAPHY mainnet',
+    watch: [{ address: TL, label: 'ZetaphyTimelock', kind: 'timelock' }, { address: VAULT, label: 'Saphan vault', kind: 'bridge' }] } } });
+  const rpc = { getBlockNumber: async () => 10, getBalance: async () => 0n, getLogs: async () => [], destroy() {} };
+  const proposals = [{ id: '4', messages: [] }];
+  const asked = [];
+  const fetchJson = async (u) => {
+    asked.push(u);
+    if (u.startsWith('http://comet/tx_search')) return { result: { txs: [{ tx }] } };
+    return u.includes('/gov/') ? { proposals } : {};
+  };
+  let r = await runWatch({ config: cfg, rpcFor: () => rpc, fetchJson });
+  proposals.unshift({ id: '5', title: 'innocent', status: 'PROPOSAL_STATUS_VOTING_PERIOD', messages: [{ '@type': '/zetaphy.pq.v1.MsgEVMCall' }] });
+  r = await runWatch({ config: cfg, state: r.state, rpcFor: () => rpc, fetchJson });
+  assert.ok(asked.some((u) => u === `http://comet/tx_search?query=${encodeURIComponent(`"submit_proposal.proposal_id='5'"`)}&per_page=1`), 'asked CometBFT for the transaction');
+  assert.equal(r.alerts[0].severity, 'critical');
+  assert.match(r.alerts[0].lines.join('\n'), /setInterchainSecurityModule[\s\S]*on Saphan vault/);
+});

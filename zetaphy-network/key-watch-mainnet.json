@@ -309,7 +309,8 @@
           "label": "NFT marketplace",
           "kind": "contract"
         }
-      ]
+      ],
+      "comet": "https://129-221-199-191.sslip.io/rpc"
     },
     "bsc": {
       "displayName": "BNB Smart Chain",
@@ -321,8 +322,8 @@
       ],
       "explorer": "https://bscscan.com",
       "confirmations": 5,
-      "maxLagBlocks": 400000,
-      "maxBlocksPerRun": 40000,
+      "maxLagBlocks": 1000000,
+      "maxBlocksPerRun": 200000,
       "watch": [
         {
           "address": "0x68aa0f0144605024eCe1aDccFCC1626352779569",
@@ -388,7 +389,9 @@
           "label": "liquidity Safe",
           "kind": "contract"
         }
-      ]
+      ],
+      "maxBlocksPerRun": 200000,
+      "maxLagBlocks": 1000000
     }
   },
   "saphan": {
@@ -404,6 +407,6 @@
     "largePct": 25,
     "nearLimitPct": 80,
     "sourceSearchBlocks": 40000,
-    "maxQueuedBlocksPerRun": 40000
+    "maxQueuedBlocksPerRun": 200000
   }
 }

@@ -71,6 +71,64 @@ const bytesOf = (v) => {
   return '0x' + Buffer.from(s, 'base64').toString('hex');
 };
 const field = (m, ...names) => { for (const n of names) for (const k of Object.keys(m)) if (k.toLowerCase() === n.toLowerCase()) return m[k]; return undefined; };
+
+/** Protobuf wire format -> { field: [values] } (varints as BigInt, length-delimited as Buffer); throws on anything else. */
+export function pbFields(buf) {
+  const out = {};
+  let i = 0;
+  const varint = () => { let r = 0n, s = 0n; for (;;) { if (i >= buf.length) throw new Error('truncated'); const b = buf[i++]; r |= BigInt(b & 0x7f) << s; if (!(b & 0x80)) return r; s += 7n; } };
+  while (i < buf.length) {
+    const key = Number(varint()), f = key >> 3, wt = key & 7;
+    let v;
+    if (wt === 0) v = varint();
+    else if (wt === 2) { const len = Number(varint()); if (i + len > buf.length) throw new Error('truncated'); v = buf.subarray(i, i + len); i += len; }
+    else if (wt === 1) { v = buf.subarray(i, i + 8); i += 8; }
+    else if (wt === 5) { v = buf.subarray(i, i + 4); i += 4; }
+    else throw new Error(`wire type ${wt}`);
+    (out[f] ??= []).push(v);
+  }
+  return out;
+}
+
+/**
+ * MsgEVMCall as a proposal may carry it: its own JSON (Sender, To, Value, Data, GasLimit, any letter case), or an Any
+ * whose `value` holds the protobuf bytes (the node builds the message with dynamicpb: 1 sender, 2 to, 3 value,
+ * 4 data, 5 gas_limit, 6 as_owner; the REST API shows only its @type, so key watch reads it from the submitting
+ * transaction, messagesFromTx). Returns { to, data, value } or null.
+ */
+export function evmCallFields(m) {
+  const to = field(m, 'to'), data = field(m, 'data');
+  if (to) return { to, data: bytesOf(data), value: BigInt(field(m, 'value') ?? 0) };
+  const raw = field(m, 'value');
+  if (typeof raw !== 'string' || /^\d+$/.test(raw)) return null;
+  let f;
+  try { f = pbFields(Buffer.from(/^0x/.test(raw) ? raw.slice(2) : raw, /^0x/.test(raw) ? 'hex' : 'base64')); } catch { return null; }
+  if (!f[2]?.[0] || !Buffer.isBuffer(f[2][0])) return null;
+  return { to: f[2][0].toString('utf8'), data: '0x' + (f[4]?.[0] ? f[4][0].toString('hex') : ''), value: f[3]?.[0] ? BigInt(f[3][0].toString('utf8') || 0) : 0n };
+}
+
+/**
+ * The messages of the first MsgSubmitProposal in a transaction (base64 TxRaw, as CometBFT tx_search returns it), as
+ * Any objects { '@type', value (base64) }: TxRaw 1 body -> TxBody 1 messages (Any: 1 type_url, 2 value) ->
+ * cosmos.gov.v1.MsgSubmitProposal 1 messages. null if there is none.
+ */
+export function messagesFromTx(txB64) {
+  try {
+    const body = pbFields(pbFields(Buffer.from(txB64, 'base64'))[1][0]);
+    for (const anyBuf of body[1] ?? []) {
+      const any = pbFields(anyBuf);
+      const type = any[1]?.[0]?.toString('utf8') ?? '';
+      if (!/gov\.v1\.MsgSubmitProposal$/.test(type)) continue;
+      const sub = pbFields(any[2]?.[0] ?? Buffer.alloc(0));
+      return (sub[1] ?? []).map((a) => { const x = pbFields(a); return { '@type': '/' + (x[1]?.[0]?.toString('utf8') ?? '?').replace(/^\//, ''), value: (x[2]?.[0] ?? Buffer.alloc(0)).toString('base64') }; });
+    }
+  } catch { /* not a transaction we can read */ }
+  return null;
+}
+
+/** A proposal message the REST API showed without its fields (only @type): it must be read from the transaction. */
+export const isOpaque = (m) => m && typeof m === 'object' && Object.keys(m).length === 1 && '@type' in m;
+
 const short = (v) => { const s = typeof v === 'bigint' ? v.toString() : Array.isArray(v) ? `[${v.map(short).join(', ')}]` : String(v); return s.length > 80 ? `${s.slice(0, 77)}…` : s; };
 
 /** One call (to, data): { text, severity, why } with the function and its arguments by name. */
@@ -101,8 +159,9 @@ export function explainProposal(p, { selectors, labels = {}, timelock = null }) 
   for (const m of p.messages ?? []) {
     const type = m['@type'] ?? '?';
     if (/MsgEVMCall$/.test(type)) {
-      const to = field(m, 'to'), data = bytesOf(field(m, 'data')), value = BigInt(field(m, 'value') ?? 0);
-      if (!to) { lines.push(`- MsgEVMCall with no target`); sev = worst(sev, 'high'); continue; }
+      const f = evmCallFields(m);
+      if (!f) { lines.push(`- [HIGH] a MsgEVMCall this watch could not read (fields: ${Object.keys(m).join(', ')}): read the proposal by hand (zetaphyd q gov proposal <id>)`); sev = worst(sev, 'high'); continue; }
+      const { to, data, value } = f;
       if (tl && getAddress(to).toLowerCase() === tl) {
         let d = null;
         try { d = TIMELOCK.parseTransaction({ data }); } catch { /* not a timelock call */ }

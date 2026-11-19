@@ -25,7 +25,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Interface, JsonRpcProvider, FetchRequest, Network, getAddress, formatEther, parseEther, id as keccakId, ZeroHash } from 'ethers';
 import { saphanRoutes, checkSaphan } from '../src/saphanwatch.js';
-import { loadSelectors, explainProposal } from '../src/govexplain.js';
+import { loadSelectors, explainProposal, messagesFromTx, isOpaque } from '../src/govexplain.js';
 
 let SELECTORS = null; // every contract function in this repository, by selector (src/govexplain.js), loaded on the first proposal
 
@@ -166,7 +166,7 @@ export function buildConfig(raw, table = {}, routes = {}) {
       key, name: c.displayName ?? t.displayName ?? key, chainId: Number(chainId), rpc,
       explorer: (c.explorer ?? t.explorer ?? '').replace(/\/$/, ''),
       quietUntil: c.quietUntil ? Date.parse(c.quietUntil) : 0,
-      rest: c.rest ?? null, validators: c.validators ?? [], watch: [], ...pick(c, ['confirmations', 'logChunk', 'maxBlocksPerRun', 'maxLagBlocks']),
+      rest: c.rest ?? null, comet: c.comet ?? null, validators: c.validators ?? [], watch: [], ...pick(c, ['confirmations', 'logChunk', 'maxBlocksPerRun', 'maxLagBlocks']),
     };
     for (const w of [...(raw.everyChain ?? []), ...(c.watch ?? [])]) addWatch(chains[key], w);
   }
@@ -386,6 +386,15 @@ export async function runWatch({ config, state = newState(), rpcFor, fetchJson =
             // what it would do, in words: every timelock call it schedules, by function and contract, with its risk
             let ex = null;
             try {
+              // the REST API shows a MsgEVMCall as its @type only: read the messages from the submitting transaction
+              if ((p.raw.messages ?? []).some(isOpaque) && chain.comet) {
+                try {
+                  const q = encodeURIComponent(`"submit_proposal.proposal_id='${p.id}'"`);
+                  const t = await fetchJson(`${chain.comet.replace(/\/$/, '')}/tx_search?query=${q}&per_page=1`);
+                  const msgs = t?.result?.txs?.[0]?.tx ? messagesFromTx(t.result.txs[0].tx) : null;
+                  if (msgs?.length) p.raw = { ...p.raw, messages: msgs };
+                } catch (e) { log(`${chain.key}: proposal ${p.id}: its transaction: ${short(e)}`); }
+              }
               SELECTORS ??= loadSelectors();
               ex = explainProposal(p.raw, { selectors: SELECTORS, labels: Object.fromEntries(chain.watch.map((w) => [lc(w.address), w.label])),
                 timelock: chain.watch.find((w) => w.kind === 'timelock')?.address ?? null });
