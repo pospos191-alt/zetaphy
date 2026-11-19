@@ -13,6 +13,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 import { Wallet } from 'ethers';
 import { createShim, ZETA } from './helpers/rpcshim.js';
@@ -475,6 +476,10 @@ test('wallet safety: the banner at 1,000+ ZTPHY, hardware-wallet help, Ledger (U
 test('mainnet (the only network): "not on mainnet yet" (no switch), the badge and risk line; no RPC, no contract, no wallet; a saved or linked testnet opens mainnet', async () => {
   const ctx = await browser.newContext({ locale: 'en-US' });
   await chainRoutes(ctx, 'mainnet');
+  // the closed state: the real record with its code keys not yet protected (the real file has them protected since
+  // 2026-11-19, which the next test and test/mainnet.test.js cover)
+  const closed = { ...JSON.parse(readFileSync(new URL('../web/deployments-3659.json', import.meta.url), 'utf8')), nftCodeKeysProtected: false };
+  await ctx.route(`${ORIGIN}/deployments-3659.json`, (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(closed) }));
   try {
     const page = await ctx.newPage();
     const asked = [];
