@@ -12,7 +12,7 @@ import { runSteps, newState, saveState, loadState, outputs, assertNoSecrets } fr
 import { dexWeb, nftWeb, explorerConfig, walletHtml, snapConfig, publicBase, neuroReportUrl, CONFIG_FILES } from '../src/configs.js';
 import { readDeployerKey, keyFolder } from '../src/key.js';
 import { parseArgs, governanceTarget, timelockDelay, addressList, isLoopback, main } from '../launch.js';
-import { launchSteps, adminRoles, guardianRoles, evmCallProposal, handoverPlan, GOV_MODULE, GOV_MODULE_BECH32, BRIDGE_GATES, DEFAULT_DELAY, MIN_DELAY, TIMELOCK_ROLES,
+import { launchSteps, auditedBootstrap, adminRoles, guardianRoles, evmCallProposal, handoverPlan, GOV_MODULE, GOV_MODULE_BECH32, BRIDGE_GATES, DEFAULT_DELAY, MIN_DELAY, TIMELOCK_ROLES,
   missingNonces, sortOperations, isHandoverShape, handoverSalt } from '../src/steps.js';
 import { Interface } from 'ethers';
 
@@ -333,4 +333,18 @@ test('--guardian-owners: 2+ distinct owners, threshold 2..owners, not together w
   await assert.rejects(run('--guardian-owners', `${A},${B}`, '--guardian-threshold', '1'), /threshold of at least 2/);
   await assert.rejects(run('--guardian-owners', `${A},${B}`, '--guardian', A), /pass one/);
   await assert.rejects(run('--guardian-owners', 'nope'), /0x addresses/);
+});
+
+test('handover re-check: the nonce audit (historical state, pruned on a live node) is reused only for the same verified renounce', () => {
+  const st = (out, doneAt = '2026-11-13T18:40:00.000Z') => ({ steps: { handover: { doneAt, out } } });
+  const ok = { bootstrapAuditedTo: 3114, verifiedAt: '2026-11-13T18:40:00.000Z' };
+  assert.equal(auditedBootstrap(st(ok), 3114), true);
+  assert.equal(auditedBootstrap(st(ok), 3115), false, 'another renounce block: audit again');
+  assert.equal(auditedBootstrap(st(ok), null), false, 'never renounced');
+  assert.equal(auditedBootstrap(st({ verifiedAt: ok.verifiedAt }), 3114), false, 'no earlier audit');
+  assert.equal(auditedBootstrap(st({ bootstrapAuditedTo: '3114', verifiedAt: ok.verifiedAt }), 3114), false);
+  assert.equal(auditedBootstrap(st({ bootstrapAuditedTo: 3114 }), 3114), false, 'not verified');
+  assert.equal(auditedBootstrap(st(ok, null), 3114), false, 'the step never finished');
+  assert.equal(auditedBootstrap({ steps: {} }, 3114), false);
+  assert.equal(auditedBootstrap(undefined, 3114), false);
 });

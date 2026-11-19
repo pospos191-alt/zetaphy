@@ -8,7 +8,9 @@
 //   node scripts/saphan-pool.js plan [--route base|bsc|arbitrum] [--ztphy 0x<the route's synthetic>] [--out dir] [--live yes] [--deadline <unix s>]
 //       [อ่าน] (without --out) / [เปลี่ยนไฟล์] (with --out: writes the files below)
 //       (a) bridge: the ZETAPHY tx for the liquidity multisig: approve + lock the total for the Base Safe
-//           -> <out>/bridge-zetaphy[-<route>].unsigned.json (zetaphyd tx sign … --multisig …, 2 of 3, then multisign + broadcast)
+//           -> <out>/bridge-zetaphy[-<route>].unsigned.json: the two calls to make. NEVER sign it with the Cosmos multisig
+//              (MsgEVMCall does not survive its JSON or amino signing): the multisig bank-sends the amount to the deployer,
+//              which sends these two calls as EVM txs (docs/SAPHAN-MAINNET.md step 8 (a))
 //       (b)+(c) per pool: approvals, create + initialise at the owner's price, add full-range liquidity
 //           -> <out>/pool[-<route>]-<STABLE>.safe-batch.json (app.safe.global -> Apps -> Transaction Builder -> drag the file)
 //       per pool: the initial price, and how far one buy of $10 / $50 moves it (how thin the liquidity is)
