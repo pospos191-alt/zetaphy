@@ -15,6 +15,8 @@
 //   near-limit       a side has paid out `nearLimitPct` % of its daily limit today                         WARNING
 //   stalled          ZETAPHY's newest block is older than `headMaxAgeMinutes` (the single validator stopped) CRITICAL
 //   relayer-gas      the relayer's balance on a chain is under its floor: messages stop being delivered       WARNING
+//   neuro-flagged    the sender or the receiver of a queued payout is held in Neuro's ThreatRegistry on ZETAPHY
+//                    (isContractHeld): scam-protection says this address is dangerous; veto it before it is ready  CRITICAL
 //   unusual-size     learned, not a fixed rule: a transfer `unusualFactor` x the median of the last transfers on that
 //                    side (at least `minSamples` of them) and at least 1 % of the daily limit                  WARNING
 //   unusual-rate     learned: this run saw many more transfers than the runs before (mean + `rateSigmas` sigma,
@@ -37,6 +39,8 @@ export const EP = new Interface([
   'function totalSupply() view returns (uint256)',
   'function pending(bytes32) view returns (address to, uint64 readyAt, bool done, bool vetoed, uint256 amount)',
 ]);
+/** Neuro's ThreatRegistry on ZETAPHY (the vault's hold check uses the same view). */
+export const THREATS = new Interface(['function isContractHeld(address who) view returns (bool, uint8)']);
 const SENT = EP.getEvent('Sent').topicHash, QUEUED = EP.getEvent('Queued').topicHash;
 const DEFAULTS = { headMaxAgeMinutes: 15, largePct: 25, nearLimitPct: 80, sourceSearchBlocks: 40_000, maxQueuedBlocksPerRun: 20_000,
   unusualFactor: 10, minSamples: 20, keepSamples: 200, rateSigmas: 4, minBurst: 5 };
@@ -68,7 +72,7 @@ export function saphanRoutes(watchCfg, base, { cfg, st } = {}) {
   st ??= M.loadState(resolve(base, s.stateFile));
   return M.routeNames(cfg).map((name) => ({ name, d: M.deployedRoute(cfg, st, name), R: M.route(cfg, name) }))
     .filter((r) => r.d).map(({ name, d, R }) => ({ name, chain: s.chainOf?.[name] ?? name, vault: getAddress(d.vault), synthetic: getAddress(d.synthetic),
-      vaultBlock: d.vaultBlock ?? 0, displayName: R.displayName }));
+      vaultBlock: d.vaultBlock ?? 0, displayName: R.displayName, threats: cfg.zetaphy?.threats ? getAddress(cfg.zetaphy.threats) : null }));
 }
 
 async function read(rpc, to, fn, args = []) {
@@ -179,6 +183,24 @@ export async function checkSaphan({ watch, routes, rpcFor, state = {}, now = Dat
             const matches = src && getAddress(src.args.sender) === getAddress(q.sender) && getAddress(src.args.to) === getAddress(q.to) && src.args.amount === amount;
             const where = `${L(c).addr(at)}, tx ${L(c).tx(lg.transactionHash)}`;
             const what = `id \`${q.id}\`, source nonce ${q.srcNonce}, ${z(amount)} ZTPHY from ${q.sender} to ${q.to}, ready at ${new Date(Number(q.readyAt) * 1000).toISOString()}`;
+            // Neuro: is either end held in the ThreatRegistry (a flagged scam contract or address)?
+            if (r.threats) {
+              const held = [];
+              for (const [role, a] of [['sender', q.sender], ['receiver', q.to]]) {
+                try {
+                  const out = await zr.call({ to: r.threats, data: THREATS.encodeFunctionData('isContractHeld', [a]) });
+                  const [h, level] = THREATS.decodeFunctionResult('isContractHeld', out);
+                  if (h) held.push(`${role} ${a} (level ${level})`);
+                } catch (e) { log(`saphan: ${ck}: Neuro check of ${a}: ${e.shortMessage ?? e.message}`); }
+              }
+              if (held.length) {
+                push({ key: `saphan:neuro-flagged:${ck}:${q.id}`, severity: 'critical', chain: isMint ? r.chain : 'zetaphy', chainName: c.name,
+                  title: `${r.name} route: queued ${side} involves an address Neuro flags`,
+                  lines: [`${what} (${where}).`, `Held in Neuro's ThreatRegistry ${L(zc).addr(r.threats)}: ${held.join('; ')}.`,
+                    'Scam protection says this address is dangerous (a drainer, a phishing contract, a stolen-funds wallet). Veto the payout before it is ready unless you know better.',
+                    ...guardSteps(r.name, { vetoId: q.id, vetoChain: isMint ? 'dest' : 'zetaphy' })] });
+              }
+            }
             if (err) {
               push({ key: `saphan:unverified:${ck}:${q.id}`, severity: 'high', chain: isMint ? r.chain : 'zetaphy', chainName: c.name, title: `${r.name} route: queued ${side} could not be checked`,
                 lines: [`${what} (${where}).`, `Its source could not be read (${err}). Check it by hand before it is ready; veto it if it has no source.`] });
