@@ -33,6 +33,7 @@ workflow รัน `key-watch.js --config zetaphy-network/key-watch-mainnet.json
 | backing | CRITICAL | ZTPHY บน BSC/Base มีมากกว่าที่ล็อกไว้ใน vault บน ZETAPHY: มีเหรียญที่ไม่มีอะไรหนุน |
 | forged mint / forged release | CRITICAL | มีรายการรอจ่ายที่ไม่มี `Sent` ตรงกันบนอีกเชน: ข้อความปลอมกำลังรอครบเวลา (mint 1 ชม., release 6 ชม.) |
 | stalled | CRITICAL | บล็อกล่าสุดของ ZETAPHY เก่ากว่า 15 นาที |
+| Neuro-flagged | CRITICAL | ผู้ส่งหรือผู้รับของรายการรอจ่ายอยู่ใน ThreatRegistry ของ Neuro (สัญญาดูดเงิน, phishing, กระเป๋าเงินที่ถูกขโมย): veto ก่อนครบเวลา |
 | large | warning | รายการเดียวขนาด 25 % ของเพดานต่อวันขึ้นไป (ตรงกับต้นทาง) |
 | near limit | warning | ใช้เพดานต่อวันของฝั่งหนึ่งไปแล้ว 80 % |
 | relayer gas | warning | relayer มีค่าแก๊สต่ำกว่าเกณฑ์บนเชนหนึ่ง: ข้อความจะหยุดส่ง |

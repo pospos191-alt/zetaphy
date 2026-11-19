@@ -254,3 +254,28 @@ test('learned checks: after 20 ordinary transfers a much bigger one is "unusual"
   assert.ok(b, 'burst');
   assert.match(b.lines[0], /^8 mints queued since the last run; usually 1\.0/);
 });
+
+test('Neuro: a queued payout whose sender or receiver is held in the ThreatRegistry is CRITICAL, with the veto to send', async () => {
+  const { THREATS, checkSaphan } = await import('../src/saphanwatch.js');
+  const REG = getAddress('0x' + '7e'.repeat(20));
+  const { z, d } = setup();
+  const base = z.rpc.call;
+  z.rpc.call = async (tx) => {
+    if (getAddress(tx.to) !== REG) return base(tx);
+    const [who] = THREATS.decodeFunctionData('isContractHeld', tx.data);
+    return THREATS.encodeFunctionResult('isContractHeld', [getAddress(who) === EVE, getAddress(who) === EVE ? 3 : 0]);
+  };
+  const watch = { defaults: { confirmations: 0, logChunk: 100 }, chains: { zetaphy: { key: 'zetaphy', name: 'ZETAPHY mainnet', explorer: '' }, bsc: { key: 'bsc', name: 'BNB Smart Chain', explorer: '', logChunk: 500 } }, saphan: {} };
+  const routes = [{ name: 'bsc', chain: 'bsc', vault: VAULT, synthetic: SYN, vaultBlock: 10, threats: REG }];
+  const run = (state) => checkSaphan({ watch, routes, rpcFor: (c) => (c.key === 'zetaphy' ? z.rpc : d.rpc), state, now: NOW });
+  let r = await run({});
+  // a real mint (its source Sent matches) to a flagged receiver, and one between clean addresses
+  z.logs.push(sent(VAULT, 990, 0n, ALICE, EVE, E(10)), sent(VAULT, 991, 1n, ALICE, BOB, E(10)));
+  d.logs.push(queued(SYN, 5010, keccakId('n0'), 0n, ALICE, EVE, E(10)), queued(SYN, 5011, keccakId('n1'), 1n, ALICE, BOB, E(10)));
+  d.head = 5050;
+  r = await run(r.state);
+  assert.deepEqual(r.alerts.map((a) => [a.severity, a.key]), [['critical', `saphan:neuro-flagged:bsc:mint:${keccakId('n0')}`]]);
+  const t = r.alerts[0].lines.join('\n');
+  assert.match(t, new RegExp(`receiver ${EVE} \\(level 3\\)`));
+  assert.match(t, new RegExp(`veto ${keccakId('n0')} --route bsc --chain dest`));
+});

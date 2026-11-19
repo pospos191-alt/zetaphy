@@ -35,6 +35,7 @@ On top of the events, every run checks each Saphan route (`saphan` in the config
 | backing | CRITICAL | ZTPHY's supply on BSC/Base is above what its vault on ZETAPHY holds locked: unbacked coins exist |
 | forged mint / forged release | CRITICAL | a payout is queued with no matching `Sent` on the other chain: a forged message is waiting out its delay (1 h for mints, 6 h for releases) |
 | stalled | CRITICAL | ZETAPHY's newest block is older than 15 minutes |
+| Neuro-flagged | CRITICAL | the sender or receiver of a queued payout is held in Neuro's ThreatRegistry (a drainer, phishing contract, stolen-funds wallet): veto it before it is ready |
 | large | warning | one queued transfer of 25 % of the daily limit or more (it does match its source) |
 | near limit | warning | 80 % of a side's daily limit is used today |
 | relayer gas | warning | the relayer is under its floor on a chain: messages stop being delivered |
