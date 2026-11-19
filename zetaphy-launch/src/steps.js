@@ -555,6 +555,13 @@ async function nonEvmNonces(ctx, o, toBlock) {
   return { missing: missingNonces(seen, first, await ctx.provider.getTransactionCount(ctx.address, toBlock)) };
 }
 
+/** true when an earlier, verified handover audited the bootstrap up to this same renounce block (the nonce audit needs
+ *  historical state, which a pruning node drops; the renounce cannot happen twice, so the result cannot change). */
+export function auditedBootstrap(state, end) {
+  const out = state?.steps?.handover?.out;
+  return end != null && Number.isInteger(out?.bootstrapAuditedTo) && out.bootstrapAuditedTo === end && typeof out.verifiedAt === 'string' && !!state.steps.handover.doneAt;
+}
+
 /** The block where the deployer's last timelock role was revoked (renounced), or null. */
 async function renouncedAt(ctx, o) {
   const head = await ctx.provider.getBlockNumber();
@@ -696,12 +703,17 @@ export async function handover(ctx, state) {
   const end = await renouncedAt(ctx, o);
   if (end == null) problems.push('the deployer never renounced its timelock roles');
   else {
-    const a = await bootstrapAudit(ctx, state, o, tlRead, { own, realDelay: delay, toBlock: end });
+    // the deployer's nonces up to the renounce need the state at that block: a pruning node no longer has it, so a run
+    // that already audited this very bootstrap (its handover verified, the same renounce block) keeps that result
+    const reuse = auditedBootstrap(state, end);
+    const a = await bootstrapAudit(ctx, state, o, tlRead, { own, realDelay: delay, toBlock: end, withNonces: !reuse });
+    if (reuse) ctx.log(`  the deployer's transactions until it renounced (block ${end}): audited by the handover of ${state.steps.handover.out.verifiedAt}; the roles and operations are checked again now`);
     const late = await bootstrapAudit(ctx, state, o, tlRead, { own, realDelay: delay, toBlock: await ctx.provider.getBlockNumber(), withNonces: false });
     for (const id of new Set([...a.pending, ...late.pending])) problems.push(`operation ${id} from the bootstrap (below the ${delay} s delay) is still pending: it could run after the handover`);
     for (const id of new Set([...a.ran, ...late.ran])) problems.push(`operation ${id} from the bootstrap ran, and the launch did not schedule it`);
     for (const id of a.ownPending) problems.push(`the handover operation ${id} is not done`);
-    if (a.nonces.tooLong) problems.push(`the bootstrap lasted ${a.nonces.tooLong} blocks: too many to check the deployer's transactions (at most ${MAX_AUDIT_BLOCKS})`);
+    if (!a.nonces) { /* audited before (above) */ }
+    else if (a.nonces.tooLong) problems.push(`the bootstrap lasted ${a.nonces.tooLong} blocks: too many to check the deployer's transactions (at most ${MAX_AUDIT_BLOCKS})`);
     else if (a.nonces.missing.length) problems.push(`the deployer signed non-EVM transaction(s) during the bootstrap (nonce ${a.nonces.missing.join(', ')}): an operation could be scheduled that no log shows`);
   }
   for (const r of adminRoles(o)) {

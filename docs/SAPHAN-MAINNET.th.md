@@ -276,13 +276,14 @@ node scripts/saphan-mainnet.js open-proposals --out open/              # [เป
 node scripts/saphan-pool.js plan --live yes --out pools/   # [เปลี่ยนไฟล์] bridge-zetaphy.unsigned.json, pool-USDC.safe-batch.json, pool-USDT.safe-batch.json
 ```
 
-(a) **[เปลี่ยนเชน]** liquidity multisig (`0x8598…15d1` เป็น Cosmos 2 ใน 3) ลงนาม `bridge-zetaphy.unsigned.json`: ธุรกรรม
-Cosmos เดียวที่มี `MsgEVMCall` สองข้อ: approve vault บน native ERC-20 แล้ว `lock(Safe, 2,000,000 ZTPHY)` สมาชิกลงนามแบบเดียว
-กับตอนเติมเงิน deployer (docs/ZETAPHY-MAINNET-PROCEDURE.th.md 16.4) ด้วย `zetaphyd tx sign … --multisig
-<liquidity multisig zetaphy1…> --from <สมาชิก>` แล้ว `tx multisign` และ `gov.sh broadcast` **ยังไม่ได้ตรวจที่นี่**: การลงนาม
-multisig แบบ legacy-amino ของ node ยอมรับ `MsgEVMCall` หรือไม่ (ยังไม่เคยลองจาก multisig) ลองก่อนด้วยสำเนาไฟล์ที่จำนวนเป็น
-1 ZTPHY; ถ้าการลงนามปฏิเสธ ใช้ `--sign-mode direct`; ถ้ายังถูกปฏิเสธ ทางสำรองคือ bank send 2,000,000 ZTPHY ไปกุญแจใหม่ใช้
-ครั้งเดียว แล้วกุญแจนั้นส่งสองคำสั่งเดียวกันด้วย `cast send` (กุญแจเดียวถือเหรียญอยู่ไม่กี่นาที: ขั้นที่อ่อนกว่า)
+(a) **[เปลี่ยนเชน]** **อย่าให้ Cosmos multisig ลงนาม `bridge-zetaphy.unsigned.json`** ลองบน mainnet แล้ว (2026-11-19):
+`MsgEVMCall` หายเมื่อผ่าน JSON ของ CLI (`tx encode` แล้ว `tx decode` เหลือแค่ `@type`) `tx multisign` จึงเขียนธุรกรรมที่ข้อความว่าง
+และ node ปฏิเสธ (`code 7`, address ว่าง) ที่แย่กว่านั้นคือการลงนามแบบ legacy-amino อาจไม่ครอบฟิลด์ของข้อความเลย ลายเซ็นจึงอาจไม่ผูก
+กับสิ่งที่ส่ง: ห้ามลงนาม `MsgEVMCall` จาก multisig วิธีที่ใช้ได้ (BSC, 500,000 ZTPHY): liquidity multisig ลงนาม bank send จำนวนนั้น
+ไปที่ deployer (`MsgSend` กุญแจกระดาษของสมาชิกอยู่ใน keyring บน RAM ของ M-VAL เท่านั้น เหมือน docs/ZETAPHY-MAINNET-PROCEDURE.th.md
+16.4) แล้ว deployer (keystore) ส่งสองคำสั่งเดียวกับในไฟล์เป็นธุรกรรม EVM ทันที (approve vault บน `0xEeee…EEeE` แล้ว
+`lock(Safe, จำนวน)` โดย `value = quote()`) และตรวจ calldata กับแผนทุกไบต์ deployer ถือเหรียญอยู่ไม่กี่นาที key watch เฝ้าอยู่ และการ
+mint ยังต้องรอ 1 ชม. ซึ่ง guardian veto ได้
 หลังรอ mint 1 ชม. ใครก็ได้ส่ง `claim(id)` ไปที่ synthetic บน Base **[เปลี่ยนเชน]** (relayer ไม่ claim ให้)
 (b)+(c) **[เปลี่ยนเชน]** ใส่ 100 USDC และ 100 USDT เข้า Safe; ใน app.safe.global -> Apps -> Transaction Builder โหลด
 `pool-USDC.safe-batch.json` ตรวจ ลงนาม 2 ใน 3 แล้ว execute; ทำแบบเดียวกันกับ USDT แต่ละ batch: approve ZTPHY, approve
@@ -435,7 +436,7 @@ pool บน BSC ต้องใช้ ZTPHY 500,000 ของตัวเอง 
 10. **[เปลี่ยนเชน]** pool: `node scripts/saphan-pool.js plan --route bsc --live yes --out pools/` เขียน
     `bridge-zetaphy-bsc.unsigned.json` (liquidity multisig ล็อก 500,000 ZTPHY เข้า vault ของ BSC ให้ Safe บน BSC) และ
     `pool-bsc-USDT.safe-batch.json` (approve ZTPHY, approve USDT, สร้าง pool PancakeSwap v3 ที่ 0.0001 USDT ต่อ ZTPHY,
-    mint เต็มช่วงด้วยขั้นต่ำ 1%) หลังเวลารอ mint 1 ชม. ใครก็ได้ส่ง `claim(id)` บน BSC แล้วโหลดชุดคำสั่งใน app.safe.global
+    mint เต็มช่วงด้วยขั้นต่ำ 1%) ZTPHY ผ่าน deployer แบบขั้น 8 (a) ไม่ใช่ `MsgEVMCall` ที่ multisig ลงนาม หลังเวลารอ mint 1 ชม. ใครก็ได้ส่ง `claim(id)` บน BSC แล้วโหลดชุดคำสั่งใน app.safe.global
     (BNB Smart Chain) -> Transaction Builder ตรวจ ลงนาม execute
 
 Arbitrum One ทำแบบเดียวกันด้วย `--route arbitrum` ใช้ ETH บน Arbitrum One เป็นค่า gas (ถอนบน network "Arbitrum One" ห้าม

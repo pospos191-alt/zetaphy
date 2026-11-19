@@ -274,14 +274,16 @@ on Base one owner sends the printed `propose` to the Base multisig, a second own
 node scripts/saphan-pool.js plan --live yes --out pools/   # [เปลี่ยนไฟล์] bridge-zetaphy.unsigned.json, pool-USDC.safe-batch.json, pool-USDT.safe-batch.json
 ```
 
-(a) **[เปลี่ยนเชน]** The liquidity multisig (`0x8598…15d1`, a Cosmos 2-of-3) signs `bridge-zetaphy.unsigned.json`: one
-Cosmos transaction with two `MsgEVMCall`: approve the vault on the native ERC-20, then `lock(Safe, 2,000,000 ZTPHY)`.
-Members sign as for the deployer's funding (docs/ZETAPHY-MAINNET-PROCEDURE.md 16.4), with `zetaphyd tx sign … --multisig
-<liquidity multisig zetaphy1…> --from <member>`, then `tx multisign` and `gov.sh broadcast`. **Not verified here**: whether
-the node's legacy-amino multisig signing accepts `MsgEVMCall` (it was never tried from a multisig). Try it first with a
-copy of the file whose amounts are 1 ZTPHY; if signing refuses the message, use `--sign-mode direct`; if that is refused
-too, the fallback is a bank send of the 2,000,000 ZTPHY to a fresh one-time key that sends the same two calls with
-`cast send` (one key holds the coins for minutes: a weaker, single-key step).
+(a) **[เปลี่ยนเชน]** **Do not sign `bridge-zetaphy.unsigned.json` with the Cosmos multisig.** Tried on mainnet
+(2026-11-19): `MsgEVMCall` does not survive the CLI's JSON (`tx encode` then `tx decode` gives back only its `@type`), so
+`tx multisign` writes a transaction with an empty message and the node refuses it (`code 7`, empty address). Worse,
+legacy-amino signing may not cover the message's fields at all, so a signature would not bind what it sends: never sign a
+`MsgEVMCall` from a multisig. What worked instead (BSC, 500,000 ZTPHY): the liquidity multisig signs a plain bank send of
+the amount to the deployer (`MsgSend`, members' paper keys in a RAM-only keyring on M-VAL, as in
+docs/ZETAPHY-MAINNET-PROCEDURE.md 16.4), and the deployer (its keystore) sends the same two calls the file lists as EVM
+transactions at once (approve the vault on `0xEeee…EEeE`, then `lock(Safe, amount)` with `value = quote()`), checking
+the calldata against the plan byte for byte. The deployer holds the coins for minutes; key watch follows it, and the
+mint still waits the 1 h delay, which guardians can veto.
 After the 1 h mint delay, anyone sends `claim(id)` to the synthetic on Base **[เปลี่ยนเชน]** (the relayer does not claim).
 (b)+(c) **[เปลี่ยนเชน]** Put 100 USDC and 100 USDT in the Safe; in app.safe.global -> Apps -> Transaction Builder, load
 `pool-USDC.safe-batch.json`, check it, sign with 2 of 3, execute; the same for USDT. Each batch: approve ZTPHY, approve
@@ -438,7 +440,8 @@ The BSC pool needs 500,000 ZTPHY of its own (a separate lock into the BSC vault)
 10. **[เปลี่ยนเชน]** The pool: `node scripts/saphan-pool.js plan --route bsc --live yes --out pools/` writes
     `bridge-zetaphy-bsc.unsigned.json` (the liquidity multisig locks 500,000 ZTPHY into the BSC vault for the BSC Safe) and
     `pool-bsc-USDT.safe-batch.json` (approve ZTPHY, approve USDT, create the PancakeSwap v3 pool at 0.0001 USDT per ZTPHY,
-    mint full range with 1% minimums). After the 1 h mint delay anyone sends `claim(id)` on BSC; then load the batch in
+    mint full range with 1% minimums); the ZTPHY goes through the deployer as in step 8 (a), never a multisig-signed
+    `MsgEVMCall`. After the 1 h mint delay anyone sends `claim(id)` on BSC; then load the batch in
     app.safe.global (BNB Smart Chain) -> Transaction Builder, check it, sign, execute.
 
 Arbitrum One is the same with `--route arbitrum`, ETH on Arbitrum One for gas (withdraw on the "Arbitrum One" network,
