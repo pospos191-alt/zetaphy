@@ -93,7 +93,7 @@ test('mainnet: the Offline, Audit, Quantum and Immunity tabs open once their con
     await page.waitForFunction(() => document.getElementById('net-badge')?.textContent === 'ZETAPHY mainnet');
     const gatedTabs = await page.$$eval('.tab[data-gated]', (as) => as.map((a) => a.dataset.tab).sort());
     for (const t of ['offline', 'audit', 'quantum', 'immune']) assert.ok(!gatedTabs.includes(t), `${t}: open on mainnet (${gatedTabs})`);
-    assert.ok(gatedTabs.includes('nft'), 'the NFT app waits for its code keys');
+    assert.ok(!gatedTabs.includes('nft'), 'the NFT app is open: its code keys are protected (2026-11-19)');
 
     // ---- Offline: a key, a channel, a cheque and an order, all for chain 3659
     await page.click('.tab[data-tab="offline"]');

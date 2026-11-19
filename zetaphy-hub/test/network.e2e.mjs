@@ -88,23 +88,21 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     assert.match(await page.textContent('#faucet-msg'), /^ZTPHY sent/);
     assert.equal(faucetGrants, 1);
     // tabs whose contracts are not on mainnet yet: marked, and opened they show the plain box (nothing to click),
-    // never their page or app. Exactly these, as the build found 3659.contracts.json (no bridge yet; the NFT app waits
-    // for its code keys to be protected). Offline trading, the audit network, quantum rescue and the immune network
-    // were deployed on 2026-11-18 (launch steps offline, auditnet, qrescue, immune), so their tabs are open.
+    // never their page or app. Exactly these, as the build found 3659.contracts.json (no bridge page for mainnet yet).
+    // Offline trading, the audit network, quantum rescue and the immune network were deployed on 2026-11-18 (launch steps
+    // offline, auditnet, qrescue, immune); the NFT app's code keys were protected on 2026-11-19: their tabs are open.
     const gatedTabs = await page.$$eval('.tab[data-gated]', (as) => as.map((a) => a.dataset.tab).sort());
-    assert.deepEqual(gatedTabs, ['nft', 'saphan']);
-    assert.equal(await page.textContent('.tab[data-tab="nft"] .new'), 'soon');
+    assert.deepEqual(gatedTabs, ['saphan']);
+    assert.equal(await page.textContent('.tab[data-tab="saphan"] .new'), 'soon');
     assert.doesNotMatch(await page.textContent('#tabs'), /testnet/i);
-    for (const tab of ['earn', 'mine', 'agents', 'ai', 'aichain', 'offline', 'audit', 'quantum', 'immune']) assert.equal(await page.locator(`.tab[data-tab="${tab}"][data-gated]`).count(), 0, `${tab}: open on mainnet`);
-    for (const [tab, words] of [['nft', /^Not on mainnet yetThe NFT marketplace is not on ZETAPHY mainnet yet\. It appears here once its contracts are deployed on mainnet\. \(The testnet was shut down on 2026-11-14\.\)$/],
-      ['saphan', /^Not on mainnet yetZETAPHY Saphan \(the bridge\) is not on ZETAPHY mainnet yet\./]]) {
+    for (const tab of ['earn', 'mine', 'agents', 'ai', 'aichain', 'offline', 'audit', 'quantum', 'immune', 'nft']) assert.equal(await page.locator(`.tab[data-tab="${tab}"][data-gated]`).count(), 0, `${tab}: open on mainnet`);
+    for (const [tab, words] of [['saphan', /^Not on mainnet yetZETAPHY Saphan \(the bridge\) is not on ZETAPHY mainnet yet\./]]) {
       await page.click(`.tab[data-tab="${tab}"]`);
       await page.waitForSelector('#panel-gate:not([hidden])');
       assert.match(await page.textContent('#panel-gate'), words, tab);
       assert.equal(await page.locator('#panel-gate button, #panel-gate select, #panel-gate a').count(), 0, `${tab}: nothing to click in the box`);
       assert.equal(await page.locator(`.panel[data-page="${tab}"]`).count(), 0, `${tab}: its page is not drawn`);
     }
-    assert.equal(await page.locator('#frames iframe[src^="nft/"]').count(), 0, 'the NFT app is not loaded');
     // AI agents: its contracts (intent executor, label and agent registries) are on mainnet, so the tab is open with them
     await page.click('.tab[data-tab="agents"]');
     await page.waitForSelector('.panel[data-page="agents"]:not([hidden]) #ag-ag-c');
@@ -172,7 +170,7 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     assert.match(await page.textContent('#endpoints'), /3659 · zetaphy_3659-1/);
     assert.doesNotMatch(await page.textContent('#endpoints'), /77390|sawasdeecoin/);
     // a ?network=testnet link: mainnet too, nothing saved; a testnet-only tab still shows the box
-    await page.goto(`${site.url}?network=testnet&tab=nft`);
+    await page.goto(`${site.url}?network=testnet&tab=saphan`);
     await page.waitForSelector('#panel-gate:not([hidden])');
     assert.match(await page.textContent('#panel-gate'), /^Not on mainnet yet/);
     assert.equal(await page.textContent('#net-badge'), 'ZETAPHY mainnet');
@@ -276,7 +274,7 @@ test('the Overview and every open tab on mainnet: no overlap (1900x900, short de
     assert.ok(await page.isVisible('#faucet-form'));
     assert.ok(await page.isHidden('#faucet-gate'));
 
-    const GATED = ['nft', 'saphan'];
+    const GATED = ['saphan'];
     const OPEN = ['home', 'stake', 'earn', 'mine', 'agents', 'ai', 'analytics', 'defi', 'leaderboard', 'gov', 'aichain', 'dev'];
     const TESTNET_WORDS = /testnet|77390|test ZETAPHY|test coins|ZETAPHY ทดลอง|เหรียญทดลอง|เทสต์เน็ต|测试网|测试币|테스트넷|테스트 코인|テストネット|テスト用コイン|тестнет|тестовые монеты|тестовых ZETAPHY|coin thử nghiệm|monedas de prueba/i;
     for (const l of LANG_CODES) {

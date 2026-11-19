@@ -7,5 +7,5 @@
   "marketplace": "0x0402d6E7af2912D002EfCa7543eb44A3EB3Bbc14",
   "threatRegistry": "0xaACfc7Cf7148b7AE530c2Ab891D4220E648A2139",
   "governance": "0x9fC29E85005e37b3C2e1CA31B3D89521A5C4f9cA",
-  "nftCodeKeysProtected": false
+  "nftCodeKeysProtected": true
 }
