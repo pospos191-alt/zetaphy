@@ -101,6 +101,9 @@ test('logo and ZTPHY for search engines: the Organization logo on the home and a
   assert.ok(existsSync(join(HERE, 'zetaphy-256.png')));
   const png = readFileSync(join(HERE, 'zetaphy-256.png'));
   assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], [256, 256], 'a 256x256 logo (Google wants at least 112x112)');
+  // the 32x32 copy explorers' token-info forms ask a download link for (BscScan: /zetaphy-32.png), shipped by the build
+  const small = readFileSync(join(HERE, 'zetaphy-32.png'));
+  assert.deepEqual([small.readUInt32BE(16), small.readUInt32BE(20)], [32, 32], 'a 32x32 logo');
   for (const l of LANG_CODES) {
     const html = aboutPage(l);
     const data = JSON.parse(html.split('<script type="application/ld+json">')[1].split('</script>')[0]);
