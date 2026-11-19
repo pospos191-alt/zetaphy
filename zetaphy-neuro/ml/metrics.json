@@ -1,26 +1,29 @@
 {
- "modelId": "nml-3ab3cd303911",
- "bytes": 75509,
+ "modelId": "nml-ac17d469ebb6",
+ "bytes": 95521,
  "trees": 160,
  "features": 158,
- "seconds": 12,
+ "seconds": 11,
  "data": {
-  "rows": 1867,
-  "positives": 979,
+  "rows": 2269,
+  "positives": 1182,
   "sources": {
    "synthetic-sol": 1200,
    "tests-10k": 600,
-   "redteam": 67
+   "public:ethereum-lists-tokens": 199,
+   "public:forta-malicious": 196,
+   "redteam": 74
   },
   "files": [
    "ml/data/out/corpus.jsonl",
-   "ml/data/redteam/evasions.jsonl"
+   "ml/data/redteam/evasions.jsonl",
+   "ml/data/out/public.jsonl"
   ]
  },
  "split": {
-  "train": 1197,
-  "calib": 280,
-  "test": 390
+  "train": 1449,
+  "calib": 341,
+  "test": 479
  },
  "thresholds": {
   "low": 0.5,
@@ -28,68 +31,68 @@
   "high": 0.95
  },
  "calib": {
-  "a": 0.642174,
-  "b": 0.04799963
+  "a": 0.6915192,
+  "b": -0.2572389
  },
  "heldOut": {
   "model": {
-   "n": 390,
-   "positives": 201,
-   "negatives": 189,
-   "auc": 1,
-   "recallAt1Fpr": 1,
-   "thresholdAt1Fpr": 0.0789,
-   "recallAt5Fpr": 1,
-   "thresholdAt5Fpr": 0.0177,
-   "brier": 0.0022,
-   "logloss": 0.0135,
-   "ece": 0.0101
+   "n": 479,
+   "positives": 247,
+   "negatives": 232,
+   "auc": 0.9962,
+   "recallAt1Fpr": 0.9838,
+   "thresholdAt1Fpr": 0.1251,
+   "recallAt5Fpr": 0.9879,
+   "thresholdAt5Fpr": 0.0574,
+   "brier": 0.0168,
+   "logloss": 0.0701,
+   "ece": 0.0216
   },
   "codeOnly": {
-   "n": 390,
-   "positives": 201,
-   "negatives": 189,
-   "auc": 1,
-   "recallAt1Fpr": 1,
-   "thresholdAt1Fpr": 0.1452,
-   "recallAt5Fpr": 1,
-   "thresholdAt5Fpr": 0.0227,
-   "brier": 0.0023,
-   "logloss": 0.0142,
-   "ece": 0.0099
+   "n": 479,
+   "positives": 247,
+   "negatives": 232,
+   "auc": 0.9959,
+   "recallAt1Fpr": 0.9838,
+   "thresholdAt1Fpr": 0.1251,
+   "recallAt5Fpr": 0.9879,
+   "thresholdAt5Fpr": 0.0596,
+   "brier": 0.0168,
+   "logloss": 0.0711,
+   "ece": 0.0211
   },
   "solidityOnly": {
-   "n": 274,
-   "positives": 130,
+   "n": 278,
+   "positives": 134,
    "negatives": 144,
    "auc": 1,
    "recallAt1Fpr": 1,
-   "thresholdAt1Fpr": 0.0789,
+   "thresholdAt1Fpr": 0.0864,
    "recallAt5Fpr": 1,
-   "thresholdAt5Fpr": 0.0227,
-   "brier": 0.0031,
-   "logloss": 0.0172,
-   "ece": 0.0124
+   "thresholdAt5Fpr": 0.036,
+   "brier": 0.0035,
+   "logloss": 0.0252,
+   "ece": 0.0229
   },
   "rulesOnly": {
-   "auc": 0.7966
+   "auc": 0.7762
   },
   "alarm": {
    "rules": {
-    "recall": 0.7114,
-    "fpr": 0.2275
+    "recall": 0.6802,
+    "fpr": 0.2414
    },
    "combined": {
-    "recall": 0.995,
-    "fpr": 0.2275
+    "recall": 0.9474,
+    "fpr": 0.2543
    },
    "combinedCodeOnly": {
-    "recall": 0.995,
-    "fpr": 0.2275
+    "recall": 0.9433,
+    "fpr": 0.2543
    },
    "combinedNoChecks": {
-    "recall": 0.99,
-    "fpr": 0.2275
+    "recall": 0.9393,
+    "fpr": 0.2414
    }
   },
   "loweredByModel": 0,
@@ -214,6 +217,18 @@
     "flaggedRules": 0,
     "flaggedCombined": 0
    },
+   "public:ethereum-lists-tokens": {
+    "n": 43,
+    "label": 0,
+    "flaggedRules": 13,
+    "flaggedCombined": 16
+   },
+   "public:forta-malicious": {
+    "n": 42,
+    "label": 1,
+    "flaggedRules": 25,
+    "flaggedCombined": 33
+   },
    "rewards": {
     "n": 10,
     "label": 0,
@@ -221,10 +236,10 @@
     "flaggedCombined": 0
    },
    "stealth": {
-    "n": 3,
+    "n": 7,
     "label": 1,
     "flaggedRules": 0,
-    "flaggedCombined": 2
+    "flaggedCombined": 3
    },
    "seize": {
     "n": 14,
@@ -253,66 +268,66 @@
   }
  },
  "current": {
-  "modelId": "nml-b4c35477f7b1",
+  "modelId": "nml-3ab3cd303911",
   "heldOut": {
    "model": {
-    "n": 390,
-    "positives": 201,
-    "negatives": 189,
-    "auc": 0.9975,
-    "recallAt1Fpr": 0.9502,
-    "thresholdAt1Fpr": 0.7878,
-    "recallAt5Fpr": 0.9851,
-    "thresholdAt5Fpr": 0.3652,
-    "brier": 0.0202,
-    "logloss": 0.0726,
-    "ece": 0.0263
+    "n": 479,
+    "positives": 247,
+    "negatives": 232,
+    "auc": 0.9548,
+    "recallAt1Fpr": 0.3036,
+    "thresholdAt1Fpr": 0.9962,
+    "recallAt5Fpr": 0.7166,
+    "thresholdAt5Fpr": 0.9825,
+    "brier": 0.0865,
+    "logloss": 0.3301,
+    "ece": 0.0829
    },
    "codeOnly": {
-    "n": 390,
-    "positives": 201,
-    "negatives": 189,
-    "auc": 0.9963,
-    "recallAt1Fpr": 0.9502,
-    "thresholdAt1Fpr": 0.7878,
-    "recallAt5Fpr": 0.9751,
-    "thresholdAt5Fpr": 0.5116,
-    "brier": 0.026,
-    "logloss": 0.0922,
-    "ece": 0.0371
+    "n": 479,
+    "positives": 247,
+    "negatives": 232,
+    "auc": 0.9545,
+    "recallAt1Fpr": 0.3036,
+    "thresholdAt1Fpr": 0.9962,
+    "recallAt5Fpr": 0.7126,
+    "thresholdAt5Fpr": 0.9825,
+    "brier": 0.0867,
+    "logloss": 0.3312,
+    "ece": 0.0824
    },
    "solidityOnly": {
-    "n": 274,
-    "positives": 130,
+    "n": 278,
+    "positives": 134,
     "negatives": 144,
-    "auc": 0.9949,
-    "recallAt1Fpr": 0.9231,
-    "thresholdAt1Fpr": 0.7878,
-    "recallAt5Fpr": 0.9769,
-    "thresholdAt5Fpr": 0.3773,
-    "brier": 0.0287,
-    "logloss": 0.1011,
-    "ece": 0.0352
+    "auc": 1,
+    "recallAt1Fpr": 1,
+    "thresholdAt1Fpr": 0.0789,
+    "recallAt5Fpr": 1,
+    "thresholdAt5Fpr": 0.0227,
+    "brier": 0.0092,
+    "logloss": 0.033,
+    "ece": 0.0222
    },
    "rulesOnly": {
-    "auc": 0.7966
+    "auc": 0.7762
    },
    "alarm": {
     "rules": {
-     "recall": 0.7114,
-     "fpr": 0.2275
+     "recall": 0.6802,
+     "fpr": 0.2414
     },
     "combined": {
-     "recall": 0.9851,
-     "fpr": 0.2275
+     "recall": 0.9352,
+     "fpr": 0.2974
     },
     "combinedCodeOnly": {
-     "recall": 0.9851,
-     "fpr": 0.2328
+     "recall": 0.9352,
+     "fpr": 0.2974
     },
     "combinedNoChecks": {
-     "recall": 0.9502,
-     "fpr": 0.2275
+     "recall": 0.9271,
+     "fpr": 0.2974
     }
    },
    "loweredByModel": 0,
@@ -437,6 +452,18 @@
      "flaggedRules": 0,
      "flaggedCombined": 0
     },
+    "public:ethereum-lists-tokens": {
+     "n": 43,
+     "label": 0,
+     "flaggedRules": 13,
+     "flaggedCombined": 26
+    },
+    "public:forta-malicious": {
+     "n": 42,
+     "label": 1,
+     "flaggedRules": 25,
+     "flaggedCombined": 31
+    },
     "rewards": {
      "n": 10,
      "label": 0,
@@ -444,10 +471,10 @@
      "flaggedCombined": 0
     },
     "stealth": {
-     "n": 3,
+     "n": 7,
      "label": 1,
      "flaggedRules": 0,
-     "flaggedCombined": 0
+     "flaggedCombined": 2
     },
     "seize": {
      "n": 14,
@@ -478,18 +505,18 @@
  },
  "decision": {
   "better": true,
-  "why": "AUC 0.9975 -> 1 (+0.0025), recall@1%FPR 0.9502 -> 1 (+0.0498)"
+  "why": "AUC 0.9548 -> 0.9962 (+0.0414), recall@1%FPR 0.3036 -> 0.9838 (+0.6802)"
  },
  "leaveFamilyOut": {
   "blacklist-trap": {
    "n": 66,
-   "recallAt1Fpr": 0.985,
+   "recallAt1Fpr": 0.636,
    "rulesAlarm": 0.379,
-   "combinedAlarm": 0.712
+   "combinedAlarm": 0.697
   },
   "dormant-fee": {
    "n": 71,
-   "recallAt1Fpr": 0.662,
+   "recallAt1Fpr": 0.408,
    "rulesAlarm": 0.394,
    "combinedAlarm": 1
   },
@@ -525,7 +552,7 @@
   },
   "phish-link": {
    "n": 60,
-   "recallAt1Fpr": 1,
+   "recallAt1Fpr": 0.95,
    "rulesAlarm": 1,
    "combinedAlarm": 1
   },
