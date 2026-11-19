@@ -124,6 +124,21 @@ Edit [`zetaphy-network/key-watch.json`](../zetaphy-network/key-watch.json) in a 
   `maxBlocksPerRun`, `rpcDownNoticeHours` (24), `rpcDownGraceMinutes` (60).
 - Check locally (read-only, prints instead of posting): `cd zetaphy-network && node scripts/key-watch.js --dry-run`.
 
+## On the sentry (every 5 minutes)
+
+GitHub runs the scheduled workflow only every few hours (seen on mainnet: 6–8 h between runs), too slow for the
+bridge's 1-hour mint delay. [`zetaphy-network/scripts/key-watch-host.sh`](../zetaphy-network/scripts/key-watch-host.sh)
+runs the same watch on the sentry every 5 minutes, in Docker (`node:20-bookworm-slim`), with its own state; the GitHub
+workflow stays as the backup, and the markers in the issue keep the two from posting anything twice. Its only secret
+is a fine-grained GitHub token limited to **Issues: Read and write** on this repository, typed into a hidden prompt
+and kept root-only in `/etc/zetaphy-watch/env`.
+
+```bash
+sudo bash key-watch-host.sh install     # asks for the token, takes the baseline, starts the 5-minute timer
+sudo bash key-watch-host.sh status      # the timer, the last run
+sudo bash key-watch-host.sh uninstall   # removes it all (then delete the token on GitHub)
+```
+
 ## Saphan: unbacked or forged
 
 The alert names the route (`bsc` or `base`), the chain and, for a forged message, its id. Two guardians (papers A, B, C,
