@@ -20,7 +20,7 @@ external audit yet.
 | Check page (every airdrop post) | **https://app.sawasdeecoin.com/got-ztphy.html** |
 | ZTPHY on BNB Chain (the only real one) | `0x68aa0f0144605024eCe1aDccFCC1626352779569`, https://bscscan.com/token/0x68aa0f0144605024eCe1aDccFCC1626352779569 |
 | What is ZETAPHY (8 languages) | https://app.sawasdeecoin.com/about/ |
-| Contact (forms only, never a DM) | contact@sawasdeecoin.com |
+| Contact (forms only, never a DM) | zetaphy.chain@sawasdeecoin.com |
 
 ## 0. Order (do not skip ahead)
 
@@ -99,10 +99,10 @@ the pool as an opportunity, and never post the price.
 
 | Where | How | When / condition |
 |---|---|---|
-| **BscScan** token page | Token Info Update: logo (`zetaphy-256.png`, 32x32 and 256x256), site, contact@sawasdeecoin.com, description (below) | as soon as BscScan shows the contract as a BEP-20 token (after the first bridged mint) |
+| **BscScan** token page | Token Info Update: logo (`/zetaphy-32.png` and `/zetaphy-256.png` on app.sawasdeecoin.com), site, zetaphy.chain@sawasdeecoin.com, description (below) | as soon as BscScan shows the contract as a BEP-20 token (after the first bridged mint) |
 | **GeckoTerminal** | Finds PancakeSwap pools by itself; then "Update token info" on the token page (logo, links), free | after the pool |
 | **DEX Screener** | Lists the pool by itself; the free listing is enough (the paid "Enhanced Token Info" is not needed and not recommended) | after the pool |
-| **CoinGecko** | Free application form (contract, chain BNB Smart Chain and ZETAPHY, site, explorer, contact@, the team's public profiles); they need a live market with real activity | weeks after the pool, never before |
+| **CoinGecko** | Free application form (contract, chain BNB Smart Chain and ZETAPHY, site, explorer, zetaphy.chain@sawasdeecoin.com, the team's public profiles); they need a live market with real activity | weeks after the pool, never before |
 | **CoinMarketCap** | Free "Request form" (new listing); same conditions as CoinGecko | after CoinGecko or in parallel |
 | **DefiLlama** | ZETAPHY chain TVL and the bridge: an adapter pull request to DefiLlama/DefiLlama-Adapters (code, reviewed by them) | when there is TVL worth tracking |
 | **BNB Chain DappBay** | dappbay.bnbchain.org "Submit dApp": the hub and the bridge, honest category (Bridge / Infrastructure) | after the route is open |

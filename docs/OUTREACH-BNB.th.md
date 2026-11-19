@@ -19,7 +19,7 @@
 | หน้าตรวจ (ใส่ในทุกโพสต์ airdrop) | **https://app.sawasdeecoin.com/got-ztphy.html** |
 | ZTPHY บน BNB Chain (ของจริงมีตัวเดียว) | `0x68aa0f0144605024eCe1aDccFCC1626352779569`, https://bscscan.com/token/0x68aa0f0144605024eCe1aDccFCC1626352779569 |
 | ZETAPHY คืออะไร (8 ภาษา) | https://app.sawasdeecoin.com/about/ |
-| ติดต่อ (ใช้กรอกฟอร์มเท่านั้น ห้ามทักแชต) | contact@sawasdeecoin.com |
+| ติดต่อ (ใช้กรอกฟอร์มเท่านั้น ห้ามทักแชต) | zetaphy.chain@sawasdeecoin.com |
 
 ## 0. ลำดับ (ห้ามข้ามขั้น)
 
@@ -98,10 +98,10 @@
 
 | ที่ไหน | ทำอย่างไร | เมื่อไร / เงื่อนไข |
 |---|---|---|
-| **BscScan** หน้าเหรียญ | Token Info Update: โลโก้ (`zetaphy-256.png` ขนาด 32x32 และ 256x256), เว็บไซต์, contact@sawasdeecoin.com, คำอธิบาย (ข้อความข้างล่าง ใช้ภาษาอังกฤษ) | ทันทีที่ BscScan แสดงสัญญาเป็นเหรียญ BEP-20 (หลังข้ามเหรียญครั้งแรก) |
+| **BscScan** หน้าเหรียญ | Token Info Update: โลโก้ (`/zetaphy-32.png` และ `/zetaphy-256.png` บน app.sawasdeecoin.com), เว็บไซต์, zetaphy.chain@sawasdeecoin.com, คำอธิบาย (ข้อความข้างล่าง ใช้ภาษาอังกฤษ) | ทันทีที่ BscScan แสดงสัญญาเป็นเหรียญ BEP-20 (หลังข้ามเหรียญครั้งแรก) |
 | **GeckoTerminal** | เจอ pool บน PancakeSwap เอง จากนั้นกด "Update token info" ที่หน้าเหรียญ (โลโก้, ลิงก์) ฟรี | หลังมี pool |
 | **DEX Screener** | แสดง pool เอง แบบฟรีก็พอ (แบบเสียเงิน "Enhanced Token Info" ไม่จำเป็นและไม่แนะนำ) | หลังมี pool |
-| **CoinGecko** | ฟอร์มสมัครฟรี (สัญญา, เชน BNB Smart Chain และ ZETAPHY, เว็บไซต์, explorer, contact@, โปรไฟล์สาธารณะของทีม) ต้องมีตลาดที่มีการซื้อขายจริง | หลายสัปดาห์หลังมี pool ห้ามสมัครก่อน |
+| **CoinGecko** | ฟอร์มสมัครฟรี (สัญญา, เชน BNB Smart Chain และ ZETAPHY, เว็บไซต์, explorer, zetaphy.chain@sawasdeecoin.com, โปรไฟล์สาธารณะของทีม) ต้องมีตลาดที่มีการซื้อขายจริง | หลายสัปดาห์หลังมี pool ห้ามสมัครก่อน |
 | **CoinMarketCap** | "Request form" ฟรี (ลงรายชื่อใหม่) เงื่อนไขเดียวกับ CoinGecko | หลัง CoinGecko หรือพร้อมกัน |
 | **DefiLlama** | TVL ของเชน ZETAPHY และสะพาน: เปิด pull request adapter ไปที่ DefiLlama/DefiLlama-Adapters (เป็นโค้ด ทีมเขาตรวจ) | เมื่อมี TVL มากพอให้ติดตาม |
 | **BNB Chain DappBay** | dappbay.bnbchain.org "Submit dApp": hub และสะพาน เลือกหมวดตามจริง (Bridge / Infrastructure) | หลังเส้นทางเปิด |
