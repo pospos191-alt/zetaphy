@@ -193,10 +193,10 @@ test('mainnet tabs from the launch file: offline, audit, quantum and immune open
     const x = hubConfig({}, { [MAINNET_LAUNCH_FILE]: launchFile({}, extra), [MAINNET_AIRDROP_FILE]: null }).mainnet;
     assert.ok(!x.features.includes('nft'), JSON.stringify(extra));
   }
-  // the repo's own file: the NFT code keys wait for the timelock batch
+  // the repo's own file: the timelock batch protecting the NFT code keys ran on 2026-11-19 (proposal 1), so the app is open
   const real = hubConfig({}).mainnet;
-  assert.equal(real.nftCodeKeysProtected, false);
-  assert.ok(!real.features.includes('nft'));
+  assert.equal(real.nftCodeKeysProtected, true);
+  assert.ok(real.features.includes('nft'));
 });
 
 test('the airdrop card: round 1 shows on mainnet once deployments/airdrop-3659.json names its distributor; the testnet keeps airdrop-77390.json', () => {
