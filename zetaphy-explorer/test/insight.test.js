@@ -265,6 +265,10 @@ test('labels: built from the repository records; the committed labels.json and c
   assert.ok(l.sources.includes(SOURCES[0]));
   // first record wins: the deployer of the launch state, not "governance" of a later file
   assert.equal(L['0x6af57fc3633dd0f7907f7900dbd4a2822f43a245'][0], 'Launch deployer');
+  // the token registry (zetaphy-tokens/tokenlist.json): a verified token gets its label; other chains' entries do not
+  const reg = buildLabels((p) => (p === 'zetaphy-tokens/tokenlist.json' ? { tokens: [{ chainId: 3659, address: A(0xabc), name: 'Mango Coin', symbol: 'MANGO' }, { chainId: 1, address: A(0xdef), name: 'X', symbol: 'X' }] } : null));
+  assert.deepEqual(reg.labels[A(0xabc)], ['MANGO (Mango Coin) ✓ registry', 'token']);
+  assert.equal(reg.labels[A(0xdef)], undefined);
   // missing files are skipped
   assert.equal(Object.keys(buildLabels(() => null).labels).length, 25);
   // the committed tables are what npm run build writes now
