@@ -197,3 +197,13 @@ test('saphan-ism: the new set keeps every current validator, adds the Neuro one,
     assert.equal(pr.args[2], p.schedule);
   }
 });
+
+test('pass asks the node for at most 2000 blocks per eth_getLogs (the node refuses wider ranges)', async () => {
+  const { pass, LOG_CHUNK } = await import('../scripts/neuro-validator.js');
+  assert.equal(LOG_CHUNK, 2000);
+  const ranges = [];
+  const p = { getBlockNumber: async () => 10_001, getLogs: async (f) => { ranges.push(f.toBlock - f.fromBlock + 1); throw new Error('stop after the first range'); } };
+  await assert.rejects(() => pass({ p, conf: { merkleTreeHook: '0x' + '11'.repeat(20) }, state: null }), /stop/);
+  assert.deepEqual(ranges, [2000]);
+  await assert.rejects(() => pass({ p, conf: {}, state: null, chunk: 5000 }), /at most 2000/);
+});

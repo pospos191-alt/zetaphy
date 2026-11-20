@@ -18,6 +18,7 @@ import { EVM_CHAIN_ID, EVM_CHAIN_ID_HEX, EVM_SYMBOL, nodeEndpoints, evmChainPara
 import { contractsOf, hasFeature, netKey, netText, networkBadge, notOnMainnetBox, watchNetwork, linkExplorer } from './lib/network.js';
 import { parseSettings, serializeSettings, parseImported, cleanWalletId, rpcIsCustom, SLIPPAGE_MAX_BPS, SLIPPAGE_CONFIRM_BPS } from './lib/storage.js';
 import { createDlmmTab } from './dlmm.js';
+import { createBscTab } from './bsc.js';
 import { safety, ledgerReason } from './lib/wallet-safety.js';
 import { LEDGER_ID_RE, ledgerId, ledgerProvider, hidSupported, preloadTransport } from './lib/ledger.js';
 import * as txg from './lib/txguard.js';
@@ -1037,13 +1038,15 @@ function saveSettings() {
 
 // ---------------------------------------------------------------- tabs / startup
 
-const TABS = ['swap', 'pool', 'tokens', 'dlmm'];
+const TABS = ['swap', 'pool', 'tokens', 'dlmm', 'bsc'];
 let dlmmTab = null; // the DLMM tab (dlmm.js, UNAUDITED contracts)
+let bscTab = null; // ZTPHY on BNB Chain (bsc.js)
 
 function showTab(name) {
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const s of TABS) $(`tab-${s}`).hidden = s !== name;
   if (name === 'dlmm' && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
+  if (name === 'bsc') bscTab?.show().catch(() => {});
   if (name === 'pool') { updateAdd(); loadPositions(); }
   if (name === 'tokens') renderTokenList();
   if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
@@ -1061,6 +1064,7 @@ function refreshAll() {
   updateSwap();
   if (!$('tab-pool').hidden) { updateAdd(); loadPositions(); }
   if (!$('tab-dlmm').hidden && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
+  if (!$('tab-bsc').hidden) bscTab?.show().catch(() => {});
 }
 
 function debounce(fn, ms) {
@@ -1112,6 +1116,8 @@ async function init() {
 
   if (hasFeature(NETWORK, 'dlmm')) dlmmTab = createDlmmTab({ state, $, el, setStatus, rpc, sendTx, errorText, revertData, neuroCheck, recheckNeuro, renderNeuro, needsAck,
     allowance, isNative, keyOf, tokenByKey, tokenByAddress, deadline, openWallets });
+  // ZTPHY <-> USDT on BNB Chain through the project's PancakeSwap v3 pool (bsc.js): its own RPC, chain 56, the same wallet
+  bscTab = createBscTab({ state, $, el, setStatus, errorText, openWallets, confirm: (o) => sf.confirmTx(o) });
 
   // events
   for (const b of document.querySelectorAll('.tab')) b.addEventListener('click', () => showTab(b.dataset.tab));

@@ -76,7 +76,10 @@ function loadKey(path) {
  * root and count at the same block, then each new (and each waiting) message decided and, if it passes, signed and
  * written. Returns { state, signed: [index], refused: [{index, reason}], waiting: [index] }.
  */
-export async function pass({ p, conf, wallet, store, state, log = () => {}, chunk = 5000, confirmations = 1 }) {
+/** The node's eth_getLogs block-range cap (the same as timelockcli.js LOG_CHUNK): a wider range is refused. */
+export const LOG_CHUNK = 2000;
+export async function pass({ p, conf, wallet, store, state, log = () => {}, chunk = LOG_CHUNK, confirmations = 1 }) {
+  if (chunk > LOG_CHUNK) throw new Error(`chunk ${chunk}: the node answers at most ${LOG_CHUNK} blocks per eth_getLogs`);
   const st = state ?? { tree: null, next: 0, waiting: [], latest: -1 };
   const head = (await p.getBlockNumber()) - confirmations;
   const tree = new MerkleTree(st.tree);
