@@ -1,0 +1,15 @@
+{
+  "name": "ZETAPHY token registry",
+  "timestamp": "2026-11-20T00:00:00.000Z",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0
+  },
+  "keywords": [
+    "zetaphy",
+    "verified"
+  ],
+  "logoURI": "https://app.sawasdeecoin.com/zetaphy-256.png",
+  "tokens": []
+}

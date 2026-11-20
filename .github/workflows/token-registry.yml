@@ -1,0 +1,29 @@
+# The ZETAPHY token registry (docs/TOKEN-REGISTRY.md): every entry in zetaphy-tokens/3659/ is re-checked against the
+# chain (code, creation transaction, name/symbol/decimals, the creator's or owner's signature, a safe 32x32 logo), and
+# zetaphy-tokens/tokenlist.json must list exactly the entries that pass. Read only: no secrets, no writes.
+name: token-registry
+on:
+  pull_request:
+    paths: ['zetaphy-tokens/**', 'zetaphy-network/src/tokenregistry.js', 'zetaphy-network/scripts/token-registry.js']
+  push:
+    branches: [main]
+    paths: ['zetaphy-tokens/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 20
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+        working-directory: zetaphy-network
+      - name: every entry passes, and tokenlist.json lists exactly them
+        working-directory: zetaphy-network
+        run: |
+          node scripts/token-registry.js list
+          git diff --exit-code -- ../zetaphy-tokens/tokenlist.json || { echo "tokenlist.json is not what the entries give: run node scripts/token-registry.js list and commit it"; exit 1; }
