@@ -25,6 +25,7 @@ export function sumHolders(accountsByProgram, mint, exclude = new Set()) {
 
 async function rpc(url, method, params, fetchImpl) {
   const res = await fetchImpl(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+  if (res.status === 429) throw new Error(`${method}: HTTP 429 Too many requests`);
   const body = await res.json();
   if (body.error) throw new Error(`${method}: ${body.error.message}`);
   return body.result;
@@ -54,7 +55,17 @@ export async function snapshotAt({ mint, rpcUrl, at, exclude = [], fetchImpl = g
   if (!BASE58.test(mint)) throw new Error('mint must be a Solana address');
   const atSec = Math.floor(Date.parse(at) / 1000);
   if (!Number.isFinite(atSec)) throw new Error('--at: an ISO time, e.g. 2026-11-20T14:00:00Z');
-  const call = async (m, p) => { const r = await rpc(rpcUrl, m, p, fetchImpl); if (pause) await new Promise((res) => setTimeout(res, pause)); return r; };
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  // public RPCs answer "Too many requests" (429) under load: wait and try again, up to 8 times, the wait doubling
+  const call = async (m, p) => {
+    for (let i = 0; ; i++) {
+      try { const r = await rpc(rpcUrl, m, p, fetchImpl); if (pause) await sleep(pause); return r; } catch (e) {
+        if (i >= 7 || !/too many requests|429|rate limit/i.test(String(e.message))) throw e;
+        log(`rate limited (${m}); waiting ${(Math.max(pause, 1000) * 2 ** i) / 1000} s`);
+        await sleep(Math.max(pause, 1000) * 2 ** i);
+      }
+    }
+  };
   const slot = await call('getSlot', [{ commitment: 'finalized' }]);
   const accounts = new Map(); // token account -> { owner, now }
   for (const program of Object.values(PROGRAMS)) {
@@ -84,7 +95,7 @@ export async function snapshotAt({ mint, rpcUrl, at, exclude = [], fetchImpl = g
     }
     let delta = 0n;
     for (const s of sigs) {
-      if (!seenTx.has(s.signature)) seenTx.set(s.signature, await call('getTransaction', [s.signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }]));
+      if (!seenTx.has(s.signature)) seenTx.set(s.signature, await call('getTransaction', [s.signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 1 }]));
       const tx = seenTx.get(s.signature);
       if (!tx?.meta || tx.meta.err) continue;
       const keys = (tx.transaction?.message?.accountKeys ?? []).map((k) => (typeof k === 'string' ? k : k.pubkey));
