@@ -139,6 +139,8 @@ Run from `zetaphy-network/` (`npm ci` first). Nothing here moves coins.
 ```bash
 # 1. at 2026-11-20 14:00 UTC: the SWD snapshot (read-only Solana RPC; it records the slot and the time it was taken)
 node airdrop/cli.js snapshot --mint Cmh2tu6bt5z2a8NKsx6G5WfVmaeQ9f2fcX5VnQbVaGLL [--exclude <project accounts>] > snapshot.json
+#    taken later than 14:00 UTC? --at 2026-11-20T14:00:00Z gives the balances AT that time: today's token accounts
+#    rolled back through every finalized transaction after it (closed accounts too); it records how many changed
 # 2. pro-rata, 20,000,000 ZTPHY, 5,000 ZTPHY cap per wallet, dust filter 10 SWD (SWD has 5 decimals)
 node airdrop/cli.js allocate snapshot.json --min 1000000 --pool 20000000 --cap 5000 > swd.json
 # 3. after 2026-12-04 14:00 UTC: the link issues, as the GitHub API returns them (no label filter needed)

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Wallet, encodeBase58, randomBytes } from 'ethers';
-import { sumHolders, takeSnapshot } from '../airdrop/snapshot.js';
+import { sumHolders, takeSnapshot, snapshotAt } from '../airdrop/snapshot.js';
 import { allocate, POOL } from '../airdrop/allocate.js';
 import { buildTree, verify } from '../airdrop/merkle.js';
 
@@ -65,4 +65,32 @@ test('every claim proves against the root; a changed amount or owner does not', 
   assert.ok(!verify(root, allocations[1].owner, a0.zetaphy, claims[a0.owner].proof));
   assert.throws(() => buildTree([allocations[0], allocations[0]]), /duplicate/);
   assert.ok(Wallet); // ethers loaded
+});
+
+test('snapshotAt rolls today\'s balances back to a past time, closed accounts included', async () => {
+  const AT = '2026-11-20T14:00:00Z', T = Date.parse(AT) / 1000;
+  const [a, b, c] = ['A'.repeat(32), 'B'.repeat(32), 'C'.repeat(32)];
+  const [A1, B1, C1, X] = ['1'.repeat(32), '2'.repeat(32), '3'.repeat(32), '4'.repeat(32)];
+  const withKey = (pubkey, owner, amount) => ({ pubkey, ...acct(owner, amount) });
+  const tb = (i, owner, amount) => ({ accountIndex: i, mint: MINT, owner, uiTokenAmount: { amount: String(amount) } });
+  // after the snapshot: C1 (owner c) sent all its 7 to A1 and was closed; a failed transfer touched B1; B1 had an older transfer
+  const txs = {
+    s1: { meta: { err: null, preTokenBalances: [tb(0, c, 7), tb(1, a, 3)], postTokenBalances: [tb(1, a, 10)] }, transaction: { message: { accountKeys: [{ pubkey: C1 }, { pubkey: A1 }] } } },
+    s2: { meta: { err: { InstructionError: [0, 'x'] }, preTokenBalances: [tb(0, b, 5)], postTokenBalances: [tb(0, b, 0)] }, transaction: { message: { accountKeys: [B1] } } },
+  };
+  const sigs = { [A1]: [{ signature: 's1', blockTime: T + 60 }], [C1]: [{ signature: 's1', blockTime: T + 60 }, { signature: 's0', blockTime: T - 60 }], [B1]: [{ signature: 's2', blockTime: T + 5 }, { signature: 's0', blockTime: T - 3600 }] };
+  const asked = [];
+  const fetchImpl = async (_u, init) => {
+    const { method, params } = JSON.parse(init.body);
+    asked.push(method);
+    const result = method === 'getSlot' ? 9 : method === 'getProgramAccounts' ? (params[0].startsWith('Tokenkeg') ? [withKey(A1, a, 10), withKey(B1, b, 5)] : [])
+      : method === 'getSignaturesForAddress' ? (sigs[params[0]] ?? []) : method === 'getTransaction' ? txs[params[0]] : null;
+    return { json: async () => ({ result }) };
+  };
+  const s = await snapshotAt({ mint: MINT, rpcUrl: 'x', at: AT, fetchImpl });
+  assert.deepEqual(s.holders, [{ owner: c, amount: '7' }, { owner: b, amount: '5' }, { owner: a, amount: '3' }]);
+  assert.equal(s.at, '2026-11-20T14:00:00.000Z');
+  assert.equal(s.accountsRolledBack, 2); // A1 (+7 undone) and C1 (-7 undone); B1's failed transfer changes nothing
+  assert.equal(asked.filter((m) => m === 'getTransaction').length, 2, 'one fetch per transaction');
+  await assert.rejects(snapshotAt({ mint: MINT, rpcUrl: 'x', at: 'yesterday', fetchImpl }), /ISO time/);
 });

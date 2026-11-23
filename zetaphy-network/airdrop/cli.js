@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Airdrop list tooling (docs/AIRDROP.md). Nothing here moves coins, signs anything or deploys anything.
 //   SWD holders (Solana) -> pro-rata (stage 2):
-//   node airdrop/cli.js snapshot --mint <SWD mint> [--rpc URL] [--exclude a,b] > snapshot.json
+//   node airdrop/cli.js snapshot --mint <SWD mint> [--rpc URL] [--exclude a,b] [--at <ISO time> [--pause ms]] > snapshot.json
 //   node airdrop/cli.js allocate snapshot.json [--min 1000000] [--cap-bps 100 | --cap Z] [--pool Z] > allocations.json
 //   node airdrop/cli.js merkle allocations.json > merkle.json      (Solana-owner leaves, the stage-2 format)
 //   EVM rounds for ZtphyMerkleDistributor (amounts in ZTPHY, decimals allowed; --pool defaults to 200,000,000):
@@ -27,7 +27,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseUnits, formatUnits, getAddress, Interface, ZeroAddress } from 'ethers';
-import { takeSnapshot } from './snapshot.js';
+import { takeSnapshot, snapshotAt } from './snapshot.js';
 import { allocate, POOL } from './allocate.js';
 import { buildTree } from './merkle.js';
 import { parseRecipients, dropContracts, assignAmounts, reasons, SYSTEM_ADDRESSES } from './recipients.js';
@@ -61,7 +61,10 @@ export async function run(argv, { log = (s) => console.error(s), fetchImpl = glo
   const { opt, pos } = parseArgs(rest);
   const pool = ztphy(opt.pool, 'pool') ?? POOL;
   if (cmd === 'snapshot') {
-    return takeSnapshot({ mint: opt.mint, rpcUrl: opt.rpc ?? 'https://api.mainnet-beta.solana.com', exclude: opt.exclude ? opt.exclude.split(',') : [], fetchImpl });
+    const base = { mint: opt.mint, rpcUrl: opt.rpc ?? 'https://api.mainnet-beta.solana.com', exclude: opt.exclude ? opt.exclude.split(',') : [], fetchImpl };
+    // --at <ISO>: the balances at that past time (today's, rolled back through every later transaction)
+    if (opt.at) return snapshotAt({ ...base, at: opt.at, pause: Number(opt.pause ?? 150), log: (m) => process.stderr.write(`\r${m}   `) });
+    return takeSnapshot(base);
   }
   if (cmd === 'allocate') {
     const cap = ztphy(opt.cap, 'cap');
