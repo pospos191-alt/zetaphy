@@ -36,6 +36,11 @@
       "address": "0xF9526e78d3f107c4147f83325Bc2bb42c3328B32",
       "label": "liquidity Safe owner",
       "kind": "eoa"
+    },
+    {
+      "address": "0xBAF5bC2B1d5B5e5890e65301b88f449Fa5ED85a8",
+      "label": "Neuro validator (second Saphan signer, zetaphy-node-0; its only transaction is the announcement)",
+      "kind": "eoa"
     }
   ],
   "chains": {
