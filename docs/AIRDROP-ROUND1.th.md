@@ -131,6 +131,8 @@ Trust, OKX) และบัญชี GitHub (สมัครฟรี) ไว้
 ```bash
 # 1. เวลา 20 พ.ย. 2026 14:00 UTC: สแนปช็อต SWD (อ่านจาก Solana RPC อย่างเดียว บันทึก slot และเวลาที่ถ่ายไว้ด้วย)
 node airdrop/cli.js snapshot --mint Cmh2tu6bt5z2a8NKsx6G5WfVmaeQ9f2fcX5VnQbVaGLL [--exclude <บัญชีของโครงการ>] > snapshot.json
+#    ถ้ารันหลัง 14:00 UTC ให้เพิ่ม --at 2026-11-20T14:00:00Z เพื่อได้ยอด ณ เวลานั้น: ยอดปัจจุบันของทุกบัญชีโทเคน
+#    ย้อนกลับผ่านทุกธุรกรรมที่ finalized หลังเวลานั้น (รวมบัญชีที่ปิดไปแล้ว) และบันทึกว่ามีกี่บัญชีที่ยอดเปลี่ยน
 # 2. แบ่งตามสัดส่วน 20,000,000 ZTPHY เพดาน 5,000 ZTPHY ต่อกระเป๋า ตัดเศษต่ำกว่า 10 SWD (SWD มีทศนิยม 5 ตำแหน่ง)
 node airdrop/cli.js allocate snapshot.json --min 1000000 --pool 20000000 --cap 5000 > swd.json
 # 3. หลัง 4 ธ.ค. 2026 14:00 UTC: ดึง issue การผูกตามที่ GitHub API ส่งกลับมา (ไม่ต้องกรองด้วย label)
