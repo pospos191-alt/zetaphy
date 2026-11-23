@@ -94,3 +94,19 @@ test('snapshotAt rolls today\'s balances back to a past time, closed accounts in
   assert.equal(asked.filter((m) => m === 'getTransaction').length, 2, 'one fetch per transaction');
   await assert.rejects(snapshotAt({ mint: MINT, rpcUrl: 'x', at: 'yesterday', fetchImpl }), /ISO time/);
 });
+
+test('snapshotAt asks for every transaction version and waits out rate limits', async () => {
+  let limited = 2;
+  const seen = [];
+  const fetchImpl = async (_u, init) => {
+    const { method, params } = JSON.parse(init.body);
+    if (method === 'getProgramAccounts' && limited-- > 0) return { status: 429, json: async () => ({ error: { message: 'Too many requests' } }) };
+    if (method === 'getTransaction') seen.push(params[1].maxSupportedTransactionVersion);
+    const result = method === 'getSlot' ? 1 : method === 'getProgramAccounts' ? (params[0].startsWith('Tokenkeg') ? [{ pubkey: '9'.repeat(32), ...acct('A'.repeat(32), 4) }] : [])
+      : method === 'getSignaturesForAddress' ? [{ signature: 'z', blockTime: 2e9 }] : { meta: { err: null, preTokenBalances: [], postTokenBalances: [] }, transaction: { message: { accountKeys: [] } } };
+    return { status: 200, json: async () => ({ result }) };
+  };
+  const s = await snapshotAt({ mint: MINT, rpcUrl: 'x', at: '2026-11-20T14:00:00Z', fetchImpl, pause: 1 });
+  assert.deepEqual(s.holders, [{ owner: 'A'.repeat(32), amount: '4' }]);
+  assert.deepEqual(seen, [1], 'version 1 transactions are read, not refused');
+});
