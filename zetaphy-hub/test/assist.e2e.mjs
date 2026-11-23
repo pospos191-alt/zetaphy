@@ -72,6 +72,8 @@ test('assistant pages: governance flags, immunity (coverage, PQ verifier), the s
 
     ({ page, errors } = await open(browser, site, '?tab=immune'));
     await page.waitForSelector('#im-cov p');
+    // the card shows "…" until its chain reads finish: wait for the answer, as for #ga-queue above
+    await page.waitForFunction(() => !/…/.test(document.querySelector('#im-cov')?.textContent ?? '…'));
     assert.match(await page.textContent('#im-cov'), /not deployed/);
     // the immune network dashboard: planned (no registry yet), simulated latency, the open feed's links
     await page.waitForSelector('#im-net [data-immune="planned"]');

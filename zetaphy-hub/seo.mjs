@@ -25,6 +25,24 @@ export const ORIGIN = {
 export const REPO_URL = 'https://github.com/pospos191-alt/zetaphy';
 /** The project's official e-mail (Cloudflare Email Routing; explorers' token-info forms want it listed on the site). */
 export const CONTACT_EMAIL = 'zetaphy.chain@sawasdeecoin.com';
+/** Who builds ZETAPHY (explorers' token-info reviews ask for the team and their public profiles). Facts only. */
+export const TEAM = [{
+  name: 'Mr.poterposter',
+  profiles: [['X', 'https://x.com/SWD_SAWASDEE'], ['GitHub', 'https://github.com/pospos191-alt']],
+  role: { en: 'Founder & Lead Developer', th: 'ผู้ก่อตั้งและนักพัฒนาหลัก', zh: '创始人兼首席开发者', es: 'Fundador y desarrollador principal', ko: '창업자 겸 수석 개발자', ja: '創業者・リード開発者', ru: 'Основатель и ведущий разработчик', vi: 'Nhà sáng lập & Lập trình viên chính' },
+  bio: {
+    en: 'Builds ZETAPHY end to end: the post-quantum chain (mainnet since November 2026), the Neuro token checker, the Saphan bridge to BNB Chain and Base, and the apps on this site. All of the code is public on GitHub.',
+    th: 'สร้าง ZETAPHY ทั้งระบบ: เชนต้านควอนตัม (mainnet ตั้งแต่พฤศจิกายน 2026), ตัวตรวจเหรียญ Neuro, สะพาน Saphan ไป BNB Chain และ Base และแอปทั้งหมดบนเว็บนี้ โค้ดทั้งหมดเปิดเผยบน GitHub',
+    zh: '从头到尾构建 ZETAPHY：抗量子区块链（2026 年 11 月起主网运行）、Neuro 代币检查器、通往 BNB Chain 和 Base 的 Saphan 跨链桥，以及本网站上的应用。全部代码在 GitHub 上公开。',
+    es: 'Construye ZETAPHY de principio a fin: la cadena poscuántica (mainnet desde noviembre de 2026), el verificador de tokens Neuro, el puente Saphan a BNB Chain y Base, y las aplicaciones de este sitio. Todo el código es público en GitHub.',
+    ko: 'ZETAPHY 전체를 만듭니다: 양자 내성 체인(2026년 11월부터 메인넷), Neuro 토큰 검사기, BNB Chain과 Base로 가는 Saphan 브리지, 그리고 이 사이트의 앱들. 모든 코드는 GitHub에 공개되어 있습니다.',
+    ja: 'ZETAPHY を一から構築しています：耐量子チェーン（2026 年 11 月からメインネット）、Neuro トークンチェッカー、BNB Chain と Base への Saphan ブリッジ、このサイトのアプリ。コードはすべて GitHub で公開しています。',
+    ru: 'Создаёт ZETAPHY целиком: постквантовую сеть (mainnet с ноября 2026 года), проверку токенов Neuro, мост Saphan в BNB Chain и Base и приложения этого сайта. Весь код открыт на GitHub.',
+    vi: 'Xây dựng ZETAPHY từ đầu đến cuối: chuỗi kháng lượng tử (mainnet từ tháng 11/2026), công cụ kiểm tra token Neuro, cầu Saphan sang BNB Chain và Base, và các ứng dụng trên trang này. Toàn bộ mã nguồn công khai trên GitHub.',
+  },
+}];
+const TEAM_HEADING = { en: 'Team', th: 'ทีม', zh: '团队', es: 'Equipo', ko: '팀', ja: 'チーム', ru: 'Команда', vi: 'Đội ngũ' };
+const CONTACT_LABEL = { en: 'Contact', th: 'ติดต่อ', zh: '联系', es: 'Contacto', ko: '연락처', ja: '連絡先', ru: 'Контакты', vi: 'Liên hệ' };
 // IndexNow (indexnow.org): a public key; the file <key>.txt on each site proves the site is ours. Not a secret.
 export const INDEXNOW_KEY = '064679038019a2fde97fc74c5983f6aa';
 
@@ -46,6 +64,7 @@ export const orgLd = () => ({
   '@type': 'Organization', '@id': `${ORIGIN.hub}/#org`, name: 'ZETAPHY', alternateName: ['ZTPHY', 'SawasdeeCoin'], url: `${ORIGIN.hub}/`,
   logo: { '@type': 'ImageObject', url: `${ORIGIN.hub}/zetaphy-256.png`, width: 256, height: 256 },
   email: CONTACT_EMAIL,
+  founder: TEAM.map((m) => ({ '@type': 'Person', name: m.name, jobTitle: m.role.en, sameAs: m.profiles.map(([, u]) => u) })),
   sameAs: [REPO_URL, `${ORIGIN.explorer}/`, `${ORIGIN.neuro}/web/`],
 });
 /** The home page's structured data: the organisation (logo) and the site it publishes. */
@@ -178,6 +197,13 @@ ${aboutAlternates().map(([l, p]) => `<link rel="alternate" hreflang="${l}" href=
 <p class="lead">${esc(c.lead)}</p>
 <p class="cta"><a class="btn" href="../">${esc(c.open)}</a> <a class="btn alt" href="${ORIGIN.neuro}/web/">${esc(c.check)}</a></p>
 ${sections}
+<section id="team">
+<h2>${esc(TEAM_HEADING[lang] ?? TEAM_HEADING.en)}</h2>
+${TEAM.map((m) => `<p><b>${esc(m.name)}</b> · ${esc(m.role[lang] ?? m.role.en)}</p>
+<p>${esc(m.bio[lang] ?? m.bio.en)}</p>
+<p>${m.profiles.map(([k, u]) => `<a href="${u}" rel="me">${esc(k)}</a>`).join(' · ')}</p>`).join('\n')}
+<p>${esc(CONTACT_LABEL[lang] ?? CONTACT_LABEL.en)}: <a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></p>
+</section>
 </main>
 <footer><p>${esc(c.notice)}</p></footer>
 </body>
@@ -189,7 +215,7 @@ ${sections}
 export function llmsTxt() {
   const c = ABOUT.en;
   const sec = c.sections.map((s) => [`## ${s.h}`, s.p ?? '', ...(s.items ?? []).map((i) => `- ${i}`), s.note ?? ''].filter(Boolean).join('\n')).join('\n\n');
-  return `# ZETAPHY (ZTPHY)\n\n> ${c.description}\n\n${c.lead}\n\n${sec}\n\n## Links\n\n- [What is ZETAPHY? (8 languages)](${ORIGIN.hub}/about/)\n- [App: wallet, swap, staking, NFT](${ORIGIN.hub}/)\n- [Did you get ZTPHY? Check an address](${ORIGIN.hub}/got-ztphy.html)\n- [Neuro token checker](${ORIGIN.neuro}/web/)\n- [Explorer](${ORIGIN.explorer}/)\n- [Source code](${REPO_URL})\n- Contact: ${CONTACT_EMAIL}\n${ZTPHY_CONTRACTS.map((t) => `- ZTPHY on ${t.chain} (chain ${t.chainId}): ${t.address} ([explorer](${t.explorer}))`).join('\n')}\n- Logo: ${ORIGIN.hub}/zetaphy-256.png\n\n${c.notice}\n`;
+  return `# ZETAPHY (ZTPHY)\n\n> ${c.description}\n\n${c.lead}\n\n${sec}\n\n## Links\n\n- [What is ZETAPHY? (8 languages)](${ORIGIN.hub}/about/)\n- [App: wallet, swap, staking, NFT](${ORIGIN.hub}/)\n- [Did you get ZTPHY? Check an address](${ORIGIN.hub}/got-ztphy.html)\n- [Neuro token checker](${ORIGIN.neuro}/web/)\n- [Explorer](${ORIGIN.explorer}/)\n- [Source code](${REPO_URL})\n- Contact: ${CONTACT_EMAIL}\n${TEAM.map((m) => `- Team: ${m.name}, ${m.role.en} (${m.profiles.map(([k, u]) => `[${k}](${u})`).join(', ')})`).join('\n')}\n${ZTPHY_CONTRACTS.map((t) => `- ZTPHY on ${t.chain} (chain ${t.chainId}): ${t.address} ([explorer](${t.explorer}))`).join('\n')}\n- Logo: ${ORIGIN.hub}/zetaphy-256.png\n\n${c.notice}\n`;
 }
 
 /** {relative path: content} of the hub's search files, written into dist/ by build.mjs. */

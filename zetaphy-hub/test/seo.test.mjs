@@ -110,12 +110,15 @@ test('logo and ZTPHY for search engines: the Organization logo on the home and a
   assert.doesNotMatch(svg, /<animate|<script|<image|<foreignObject|href="(?!#)/);
   // the official e-mail is on the site (the about page in every language, its Organization data, llms.txt)
   assert.equal(org.email, 'zetaphy.chain@sawasdeecoin.com');
+  // the team, as token-info reviews ask: on every about page and in the Organization data (founder, public profiles)
+  assert.deepEqual(org.founder, [{ '@type': 'Person', name: 'Mr.poterposter', jobTitle: 'Founder & Lead Developer', sameAs: ['https://x.com/SWD_SAWASDEE', 'https://github.com/pospos191-alt'] }]);
   for (const l of LANG_CODES) {
     const html = aboutPage(l);
     const data = JSON.parse(html.split('<script type="application/ld+json">')[1].split('</script>')[0]);
     assert.ok(data['@graph'].some((n) => n['@type'] === 'Organization' && n.logo.url === org.logo.url), `${l}: Organization logo`);
     for (const t of ZTPHY_CONTRACTS) assert.ok(html.includes(t.address), `${l}: ZTPHY on ${t.chain}`);
     assert.ok(html.includes('<a href="mailto:zetaphy.chain@sawasdeecoin.com">zetaphy.chain@sawasdeecoin.com</a>'), `${l}: the contact e-mail`);
+    assert.match(html, /<section id="team">[\s\S]*<b>Mr\.poterposter<\/b>[\s\S]*href="https:\/\/x\.com\/SWD_SAWASDEE"[\s\S]*href="https:\/\/github\.com\/pospos191-alt"[\s\S]*<\/section>/, `${l}: the team section`);
   }
   const state = JSON.parse(readFileSync(join(ROOT, 'zetaphy-chain', 'hyperlane', 'mainnet', 'saphan-mainnet-state.json'), 'utf8'));
   assert.deepEqual(ZTPHY_CONTRACTS.map((t) => t.address), [state.steps['bsc-synthetic'].synthetic]);
