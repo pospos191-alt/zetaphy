@@ -427,6 +427,10 @@ async function connectWallet(w, silent = false) {
     if (typeof w.provider.on === 'function' && !w.subscribed) {
       w.subscribed = true;
       w.provider.on('accountsChanged', (a) => { if (state.wallet !== w) return; state.account = Array.isArray(a) && isAddress(a[0]) ? a[0] : null; if (!state.account) state.wallet = null; refreshAll(); });
+      // a switch made while the page was in the background may send no event: ask again when it comes back
+      const again = () => { if (state.wallet !== w) return; w.provider.request({ method: 'eth_accounts' }).then((a) => { const x = Array.isArray(a) && isAddress(a[0]) ? a[0] : null; if ((x ?? '').toLowerCase() !== (state.account ?? '').toLowerCase()) { state.account = x; if (!x) state.wallet = null; refreshAll(); } }).catch(() => {}); };
+      window.addEventListener('focus', again);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') again(); });
       w.provider.on('chainChanged', (c) => { if (state.wallet !== w) return; try { state.chainId = Number(BigInt(c)); } catch { state.chainId = null; } refreshAll(); });
     }
     if ($('wallet-dialog').open) $('wallet-dialog').close();
