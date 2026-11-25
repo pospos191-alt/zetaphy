@@ -1054,7 +1054,9 @@ function showTab(name) {
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const s of TABS) $(`tab-${s}`).hidden = s !== name;
   if (name === 'dlmm' && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
-  if (name === 'bsc') bscTab?.show().catch(() => {});
+  // the BNB Chain tab is a trading view (chart + swap box side by side): the page gets wider for it
+  document.querySelector('main')?.classList.toggle('wide', name === 'bsc');
+  if (name === 'bsc') bscTab?.show().catch(() => {}); else bscTab?.hide();
   if (name === 'pool') { updateAdd(); loadPositions(); }
   if (name === 'tokens') renderTokenList();
   if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);

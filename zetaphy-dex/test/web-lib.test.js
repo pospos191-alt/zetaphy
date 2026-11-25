@@ -18,6 +18,7 @@ import { fingerprint1, SLOT_IMPL, SLOT_BEACON, REASON_TEXT, DISCLAIMER } from '.
 import { amountOut, amountIn } from './helpers/dex.js';
 import { LANGS, LANG_CODES, pickLang, TEXT } from '../web/i18n.js';
 import { TEXT as DLMM_TEXT } from '../web/dlmm.js';
+import { TEXT as BSC_TEXT } from '../web/bsc-i18n.js';
 import { reasonText } from '../web/lib/neuro.js';
 
 const PAGE = fileURLToPath(new URL('../web/', import.meta.url));
@@ -256,7 +257,7 @@ test('M4: stored imported tokens: this chain only, clean entries, no duplicates,
 test('languages: the 8 codes in menu order; every language has exactly the English keys, placeholders and no empty text', () => {
   assert.deepEqual(LANGS, [['en', 'English'], ['zh', '中文'], ['es', 'Español'], ['ko', '한국어'], ['ja', '日本語'], ['ru', 'Русский'], ['vi', 'Tiếng Việt'], ['th', 'ไทย']]);
   const holes = (str) => [...str.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join();
-  for (const [name, table] of [['i18n.js', TEXT], ['dlmm.js', DLMM_TEXT]]) {
+  for (const [name, table] of [['i18n.js', TEXT], ['dlmm.js', DLMM_TEXT], ['bsc-i18n.js', BSC_TEXT]]) {
     assert.deepEqual(Object.keys(table).sort(), [...LANG_CODES].sort(), `${name}: exactly the 8 languages`);
     const en = Object.keys(table.en);
     const allKeys = new Set(en);
