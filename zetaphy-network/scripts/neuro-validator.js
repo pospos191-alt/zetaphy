@@ -39,6 +39,8 @@ export function setup({ cfg = M.loadMainnet(), state = M.loadState(), core = M.l
 
 /** The object Hyperlane's agents read a GCS checkpoint syncer's latest signed index from. */
 export const GCS_LATEST_INDEX_KEY = 'gcsLatestIndexKey';
+/** The objects Hyperlane's relayer reads from a GCS validator (mirrored at the bucket root, see storage()). */
+const HYPERLANE_READS = /^(checkpoint_\d+_with_id\.json|gcsLatestIndexKey)$/;
 
 /** Storage: gs://bucket/folder (GCS JSON API with the VM's metadata token) or file:///dir. */
 export function storage(location, { fetchImpl = fetch } = {}) {
@@ -59,15 +61,21 @@ export function storage(location, { fetchImpl = fetch } = {}) {
   return {
     kind: 'gs',
     write: async (name, body) => {
-      const obj = folder ? `${folder}/${name}` : name;
-      const meta = JSON.stringify({ name: obj, cacheControl: 'no-store', contentType: 'application/json' });
-      const b = 'neuro-validator-part';
-      const data = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
-      const r = await fetchImpl(`https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=multipart`, { method: 'POST', body: data,
-        headers: { authorization: `Bearer ${await token()}`, 'content-type': `multipart/related; boundary=${b}` } });
-      if (!r.ok) throw new Error(`gs://${bucket}/${obj}: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
+      await put(folder ? `${folder}/${name}` : name, body);
+      // Hyperlane's agents parse "gs://bucket/folder" as the bucket with NO folder (settings/checkpoint_syncer.rs: a
+      // two-part location is (bucket, None)), so the relayer reads a validator's checkpoints at the bucket root: the
+      // objects it reads are mirrored there, or a 2-of-2 ISM never reaches quorum
+      if (folder && HYPERLANE_READS.test(name)) await put(name, body);
     },
   };
+  async function put(obj, body) {
+    const meta = JSON.stringify({ name: obj, cacheControl: 'no-store', contentType: 'application/json' });
+    const b = 'neuro-validator-part';
+    const data = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
+    const r = await fetchImpl(`https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=multipart`, { method: 'POST', body: data,
+      headers: { authorization: `Bearer ${await token()}`, 'content-type': `multipart/related; boundary=${b}` } });
+    if (!r.ok) throw new Error(`gs://${bucket}/${obj}: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
+  }
 }
 
 function loadKey(path) {
