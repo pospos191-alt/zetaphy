@@ -78,7 +78,7 @@ test('market: prices, USD, amounts, percentages and ages read like a trading sit
   assert.equal(K.portion(999n, 100), 999n);
 });
 
-test('bsc.js trimDec: trailing zeros go only after the decimal point (500 stays 500)', async () => {
-  const { trimDec } = await import('../web/bsc.js');
+test('xswap.js trimDec: trailing zeros go only after the decimal point (500 stays 500)', async () => {
+  const { trimDec } = await import('../web/xswap.js');
   assert.deepEqual(['500', '500.000', '0.250', '1.0', '10'].map(trimDec), ['500', '500', '0.25', '1', '10']);
 });

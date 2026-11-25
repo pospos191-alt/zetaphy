@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
-import { servePage, injectWallet, chromiumOptions } from './helpers/web.js';
+import { servePage, injectWallet, chromiumOptions, marketOrigins } from './helpers/web.js';
 import { onTestnet } from './helpers/web.js';
 
 const RPC_URL = 'https://rpc.zetaphy.test/';
@@ -25,7 +25,10 @@ async function run(balanceWei) {
     const result = { eth_chainId: '0x12e4e', eth_getBalance: `0x${balanceWei.toString(16)}`, eth_blockNumber: '0x10' }[req.method] ?? null;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ jsonrpc: '2.0', id: req.id, result }) });
   });
-  await page.route((url) => !url.href.startsWith(server.origin) && !url.href.startsWith(RPC_URL), (route) => { problems.push(`request to ${route.request().url()}`); return route.abort(); });
+  // the Swap page's markets (BNB Chain, Base RPCs; GeckoTerminal) are allowed and kept offline here; anything else is a problem
+  const markets = await marketOrigins();
+  await page.route((url) => markets.has(url.origin), (route) => route.abort());
+  await page.route((url) => !url.href.startsWith(server.origin) && !url.href.startsWith(RPC_URL) && !markets.has(url.origin), (route) => { problems.push(`request to ${route.request().url()}`); return route.abort(); });
   let granted = true;
   await injectWallet(page, async (method) => {
     walletLog.push(method);

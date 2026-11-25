@@ -18,7 +18,8 @@ import { EVM_CHAIN_ID, EVM_CHAIN_ID_HEX, EVM_SYMBOL, nodeEndpoints, evmChainPara
 import { contractsOf, hasFeature, netKey, netText, networkBadge, notOnMainnetBox, watchNetwork, linkExplorer } from './lib/network.js';
 import { parseSettings, serializeSettings, parseImported, cleanWalletId, rpcIsCustom, SLIPPAGE_MAX_BPS, SLIPPAGE_CONFIRM_BPS } from './lib/storage.js';
 import { createDlmmTab } from './dlmm.js';
-import { createBscTab } from './bsc.js';
+import { createSwapPage, NATIVE_ID } from './xswap.js';
+import { MARKETS } from './lib/markets.js';
 import { safety, ledgerReason } from './lib/wallet-safety.js';
 import { LEDGER_ID_RE, ledgerId, ledgerProvider, hidSupported, preloadTransport } from './lib/ledger.js';
 import * as txg from './lib/txguard.js';
@@ -1046,17 +1047,17 @@ function saveSettings() {
 
 // ---------------------------------------------------------------- tabs / startup
 
-const TABS = ['swap', 'pool', 'tokens', 'dlmm', 'bsc'];
+const TABS = ['swap', 'pool', 'tokens', 'dlmm'];
+// old links to a network's own tab (#bsc, #base) open the Swap page on that network
+const NET_LINKS = ['bsc', 'base', NATIVE_ID];
 let dlmmTab = null; // the DLMM tab (dlmm.js, UNAUDITED contracts)
-let bscTab = null; // ZTPHY on BNB Chain (bsc.js)
+let swapPage = null; // every network's ZTPHY market on the Swap page (xswap.js)
 
-function showTab(name) {
+function showTab(name, net = null) {
   for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const s of TABS) $(`tab-${s}`).hidden = s !== name;
   if (name === 'dlmm' && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
-  // the BNB Chain tab is a trading view (chart + swap box side by side): the page gets wider for it
-  document.querySelector('main')?.classList.toggle('wide', name === 'bsc');
-  if (name === 'bsc') bscTab?.show().catch(() => {}); else bscTab?.hide();
+  if (name === 'swap') swapPage?.show(net).catch(() => {}); else { swapPage?.hide(); document.querySelector('main')?.classList.remove('wide'); }
   if (name === 'pool') { updateAdd(); loadPositions(); }
   if (name === 'tokens') renderTokenList();
   if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
@@ -1074,7 +1075,7 @@ function refreshAll() {
   updateSwap();
   if (!$('tab-pool').hidden) { updateAdd(); loadPositions(); }
   if (!$('tab-dlmm').hidden && hasFeature(NETWORK, 'dlmm')) dlmmTab?.show().catch(() => {});
-  if (!$('tab-bsc').hidden) bscTab?.show().catch(() => {});
+  if (!$('tab-swap').hidden) swapPage?.refresh();
 }
 
 function debounce(fn, ms) {
@@ -1126,12 +1127,22 @@ async function init() {
 
   if (hasFeature(NETWORK, 'dlmm')) dlmmTab = createDlmmTab({ state, $, el, setStatus, rpc, sendTx, errorText, revertData, neuroCheck, recheckNeuro, renderNeuro, needsAck,
     allowance, isNative, keyOf, tokenByKey, tokenByAddress, deadline, openWallets });
-  // ZTPHY <-> USDT on BNB Chain through the project's PancakeSwap v3 pool (bsc.js): its own RPC, chain 56, the same wallet
-  bscTab = createBscTab({ state, $, el, setStatus, errorText, openWallets, confirm: (o) => sf.confirmTx(o) });
+  // ZTPHY on every network with a pool (xswap.js): each market on its own chain's RPC, the same wallet
+  swapPage = createSwapPage({ state, $, el, setStatus, errorText, openWallets, confirm: (o) => sf.confirmTx(o),
+    // the bridged-ZTPHY markets are mainnet's; the retired testnet's page offers only its own AMM
+    markets: NETWORK.testnet ? [] : MARKETS,
+    // a market view is a trading view (chart + swap box side by side): the page gets wider for it
+    onLayout: (wide) => document.querySelector('main')?.classList.toggle('wide', wide),
+    native: {
+      // ZETAPHY's own AMM is offered once its factory has a pool
+      available: async () => deployed() && (await callDecode(state.cfg.contracts.factory, 'allPairsLength()', [], ['uint256']))[0] > 0n,
+      show: () => { $('zp-swap').hidden = false; updateSwap(); },
+      hide: () => { $('zp-swap').hidden = true; },
+    } });
 
   // events
   for (const b of document.querySelectorAll('.tab')) b.addEventListener('click', () => showTab(b.dataset.tab));
-  $('lang-btn').addEventListener('change', (e) => { state.lang = pickLang(e.target.value); store.set(KEYS.lang, state.lang); applyI18n(); fillAllSelects(); refreshAll(); renderTokenList(); });
+  $('lang-btn').addEventListener('change', (e) => { state.lang = pickLang(e.target.value); store.set(KEYS.lang, state.lang); applyI18n(); fillAllSelects(); swapPage?.relabel(); refreshAll(); renderTokenList(); });
   $('theme-btn').addEventListener('click', () => { const next = currentTheme() === 'dark' ? 'light' : 'dark'; applyTheme(next); store.set(KEYS.theme, next); });
   $('settings-btn').addEventListener('click', openSettings);
   $('settings-close').addEventListener('click', () => $('settings-dialog').close());
@@ -1198,7 +1209,7 @@ async function init() {
   }
 
   const tab = location.hash.slice(1);
-  showTab(TABS.includes(tab) ? tab : 'swap');
+  if (NET_LINKS.includes(tab)) showTab('swap', tab); else showTab(TABS.includes(tab) ? tab : 'swap');
   renderBanner();
   await updateSwap();
   document.documentElement.dataset.appReady = '1';

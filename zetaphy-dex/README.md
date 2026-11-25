@@ -347,3 +347,7 @@ and the DLMM tab on mainnet (the contracts are deployed; the tab shows "not on m
 can be higher than in an x·y = k pool); a large swap that needs to cross more than 100 bins must be split into several swaps; set a tight slippage because you can be front-run / sandwiched;
 `setApprovalForAll(router)` lets the router burn your shares in every bin of that pool on your behalf (the router only uses it for the caller themselves); revoke it when you stop using it.
 Security details are kept separately for the team.
+
+## One Swap page for every network
+
+The Swap tab shows a row of networks: every chain where bridged ZTPHY has a pool (`web/lib/markets.js`: BNB Chain on PancakeSwap v3, Base on Uniswap v3), plus ZETAPHY's own AMM once it has pools. The page asks each DEX's factory for the ZTPHY/stable pool, so a network appears **by itself** as soon as its pool is created; nothing has to be released. A new bridge route needs one `MARKETS` entry: its chain, the DEX's contracts and the route's synthetic ZTPHY. `test/markets.test.js` fails until every synthetic recorded in `zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json` has one. Each network's view (`web/xswap.js`) has the price, 24 h stats, a candle or line chart and the recent trades (GeckoTerminal's public API, display only), and a full swap box. Quotes, contract checks and swaps are read from that network's chain only. Old links to `#bsc` or `#base` open the Swap tab on that network.

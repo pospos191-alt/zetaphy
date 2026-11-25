@@ -107,3 +107,14 @@ export function chromiumOptions() {
  */
 export const onNetwork = (page, id) => page.addInitScript((n) => { try { localStorage.setItem('zetaphy:network', n); } catch { /* blocked */ } }, id);
 export const onTestnet = (page) => page.addInitScript(() => { globalThis.__ZETAPHY_TEST_NETWORK = 'testnet'; });
+
+/**
+ * The hosts the Swap page's network markets talk to (web/lib/markets.js: each chain's public RPC; GeckoTerminal's API for
+ * the chart): the only places besides the site and the ZETAPHY RPC a page may reach. Tests that forbid every other
+ * request let these through to a stub.
+ */
+export async function marketOrigins() {
+  const { MARKETS } = await import('../../web/lib/markets.js');
+  return new Set([...MARKETS.flatMap((m) => m.chain.rpc.map((u) => new URL(u).origin)), 'https://api.geckoterminal.com']);
+}
+
