@@ -230,7 +230,7 @@ test('saphan-ism status: finds the hook leaf for a checkpoint in ranges the node
   await assert.rejects(findLeaf(p, HOOK, 0, { chunk: 5000 }), /at most 2000/);
 });
 
-test('pass on gs:// storage: the latest index is also written as "gcsLatestIndexKey", the name Hyperlane\'s relayer reads from GCS', async () => {
+test('pass on gs:// storage: the latest index is also written as "gcsLatestIndexKey", and the relayer\'s objects at the bucket root, where Hyperlane reads them', async () => {
   const z = mockZetaphy();
   const writes = [];
   const fetchImpl = async (url, init = {}) => {
@@ -246,7 +246,10 @@ test('pass on gs:// storage: the latest index is also written as "gcsLatestIndex
   z.dispatch(10, message({ nonce: 0 }));
   const r = await pass({ p: z.p, conf, wallet: neuro, store, state: null, chunk: 4 });
   assert.deepEqual(r.signed, [0]);
-  assert.deepEqual(writes.map(([n]) => n), ['neuro/checkpoint_0_with_id.json', 'neuro/checkpoint_latest_index.json', 'neuro/gcsLatestIndexKey']);
-  assert.equal(writes[2][1], '0');
+  // in the folder (what the tools and auditors read), and the objects Hyperlane's relayer reads also at the bucket root:
+  // it parses "gs://bucket/folder" as the bucket with no folder
+  assert.deepEqual(writes.map(([n]) => n), ['neuro/checkpoint_0_with_id.json', 'checkpoint_0_with_id.json', 'neuro/checkpoint_latest_index.json', 'neuro/gcsLatestIndexKey', 'gcsLatestIndexKey']);
+  assert.equal(writes[1][1], writes[0][1], 'the root copy is the same signed checkpoint');
+  assert.equal(writes[4][1], '0');
   assert.equal(storage(`file://${mkdtempSync(join(tmpdir(), 'nv-'))}`).kind, 'file');
 });

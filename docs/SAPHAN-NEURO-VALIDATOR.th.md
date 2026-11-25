@@ -37,7 +37,7 @@ ZETAPHY) ต้องใช้ validator ของ Hyperlane 3 จาก 5 อ�
   (validator ของชุมชน) ข้อนี้จะหายไป
 - **2 จาก 2 แปลว่าถ้าผู้เซ็นคนใดล่ม การโอน ZETAPHY -> ปลายทางจะหยุด** (ไม่มีอะไรหาย ข้อความรออยู่) ระบบเฝ้าระวังจะแจ้ง และ systemd
   จะรีสตาร์ต validator ให้เอง
-- relayer อ่าน checkpoint ของ Neuro validator จาก **bucket Cloud Storage ที่เปิดให้อ่านสาธารณะ** (`gs://…`)
+- relayer อ่าน checkpoint ของ Neuro validator จาก **bucket Cloud Storage ที่เปิดให้อ่านสาธารณะ** (`gs://…`) agent ของ Hyperlane อ่านเลข index ล่าสุดของ validator ที่เก็บบน GCS จากไฟล์ชื่อ `gcsLatestIndexKey` และอ่านที่อยู่ `gs://bucket/folder` เป็น bucket ที่ไม่มีโฟลเดอร์ validator จึงเขียนลายเซ็นและ `gcsLatestIndexKey` ทั้งในโฟลเดอร์และที่ root ของ bucket ซึ่งเป็นที่ที่ relayer อ่าน (25 พ.ย. 2026: ข้อความแรกที่ส่งไป Base ค้างรอให้ลายเซ็นครบจนกว่าจะแก้จุดนี้)
 
 ## ขั้นตอนติดตั้ง
 

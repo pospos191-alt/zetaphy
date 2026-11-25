@@ -38,7 +38,7 @@ ISM. The return direction (BSC / Base -> ZETAPHY) already needs 3 of Hyperlane's
   the same false chain. A second full node anywhere (a community validator) removes this.
 - **2 of 2 means either signer down stops ZETAPHY -> destination transfers** (nothing is lost: messages wait). The
   watch reports it; the systemd service restarts the validator.
-- The relayer reads the Neuro validator's checkpoints from a **public-read Cloud Storage bucket** (`gs://…`).
+- The relayer reads the Neuro validator's checkpoints from a **public-read Cloud Storage bucket** (`gs://…`). Hyperlane's agents read a GCS validator's latest index from the object `gcsLatestIndexKey`. They also parse `gs://bucket/folder` as the bucket with no folder. So the validator writes its checkpoints and `gcsLatestIndexKey` in the folder and again at the bucket root, which is where the relayer reads them (2026-11-25: the first Base message waited for quorum until this was done).
 
 ## Setting it up
 
