@@ -37,11 +37,14 @@ export function setup({ cfg = M.loadMainnet(), state = M.loadState(), core = M.l
     threats: cfg.zetaphy.threats ? getAddress(cfg.zetaphy.threats) : null, routes };
 }
 
+/** The object Hyperlane's agents read a GCS checkpoint syncer's latest signed index from. */
+export const GCS_LATEST_INDEX_KEY = 'gcsLatestIndexKey';
+
 /** Storage: gs://bucket/folder (GCS JSON API with the VM's metadata token) or file:///dir. */
 export function storage(location, { fetchImpl = fetch } = {}) {
   if (location.startsWith('file://')) {
     const dir = location.slice('file://'.length);
-    return { write: async (name, body) => { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, name) + '.tmp', body); renameSync(join(dir, name) + '.tmp', join(dir, name)); } };
+    return { kind: 'file', write: async (name, body) => { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, name) + '.tmp', body); renameSync(join(dir, name) + '.tmp', join(dir, name)); } };
   }
   const m = /^gs:\/\/([a-z0-9][a-z0-9._-]{1,61}[a-z0-9])(?:\/(.+?))?\/?$/.exec(location);
   if (!m) throw new Error('--location: gs://bucket/folder or file:///dir');
@@ -54,6 +57,7 @@ export function storage(location, { fetchImpl = fetch } = {}) {
     const j = await r.json(); tok = j.access_token; until = Date.now() + (j.expires_in - 60) * 1000; return tok;
   };
   return {
+    kind: 'gs',
     write: async (name, body) => {
       const obj = folder ? `${folder}/${name}` : name;
       const meta = JSON.stringify({ name: obj, cacheControl: 'no-store', contentType: 'application/json' });
@@ -132,7 +136,13 @@ export async function pass({ p, conf, wallet, store, state, log = () => {}, chun
     log(T(`leaf ${leaf.index} ${leaf.messageId}: signed (${d.route}, ${d.amount} wei to ${d.to})`));
   }
   const latest = Math.max(st.latest, ...signed);
-  if (signed.length) await store.write('checkpoint_latest_index.json', JSON.stringify(latest));
+  if (signed.length) {
+    await store.write('checkpoint_latest_index.json', JSON.stringify(latest));
+    // Hyperlane's agents read a GCS validator's latest index from the object "gcsLatestIndexKey" (hyperlane-base
+    // gcs_storage.rs LATEST_INDEX_KEY), not checkpoint_latest_index.json (S3's name): without it the relayer never finds
+    // this validator's checkpoints and a 2-of-2 ISM waits ("Unable to reach quorum")
+    if (store.kind === 'gs') await store.write(GCS_LATEST_INDEX_KEY, JSON.stringify(latest));
+  }
   return { state: { tree: tree.toJSON(), next: head + 1, waiting, latest }, signed, refused: refused.filter((x) => !x.wait), waiting: waiting.map((x) => x.index) };
 }
 

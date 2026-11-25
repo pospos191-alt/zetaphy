@@ -229,3 +229,24 @@ test('saphan-ism status: finds the hook leaf for a checkpoint in ranges the node
   assert.deepEqual(asked[0], [8_001, 10_000], 'newest range first');
   await assert.rejects(findLeaf(p, HOOK, 0, { chunk: 5000 }), /at most 2000/);
 });
+
+test('pass on gs:// storage: the latest index is also written as "gcsLatestIndexKey", the name Hyperlane\'s relayer reads from GCS', async () => {
+  const z = mockZetaphy();
+  const writes = [];
+  const fetchImpl = async (url, init = {}) => {
+    if (url.startsWith('http://metadata.google.internal/')) return { ok: true, json: async () => ({ access_token: 't', expires_in: 3600 }) };
+    const name = /"name":"([^"]+)"/.exec(init.body)[1];
+    const body = String(init.body).split('\r\n\r\n')[2].split('\r\n--')[0];
+    writes.push([name, body]);
+    return { ok: true, text: async () => '' };
+  };
+  const store = storage('gs://zetaphy-neuro-test/neuro', { fetchImpl });
+  assert.equal(store.kind, 'gs');
+  const conf = { origin: 3659, mailbox: MAILBOX, merkleTreeHook: HOOK, threats: THREATS, routes: ROUTES };
+  z.dispatch(10, message({ nonce: 0 }));
+  const r = await pass({ p: z.p, conf, wallet: neuro, store, state: null, chunk: 4 });
+  assert.deepEqual(r.signed, [0]);
+  assert.deepEqual(writes.map(([n]) => n), ['neuro/checkpoint_0_with_id.json', 'neuro/checkpoint_latest_index.json', 'neuro/gcsLatestIndexKey']);
+  assert.equal(writes[2][1], '0');
+  assert.equal(storage(`file://${mkdtempSync(join(tmpdir(), 'nv-'))}`).kind, 'file');
+});
