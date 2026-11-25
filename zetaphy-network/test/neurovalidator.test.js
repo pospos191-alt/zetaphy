@@ -207,3 +207,25 @@ test('pass asks the node for at most 2000 blocks per eth_getLogs (the node refus
   assert.deepEqual(ranges, [2000]);
   await assert.rejects(() => pass({ p, conf: {}, state: null, chunk: 5000 }), /at most 2000/);
 });
+
+test('saphan-ism status: finds the hook leaf for a checkpoint in ranges the node accepts (at most 2000 blocks), newest first', async () => {
+  const { findLeaf, LOG_CHUNK } = await import('../scripts/saphan-ism.js');
+  const HOOK = '0x' + 'af'.repeat(20), TOPIC = '0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33';
+  const leaves = [{ block: 120, id: '0x' + '11'.repeat(32), index: 0 }, { block: 7_345, id: '0x' + '22'.repeat(32), index: 1 }, { block: 9_990, id: '0x' + '33'.repeat(32), index: 2 }];
+  const asked = [];
+  const p = {
+    getBlockNumber: async () => 10_000,
+    getLogs: async ({ address, topics, fromBlock, toBlock }) => {
+      if (toBlock - fromBlock + 1 > LOG_CHUNK) throw new Error('maximum [from, to] blocks distance: 2000');
+      assert.equal(address, HOOK); assert.deepEqual(topics, [TOPIC]);
+      asked.push([fromBlock, toBlock]);
+      return leaves.filter((l) => l.block >= fromBlock && l.block <= toBlock).map((l) => ({ data: l.id + l.index.toString(16).padStart(64, '0') }));
+    },
+  };
+  assert.deepEqual(await findLeaf(p, HOOK, 1), { id: leaves[1].id, index: 1 });
+  assert.deepEqual(await findLeaf(p, HOOK, 0, { parallel: 1 }), { id: leaves[0].id, index: 0 });
+  assert.equal(await findLeaf(p, HOOK, 9), null, 'an index the hook never inserted');
+  assert.ok(asked.every(([a, b]) => b - a + 1 <= LOG_CHUNK && a >= 0));
+  assert.deepEqual(asked[0], [8_001, 10_000], 'newest range first');
+  await assert.rejects(findLeaf(p, HOOK, 0, { chunk: 5000 }), /at most 2000/);
+});
