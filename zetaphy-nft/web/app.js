@@ -293,12 +293,23 @@ function forgetWallet() {
 }
 
 async function connect(w) {
+  // the wallet's account picker first (EIP-2255, any wallet that has it): the user chooses the account
+  if (!w.hardware && !/^ledger:|^zetaphy-snap$/.test(String(w.id))) {
+    try { await w.provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch (e) { if (e?.code === 4001) throw e; }
+  }
   const accounts = await w.provider.request({ method: 'eth_requestAccounts' });
   if (!accounts?.[0] || !isAddress(accounts[0])) throw new Error(T('noAccount'));
   S.wallet = { name: w.name, id: w.id, provider: w.provider, account: checksum(accounts[0]), hardware: !!w.hardware };
   save('zn.wallet', w.id);
   if (walletId(SHARED_WALLET) !== w.id) save(SHARED_WALLET, w.id);
   try { w.provider.on?.('accountsChanged', (a) => { if (S.wallet) { S.wallet.account = a?.[0] ? checksum(a[0]) : null; if (!S.wallet.account) S.wallet = null; walletLabel(); route(); } }); } catch { /* optional */ }
+  // a switch made in the wallet while the page was in the background may send no event: ask again when it comes back
+  if (!w.subscribedFocus) {
+    w.subscribedFocus = true;
+    const again = () => { if (!S.wallet || S.wallet.provider !== w.provider) return; w.provider.request({ method: 'eth_accounts' }).then((a) => { const x = a?.[0] && isAddress(a[0]) ? checksum(a[0]) : null; if ((x ?? '').toLowerCase() !== (S.wallet.account ?? '').toLowerCase()) { S.wallet.account = x; if (!x) S.wallet = null; walletLabel(); route(); } }).catch(() => {}); };
+    window.addEventListener('focus', again);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') again(); });
+  }
   try { await ensureChain(w.provider, rpcUrl()); } catch (e) { status(T('switchNetwork'), 'error'); }
   walletLabel();
   route();

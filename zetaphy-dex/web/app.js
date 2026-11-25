@@ -415,6 +415,10 @@ async function renderSafetyBanner() {
 async function connectWallet(w, silent = false) {
   try {
     setStatus('wallet-status', '');
+    // a manual connect opens the wallet's account picker first (EIP-2255, any wallet that has it): choose the account
+    if (!silent && !w.hardware && !/^ledger:|^zetaphy-snap$/.test(String(w.id))) {
+      try { await w.provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch (e) { if (e?.code === 4001) throw e; }
+    }
     const accounts = await w.provider.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' });
     const acc = Array.isArray(accounts) ? accounts.find(isAddress) : null;
     if (!acc) return;

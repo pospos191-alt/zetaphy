@@ -159,7 +159,8 @@ test('hub: "Switch account" opens the wallet\'s account picker; an account switc
       window.ethereum = { isMetaMask: true, on: () => {}, request: async ({ method }) => {
         window.__calls.push(method);
         if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [window.__current];
-        if (method === 'wallet_requestPermissions') { window.__current = b; return [{ parentCapability: 'eth_accounts' }]; }
+        // the picker: on connect the user keeps A; on "Switch account" picks B
+        if (method === 'wallet_requestPermissions') { window.__picks = (window.__picks ?? 0) + 1; if (window.__picks > 1) window.__current = b; return [{ parentCapability: 'eth_accounts' }]; }
         if (method === 'eth_chainId') return '0x12e4e';
         if (method === 'wallet_switchEthereumChain') return null;
         throw new Error(`not mocked: ${method}`);
@@ -171,6 +172,7 @@ test('hub: "Switch account" opens the wallet\'s account picker; an account switc
     await page.waitForSelector('#wb-dialog[open] .wb-wallet:not(#wb-ledger)');
     await page.click('#wb-dialog .wb-wallet:not(#wb-ledger)');
     await page.waitForFunction(() => /0x6af5…a245/.test(document.getElementById('wb-btn').textContent));
+    assert.equal(await page.evaluate(() => window.__picks), 1, 'connecting opens the wallet\'s account picker');
     // the button: the wallet's picker, then the account it gives
     await page.click('#wb-dialog [data-wb="switch"]');
     await page.waitForFunction(() => /0x1139…fc4e/i.test(document.getElementById('wb-btn').textContent));

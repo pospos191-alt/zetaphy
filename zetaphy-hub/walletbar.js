@@ -142,7 +142,15 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
     if (changed) { onChange(account); if (account) loadBalances(); }
   }
 
+  /** The wallet's account picker before connecting (EIP-2255; any EIP-6963 wallet that has it), so every manual connect
+   *  lets the user choose which account. Cancelled: stop. Not supported: carry on with eth_requestAccounts. */
+  async function pickAccount(w) {
+    if (w === ledgerW || w.id === PQSNAP_ID) return;
+    try { await w.provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch (e) { if (e?.code === 4001) throw e; }
+  }
+
   async function connect(w, { silent = false } = {}) {
+    if (!silent) await pickAccount(w);
     const accounts = await w.provider.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' });
     const a = Array.isArray(accounts) ? accounts.find((x) => ADDR_RE.test(x)) : null;
     if (!a) { if (!silent) throw new Error(T('wbNoAccount')); return null; }
@@ -161,10 +169,7 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
   async function switchAccount() {
     const w = wallet;
     if (!w?.provider) return;
-    try { await w.provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch (e) {
-      if (e?.code === 4001) return; // cancelled in the wallet
-      if (e?.code !== -32601 && e?.code !== 4200) throw e;
-    }
+    try { await pickAccount(w); } catch (e) { if (e?.code === 4001) return; throw e; } // cancelled in the wallet: keep the account
     const x = await w.provider.request({ method: 'eth_requestAccounts' });
     setAccount(w, Array.isArray(x) ? x.find((y) => ADDR_RE.test(y)) : null);
   }
