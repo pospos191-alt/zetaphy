@@ -142,7 +142,15 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
     if (changed) { onChange(account); if (account) loadBalances(); }
   }
 
+  /** The wallet's account picker before connecting (EIP-2255; any EIP-6963 wallet that has it), so every manual connect
+   *  lets the user choose which account. Cancelled: stop. Not supported: carry on with eth_requestAccounts. */
+  async function pickAccount(w) {
+    if (w === ledgerW || w.id === PQSNAP_ID) return;
+    try { await w.provider.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch (e) { if (e?.code === 4001) throw e; }
+  }
+
   async function connect(w, { silent = false } = {}) {
+    if (!silent) await pickAccount(w);
     const accounts = await w.provider.request({ method: silent ? 'eth_accounts' : 'eth_requestAccounts' });
     const a = Array.isArray(accounts) ? accounts.find((x) => ADDR_RE.test(x)) : null;
     if (!a) { if (!silent) throw new Error(T('wbNoAccount')); return null; }
@@ -154,6 +162,26 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
     setAccount(w, a);
     if (!silent) await ensureChain(w.provider).catch(() => { /* the apps ask again before sending */ });
     return a;
+  }
+
+  /** Another account of the same wallet: the wallet's own account picker (EIP-2255), then whatever it now gives. A wallet
+   *  without wallet_requestPermissions falls back to eth_requestAccounts. Hardware and the PQ Snap keep their own flow. */
+  async function switchAccount() {
+    const w = wallet;
+    if (!w?.provider) return;
+    try { await pickAccount(w); } catch (e) { if (e?.code === 4001) return; throw e; } // cancelled in the wallet: keep the account
+    const x = await w.provider.request({ method: 'eth_requestAccounts' });
+    setAccount(w, Array.isArray(x) ? x.find((y) => ADDR_RE.test(y)) : null);
+  }
+
+  /** The wallet's current account, asked again (a switch while the page was in the background may send no event). */
+  async function recheck() {
+    const w = wallet;
+    if (!w?.provider || w === ledgerW || w.id === PQSNAP_ID) return;
+    const x = await w.provider.request({ method: 'eth_accounts' }).catch(() => null);
+    if (!Array.isArray(x)) return;
+    const a = x.find((y) => ADDR_RE.test(y)) ?? null;
+    if ((a ?? '').toLowerCase() !== (account ?? '').toLowerCase()) setAccount(w, a);
   }
 
   function disconnect() {
@@ -240,6 +268,8 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
         el('p', { class: 'dim small', text: T('wbShared') }),
         el('div', { class: 'row' },
           el('button', { type: 'button', class: 'btn ghost sm', text: T('wbRefresh'), onclick: () => { balances = null; renderDialog(); loadBalances(); } }),
+          wallet && wallet !== ledgerW && wallet.id !== PQSNAP_ID ? el('button', { type: 'button', class: 'btn ghost sm', 'data-wb': 'switch', text: T('wbSwitch'),
+            onclick: () => switchAccount().then(() => renderDialog()).catch(() => {}) }) : null,
           el('button', { type: 'button', class: 'btn ghost sm', text: T('wbDisconnect'), onclick: () => { disconnect(); $('wb-dialog').close(); } })),
         el('p', { class: 'small' }, sf.helpLink(HELP)),
       );
@@ -305,9 +335,12 @@ export function walletBar({ win, evmCall, tokens, T, lib, node, onChange = () =>
     // Another page of this site (an app in a frame, another tab) connected or disconnected.
     win.addEventListener('storage', (e) => { if (e.key === SHARED_KEY || e.key === null) restore(); });
     sf.idleGuard({ active: () => !!account, onIdle: forgetIdle });
+    // back from the wallet's window (an account switched there): follow it
+    win.addEventListener('focus', () => { recheck(); });
+    win.document?.addEventListener?.('visibilitychange', () => { if (win.document.visibilityState === 'visible') recheck(); });
     render();
     setTimeout(restore, 400); // EIP-6963 wallets answer within a moment
   }
 
-  return { mount, render, connect, disconnect, restore, refresh: loadBalances, account: () => account, provider: () => wallet?.provider ?? null, ensureChain: () => ensureChain(wallet.provider), open: () => $('wb-btn').click(), safety: sf, isHardware, isPq };
+  return { mount, render, connect, disconnect, restore, switchAccount, recheck, refresh: loadBalances, account: () => account, provider: () => wallet?.provider ?? null, ensureChain: () => ensureChain(wallet.provider), open: () => $('wb-btn').click(), safety: sf, isHardware, isPq };
 }

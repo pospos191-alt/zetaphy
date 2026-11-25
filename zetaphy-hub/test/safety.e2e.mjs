@@ -135,3 +135,55 @@ test('hub: hardware-wallet help, Ledger (USB), idle forget, unlimited approval w
     site.close();
   }
 });
+
+test('hub: "Switch account" opens the wallet\'s account picker; an account switched in the wallet is followed when the page comes back', { timeout: 120_000 }, async () => {
+  const site = await serve(DIST, { headers: { 'content-security-policy': CSP } });
+  const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+  const B = '0x11391E190692BE087792c6e34FB699828b6BFC4e', C = '0xF9526e78d3f107c4147f83325Bc2bb42c3328B32';
+  try {
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+    await onTestnet(page);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.route('**/*', async (route) => {
+      const u = route.request().url();
+      if (new URL(u).origin === new URL(site.url).origin) return route.continue();
+      const a = new URL(u).origin === 'https://rpc.sawasdeecoin.com' ? answer(u, route.request().postData()) : null;
+      if (a) return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(a) });
+      return route.fulfill({ status: 404, headers: { 'access-control-allow-origin': '*' }, body: '' });
+    });
+    // a MetaMask stand-in like the real one: switching to an account the site was not given sends no event;
+    // wallet_requestPermissions is its account picker (here it picks B)
+    await page.addInitScript(([a, b]) => {
+      window.__calls = []; window.__current = a;
+      window.ethereum = { isMetaMask: true, on: () => {}, request: async ({ method }) => {
+        window.__calls.push(method);
+        if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [window.__current];
+        // the picker: on connect the user keeps A; on "Switch account" picks B
+        if (method === 'wallet_requestPermissions') { window.__picks = (window.__picks ?? 0) + 1; if (window.__picks > 1) window.__current = b; return [{ parentCapability: 'eth_accounts' }]; }
+        if (method === 'eth_chainId') return '0x12e4e';
+        if (method === 'wallet_switchEthereumChain') return null;
+        throw new Error(`not mocked: ${method}`);
+      } };
+    }, [ACC, B]);
+    await page.goto(site.url);
+    await page.waitForFunction(() => document.getElementById('s-height').textContent === '123,456');
+    await page.click('#wb-btn');
+    await page.waitForSelector('#wb-dialog[open] .wb-wallet:not(#wb-ledger)');
+    await page.click('#wb-dialog .wb-wallet:not(#wb-ledger)');
+    await page.waitForFunction(() => /0x6af5…a245/.test(document.getElementById('wb-btn').textContent));
+    assert.equal(await page.evaluate(() => window.__picks), 1, 'connecting opens the wallet\'s account picker');
+    // the button: the wallet's picker, then the account it gives
+    await page.click('#wb-dialog [data-wb="switch"]');
+    await page.waitForFunction(() => /0x1139…fc4e/i.test(document.getElementById('wb-btn').textContent));
+    assert.ok((await page.evaluate(() => window.__calls)).includes('wallet_requestPermissions'));
+    await page.click('#wb-close');
+    // switched inside the wallet while the page was in the background: followed on focus
+    await page.evaluate((c) => { window.__current = c; window.dispatchEvent(new Event('focus')); }, C);
+    await page.waitForFunction(() => /0xf952…8b32/i.test(document.getElementById('wb-btn').textContent));
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    site.close();
+  }
+});

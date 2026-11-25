@@ -95,6 +95,7 @@ async function contextFor(account, label) {
     if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [account];
     if (method === 'eth_chainId') return wallet.chainId;
     if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
+    if (method === 'wallet_requestPermissions') { wallet.picks = (wallet.picks ?? 0) + 1; return [{ parentCapability: 'eth_accounts' }]; } // the account picker (EIP-2255)
     if (method === 'eth_sendTransaction') {
       const tx = params[0];
       assert.equal(tx.from.toLowerCase(), account.toLowerCase());
@@ -447,6 +448,7 @@ test('wallet safety: the banner at 1,000+ ZTPHY, hardware-wallet help, Ledger (U
   assert.match(await p.textContent('#walletDialog'), /Ledger \(USB\)[\s\S]*Use a hardware wallet/);
   await p.click('dialog .wallet-choice');
   await p.waitForFunction(() => /^0x/.test(document.querySelector('#connect').textContent));
+  assert.ok(wallet.picks >= 1, 'connecting opens the wallet\'s account picker');
   await p.waitForSelector('#ws-host .ws-banner');
   assert.match(await p.textContent('.ws-banner'), /1,000,000 ZTPHY[\s\S]*hardware wallet/);
   // "Cancel" on the summary: nothing reaches the wallet
@@ -544,6 +546,7 @@ test('mainnet: closed until nftCodeKeysProtected, then the app on chain 3659 (ma
       if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [other];
       if (method === 'eth_chainId') return '0xe4b';
       if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
+      if (method === 'wallet_requestPermissions') return [{ parentCapability: 'eth_accounts' }];
       if (method === 'eth_sendTransaction') { sent.push(params[0]); return main.send({ from: params[0].from, to: params[0].to, data: params[0].data, value: BigInt(params[0].value ?? 0) }); }
       throw new Error(`wallet: ${method} not supported`);
     });
