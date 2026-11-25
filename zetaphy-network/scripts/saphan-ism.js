@@ -34,6 +34,26 @@ function args(argv) {
   return o;
 }
 
+const INSERTED = '0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33'; // MerkleTreeHook InsertedIntoTree(bytes32,uint32)
+/** The node's eth_getLogs block-range cap (neuro-validator.js LOG_CHUNK): a wider range is refused. */
+export const LOG_CHUNK = 2000;
+/** The hook's leaf at `index` ({ id, index }), searched newest block first in ranges of at most `chunk` blocks; null if not
+ *  found within `maxChunks` ranges. */
+export async function findLeaf(p, hook, index, { chunk = LOG_CHUNK, maxChunks = 5000, parallel = 8 } = {}) {
+  if (chunk > LOG_CHUNK) throw new Error(`chunk ${chunk}: the node answers at most ${LOG_CHUNK} blocks per eth_getLogs`);
+  let to = await p.getBlockNumber();
+  for (let n = 0; n < maxChunks && to >= 0;) {
+    const ranges = [];
+    for (let k = 0; k < parallel && n < maxChunks && to >= 0; k++, n++, to -= chunk) ranges.push([Math.max(0, to - chunk + 1), to]);
+    const found = await Promise.all(ranges.map(([fromBlock, toBlock]) => p.getLogs({ address: hook, topics: [INSERTED], fromBlock, toBlock })));
+    for (const ev of found) {
+      const hit = ev.map((l) => ({ id: l.data.slice(0, 66), index: Number(BigInt('0x' + l.data.slice(66, 130))) })).find((x) => x.index === index);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 /** The new validator set and threshold: every current validator kept, the Neuro validator added. Pure. */
 export function newSet(current, add, threshold = 2) {
   const cur = current.map(getAddress);
@@ -145,8 +165,7 @@ async function main() {
         const cp = await (await fetch(url(`checkpoint_${latest}_with_id.json`))).json();
         const c = cp.value.checkpoint;
         const signer = verifyMessage(getBytes(checkpointHash({ origin: c.mailbox_domain, merkleTreeHook: '0x' + c.merkle_tree_hook_address.slice(26), root: c.root, index: c.index, messageId: cp.value.message_id })), cp.serialized_signature);
-        const ev = await zp.getLogs({ address: core.merkleTreeHook, topics: ['0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33'], fromBlock: 0, toBlock: 'latest' });
-        const leaf = ev.map((l) => ({ id: l.data.slice(0, 66), index: Number(BigInt('0x' + l.data.slice(66, 130))) })).find((x) => x.index === c.index);
+        const leaf = await findLeaf(zp, core.merkleTreeHook, c.index);
         const ok = getAddress(signer) === getAddress(v) && leaf && leaf.id.toLowerCase() === cp.value.message_id.toLowerCase() && c.mailbox_domain === cfg.zetaphy.domain;
         console.log(`  ${gs}: latest checkpoint ${latest}: ${ok ? 'OK (signed by this validator, the message id the hook inserted at that index)' : `MISMATCH (signer ${signer}, chain leaf ${leaf?.id ?? 'none'})`}`);
       } catch (e) { console.log(`  ${gs}: could not read its checkpoints (${e.message}); do NOT execute the switch until this reads OK`); }
