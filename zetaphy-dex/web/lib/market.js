@@ -1,4 +1,4 @@
-// Market data for the "BNB Chain" tab (bsc.js): the ZTPHY/USDT pool's candles, recent trades and 24 h stats, read from
+// Market data for the Swap page's network markets (xswap.js): a ZTPHY pool's candles, recent trades and 24 h stats, read from
 // GeckoTerminal's public API (free, no key; data only, no code is loaded from it). Pure: parsing and number formatting;
 // the page does the fetching. Everything that moves funds (quotes, minimums, the swap) is read from BNB Chain itself,
 // never from here: a wrong or missing answer here only changes what the chart shows.
@@ -18,13 +18,13 @@ const lc = (a) => String(a ?? '').toLowerCase();
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const addrFromId = (id) => { const m = /0x[0-9a-fA-F]{40}/.exec(String(id ?? '')); return m ? m[0].toLowerCase() : ''; };
 
-export const poolUrl = (pool) => `${GT.api}/networks/${GT.network}/pools/${pool}`;
-export function ohlcvUrl(pool, frame, token, limit = 200) {
+export const poolUrl = (pool, network = GT.network) => `${GT.api}/networks/${network}/pools/${pool}`;
+export function ohlcvUrl(pool, frame, token, limit = 200, network = GT.network) {
   const f = FRAMES[frame];
   if (!f) throw new Error(`unknown frame ${frame}`);
-  return `${poolUrl(pool)}/ohlcv/${f.timeframe}?aggregate=${f.aggregate}&limit=${limit}&currency=usd&token=${token}`;
+  return `${poolUrl(pool, network)}/ohlcv/${f.timeframe}?aggregate=${f.aggregate}&limit=${limit}&currency=usd&token=${token}`;
 }
-export const tradesUrl = (pool) => `${poolUrl(pool)}/trades`;
+export const tradesUrl = (pool, network = GT.network) => `${poolUrl(pool, network)}/trades`;
 
 /** Candles oldest first: { t (unix s), o, h, l, c, v (USD) }; bad rows dropped. */
 export function parseOhlcv(json) {

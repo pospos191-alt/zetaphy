@@ -33,7 +33,6 @@
     <button type="button" class="tab" role="tab" data-tab="pool" data-i18n="tabPool" aria-selected="false">Pool</button>
     <button type="button" class="tab" role="tab" data-tab="tokens" data-i18n="tabTokens" aria-selected="false">Tokens</button>
     <button type="button" class="tab" role="tab" data-tab="dlmm" aria-selected="false">DLMM</button>
-    <button type="button" class="tab" role="tab" data-tab="bsc" aria-selected="false">BNB Chain</button>
   </nav>
   <div class="hdr-actions">
     <a class="explorer-link" href="https://explorer.sawasdeecoin.com/?network=mainnet" target="_blank" rel="noopener noreferrer">Explorer ↗</a>
@@ -60,7 +59,11 @@
   <div id="ws-host"></div>
 
   <section id="tab-swap" class="panel" role="tabpanel">
-    <div class="card">
+    <!-- every network where ZTPHY trades (xswap.js): a pool found on a new network shows up here by itself -->
+    <div id="mx-nets" class="nets" role="group"></div>
+    <div id="mx-root" hidden></div>
+    <!-- ZETAPHY's own AMM (app.js): shown when the ZETAPHY network is picked -->
+    <div class="card" id="zp-swap">
       <div class="field">
         <div class="field-top"><label for="swap-from" data-i18n="from">You pay</label><span class="hint" id="swap-from-bal"></span></div>
         <div class="row">
@@ -131,11 +134,6 @@
   <!-- DLMM (UNAUDITED contracts): built by dlmm.js -->
   <section id="tab-dlmm" class="panel" role="tabpanel" hidden>
     <div id="dlmm-root"></div>
-  </section>
-
-  <!-- ZTPHY <-> USDT on BNB Chain (PancakeSwap v3 pool): built by bsc.js -->
-  <section id="tab-bsc" class="panel" role="tabpanel" hidden>
-    <div id="bsc-root"></div>
   </section>
 
   <section id="tab-tokens" class="panel" role="tabpanel" hidden>

@@ -1,4 +1,4 @@
-// ZTPHY on BNB Smart Chain, swapped through the project's own PancakeSwap v3 pool (the "BNB Chain" tab, bsc.js).
+// ZTPHY on BNB Smart Chain: the PancakeSwap v3 market of the Swap page (lib/markets.js, xswap.js).
 // Pure: the fixed addresses, calldata and the arithmetic; the page does the RPC and the wallet. Only the two tokens
 // below can be traded here (no address typed by the user), so a fake "ZTPHY" can never be picked.
 // The addresses are PancakeSwap v3's own deployments on BSC; the page checks on-chain, before the first quote, that the

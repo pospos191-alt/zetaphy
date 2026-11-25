@@ -347,3 +347,7 @@ ZETAPHYD=/path/to/zetaphyd flock /tmp/ci-test/devnet.lock npm run test:devnet:dl
 สูงกว่าพูล x·y = k ได้); swap ใหญ่ที่ต้องข้ามมากกว่า 100 bin ต้องแบ่งทำหลายครั้ง; ตั้ง slippage ให้แคบเพราะถูก front-run / sandwich ได้;
 `setApprovalForAll(router)` ให้สิทธิ์ router เผาหุ้นทุก bin ของพูลนั้นในนามเรา (router ใช้กับผู้เรียกเองเท่านั้น) ยกเลิกได้เมื่อเลิกใช้
 รายละเอียดด้านความปลอดภัยเก็บแยกไว้สำหรับทีม
+
+## หน้า Swap เดียวสำหรับทุกเครือข่าย
+
+แท็บ Swap มีแถบเลือกเครือข่ายด้านบน แสดงทุกเชนที่ ZTPHY (ข้ามสะพานด้วย Saphan) มี pool อยู่ (`web/lib/markets.js`: BNB Chain บน PancakeSwap v3, Base บน Uniswap v3) และแสดง AMM ของ ZETAPHY เองเมื่อมี pool แล้ว หน้าเว็บถาม factory ของแต่ละ DEX ว่ามี pool ZTPHY/stable หรือยัง เครือข่ายจึง**ขึ้นมาเอง**ทันทีที่สร้าง pool ไม่ต้องออกเวอร์ชันใหม่ ถ้าเปิดเส้นทางสะพานใหม่ ต้องเพิ่ม `MARKETS` หนึ่งรายการ ระบุเชน สัญญาของ DEX และ ZTPHY synthetic ของเส้นทางนั้น `test/markets.test.js` จะไม่ผ่านจนกว่า synthetic ทุกตัวที่บันทึกใน `zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json` จะมีรายการแล้ว แต่ละเครือข่าย (`web/xswap.js`) มีราคา สถิติ 24 ชม. กราฟแท่งเทียนหรือกราฟเส้น รายการซื้อขายล่าสุด (จาก API สาธารณะของ GeckoTerminal ใช้แสดงผลเท่านั้น) และกล่อง Swap แบบเต็ม ราคาเสนอ การตรวจสัญญา และการ swap อ่านจากเชนของเครือข่ายนั้นเท่านั้น ลิงก์เดิม `#bsc` หรือ `#base` จะเปิดแท็บ Swap ที่เครือข่ายนั้น

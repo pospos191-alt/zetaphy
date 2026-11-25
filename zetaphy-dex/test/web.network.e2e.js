@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
-import { servePage, injectWallet, chromiumOptions } from './helpers/web.js';
+import { servePage, injectWallet, chromiumOptions, marketOrigins } from './helpers/web.js';
 
 const MAINNET_RPC = 'https://129-221-199-191.sslip.io';
 const USER = '0x6af57fC3633dD0F7907f7900dbd4A2822F43a245';
@@ -32,7 +32,10 @@ test('Swap on mainnet: badge and risk line, mainnet factory/router, no test toke
         eth_call: `0x${word(0)}`, eth_getCode: '0x6080' }[req.method] ?? null;
       await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ jsonrpc: '2.0', id: req.id, result }) });
     });
-    await page.route((url) => url.origin !== new URL(server.origin).origin && url.origin !== new URL(MAINNET_RPC).origin, (route) => { problems.push(`request to ${route.request().url()}`); return route.abort(); });
+    // the Swap page's markets (BNB Chain, Base RPCs; GeckoTerminal) are allowed and kept offline here; anything else is a problem
+    const markets = await marketOrigins();
+    await page.route((url) => markets.has(url.origin), (route) => route.abort());
+    await page.route((url) => url.origin !== new URL(server.origin).origin && url.origin !== new URL(MAINNET_RPC).origin && !markets.has(url.origin), (route) => { problems.push(`request to ${route.request().url()}`); return route.abort(); });
     let chain = '0x12e4e';
     await injectWallet(page, async (method, params) => {
       walletLog.push({ method, params });

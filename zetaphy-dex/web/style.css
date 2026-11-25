@@ -290,3 +290,19 @@ main.wide { max-width: 1240px; }
   .mk-price b { font-size: 22px; }
   .pct-row button { padding: 3px 6px; }
 }
+
+/* the Swap page's network picker (xswap.js): every network with a ZTPHY pool */
+.nets { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.net-label { font-size: 13px; color: var(--text-dim); font-weight: 600; }
+.net-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--panel-border); border-radius: 999px; padding: 6px 14px 6px 10px; }
+.net-chip:hover:not(:disabled) { background: var(--panel); border-color: var(--accent); }
+.net-chip[aria-pressed="true"] { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.14); }
+.net-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--up); box-shadow: 0 0 0 3px rgba(14, 203, 129, 0.18); }
+.net-sub { color: var(--text-dim); font-weight: 500; font-size: 12px; }
+.net-hint, .net-finding { margin: 0 0 0 auto; font-size: 12px; }
+.tok-ic.usdc { background: #2775ca; color: #fff; }
+@media (max-width: 640px) {
+  .nets { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .net-chip { flex: none; }
+  .net-hint, .net-finding { display: none; }
+}
