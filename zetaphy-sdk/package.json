@@ -1,0 +1,13 @@
+{
+  "name": "@zetaphy/sdk",
+  "version": "0.1.0",
+  "description": "ZETAPHY's on-chain AI (Neuro) for any app: is a contract flagged, its Neuro badge, and checks requested and settled on ZETAPHY mainnet (chain 3659). No dependencies.",
+  "type": "module",
+  "license": "BUSL-1.1",
+  "main": "index.js",
+  "exports": { ".": "./index.js", "./neuro": "./neuro.js" },
+  "files": ["index.js", "neuro.js", "README.md", "README.th.md"],
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "https://github.com/pospos191-alt/zetaphy", "directory": "zetaphy-sdk" },
+  "keywords": ["zetaphy", "neuro", "ai", "security", "scam", "honeypot", "web3"]
+}
