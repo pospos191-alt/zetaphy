@@ -347,6 +347,11 @@ export function networkBadge(doc, { lang = 'en', net = activeNetwork(), testnetT
     box.append(make(doc, 'span', { class: 'zn-net-text zn-net-risk', text: t.risk, style: { flex: '1 1 240px' } }));
     const href = noticeUrl(net, lang);
     if (href) box.append(make(doc, 'a', { class: 'zn-net-notice', href, target: '_blank', rel: 'noopener noreferrer', text: t.notice }));
+    // the owner's choice (2026-11-26): no notice box on any page; the box stays in the page, hidden, so the words
+    // remain for the tests and for whoever reads the source (the hub's "ZETAPHY mainnet" badge carries the risk
+    // sentence as its tooltip, and docs/ZETAPHY-MAINNET-NOTICE.md the full notice)
+    box.hidden = true;
+    box.style.display = 'none'; // its inline display:flex would beat the hidden attribute
   }
   return box;
 }

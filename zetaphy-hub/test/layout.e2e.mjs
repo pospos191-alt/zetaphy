@@ -100,7 +100,7 @@ async function appFrame(page, app) {
   return f;
 }
 
-test('the hub on mainnet at 390-1900 px in Thai and English: one notice on every tab, opaque sticky headers, no sideways scroll', { timeout: 600_000 }, async () => {
+test('the hub on mainnet at 390-1900 px in Thai and English: no notice box on any tab (the badge\'s tooltip has the risk sentence), opaque sticky headers, no sideways scroll', { timeout: 600_000 }, async () => {
   const site = await serve(DIST);
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
@@ -108,15 +108,15 @@ test('the hub on mainnet at 390-1900 px in Thai and English: one notice on every
       const { ctx, page, errors } = await newPage(browser, site, { width, lang });
       const at = `${lang} ${width}px`;
       await page.goto(`${site.url}?tab=home`);
-      await page.waitForSelector('#net-note .zn-net-risk');
+      await page.waitForSelector('#net-note .zn-net-risk', { state: 'attached' });
       for (const id of TABS) {
         await page.evaluate((t) => document.querySelector(`.tab[data-tab="${t}"]`).click(), id);
         await page.waitForFunction((t) => new URL(location.href).searchParams.get('tab') === t, id);
-        // the hub's bar: the notice's risk sentence and its link, on every tab, said once in the hub's own page
-        assert.ok(await page.isVisible('#net-note .zn-net-risk'), `${at} ${id}: the hub's notice bar`);
-        assert.equal(await page.textContent('#net-note .zn-net-risk'), NET_TEXT[lang].risk, `${at} ${id}: the notice's own sentence`);
-        assert.ok(await page.isVisible('#net-note a.zn-net-notice'), `${at} ${id}: the notice link`);
-        assert.equal(await shownNotices(page.mainFrame()), 1, `${at} ${id}: one notice in the hub's page`);
+        // the owner's choice (2026-11-26): no notice box; the words stay in the page (hidden) and in the badge's tooltip
+        assert.equal(await page.isVisible('#net-note'), false, `${at} ${id}: no notice bar`);
+        assert.equal(await page.textContent('#net-note .zn-net-risk'), NET_TEXT[lang].risk, `${at} ${id}: the notice's sentence is still in the page`);
+        assert.equal(await page.getAttribute('#net-badge', 'data-tip'), NET_TEXT[lang].risk, `${at} ${id}: the badge's tooltip`);
+        assert.equal(await shownNotices(page.mainFrame()), 0, `${at} ${id}: no notice shown in the hub's page`);
         if (width === 390) assert.ok(await noSideScroll(page.mainFrame()), `${at} ${id}: no sideways scroll`);
         // the bar is in the frame's grid, above the stage: nothing scrolls under or over it
         const bar = await page.evaluate(() => { const n = document.getElementById('net-note').getBoundingClientRect(), s = document.getElementById('stage').getBoundingClientRect(); return { n: n.bottom, s: s.top }; });
@@ -125,7 +125,7 @@ test('the hub on mainnet at 390-1900 px in Thai and English: one notice on every
           const f = await appFrame(page, id);
           // the app's own notice is in its page (for its own site) but not shown again inside the hub
           await f.waitForFunction(() => document.querySelector('.zn-net'));
-          assert.equal(await shownNotices(f), 0, `${at} ${id}: no second notice inside the hub`);
+          assert.equal(await shownNotices(f), 0, `${at} ${id}: no notice inside the hub's app`);
           if (width === 390) assert.ok(await noSideScroll(f), `${at} ${id}: no sideways scroll inside the app`);
           if (id === 'explorer' && (width === 390 || width === 1900)) await checkSticky(f, '.app-header', '.nav a', `${at} explorer in the hub`);
           if (id === 'swap' && (width === 390 || width === 1900)) await checkSticky(f, '.app-header', '.tab', `${at} swap in the hub`);
@@ -145,7 +145,7 @@ test('the hub on mainnet at 390-1900 px in Thai and English: one notice on every
   } finally { await browser.close(); site.close(); }
 });
 
-test('each app on its own (its own site): its notice exactly once, opaque sticky header, no sideways scroll at 390 px', { timeout: 300_000 }, async () => {
+test('each app on its own (its own site): no notice box shown (its words still in the page), opaque sticky header, no sideways scroll at 390 px', { timeout: 300_000 }, async () => {
   const site = await serve(DIST);
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   try {
@@ -154,10 +154,9 @@ test('each app on its own (its own site): its notice exactly once, opaque sticky
       const at = `${lang} ${width}px`;
       for (const [app, path] of Object.entries(APPS)) {
         await page.goto(`${site.url}${path}`);
-        await page.waitForSelector('.zn-net');
-        assert.equal(await shownNotices(page.mainFrame()), 1, `${at} ${app}: its own notice, once`);
-        assert.ok(await page.isVisible('.zn-net .zn-net-risk'), `${at} ${app}: the risk sentence`);
-        assert.equal(await page.textContent('.zn-net .zn-net-risk'), NET_TEXT[lang].risk, `${at} ${app}: the notice's own sentence`);
+        await page.waitForSelector('.zn-net', { state: 'attached' });
+        assert.equal(await shownNotices(page.mainFrame()), 0, `${at} ${app}: no notice box shown`);
+        assert.equal(await page.textContent('.zn-net .zn-net-risk'), NET_TEXT[lang].risk, `${at} ${app}: the notice's sentence is still in the page`);
         if (width === 390) assert.ok(await noSideScroll(page.mainFrame()), `${at} ${app}: no sideways scroll`);
         if (width === 390 || width === 1900) {
           if (app === 'explorer') await checkSticky(page.mainFrame(), '.app-header', '.nav a', `${at} explorer`);
@@ -175,7 +174,7 @@ test('the rail\'s hover text: beside its item, only on hover or keyboard focus; 
   try {
     const { ctx, page } = await newPage(browser, site, { width: 1900, lang: 'th' });
     await page.goto(`${site.url}?tab=explorer`);
-    await page.waitForSelector('#net-note .zn-net-risk');
+    await page.waitForSelector('#net-note .zn-net-risk', { state: 'attached' });
     for (const id of ['wallet', 'explorer']) {
       await page.hover(`.side .tab[data-tab="${id}"]`);
       await page.waitForSelector('#tip:not([hidden])');
