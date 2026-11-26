@@ -162,6 +162,7 @@ node cli.js fingerprint bsc 0x<เหรียญหนึ่งตัวที�
   (`--reason` รับรหัสข้อเท็จจริงของโค้ดใน ThreatRegistry ตาม `src/threat-reasons.js` รายงานแสดงเป็นคำบรรยายที่เป็นกลาง ดู `REASON` ใน `src/lang/*.js`
   ถ้าไม่ใส่ `--flag-key` / `--report-hash` รายการนั้นจะแสดงเป็น "ตัวอย่างอ้างอิง" เท่านั้น)
   ทักษะ (skill id) คือ hash ของ `src/` ทั้งหมด ชุดข้อมูลใหม่ (หรือ baseline ใหม่) จึงเป็นทักษะใหม่ ต้องผ่านโหวตก่อนคนรันร่างจะใช้
+  วิธีเขียนการโหวตนั้นบน mainnet: `cd zetaphy-network && node scripts/neuro-skill-proposal.js status` แล้วตามด้วย `write` คำสั่งนี้เขียน operation ของ timelock หนึ่งชุด (`approveSkill` ถ้ายังไม่ได้อนุมัติ แล้ว `setActiveSkill`) ไฟล์ gov proposal สำหรับ `gov.sh propose-file` และ `executeBatch` ที่ใครก็ส่งได้หลังโหวตผ่าน 48 ชม.
 
 สัญญาณ **"Neuro ยังไม่รู้จักรูปแบบนี้ ระวัง"** (ระดับต่ำ): ฟังก์ชันที่ไม่รู้จักชื่อ 2 ตัวขึ้นไป
 และเป็นครึ่งหนึ่งขึ้นไปของทั้งหมด (หรือไม่มีฟังก์ชันที่รู้จักเลย) และโค้ดย้ายเงินได้ (CALL, CREATE, SELFDESTRUCT ฯลฯ)

@@ -24,10 +24,12 @@ Additional Use Grant: You may make production use of the Licensed Work to:
                       "Official ZETAPHY Network" means a network whose chain
                       ID and genesis are published by the Licensor in the
                       repository https://github.com/pospos191-alt/zetaphy
-                      (at the time of this version: Cosmos chain ID
-                      zetaphy_77390-1, EVM chain ID 77390), including its
-                      upgrades approved by that network's on-chain
-                      governance.
+                      (at the time of this version: ZETAPHY mainnet,
+                      Cosmos chain ID zetaphy_3659-1, EVM chain ID 3659,
+                      genesis in zetaphy-chain/mainnet/zetaphy_3659-1; the
+                      testnet zetaphy_77390-1, EVM chain ID 77390, was
+                      shut down on 2026-11-14), including its upgrades
+                      approved by that network's on-chain governance.
 
                       This grant does not cover launching or operating any
                       other blockchain network, fork, or competing service
