@@ -286,3 +286,17 @@ export function withSimulation(analysis, sim) {
   const level = extra.reduce((m, f) => (RANK[f.severity] > RANK[m] ? f.severity : m), analysis.level);
   return { ...analysis, level, rulesLevel: analysis.level, findings };
 }
+
+/**
+ * Adds the liquidity findings (src/liquidity.js lpFindings: who holds the pool's LP tokens) like withSimulation: before
+ * the closing caveat, raising the level if needed, and keeping the fixed rules' level for the network's verdict.
+ */
+export function withLiquidity(analysis, extra) {
+  if (!extra?.length) return analysis;
+  const findings = [...analysis.findings];
+  const caveat = findings.findIndex((f) => f.id === 'bytecode-only');
+  findings.splice(caveat < 0 ? findings.length : caveat, 0, ...extra);
+  const level = extra.reduce((m, f) => (RANK[f.severity] > RANK[m] ? f.severity : m), analysis.level);
+  return { ...analysis, level, rulesLevel: analysis.rulesLevel ?? analysis.level, findings };
+}
+

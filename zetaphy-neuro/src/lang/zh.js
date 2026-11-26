@@ -203,6 +203,10 @@ export const T = {
       'no-override': '公共 RPC 不允许模拟交易（state override），因此未进行模拟买卖。',
       'buy-failed': `通过 ${p.dex} 模拟买入失败，因此无法测试卖出。可能尚未开放交易，或代币拒绝来自合约的买入。`,
     })[p.why] ?? '无法运行模拟交易，因此未测试买入和卖出。',
+    // Pool liquidity tokens (src/liquidity.js)
+    'lp-owner': (p) => `代币所有者（${p.owner}）持有 ${p.dex} 资金池 ${p.share}% 的流动性代币，因此可以随时把这部分流动性从池中撤出。一旦撤出，持有者可能无法卖出。`,
+    'lp-burned': (p) => `${p.dex} 资金池 ${p.share}% 的流动性代币已被销毁（发送到无人能动用的地址），这部分流动性永远无法撤出。`,
+    'lp-not-burned': (p) => `${p.dex} 资金池只有 ${p.share}% 的流动性代币被销毁。其余在别处，可能在锁仓合约或钱包中（Neuro 不检查是哪一种）；持有者可以撤出这部分流动性。`,
     // CosmWasm (Osmosis, Neutron)
     'cw-not-found': () => '这条链上该地址没有合约或代币。可能地址输错了，或者选错了链。',
     'cw20-token': (p) => `CW20 代币（CosmWasm 上的 Rust 合约）“${p.name ?? '?'}”（${p.symbol ?? '?'}），总供应量 ${fmtSupply(p.totalSupply, p.decimals)}。`,

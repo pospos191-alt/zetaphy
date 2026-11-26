@@ -19,8 +19,9 @@ import { normalizeType, longAddress } from './move.js';
 import { lookupSourcify, abiFunctions, categorize } from './sourcify.js';
 import { scanBytecode, minimalProxyTarget, hexToBytes } from './bytecode.js';
 import { decodeAddress, decodeUint, decodeString, cleanText } from './abi.js';
-import { analyze, analyzeOpaque, analyzeDelegated, withSimulation } from './analyze.js';
+import { analyze, analyzeOpaque, analyzeDelegated, withSimulation, withLiquidity } from './analyze.js';
 import { simulateTrade } from './honeypot.js';
+import { lpHolders, lpFindings } from './liquidity.js';
 import { codeFingerprint } from './fingerprint.js';
 import { closestFlagged } from './similarity.js';
 import { THREAT_SIGNATURES } from './threat-signatures.js';
@@ -309,6 +310,11 @@ async function simulate(report, { rpc, chain, chainKey, addr, known, opts }) {
   if (addr === chain.dex.weth.toLowerCase()) return;
   report.sim = await simulateTrade(rpc, chain.dex, addr, { seed: opts.simSeed });
   report.analysis = withSimulation(report.analysis, report.sim);
+  // who holds the pool's LP tokens (the owner can pull the liquidity; burned LP cannot be): src/liquidity.js
+  if (report.sim?.pair) {
+    report.lp = await lpHolders(rpc, report.sim.pair, { owner: report.owner });
+    report.analysis = withLiquidity(report.analysis, lpFindings(report.lp, { dex: chain.dex.name }));
+  }
 }
 
 async function readSolana(chainKey, chain, address, opts) {

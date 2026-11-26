@@ -233,6 +233,14 @@ Runners in the Neuro network turn Sourcify off (`sourcify: false`) so the verdic
 | Simulated buy then sell back works, tax below 10% both ways | Good (with a warning that this is the result at this block, and the owner may change it later) |
 | No pool on the main DEX / RPC does not allow override / buy failed | Info (says the simulation was skipped, never says "safe") |
 
+**Who holds the pool's liquidity (`src/liquidity.js`)** When the buy/sell test finds the token's pool, Neuro reads who holds the pool's LP tokens. It makes four read-only `eth_call`s on the pair: `totalSupply` and `balanceOf` for the dead address, the zero address and the token's `owner()`. Whoever holds LP tokens can take that share of the liquidity out at any time, which can leave holders unable to sell.
+
+- The owner holds 50% or more: high. 5% or more: medium.
+- 95% or more is burned: good, because that liquidity can never be withdrawn.
+- Otherwise Neuro only says how much is burned. The rest may sit in a lock contract or a wallet, and Neuro does not guess which.
+
+Like the simulation, this depends on the current block, so it is not part of the network's verdict (`rulesLevel` keeps the fixed rules' level).
+
 **Buy/sell simulation (buy-then-sell-back test, `src/honeypot.js`)** The same method as honeypot.is, but using only `eth_call`:
 1. Find the Uniswap V2 style pool of the token paired with the chain's wrapped native token (`factory.getPair(token, WETH)`)
    on the main DEX: Uniswap V2 (Ethereum, Base, Arbitrum) and PancakeSwap V2 (BNB Chain). Configured at `dex` in `src/chains.js`
