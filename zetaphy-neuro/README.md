@@ -166,6 +166,7 @@ Each entry is a fingerprint + a short signature (remaining selectors + MinHash) 
   (`--reason` takes a code-fact code from ThreatRegistry per `src/threat-reasons.js`. The report shows it as neutral wording, see `REASON` in `src/lang/*.js`.
   Without `--flag-key` / `--report-hash`, the entry is shown only as a "reference sample")
   The skill (skill id) is a hash of all of `src/`. A new dataset (or a new baseline) is therefore a new skill and must pass a governance vote before runners can use it
+  To write that vote on mainnet: `cd zetaphy-network && node scripts/neuro-skill-proposal.js status`, then `write`. It writes ONE timelock operation (`approveSkill` if needed, then `setActiveSkill`), the gov proposal for `gov.sh propose-file`, and the `executeBatch` anyone sends 48 h after the vote passes
 
 The signal **"Neuro doesn't recognise this pattern yet, be careful"** (low level): 2 or more functions with unknown names
 that make up half or more of all functions (or no known functions at all), and the code can move value (CALL, CREATE, SELFDESTRUCT, etc.).
