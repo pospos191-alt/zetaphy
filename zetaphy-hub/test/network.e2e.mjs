@@ -188,7 +188,7 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     asked.length = 0;
     for (const f of ['audit.html', 'audits.html']) {
       await page.goto(`${site.url}${f}`);
-      await page.waitForSelector('#net .zn-net-mainnet');
+      await page.waitForSelector('#net .zn-net-mainnet', { state: 'attached' }); // in the page, not shown (no notice box)
       assert.equal(await page.locator('#net .zn-gate').count(), 0, `${f}: open on mainnet`);
       assert.doesNotMatch(await page.textContent('#net'), /Not on mainnet yet/, f);
       assert.equal(await page.locator('#net button, #net select').count(), 0, `${f}: no switch`);
@@ -198,11 +198,11 @@ test('the hub on mainnet: badge, no switch, chain 3659, tabs gated only where ma
     assert.ok(!asked.some((h) => TESTNET_HOSTS.includes(h)), `the audit pages asked nothing of the testnet: ${[...new Set(asked)]}`);
     // the zkML ceremony touches no chain: its header and badge name the page's network
     await page.goto(`${site.url}ceremony.html`);
-    await page.waitForSelector('#net .zn-net-mainnet');
+    await page.waitForSelector('#net .zn-net-mainnet', { state: 'attached' }); // in the page, not shown (no notice box)
     assert.equal(await page.textContent('#eyebrow'), 'ZETAPHY · zetaphy_3659-1');
     // the validator guide: joining mainnet (install.sh validator, then key and stake with your own ZTPHY), the badge above it
     await page.goto(`${site.url}validators.html`);
-    await page.waitForSelector('#net-gate .zn-net-mainnet');
+    await page.waitForSelector('#net-gate .zn-net-mainnet', { state: 'attached' });
     assert.equal(await page.locator('#net-gate .zn-gate').count(), 0, 'open on mainnet');
     assert.ok(await page.isVisible('#cmd'));
     assert.match(await page.textContent('#cmd'), /install\.sh \| sudo MONIKER=my-node bash -s -- validator$/);
@@ -265,9 +265,10 @@ test('the Overview and every open tab on mainnet: no overlap (1900x900, short de
       assert.ok(start.y + start.height <= card.y + 0.5, `${w}px: the mainnet card starts below the steps`);
     }
     await page.setViewportSize({ width: 1900, height: 900 });
-    // one risk notice (the network bar); the card keeps its links and has no testnet line
+    // the risk sentence once in the page (the notice bar, hidden: the owner's choice of 2026-11-26), in the badge's tooltip;
+    // the card keeps its links and has no testnet line
     assert.equal(await page.locator(`text=${NET_TEXT.th.risk}`).count(), 1, 'the risk sentence once');
-    assert.ok(await page.isVisible('#net-note .zn-net-risk'));
+    assert.equal(await page.isVisible('#net-note'), false, 'no notice bar');
     assert.deepEqual(await page.$$eval('#mainnet .mainnet-links > *', (l) => l.map((x) => x.textContent)), [MAINNET_TEXT.th.add, MAINNET_TEXT.th.notice, MAINNET_TEXT.th.files]);
     assert.doesNotMatch(await page.textContent('#mainnet'), /testnet|77390|สลับ/);
     // step 2 on mainnet: the faucet form, no gate

@@ -383,7 +383,7 @@ function renderNetwork() {
   b.classList.toggle('mainnet', !NET.testnet);
   if (NET.testnet) { b.dataset.tipKey = 'tipTestnet'; delete b.dataset.tip; } else { delete b.dataset.tipKey; b.dataset.tip = t.risk; }
   const note = $('net-note');
-  note.hidden = NET.testnet;
+  note.hidden = true; // the owner's choice (2026-11-26): no notice bar; the badge's tooltip keeps the risk sentence
   note.replaceChildren(...(NET.testnet ? [] : [networkBadge(document, { lang, net: NET })]));
   const faucetOn = hasFeature(NET, 'faucet');
   $('faucet-form').hidden = !faucetOn;
