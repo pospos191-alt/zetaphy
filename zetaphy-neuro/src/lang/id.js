@@ -203,6 +203,10 @@ export const T = {
       'no-override': 'RPC publik tidak mengizinkan simulasi perdagangan (state override), jadi uji beli dan jual tidak dijalankan.',
       'buy-failed': `Simulasi pembelian lewat ${p.dex} gagal, jadi penjualan tidak bisa diuji. Perdagangan mungkin belum dibuka, atau token menolak pembelian dari kontrak.`,
     })[p.why] ?? 'Simulasi perdagangan tidak bisa dijalankan, jadi pembelian dan penjualan tidak diuji.',
+    // Pool liquidity tokens (src/liquidity.js)
+    'lp-owner': (p) => `Pemilik token (${p.owner}) memegang ${p.share}% token likuiditas pool ${p.dex}, sehingga dapat menarik bagian likuiditas itu dari pool kapan saja. Jika ditarik, pemegang mungkin tidak bisa menjual.`,
+    'lp-burned': (p) => `${p.share}% token likuiditas pool ${p.dex} sudah dibakar (dikirim ke alamat yang tidak bisa dipakai siapa pun), jadi likuiditas itu tidak akan pernah bisa ditarik.`,
+    'lp-not-burned': (p) => `Hanya ${p.share}% token likuiditas pool ${p.dex} yang dibakar. Sisanya ada di tempat lain, di kontrak kunci atau di dompet (Neuro tidak memeriksa yang mana); siapa pun yang memegangnya bisa menarik likuiditas itu.`,
     // CosmWasm (Osmosis, Neutron)
     'cw-not-found': () => 'Tidak ada kontrak atau token di alamat ini di jaringan ini. Mungkin salah ketik, atau jaringan yang dipilih salah.',
     'cw20-token': (p) => `Token CW20 (kontrak Rust di CosmWasm) "${p.name ?? '?'}" (${p.symbol ?? '?'}), total pasokan ${fmtSupply(p.totalSupply, p.decimals)}.`,

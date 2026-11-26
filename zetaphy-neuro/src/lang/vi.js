@@ -203,6 +203,10 @@ export const T = {
       'no-override': 'RPC công khai không cho phép mô phỏng giao dịch (state override), nên chưa thử mua bán.',
       'buy-failed': `Mô phỏng mua qua ${p.dex} thất bại, nên không thử bán được. Có thể giao dịch chưa được mở, hoặc token từ chối lệnh mua từ hợp đồng.`,
     })[p.why] ?? 'Không chạy được mô phỏng giao dịch, nên chưa thử mua và bán.',
+    // Pool liquidity tokens (src/liquidity.js)
+    'lp-owner': (p) => `Chủ sở hữu token (${p.owner}) giữ ${p.share}% token thanh khoản của pool ${p.dex}, nên có thể rút phần thanh khoản đó khỏi pool bất cứ lúc nào. Nếu rút, người nắm giữ có thể không bán được.`,
+    'lp-burned': (p) => `${p.share}% token thanh khoản của pool ${p.dex} đã bị đốt (gửi tới địa chỉ không ai dùng được), nên phần thanh khoản đó không bao giờ rút ra được.`,
+    'lp-not-burned': (p) => `Chỉ ${p.share}% token thanh khoản của pool ${p.dex} bị đốt. Phần còn lại nằm ở nơi khác, trong hợp đồng khóa hoặc một ví (Neuro không kiểm tra là cái nào); ai giữ thì có thể rút phần thanh khoản đó.`,
     // CosmWasm (Osmosis, Neutron)
     'cw-not-found': () => 'Không có hợp đồng hay token nào tại địa chỉ này trên chuỗi này. Có thể bạn đã nhập sai, hoặc đã chọn sai chuỗi.',
     'cw20-token': (p) => `Token CW20 (hợp đồng Rust trên CosmWasm) "${p.name ?? '?'}" (${p.symbol ?? '?'}), tổng cung ${fmtSupply(p.totalSupply, p.decimals)}.`,

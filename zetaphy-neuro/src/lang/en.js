@@ -203,6 +203,10 @@ export const T = {
       'no-override': 'The public RPC did not allow a simulated trade (state override), so no test buy and sell was run.',
       'buy-failed': `A simulated buy through ${p.dex} failed, so selling could not be tested. Trading may not be open yet, or the token may refuse buys from contracts.`,
     })[p.why] ?? 'The simulated trade could not be run, so buying and selling were not tested.',
+    // Pool liquidity tokens (src/liquidity.js)
+    'lp-owner': (p) => `The token's owner (${p.owner}) holds ${p.share}% of the ${p.dex} pool's liquidity tokens, so it can take that share of the liquidity out of the pool at any time. If it does, holders may be unable to sell.`,
+    'lp-burned': (p) => `${p.share}% of the ${p.dex} pool's liquidity tokens are burned (sent to an address nobody can spend from), so that liquidity can never be withdrawn.`,
+    'lp-not-burned': (p) => `Only ${p.share}% of the ${p.dex} pool's liquidity tokens are burned. The rest is held elsewhere, in a lock contract or a wallet (Neuro does not check which); whoever holds it can withdraw that liquidity.`,
     // CosmWasm (Osmosis, Neutron)
     'cw-not-found': () => 'No contract or token at this address on this chain. It may be mistyped, or the wrong chain is selected.',
     'cw20-token': (p) => `CW20 token (a Rust contract on CosmWasm) "${p.name ?? '?'}" (${p.symbol ?? '?'}), total supply ${fmtSupply(p.totalSupply, p.decimals)}.`,

@@ -203,6 +203,10 @@ export const T = {
       'no-override': '공개 RPC가 거래 시뮬레이션(state override)을 허용하지 않아 사고파는 테스트를 하지 않았습니다.',
       'buy-failed': `${p.dex}에서 구매 시뮬레이션이 실패해 판매를 테스트하지 못했습니다. 아직 거래가 열리지 않았거나, 토큰이 컨트랙트의 구매를 거부할 수 있습니다.`,
     })[p.why] ?? '거래 시뮬레이션을 실행하지 못해 구매와 판매를 테스트하지 않았습니다.',
+    // Pool liquidity tokens (src/liquidity.js)
+    'lp-owner': (p) => `토큰 소유자(${p.owner})가 ${p.dex} 풀 유동성 토큰의 ${p.share}%를 가지고 있어, 언제든 그만큼의 유동성을 풀에서 뺄 수 있습니다. 그러면 보유자가 팔지 못할 수 있습니다.`,
+    'lp-burned': (p) => `${p.dex} 풀 유동성 토큰의 ${p.share}%가 소각되었습니다(아무도 쓸 수 없는 주소로 보냄). 그 유동성은 영원히 뺄 수 없습니다.`,
+    'lp-not-burned': (p) => `${p.dex} 풀 유동성 토큰 중 ${p.share}%만 소각되었습니다. 나머지는 잠금 컨트랙트나 지갑 등 다른 곳에 있으며(Neuro는 어느 쪽인지 확인하지 않음), 가진 사람이 그 유동성을 뺄 수 있습니다.`,
     // CosmWasm (Osmosis, Neutron)
     'cw-not-found': () => '이 체인의 이 주소에는 컨트랙트나 토큰이 없습니다. 주소를 잘못 입력했거나 체인을 잘못 선택했을 수 있습니다.',
     'cw20-token': (p) => `CW20 토큰(CosmWasm의 Rust 컨트랙트) "${p.name ?? '?'}" (${p.symbol ?? '?'}), 총 발행량 ${fmtSupply(p.totalSupply, p.decimals)}개입니다.`,
