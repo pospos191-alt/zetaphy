@@ -1,0 +1,102 @@
+# Neuro's public token reports (https://neuro.sawasdeecoin.com/reports/): every 6 hours, read the new and trending
+# tokens GeckoTerminal lists on Ethereum, BNB Chain, Base and Arbitrum with Neuro's rules (src/reader.js, the same code
+# as the website) and publish one static page per token in 9 languages, with a sitemap for search engines.
+#
+#   1. zetaphy-neuro/scripts/build-reports.js run: up to 120 new tokens and 40 week-old re-checks a run, at most 1,200
+#      tokens kept (the most recently listed). It starts from the previous run's store.json, so pages persist.
+#   2. The result (store.json + reports/) is pushed (force, one commit) to the `neuro-reports` branch: the deploy's
+#      source and a public copy. main gets no generated commits.
+#   3. It starts cf-pages.yml for neuro; its deploy job copies reports/ from `neuro-reports` into the site after
+#      `build-reports.js check` (only the expected files, known chains, bounded sizes).
+#
+# Free: a GitHub-hosted runner (~10-20 minutes a run), GeckoTerminal's free API (8 calls a run), public RPCs, the
+# repository and Cloudflare Pages' free plan (static files). No secret of its own. Scheduled workflows run on the
+# default branch only. Docs: zetaphy-neuro/README.md (Public token reports).
+
+name: neuro-reports
+
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      max_new:
+        description: "New tokens to read this run (default 120)"
+        required: false
+        default: '120'
+      deploy:
+        description: "Start the Neuro deploy afterwards (cf-pages.yml)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # the neuro-reports branch only
+  actions: write    # start cf-pages.yml (workflow_dispatch)
+
+concurrency:
+  group: neuro-reports
+  cancel-in-progress: false
+
+jobs:
+  reports:
+    name: Read new tokens and publish the reports
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: zetaphy-neuro
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: "Install (Neuro's pinned dependencies, for the trade simulation's EVM)"
+        run: npm ci --no-audit --no-fund --prefix zetaphy-neuro
+
+      - name: Unit tests of the report builder
+        run: cd zetaphy-neuro && node --test test/reports.test.js
+
+      - name: The previous run's store
+        run: |
+          mkdir -p "$RUNNER_TEMP/prev"
+          if git fetch -q --depth=1 origin neuro-reports 2>/dev/null && git show FETCH_HEAD:store.json > "$RUNNER_TEMP/prev/store.json"; then
+            echo "previous store: $(jq '.entries | length' "$RUNNER_TEMP/prev/store.json") tokens"
+          else
+            echo "no previous store: starting empty"; rm -f "$RUNNER_TEMP/prev/store.json"
+          fi
+
+      - name: Read and render
+        env:
+          MAX_NEW: ${{ inputs.max_new }}
+        run: |
+          set -o pipefail
+          n="${MAX_NEW:-120}"
+          [[ "$n" =~ ^[0-9]{1,4}$ ]] || { echo "::error::max_new must be a number"; exit 1; }
+          node zetaphy-neuro/scripts/build-reports.js run --out "$RUNNER_TEMP/out" --store "$RUNNER_TEMP/prev/store.json" --max-new "$n" | tee "$RUNNER_TEMP/log.txt"
+          node zetaphy-neuro/scripts/build-reports.js check "$RUNNER_TEMP/out"
+          { echo "### Neuro token reports"; grep -E '^(listed|wrote)' "$RUNNER_TEMP/log.txt"; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to the neuro-reports branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cd "$RUNNER_TEMP/out"
+          git init -q -b neuro-reports
+          git config user.name "neuro-reports[bot]"
+          git config user.email "neuro-reports@users.noreply.github.com"
+          printf '# Neuro token reports\n\nGenerated every 6 hours by .github/workflows/neuro-reports.yml (zetaphy-neuro/scripts/build-reports.js). The Neuro deploy (cf-pages.yml) serves reports/ at https://neuro.sawasdeecoin.com/reports/.\n' > README.md
+          git add -A
+          git commit -q -m "neuro reports: $(jq '.entries | length' store.json) tokens"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" neuro-reports
+
+      - name: Deploy Neuro with them (cf-pages.yml)
+        if: github.event_name == 'schedule' || inputs.deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run cf-pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f sites=neuro

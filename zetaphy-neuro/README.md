@@ -448,6 +448,33 @@ Where it runs, with no always-on server:
    and numbers. Until 2026-11-01 (ZETAPHY RPC paused), or while the RPC is down, it prints one line and succeeds.
    `npm run scan-pools -- --dry-run` shows what it would open
 
+## Public token reports (`scripts/build-reports.js`)
+
+One static page per token at `https://neuro.sawasdeecoin.com/reports/<chain>/<address>/`, in all 9 languages
+(`en` is `index.html`, the others `<lang>.html`, linked with `hreflang`), so that someone searching "is <token>
+safe?" finds Neuro's reproducible check, and through it ZETAPHY.
+
+- **Which tokens:** every 6 hours (`.github/workflows/neuro-reports.yml`) the new and trending pools GeckoTerminal's
+  free API lists on Ethereum, BNB Chain, Base and Arbitrum; the side of the pool that is not a known coin. Up to 120
+  new tokens and 40 week-old re-checks a run, at most 1,200 kept (the most recently listed).
+- **Same check as the website:** `src/reader.js` with the trade simulation and the LP check. Each page shows the date
+  it was read, says it is a snapshot, links the live check (`/web/?chain=…&address=…`), the disclaimer and how to ask
+  for a correction (`/web/legal.html`).
+- **Never published:** a token whose name or symbol carries a link or "claim / airdrop / reward" wording (it would
+  advertise phishing), an address with no code or no ERC-20 functions. Names are cleaned (no control or bidi
+  characters) and escaped.
+- **Badge:** `/reports/<chain>/<address>/badge.svg`; each page shows the HTML for a site to embed it (it links back).
+- **Search engines:** `/reports/sitemap.xml` (every page, `lastmod`), named in `robots.txt` (`zetaphy-hub/seo.mjs`).
+- **Where it lives:** the `neuro-reports` branch (`store.json` + `reports/`); `cf-pages.yml` copies `reports/` into
+  the Neuro site after `node scripts/build-reports.js check` (only the files the builder writes, known chains,
+  bounded sizes). Nothing in `src/` changes, so the skill id (`src/skill.js`) does not either.
+
+```
+node scripts/build-reports.js run --out /tmp/r [--store old/store.json]   # reads the chains, writes /tmp/r/reports
+node scripts/build-reports.js render --out /tmp/r --store /tmp/r/store.json
+node scripts/build-reports.js check /tmp/r
+```
+
 ## Tests
 
 ```bash

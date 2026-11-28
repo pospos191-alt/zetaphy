@@ -121,7 +121,8 @@ test('logo and ZTPHY for search engines: the Organization logo on the home and a
     assert.match(html, /<section id="team">[\s\S]*<b>Mr\.poterposter<\/b>[\s\S]*href="https:\/\/x\.com\/SWD_SAWASDEE"[\s\S]*href="https:\/\/github\.com\/pospos191-alt"[\s\S]*<\/section>/, `${l}: the team section`);
   }
   const state = JSON.parse(readFileSync(join(ROOT, 'zetaphy-chain', 'hyperlane', 'mainnet', 'saphan-mainnet-state.json'), 'utf8'));
-  assert.deepEqual(ZTPHY_CONTRACTS.map((t) => t.address), [state.steps['bsc-synthetic'].synthetic]);
+  // one entry per Saphan route deployed, at the address the deploy recorded
+  assert.deepEqual(ZTPHY_CONTRACTS.map((t) => [t.chainId, t.address]), [[56, state.steps['bsc-synthetic'].synthetic], [8453, state.steps['base-synthetic'].synthetic]]);
   const { BSC_ZTPHY } = await import('../got-ztphy-core.js');
   assert.equal(ZTPHY_CONTRACTS[0].address, BSC_ZTPHY.address);
   const txt = llmsTxt();

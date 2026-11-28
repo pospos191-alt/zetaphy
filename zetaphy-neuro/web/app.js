@@ -49,11 +49,16 @@ for (const [code, L] of Object.entries(LANGS)) $('lang').add(new Option(L.NAME, 
 const setPlaceholder = () => { $('address').placeholder = FORMAT[kindOf($('chain').value)].placeholder; };
 $('chain').addEventListener('change', setPlaceholder);
 
+const REPORTS_LABEL = { en: 'Latest token checks', th: 'ผลตรวจเหรียญล่าสุด', zh: '最新代币检查', es: 'Últimas revisiones de tokens', ko: '최신 토큰 검사', ja: '最新のトークンチェック', ru: 'Последние проверки токенов', vi: 'Kiểm tra token mới nhất', id: 'Pemeriksaan token terbaru' };
+
 function applyLang() {
   document.documentElement.lang = lang;
   $('lang').value = lang;
   const ui = uiText(lang);
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = ui[el.dataset.i18n];
+  // the public token reports (/reports/, scripts/build-reports.js): their own words, kept out of src/ (the skill id)
+  const rl = $('reports-link');
+  if (rl) { rl.textContent = REPORTS_LABEL[lang] ?? REPORTS_LABEL.en; rl.href = `https://neuro.sawasdeecoin.com/reports/${lang === 'en' ? '' : `${lang}.html`}`; }
   renderCounts();
   renderChainStats(lang);
   $('net-badge')?.replaceChildren(networkBadge(document, { lang, net: NET }));

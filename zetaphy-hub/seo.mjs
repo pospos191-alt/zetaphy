@@ -48,7 +48,7 @@ export const INDEXNOW_KEY = '064679038019a2fde97fc74c5983f6aa';
 
 /** Static sites other than the hub: folder served at the site's root, and its pages. */
 export const SITES = {
-  neuro: { dir: 'zetaphy-neuro', pages: ['/web/', '/web/stats.html'] },
+  neuro: { dir: 'zetaphy-neuro', pages: ['/web/', '/web/stats.html', '/reports/'], sitemaps: ['/reports/sitemap.xml'] },
   swap: { dir: 'zetaphy-dex/web', pages: ['/'] },
   wallet: { dir: 'zetaphy-wallet', pages: ['/'] },
   nft: { dir: 'zetaphy-nft/web', pages: ['/'] },
@@ -57,7 +57,10 @@ export const SITES = {
 
 /** The ZTPHY token contracts on other chains (the Saphan routes deployed; test/seo.test.mjs checks them against
  *  zetaphy-chain/hyperlane/mainnet/saphan-mainnet-state.json). */
-export const ZTPHY_CONTRACTS = [{ chain: 'BNB Smart Chain', chainId: 56, address: '0x68aa0f0144605024eCe1aDccFCC1626352779569', explorer: 'https://bscscan.com/token/0x68aa0f0144605024eCe1aDccFCC1626352779569' }];
+export const ZTPHY_CONTRACTS = [
+  { chain: 'BNB Smart Chain', chainId: 56, address: '0x68aa0f0144605024eCe1aDccFCC1626352779569', explorer: 'https://bscscan.com/token/0x68aa0f0144605024eCe1aDccFCC1626352779569' },
+  { chain: 'Base', chainId: 8453, address: '0x68aa0f0144605024eCe1aDccFCC1626352779569', explorer: 'https://basescan.org/token/0x68aa0f0144605024eCe1aDccFCC1626352779569' },
+];
 
 /** Who publishes every ZETAPHY site, with the logo search engines show next to results (Organization, schema.org). */
 export const orgLd = () => ({
@@ -122,7 +125,8 @@ ${f.steps.map((t, i) => `<li><span class="n">${i + 1}</span>${icon(FLOW_ICONS[i]
 </ol>
 </figure>`;
 
-export const robotsTxt = (origin) => `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`;
+/** robots.txt; `more`: other sitemaps of the site (Neuro's token reports: /reports/sitemap.xml, scripts/build-reports.js). */
+export const robotsTxt = (origin, more = []) => `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n${more.map((p) => `Sitemap: ${origin}${p}\n`).join('')}`;
 
 /** sitemap.xml; `alternates`: {path: [[hreflang, path], …]} for pages in several languages. */
 export function sitemapXml(origin, pages, alternates = {}) {
@@ -233,7 +237,7 @@ export function hubSeoFiles() {
 export function siteSeoFiles() {
   const out = {};
   for (const [k, s] of Object.entries(SITES)) {
-    out[`${s.dir}/robots.txt`] = robotsTxt(ORIGIN[k]);
+    out[`${s.dir}/robots.txt`] = robotsTxt(ORIGIN[k], s.sitemaps);
     out[`${s.dir}/sitemap.xml`] = sitemapXml(ORIGIN[k], s.pages);
     out[`${s.dir}/${INDEXNOW_KEY}.txt`] = INDEXNOW_KEY;
   }

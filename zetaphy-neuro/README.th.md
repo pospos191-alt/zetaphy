@@ -425,6 +425,31 @@ Hook ให้โมดูลอื่นเติม (`agent/hooks.js` ว่�
    ไม่เกิน 3 issue ต่อรอบและ 10 ต่อวัน ใน issue มีแค่ที่อยู่ แฮช id และตัวเลข ก่อน 2026-11-01 (RPC ของ ZETAPHY หยุดชั่วคราว) หรือตอน RPC ล่ม
    จะพิมพ์บรรทัดเดียวแล้วจบแบบสำเร็จ `npm run scan-pools -- --dry-run` ดูว่าจะเปิดอะไร
 
+## หน้าผลตรวจเหรียญสาธารณะ (`scripts/build-reports.js`)
+
+หน้าเว็บแบบ static หนึ่งหน้าต่อหนึ่งเหรียญ ที่ `https://neuro.sawasdeecoin.com/reports/<chain>/<address>/` ครบ 9 ภาษา
+(`en` คือ `index.html` ภาษาอื่นคือ `<lang>.html` เชื่อมกันด้วย `hreflang`) คนที่ค้นหาว่า "<เหรียญ> ปลอดภัยไหม"
+จะเจอผลตรวจของ Neuro ที่ใครก็ตรวจซ้ำได้ และจากหน้านั้นจะรู้จัก ZETAPHY
+
+- **เหรียญไหนบ้าง:** ทุก 6 ชั่วโมง (`.github/workflows/neuro-reports.yml`) อ่าน pool ใหม่และ pool ที่กำลังมาแรงจาก API
+  ฟรีของ GeckoTerminal บน Ethereum, BNB Chain, Base และ Arbitrum แล้วเลือกฝั่งของ pool ที่ไม่ใช่เหรียญที่รู้จักอยู่แล้ว
+  แต่ละรอบตรวจเหรียญใหม่ได้สูงสุด 120 เหรียญ ตรวจซ้ำเหรียญที่ผลเก่ากว่า 1 สัปดาห์ 40 เหรียญ และเก็บไว้สูงสุด 1,200 เหรียญ (เหรียญที่ขึ้นรายชื่อล่าสุดก่อน)
+- **ตรวจแบบเดียวกับเว็บ:** ใช้ `src/reader.js` รวมการทดลองซื้อขายและการตรวจ LP ทุกหน้าแสดงวันที่ตรวจ บอกว่าเป็นผล ณ วันนั้น
+  มีลิงก์ไปตรวจสด (`/web/?chain=…&address=…`) ข้อความปฏิเสธความรับผิด และวิธีขอแก้ไข (`/web/legal.html`)
+- **ไม่เผยแพร่:** เหรียญที่ชื่อหรือสัญลักษณ์มีลิงก์ หรือมีคำว่า claim / airdrop / reward (จะกลายเป็นการโฆษณาเว็บหลอก)
+  และที่อยู่ที่ไม่มีโค้ดหรือไม่มีฟังก์ชัน ERC-20 ชื่อเหรียญจะถูกล้างอักขระควบคุมและอักขระกลับทิศ แล้ว escape ก่อนแสดง
+- **ป้าย:** `/reports/<chain>/<address>/badge.svg` ทุกหน้ามี HTML ให้เว็บอื่นคัดลอกไปติด และป้ายลิงก์กลับมาที่หน้านี้
+- **เครื่องมือค้นหา:** `/reports/sitemap.xml` (ทุกหน้า พร้อม `lastmod`) ประกาศไว้ใน `robots.txt` (`zetaphy-hub/seo.mjs`)
+- **เก็บที่ไหน:** branch `neuro-reports` (`store.json` + `reports/`) แล้ว `cf-pages.yml` คัดลอก `reports/` เข้าเว็บ Neuro
+  หลังผ่าน `node scripts/build-reports.js check` (ยอมรับเฉพาะไฟล์ที่ตัวสร้างเขียน เฉพาะเชนที่รู้จัก และขนาดไม่เกินที่กำหนด)
+  ไม่มีการแก้ `src/` ดังนั้น skill id (`src/skill.js`) ไม่เปลี่ยน
+
+```
+node scripts/build-reports.js run --out /tmp/r [--store old/store.json]   # อ่านเชน แล้วเขียน /tmp/r/reports
+node scripts/build-reports.js render --out /tmp/r --store /tmp/r/store.json
+node scripts/build-reports.js check /tmp/r
+```
+
 ## ทดสอบ
 
 ```bash
