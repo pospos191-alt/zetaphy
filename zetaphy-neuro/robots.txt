@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://neuro.sawasdeecoin.com/sitemap.xml
+Sitemap: https://neuro.sawasdeecoin.com/reports/sitemap.xml

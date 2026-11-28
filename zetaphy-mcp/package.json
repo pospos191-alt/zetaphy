@@ -1,0 +1,15 @@
+{
+  "name": "@zetaphy/mcp",
+  "version": "0.1.0",
+  "description": "ZETAPHY's Neuro for AI assistants (Model Context Protocol, stdio): token reports, ZETAPHY's on-chain threat flags, and checks requested on ZETAPHY mainnet. No dependencies besides @zetaphy/sdk.",
+  "type": "module",
+  "license": "BUSL-1.1",
+  "bin": { "zetaphy-mcp": "server.js" },
+  "main": "server.js",
+  "files": ["server.js", "README.md", "README.th.md"],
+  "dependencies": { "@zetaphy/sdk": "0.1.0" },
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "https://github.com/pospos191-alt/zetaphy", "directory": "zetaphy-mcp" },
+  "mcpName": "io.github.pospos191-alt/zetaphy-neuro",
+  "keywords": ["mcp", "model-context-protocol", "zetaphy", "neuro", "token", "scam", "honeypot", "security", "web3"]
+}

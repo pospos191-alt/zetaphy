@@ -127,6 +127,17 @@ jobs:
               echo "::warning::No valid holders snapshot on the holders-data branch: the explorer is deployed without /holders.json (run holders-snapshot.yml)."
             fi
           fi
+          # Neuro's public token reports (neuro-reports.yml pushes them to the neuro-reports branch): served at /reports/
+          # after build-reports.js check (only the files it writes); without them /reports/ is simply not there yet.
+          if [ "$SITE" = neuro ]; then
+            mkdir -p "$RUNNER_TEMP/nr"
+            if git fetch -q --depth=1 origin neuro-reports 2>/dev/null && git --work-tree="$RUNNER_TEMP/nr" checkout FETCH_HEAD -- reports \
+              && node zetaphy-neuro/scripts/build-reports.js check "$RUNNER_TEMP/nr"; then
+              cp -R "$RUNNER_TEMP/nr/reports" "$RUNNER_TEMP/site/reports"
+            else
+              echo "::warning::No valid reports on the neuro-reports branch: Neuro is deployed without /reports/ (run neuro-reports.yml)."
+            fi
+          fi
       - name: Deploy to Cloudflare Pages
         if: steps.creds.outputs.ok == '1'
         env:

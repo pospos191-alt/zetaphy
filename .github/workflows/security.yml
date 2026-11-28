@@ -161,9 +161,9 @@ jobs:
           out program '^(programs/|tests/|security/|scripts/|Anchor\.toml$|Cargo\.(toml|lock)$|package\.json$|yarn\.lock$|tsconfig\.json$)'
           out audit '^(programs/|security/|Cargo\.(toml|lock)$)'
           out ui '^(test-ui/|programs/swd_amm/src/)'
-          out neuro '^zetaphy-neuro/'
+          out neuro '^(zetaphy-neuro/|zetaphy-extension/)'
           out verify '^(zetaphy-verify/|zetaphy-neuro/src/)'
-          out network '^(zetaphy-network/|zetaphy-sdk/|zetaphy-neuro/src/|zetaphy-chain/horcrux/|zetaphy-chain/join-validator\.sh$|zetaphy-chain/gov\.sh$)'
+          out network '^(zetaphy-network/|zetaphy-sdk/|zetaphy-mcp/|zetaphy-neuro/src/|zetaphy-chain/horcrux/|zetaphy-chain/join-validator\.sh$|zetaphy-chain/gov\.sh$)'
           out wallet '^(zetaphy-wallet/|zetaphy-network/src/(pqtx|pqcert|vaccine)\.js$|zetaphy-neuro/src/(fingerprint|bytecode)\.js$|zetaphy-chain/wallets/)'
           out explorer '^(zetaphy-explorer/|zetaphy-network/src/((pqcert|pqtx|vaccine)\.js|starklc/.*)$)'
           out dex '^(zetaphy-dex/|zetaphy-network/(src/vaccine\.js|artifacts/ThreatRegistry\.json)$)'
@@ -260,6 +260,14 @@ jobs:
 
       - name: Browser test (web page, RPC answered locally)
         run: npm run test:web
+
+      - name: Neuro Guard extension (static checks + unit tests)
+        working-directory: zetaphy-extension
+        run: npm test
+
+      - name: Neuro Guard extension in Chromium (sites and summary.json served locally)
+        working-directory: zetaphy-extension
+        run: node test/e2e.playwright.mjs
 
   zetaphy-verify:
     name: zetaphy-verify (unit tests)
