@@ -225,6 +225,13 @@ export function sitemap(entries) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, d]) => `<url><loc>${ORIGIN}${p}</loc>${d ? `<lastmod>${d}</lastmod>` : ''}</url>`).join('\n')}\n</urlset>\n`;
 }
 
+/** A token's result as data (the browser extension and other tools read it; English and Thai wording, no HTML). */
+export function summaryJson(e) {
+  const words = (l) => { const x = explain({ analysis: e.analysis }, l); return { title: x.title, lines: x.lines.filter((y) => y.severity !== 'info').slice(0, 5).map((y) => ({ severity: y.severity, text: y.text })) }; };
+  return JSON.stringify({ version: 1, chain: e.chain, address: e.address, symbol: e.token.symbol, name: e.token.name, level: levelOf(e), checkedAt: e.checkedAt,
+    page: `${ORIGIN}${pagePath(e.chain, e.address)}`, live: `${ORIGIN}/web/?chain=${e.chain}&address=${e.address}`, en: words('en'), th: words('th') }) + '\n';
+}
+
 /** An Atom feed of the latest checks (English): feed readers, news sites and bots pick new reports up from it. */
 export function atomFeed(entries, { max = 100 } = {}) {
   const list = [...entries].sort((a, b) => b.checkedAt.localeCompare(a.checkedAt)).slice(0, max);
@@ -249,7 +256,7 @@ export function renderAll(store) {
     for (const c of [...new Set(entries.map((e) => e.chain))]) files[`reports/${c}/${suffix}`] = indexPage(byDate.filter((e) => e.chain === c).slice(0, 500), l, c);
     for (const e of entries) files[`reports/${e.chain}/${e.address}/${suffix}`] = reportPage(e, l);
   }
-  for (const e of entries) files[`reports/${e.chain}/${e.address}/badge.svg`] = badgeSvg(e);
+  for (const e of entries) { files[`reports/${e.chain}/${e.address}/badge.svg`] = badgeSvg(e); files[`reports/${e.chain}/${e.address}/summary.json`] = summaryJson(e); }
   files['reports/sitemap.xml'] = sitemap(entries);
   files['reports/feed.xml'] = atomFeed(entries);
   return files;
@@ -259,7 +266,7 @@ export function renderAll(store) {
 export function checkDir(dir, { maxFiles = 15000, maxBytes = 400_000 } = {}) {
   const root = join(dir, 'reports');
   if (!existsSync(root)) throw new Error(`${root}: missing`);
-  const ok = /^reports\/(?:(?:index|[a-z]{2})\.html|sitemap\.xml|feed\.xml|[a-z]+\/(?:index|[a-z]{2})\.html|[a-z]+\/0x[0-9a-f]{40}\/(?:(?:index|[a-z]{2})\.html|badge\.svg))$/;
+  const ok = /^reports\/(?:(?:index|[a-z]{2})\.html|sitemap\.xml|feed\.xml|[a-z]+\/(?:index|[a-z]{2})\.html|[a-z]+\/0x[0-9a-f]{40}\/(?:(?:index|[a-z]{2})\.html|badge\.svg|summary\.json))$/;
   let n = 0;
   const walk = (d) => {
     for (const f of readdirSync(d)) {

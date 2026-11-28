@@ -464,6 +464,8 @@ safe?" finds Neuro's reproducible check, and through it ZETAPHY.
   advertise phishing), an address with no code or no ERC-20 functions. Names are cleaned (no control or bidi
   characters) and escaped.
 - **Badge:** `/reports/<chain>/<address>/badge.svg`; each page shows the HTML for a site to embed it (it links back).
+- **Data:** `/reports/<chain>/<address>/summary.json` (level, date, links, the main lines in English and Thai) for
+  tools such as the browser extension.
 - **Feed:** `/reports/feed.xml` (Atom, the latest 100 checks in English) for feed readers, news sites and bots.
 - **Search engines:** `/reports/sitemap.xml` (every page, `lastmod`), named in `robots.txt` (`zetaphy-hub/seo.mjs`).
 - **Where it lives:** the `neuro-reports` branch (`store.json` + `reports/`); `cf-pages.yml` copies `reports/` into

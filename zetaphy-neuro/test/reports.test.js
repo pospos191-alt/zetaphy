@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   geckoTokens, publishable, slim, mergeStore, reportPage, indexPage, badgeSvg, sitemap, renderAll, checkDir, clean, esc,
-  pagePath, LANG_ORDER, TEXT, GECKO, candidates, atomFeed,
+  pagePath, LANG_ORDER, TEXT, GECKO, candidates, atomFeed, summaryJson,
 } from '../scripts/build-reports.js';
 import { LANGS } from '../src/explain.js';
 
@@ -163,4 +163,16 @@ test('atomFeed: the latest checks, newest first, escaped, each linking its page;
   assert.equal((atomFeed(es, { max: 1 }).match(/<entry>/g) ?? []).length, 1);
   assert.ok(indexPage(es, 'en').includes('type="application/atom+xml"'));
   assert.ok(renderAll({ entries: es })['reports/feed.xml'].startsWith('<?xml'));
+});
+
+test('summaryJson: the result as plain data for tools (level, date, links, English and Thai lines), no HTML', () => {
+  const j = JSON.parse(summaryJson(entry({ token: { name: '<i>', symbol: 'GOOD' } })));
+  assert.equal(j.level, 'high');
+  assert.equal(j.address, A);
+  assert.equal(j.page, `https://neuro.sawasdeecoin.com${pagePath('bsc', A)}`);
+  assert.equal(j.live, `https://neuro.sawasdeecoin.com/web/?chain=bsc&address=${A}`);
+  assert.equal(j.en.title, LANGS.en.LEVEL.high);
+  assert.equal(j.th.title, LANGS.th.LEVEL.high);
+  assert.ok(j.en.lines.length > 0 && j.en.lines.every((l) => l.severity !== 'info'));
+  assert.ok(renderAll({ entries: [entry()] })[`reports/bsc/${A}/summary.json`]);
 });
