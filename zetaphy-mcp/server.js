@@ -67,13 +67,26 @@ async function getJson(url, fetchImpl) {
   return r.json();
 }
 
+/** The text between `open` and the next `close` in s, from `from` (indexOf only: linear time on any input). */
+function between(s, open, close, from = 0) {
+  const a = s.indexOf(open, from);
+  if (a < 0) return null;
+  const b = s.indexOf(close, a + open.length);
+  return b < 0 ? null : { text: s.slice(a + open.length, b), end: b + close.length };
+}
+const MAX_FEED = 2_000_000;
+
 /** Atom entries of Neuro's feed (its own fixed format: title, link, updated, summary, category). */
 export function parseFeed(xml) {
-  const un = (s) => String(s ?? '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-  return [...String(xml).matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, e]) => ({
-    title: un(/<title>([\s\S]*?)<\/title>/.exec(e)?.[1]), link: un(/<link href="([^"]+)"/.exec(e)?.[1]),
-    updated: /<updated>([^<]+)<\/updated>/.exec(e)?.[1], level: /<category term="([a-z]+)"/.exec(e)?.[1], summary: un(/<summary>([\s\S]*?)<\/summary>/.exec(e)?.[1]),
-  })).filter((x) => x.link?.startsWith(`${NEURO}/reports/`));
+  const s = String(xml).slice(0, MAX_FEED);
+  const un = (t) => String(t ?? '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  const out = [];
+  for (let at = 0, e; (e = between(s, '<entry>', '</entry>', at)); at = e.end) {
+    const x = e.text;
+    const f = (o, c) => between(x, o, c)?.text;
+    out.push({ title: un(f('<title>', '</title>')), link: un(f('<link href="', '"')), updated: f('<updated>', '</updated>'), level: f('<category term="', '"'), summary: un(f('<summary>', '</summary>')) });
+  }
+  return out.filter((x) => x.link?.startsWith(`${NEURO}/reports/`) && /^[a-z]{1,10}$/.test(x.level ?? ''));
 }
 
 /** Runs one tool: { text, data }. `deps` lets tests replace the network. */
