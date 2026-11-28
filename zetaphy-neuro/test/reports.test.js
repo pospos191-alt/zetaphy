@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   geckoTokens, publishable, slim, mergeStore, reportPage, indexPage, badgeSvg, sitemap, renderAll, checkDir, clean, esc,
-  pagePath, LANG_ORDER, TEXT, GECKO, candidates,
+  pagePath, LANG_ORDER, TEXT, GECKO, candidates, atomFeed,
 } from '../scripts/build-reports.js';
 import { LANGS } from '../src/explain.js';
 
@@ -149,4 +149,18 @@ test('the checker links to the reports in every language with the same words (we
   assert.deepEqual(Object.keys(labels).sort(), [...LANG_ORDER].sort());
   for (const l of LANG_ORDER) assert.equal(labels[l], TEXT[l].latest, l);
   assert.match(readFileSync(new URL('../web/index.html', import.meta.url), 'utf8'), /<a id="reports-link" href="https:\/\/neuro\.sawasdeecoin\.com\/reports\/">/);
+});
+
+test('atomFeed: the latest checks, newest first, escaped, each linking its page; the indexes announce it', () => {
+  const es = [entry({ checkedAt: '2026-11-01T00:00:00.000Z' }), entry({ address: B, token: { name: 'x', symbol: '<b>&' }, checkedAt: '2026-11-28T00:00:00.000Z' })];
+  const xml = atomFeed(es);
+  assert.match(xml, /^<\?xml version="1.0" encoding="utf-8"\?>\n<feed xmlns="http:\/\/www.w3.org\/2005\/Atom">/);
+  assert.equal((xml.match(/<entry>/g) ?? []).length, 2);
+  assert.ok(xml.indexOf(B) < xml.indexOf(A), 'newest first');
+  assert.ok(xml.includes('&lt;b&gt;&amp;') && !xml.includes('<b>&'), 'contract text escaped');
+  assert.ok(xml.includes(`<link href="https://neuro.sawasdeecoin.com${pagePath('bsc', A)}"/>`));
+  assert.ok(xml.includes('<updated>2026-11-28T00:00:00.000Z</updated>'));
+  assert.equal((atomFeed(es, { max: 1 }).match(/<entry>/g) ?? []).length, 1);
+  assert.ok(indexPage(es, 'en').includes('type="application/atom+xml"'));
+  assert.ok(renderAll({ entries: es })['reports/feed.xml'].startsWith('<?xml'));
 });

@@ -112,7 +112,7 @@ const levelOf = (e) => (LEVELS.includes(e.analysis?.level) ? e.analysis.level : 
 const levelName = (e, l) => (LANGS[l] ?? LANGS.en).LEVEL?.[levelOf(e)] ?? LANGS.en.LEVEL[levelOf(e)];
 const chainName = (c) => CHAINS[c]?.name ?? c;
 
-function head({ lang, title, description, path, alternates, ld }) {
+function head({ lang, title, description, path, alternates, ld, feed = false }) {
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -132,7 +132,7 @@ ${(alternates ?? []).map(([l, p]) => `<link rel="alternate" hreflang="${l}" href
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/web/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/web/report.css">
-${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>\n` : ''}</head>`;
+${feed ? `<link rel="alternate" type="application/atom+xml" title="Neuro token checks" href="${ORIGIN}/reports/feed.xml">\n` : ''}${ld ? `<script type="application/ld+json">${JSON.stringify(ld).replace(/</g, '\\u003c')}</script>\n` : ''}</head>`;
 }
 
 const langNav = (cur, hrefOf) => `<nav class="langs" aria-label="Language">${LANG_ORDER.map((l) => (l === cur ? `<b>${LANG_NAME[l]}</b>` : `<a href="${hrefOf(l)}" hreflang="${l}" lang="${l}">${LANG_NAME[l]}</a>`)).join(' ')}</nav>`;
@@ -197,10 +197,10 @@ export function indexPage(entries, lang = 'en', chain = null) {
   const alternates = [...LANG_ORDER.map((l) => [l, `${base}${l === 'en' ? '' : `${l}.html`}`]), ['x-default', base]];
   const chains = [...new Set(entries.map((e) => e.chain))].sort();
   const rows = entries.map((e) => `<tr><td><a href="${pagePath(e.chain, e.address, lang)}">${esc(e.token.symbol || '?')}</a> <span class="muted">${esc(e.token.name)}</span></td><td>${esc(chainName(e.chain))}</td><td class="lv-${levelOf(e)}">${esc(levelName(e, lang))}</td><td>${esc(dateOf(e.checkedAt))}</td></tr>`).join('\n');
-  return `${head({ lang, title: `${h} | Neuro by ZETAPHY`, description: `${h}: ${entries.length} · ${t.about}`, path, alternates })}
+  return `${head({ lang, title: `${h} | Neuro by ZETAPHY`, description: `${h}: ${entries.length} · ${t.about}`, path, alternates, feed: true })}
 ${top(lang, langNav(lang, (l) => `${base}${l === 'en' ? '' : `${l}.html`}`))}
 <h1>${esc(h)}</h1>
-<p class="chains">${chain ? `<a href="/reports/${lang === 'en' ? '' : `${lang}.html`}">${esc(t.all)}</a> · ` : ''}${chains.filter((c) => c !== chain).map((c) => `<a href="/reports/${c}/${lang === 'en' ? '' : `${lang}.html`}">${esc(chainName(c))}</a>`).join(' · ')}</p>
+<p class="chains"><a href="/reports/feed.xml">RSS</a> · ${chain ? `<a href="/reports/${lang === 'en' ? '' : `${lang}.html`}">${esc(t.all)}</a> · ` : ''}${chains.filter((c) => c !== chain).map((c) => `<a href="/reports/${c}/${lang === 'en' ? '' : `${lang}.html`}">${esc(chainName(c))}</a>`).join(' · ')}</p>
 <div class="tbl"><table><thead><tr><th>${esc(t.token)}</th><th>Chain</th><th>${esc(t.result)}</th><th>${esc(t.date)}</th></tr></thead>
 <tbody>
 ${rows}
@@ -225,6 +225,19 @@ export function sitemap(entries) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, d]) => `<url><loc>${ORIGIN}${p}</loc>${d ? `<lastmod>${d}</lastmod>` : ''}</url>`).join('\n')}\n</urlset>\n`;
 }
 
+/** An Atom feed of the latest checks (English): feed readers, news sites and bots pick new reports up from it. */
+export function atomFeed(entries, { max = 100 } = {}) {
+  const list = [...entries].sort((a, b) => b.checkedAt.localeCompare(a.checkedAt)).slice(0, max);
+  const updated = list[0]?.checkedAt ?? new Date(0).toISOString();
+  const item = (e) => {
+    const x = explain({ analysis: e.analysis }, 'en');
+    const url = `${ORIGIN}${pagePath(e.chain, e.address)}`;
+    const summary = clean(`${x.title}. ${x.lines.filter((l) => l.severity === 'high' || l.severity === 'medium').slice(0, 3).map((l) => l.text).join(' ')}`, 500);
+    return `<entry><title>${esc(`${e.token.symbol || '?'} on ${chainName(e.chain)}: ${x.title}`)}</title><link href="${url}"/><id>${url}#${esc(e.checkedAt)}</id><updated>${esc(e.checkedAt)}</updated><summary>${esc(summary)}</summary><category term="${levelOf(e)}"/></entry>`;
+  };
+  return `<?xml version="1.0" encoding="utf-8"?>\n<feed xmlns="http://www.w3.org/2005/Atom"><title>Neuro token checks (ZETAPHY)</title><subtitle>${esc(TEXT.en.about)}</subtitle><link href="${ORIGIN}/reports/feed.xml" rel="self"/><link href="${ORIGIN}/reports/"/><id>${ORIGIN}/reports/</id><updated>${esc(updated)}</updated><author><name>Neuro by ZETAPHY</name><uri>${HUB}/</uri></author>\n${list.map(item).join('\n')}\n</feed>\n`;
+}
+
 /** {path under the output dir: content} for every page. */
 export function renderAll(store) {
   const entries = store.entries.filter((e) => CHAINS[e.chain] && isAddress(e.address));
@@ -238,6 +251,7 @@ export function renderAll(store) {
   }
   for (const e of entries) files[`reports/${e.chain}/${e.address}/badge.svg`] = badgeSvg(e);
   files['reports/sitemap.xml'] = sitemap(entries);
+  files['reports/feed.xml'] = atomFeed(entries);
   return files;
 }
 
@@ -245,7 +259,7 @@ export function renderAll(store) {
 export function checkDir(dir, { maxFiles = 15000, maxBytes = 400_000 } = {}) {
   const root = join(dir, 'reports');
   if (!existsSync(root)) throw new Error(`${root}: missing`);
-  const ok = /^reports\/(?:(?:index|[a-z]{2})\.html|sitemap\.xml|[a-z]+\/(?:index|[a-z]{2})\.html|[a-z]+\/0x[0-9a-f]{40}\/(?:(?:index|[a-z]{2})\.html|badge\.svg))$/;
+  const ok = /^reports\/(?:(?:index|[a-z]{2})\.html|sitemap\.xml|feed\.xml|[a-z]+\/(?:index|[a-z]{2})\.html|[a-z]+\/0x[0-9a-f]{40}\/(?:(?:index|[a-z]{2})\.html|badge\.svg))$/;
   let n = 0;
   const walk = (d) => {
     for (const f of readdirSync(d)) {
