@@ -1,6 +1,8 @@
 // Neuro Guard in a real Chromium: the extension loaded unpacked, the sites and Neuro's summary.json served by
 // Playwright routes (no real network). node test/e2e.playwright.mjs  (CHROMIUM_PATH optional)
 import { createRequire } from "node:module";
+// Playwright before 1.57 routes a service worker's own requests only with this flag (the extension's fetches are there)
+process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = "1";
 const req = createRequire(import.meta.url);
 // "playwright" where it is installed; else Neuro's pinned playwright-core (CI: security.yml installs it and Chromium)
 const { chromium } = (() => { try { return req("playwright"); } catch { return req("../../zetaphy-neuro/node_modules/playwright-core"); } })();
