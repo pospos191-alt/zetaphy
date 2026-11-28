@@ -22,10 +22,10 @@ jobs:
     env:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.26.11'
           cache: false
@@ -48,7 +48,7 @@ jobs:
       SRC: ${{ github.workspace }}/../cosmos-evm
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Latest release
@@ -59,7 +59,7 @@ jobs:
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
           echo "Pinned: $pinned · latest release: $latest" >> "$GITHUB_STEP_SUMMARY"
           git clone -q --depth 1 --branch "$latest" https://github.com/cosmos/evm.git "$SRC"
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.SRC }}/go.mod
           cache: false
