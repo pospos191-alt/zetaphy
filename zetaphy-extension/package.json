@@ -1,0 +1,12 @@
+{
+  "name": "neuro-guard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Neuro Guard by ZETAPHY: Neuro's token check on DEX Screener, GeckoTerminal, PancakeSwap, Uniswap and explorers",
+  "license": "BUSL-1.1",
+  "scripts": {
+    "test": "node scripts/check.mjs && node --test test/extension.test.mjs",
+    "test:browser": "node test/e2e.playwright.mjs",
+    "zip": "sh scripts/zip.sh"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "Neuro Guard by ZETAPHY",
+  "short_name": "Neuro Guard",
+  "description": "See what a token's contract allows before you buy: Neuro's check on DEX Screener, PancakeSwap, Uniswap and explorers.",
+  "version": "0.1.0",
+  "homepage_url": "https://neuro.sawasdeecoin.com/web/",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Open Neuro",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "scripts": ["src/detect.js", "src/background.js"]
+  },
+  "permissions": [],
+  "host_permissions": [
+    "https://neuro.sawasdeecoin.com/*",
+    "https://api.dexscreener.com/*",
+    "https://api.geckoterminal.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://dexscreener.com/*",
+        "https://www.geckoterminal.com/*",
+        "https://pancakeswap.finance/*",
+        "https://app.uniswap.org/*",
+        "https://etherscan.io/*",
+        "https://bscscan.com/*",
+        "https://basescan.org/*",
+        "https://arbiscan.io/*"
+      ],
+      "js": ["src/detect.js", "src/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "neuro-guard@sawasdeecoin.com",
+      "strict_min_version": "121.0"
+    }
+  },
+  "minimum_chrome_version": "121"
+}
