@@ -3,7 +3,7 @@
 import { createRequire } from "node:module";
 const req = createRequire(import.meta.url);
 // "playwright" where it is installed; else Neuro's pinned playwright-core (CI: security.yml installs it and Chromium)
-const { chromium } = (() => { try { return req("playwright"); } catch { return req("../zetaphy-neuro/node_modules/playwright-core"); } })();
+const { chromium } = (() => { try { return req("playwright"); } catch { return req("../../zetaphy-neuro/node_modules/playwright-core"); } })();
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
