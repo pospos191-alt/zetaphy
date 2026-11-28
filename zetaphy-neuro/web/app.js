@@ -49,6 +49,8 @@ for (const [code, L] of Object.entries(LANGS)) $('lang').add(new Option(L.NAME, 
 const setPlaceholder = () => { $('address').placeholder = FORMAT[kindOf($('chain').value)].placeholder; };
 $('chain').addEventListener('change', setPlaceholder);
 
+// fixed addresses only (the language picks one, it never becomes part of a URL)
+const REPORTS_HREF = Object.fromEntries(['en', 'th', 'zh', 'es', 'ko', 'ja', 'ru', 'vi', 'id'].map((l) => [l, `https://neuro.sawasdeecoin.com/reports/${l === 'en' ? '' : `${l}.html`}`]));
 const REPORTS_LABEL = { en: 'Latest token checks', th: 'ผลตรวจเหรียญล่าสุด', zh: '最新代币检查', es: 'Últimas revisiones de tokens', ko: '최신 토큰 검사', ja: '最新のトークンチェック', ru: 'Последние проверки токенов', vi: 'Kiểm tra token mới nhất', id: 'Pemeriksaan token terbaru' };
 
 function applyLang() {
@@ -58,7 +60,7 @@ function applyLang() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = ui[el.dataset.i18n];
   // the public token reports (/reports/, scripts/build-reports.js): their own words, kept out of src/ (the skill id)
   const rl = $('reports-link');
-  if (rl) { rl.textContent = REPORTS_LABEL[lang] ?? REPORTS_LABEL.en; rl.href = `https://neuro.sawasdeecoin.com/reports/${lang === 'en' ? '' : `${lang}.html`}`; }
+  if (rl) { rl.textContent = REPORTS_LABEL[lang] ?? REPORTS_LABEL.en; rl.href = REPORTS_HREF[lang] ?? REPORTS_HREF.en; }
   renderCounts();
   renderChainStats(lang);
   $('net-badge')?.replaceChildren(networkBadge(document, { lang, net: NET }));

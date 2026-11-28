@@ -86,7 +86,7 @@ test('reportPage: every language, its own canonical and the 9 alternates, findin
     assert.ok(html.includes('&lt;script&gt;'));
     assert.ok(html.includes(`/web/?chain=bsc&address=${A}`), 'the live check');
     assert.ok(html.includes('/web/legal.html'), 'how to respond or ask for a correction');
-    assert.ok(html.includes('https://app.sawasdeecoin.com/about/'), 'what ZETAPHY is');
+    assert.match(html, /<a href="https:\/\/app\.sawasdeecoin\.com\/about\/[a-z]{0,2}(\.html)?">/, 'what ZETAPHY is');
     assert.ok(/<script type="application\/ld\+json">[^<]*<\/script>/.test(html), 'JSON-LD with no raw "<"');
     assert.ok(!/<script(?! type="application\/ld\+json")/.test(html), 'no executable script (CSP script-src self)');
     assert.ok(!/ style=/.test(html), 'no inline style (CSP style-src self)');
@@ -115,7 +115,7 @@ test('renderAll + checkDir: the files it writes pass; anything else is refused',
     assert.ok(!Object.keys(files).some((p) => p.includes('/nope/')), 'unknown chains dropped');
     for (const [p, c] of Object.entries(files)) { mkdirSync(join(dir, p, '..'), { recursive: true }); writeFileSync(join(dir, p), c); }
     assert.equal(checkDir(dir), Object.keys(files).length);
-    for (const bad of ['reports/evil.js', 'reports/bsc/0xabc/index.html', 'reports/zz/index.html', 'reports/bsc/../x.html'.replace('../', '')]) {
+    for (const bad of ['reports/evil.js', 'reports/bsc/0xabc/index.html', 'reports/zz/index.html', 'reports/bsc/x.html']) {
       const p = join(dir, bad);
       mkdirSync(join(p, '..'), { recursive: true }); writeFileSync(p, 'x');
       assert.throws(() => checkDir(dir), /unexpected file|unknown chain/, bad);
