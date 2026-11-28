@@ -129,7 +129,7 @@ jobs:
       dlmm: ${{ steps.f.outputs.dlmm }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -184,12 +184,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -240,12 +240,12 @@ jobs:
         working-directory: zetaphy-neuro
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -280,12 +280,12 @@ jobs:
         working-directory: zetaphy-verify
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -306,12 +306,12 @@ jobs:
         working-directory: zetaphy-launch
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -336,12 +336,12 @@ jobs:
         working-directory: zetaphy-network
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -377,12 +377,12 @@ jobs:
         working-directory: zetaphy-wallet
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -413,12 +413,12 @@ jobs:
         working-directory: zetaphy-explorer
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -447,12 +447,12 @@ jobs:
         working-directory: zetaphy-dex
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -484,12 +484,12 @@ jobs:
         working-directory: zetaphy-nft
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -519,12 +519,12 @@ jobs:
         working-directory: zetaphy-hub
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -556,12 +556,12 @@ jobs:
         working-directory: zetaphy-snap
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -593,7 +593,7 @@ jobs:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -606,7 +606,7 @@ jobs:
         run: bash audit/tools/cloud-init-published.sh --warn || [ $? = 3 ]
 
       - name: Set up Go (the version setup-node.sh pins)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26.11'
           cache: false
@@ -697,7 +697,7 @@ jobs:
           go test -tags=test ./tests/ibc/...
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -741,12 +741,12 @@ jobs:
       SRC: ${{ github.workspace }}/../cosmos-evm
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Go (the version setup-node.sh pins)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26.11'
           cache: false
@@ -792,13 +792,13 @@ jobs:
       OLD_SRC: ${{ github.workspace }}/../cosmos-evm-old
     steps:
       - name: Checkout (with history, for the pre-upgrade setup-node.sh)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
 
       - name: Set up Go (the version setup-node.sh pins)
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.26.11'
           cache: false
@@ -865,7 +865,7 @@ jobs:
           df -h /
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -882,7 +882,7 @@ jobs:
 
       - name: Cache Solana CLI
         id: solana-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.local/share/solana/install
           key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
@@ -895,7 +895,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
 
       - name: Cache Anchor CLI (avm)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.avm
@@ -917,7 +917,7 @@ jobs:
           anchor --version
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
@@ -1026,7 +1026,7 @@ jobs:
 
       - name: Upload validator / program logs (on failure)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: anchor-logs
           path: |
@@ -1044,7 +1044,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -1069,12 +1069,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Install cargo-audit
-        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2
         with:
           tool: cargo-audit
 
@@ -1095,7 +1095,7 @@ jobs:
     environment: devnet
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -1111,7 +1111,7 @@ jobs:
 
       - name: Cache Solana CLI
         id: solana-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.local/share/solana/install
           key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
@@ -1124,7 +1124,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
 
       - name: Cache Anchor CLI (avm)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.avm

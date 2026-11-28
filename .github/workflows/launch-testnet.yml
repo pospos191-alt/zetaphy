@@ -96,10 +96,10 @@ jobs:
       BRANCH: launch/testnet
       STATE: zetaphy-launch/state/77390.json
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload the state (addresses only)
         if: always() && inputs.dry_run == 'no'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zetaphy-launch-state-77390
           path: |

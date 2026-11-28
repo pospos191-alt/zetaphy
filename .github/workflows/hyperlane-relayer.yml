@@ -62,10 +62,10 @@ jobs:
       RUN_SECONDS: '480'
       SEPOLIA_RPC: https://ethereum-sepolia-rpc.publicnode.com
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
@@ -87,7 +87,7 @@ jobs:
 
       - name: Restore the gate's state
         if: steps.b.outputs.go == 'yes'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/gate
           key: saphan-relay-gate-${{ github.run_id }}
@@ -114,14 +114,14 @@ jobs:
 
       - name: Save the gate's state
         if: always() && steps.b.outputs.go == 'yes'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/gate
           key: saphan-relay-gate-${{ github.run_id }}
 
       - name: Restore the relayer database
         if: steps.b.outputs.go == 'yes' && steps.g.outputs.run == 'yes'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/relayer-db
           key: hyperlane-relayer-db-${{ github.run_id }}
@@ -129,7 +129,7 @@ jobs:
 
       - name: Restore the validator's database and checkpoints
         if: steps.b.outputs.go == 'yes' && steps.g.outputs.validator == 'yes'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ${{ runner.temp }}/validator-db
@@ -234,14 +234,14 @@ jobs:
 
       - name: Save the relayer database
         if: always() && steps.b.outputs.go == 'yes' && steps.g.outputs.run == 'yes'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: ${{ runner.temp }}/relayer-db
           key: hyperlane-relayer-db-${{ github.run_id }}
 
       - name: Save the validator's database and checkpoints
         if: always() && steps.b.outputs.go == 'yes' && steps.g.outputs.validator == 'yes'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ${{ runner.temp }}/validator-db
